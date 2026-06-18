@@ -1,0 +1,130 @@
+import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import type { ReactNode } from "react";
+import * as authApi from "../api/authApi";
+import { setAuthToken } from "../api/httpClient";
+import { authStorageKeys, type AuthUser } from "../types/auth";
+
+type AuthContextValue = {
+  user: AuthUser | null;
+  accessToken: string | null;
+  refreshToken: string | null;
+  isAuthenticated: boolean;
+  isLoading: boolean;
+  login: (username: string, password: string) => Promise<void>;
+  logout: () => Promise<void>;
+};
+
+const AuthContext = createContext<AuthContextValue | null>(null);
+
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const [accessToken, setAccessToken] = useState<string | null>(() =>
+    localStorage.getItem(authStorageKeys.accessToken),
+  );
+  const [refreshToken, setRefreshToken] = useState<string | null>(() =>
+    localStorage.getItem(authStorageKeys.refreshToken),
+  );
+  const [user, setUser] = useState<AuthUser | null>(() => {
+    const raw = localStorage.getItem(authStorageKeys.user);
+    return raw ? normalizeUser(JSON.parse(raw) as AuthUser) : null;
+  });
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    setAuthToken(accessToken);
+
+    async function loadProfile() {
+      if (!accessToken) {
+        setIsLoading(false);
+        return;
+      }
+
+      try {
+        const profile = await authApi.getCurrentUser();
+        const normalizedProfile = normalizeUser(profile);
+        setUser(normalizedProfile);
+        localStorage.setItem(authStorageKeys.user, JSON.stringify(normalizedProfile));
+      } catch {
+        clearSession();
+      } finally {
+        setIsLoading(false);
+      }
+    }
+
+    loadProfile();
+  }, [accessToken]);
+
+  useEffect(() => {
+    function syncRefreshedSession() {
+      setAccessToken(localStorage.getItem(authStorageKeys.accessToken));
+      setRefreshToken(localStorage.getItem(authStorageKeys.refreshToken));
+      const raw = localStorage.getItem(authStorageKeys.user);
+      setUser(raw ? normalizeUser(JSON.parse(raw) as AuthUser) : null);
+    }
+
+    window.addEventListener("hop-auth-refreshed", syncRefreshedSession);
+    return () => window.removeEventListener("hop-auth-refreshed", syncRefreshedSession);
+  }, []);
+
+  async function signIn(username: string, password: string) {
+    const result = await authApi.login(username, password);
+    setAuthToken(result.accessToken);
+    setAccessToken(result.accessToken);
+    setRefreshToken(result.refreshToken);
+    const normalizedUser = normalizeUser(result.user);
+    setUser(normalizedUser);
+    localStorage.setItem(authStorageKeys.accessToken, result.accessToken);
+    localStorage.setItem(authStorageKeys.refreshToken, result.refreshToken);
+    localStorage.setItem(authStorageKeys.user, JSON.stringify(normalizedUser));
+  }
+
+  async function signOut() {
+    try {
+      if (accessToken) {
+        await authApi.logout(refreshToken);
+      }
+    } finally {
+      clearSession();
+    }
+  }
+
+  function clearSession() {
+    setAuthToken(null);
+    setAccessToken(null);
+    setRefreshToken(null);
+    setUser(null);
+    localStorage.removeItem(authStorageKeys.accessToken);
+    localStorage.removeItem(authStorageKeys.refreshToken);
+    localStorage.removeItem(authStorageKeys.user);
+  }
+
+  const value = useMemo<AuthContextValue>(
+    () => ({
+      user,
+      accessToken,
+      refreshToken,
+      isAuthenticated: Boolean(accessToken && user),
+      isLoading,
+      login: signIn,
+      logout: signOut,
+    }),
+    [accessToken, isLoading, refreshToken, user],
+  );
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+}
+
+export function useAuth() {
+  const context = useContext(AuthContext);
+  if (!context) {
+    throw new Error("useAuth must be used inside AuthProvider.");
+  }
+
+  return context;
+}
+
+function normalizeUser(user: AuthUser): AuthUser {
+  return {
+    ...user,
+    permissions: user.permissions ?? [],
+  };
+}

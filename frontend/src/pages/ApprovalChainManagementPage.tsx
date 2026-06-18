@@ -1,0 +1,75 @@
+import AddOutlinedIcon from "@mui/icons-material/AddOutlined";
+import BlockOutlinedIcon from "@mui/icons-material/BlockOutlined";
+import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
+import { Button, Card, CardContent, Chip, IconButton, Stack, Table, TableBody, TableCell, TableHead, TableRow } from "@mui/material";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom";
+import { deactivateApprovalChain, getApprovalChains } from "../api/leaveApi";
+import { PageHeader } from "../components/PageHeader";
+import { PermissionGuard } from "../context/PermissionContext";
+
+export function ApprovalChainManagementPage() {
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const { data = [], isLoading } = useQuery({ queryKey: ["approval-chains"], queryFn: getApprovalChains });
+  const deleteMutation = useMutation({
+    mutationFn: deactivateApprovalChain,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["approval-chains"] }),
+  });
+
+  return (
+    <>
+      <Stack direction={{ xs: "column", sm: "row" }} justifyContent="space-between" spacing={2}>
+        <PageHeader title="สายอนุมัติวันลา" subtitle="กำหนดลำดับผู้อนุมัติตามหน่วยงาน ประเภทการลา และจำนวนวันลา" />
+        <PermissionGuard permission="ApprovalChain.Create">
+          <Button variant="contained" startIcon={<AddOutlinedIcon />} onClick={() => navigate("/admin/approval-chains/create")}>
+            เพิ่มสายอนุมัติ
+          </Button>
+        </PermissionGuard>
+      </Stack>
+      <Card>
+        <CardContent>
+          <Table size="small">
+            <TableHead>
+              <TableRow>
+                <TableCell>ชื่อสายอนุมัติ</TableCell>
+                <TableCell>หน่วยงาน</TableCell>
+                <TableCell>ประเภทการลา</TableCell>
+                <TableCell>จำนวนวันขั้นต่ำ</TableCell>
+                <TableCell>สถานะ</TableCell>
+                <TableCell align="right">จัดการ</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {isLoading ? (
+                <TableRow><TableCell colSpan={6}>กำลังโหลดสายอนุมัติ...</TableCell></TableRow>
+              ) : data.length ? data.map((item) => (
+                <TableRow key={item.id}>
+                  <TableCell>{item.name}</TableCell>
+                  <TableCell>{item.departmentName ?? "ทุกหน่วยงาน"}</TableCell>
+                  <TableCell>{item.leaveTypeName ?? "ทุกประเภท"}</TableCell>
+                  <TableCell>{item.minimumDays}</TableCell>
+                  <TableCell><Chip size="small" label={item.isActive ? "ใช้งาน" : "ปิดใช้งาน"} /></TableCell>
+                  <TableCell align="right">
+                    <PermissionGuard permission="ApprovalChain.Edit">
+                      <IconButton aria-label="แก้ไขสายอนุมัติ" onClick={() => navigate(`/admin/approval-chains/${item.id}/edit`)}>
+                        <EditOutlinedIcon />
+                      </IconButton>
+                    </PermissionGuard>
+                    <PermissionGuard permission="ApprovalChain.Delete">
+                      <IconButton aria-label="ปิดใช้งานสายอนุมัติ" disabled={!item.isActive || deleteMutation.isPending} onClick={() => deleteMutation.mutate(item.id)}>
+                        <BlockOutlinedIcon />
+                      </IconButton>
+                    </PermissionGuard>
+                  </TableCell>
+                </TableRow>
+              )) : (
+                <TableRow><TableCell colSpan={6}>ยังไม่มีสายอนุมัติ</TableCell></TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+    </>
+  );
+}
