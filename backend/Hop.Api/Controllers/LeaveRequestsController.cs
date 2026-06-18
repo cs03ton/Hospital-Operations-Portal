@@ -18,7 +18,10 @@ public class LeaveRequestsController(
     ILeaveValidationService leaveValidationService,
     IApprovalChainService approvalChainService,
     ILeaveAttachmentStorageService attachmentStorage,
-    ILineMessagingService lineMessagingService) : ControllerBase
+    ILineMessagingService lineMessagingService,
+    ILeavePdfService leavePdfService,
+    IFileScanningService fileScanningService,
+    IConfiguration configuration) : ControllerBase
 {
     [HttpGet]
     [RequirePermission("LeaveManagement.View")]
@@ -57,6 +60,40 @@ public class LeaveRequestsController(
         }
 
         return ApiResponse<LeaveRequestResponse>.Ok(ToResponse(leaveRequest));
+    }
+
+    [HttpGet("{id:guid}/pdf")]
+    [RequirePermission("LeaveManagement.View")]
+    public async Task<IActionResult> DownloadLeaveRequestPdf(Guid id)
+    {
+        var leaveRequest = await db.LeaveRequests
+            .AsNoTracking()
+            .Include(item => item.User)
+                .ThenInclude(user => user!.Department)
+            .Include(item => item.LeaveType)
+            .Include(item => item.CurrentApprover)
+            .Include(item => item.Approvals)
+                .ThenInclude(approval => approval.Approver)
+            .FirstOrDefaultAsync(item => item.Id == id);
+
+        if (leaveRequest is null)
+        {
+            return NotFound(ApiResponse<string>.Fail("Leave request not found."));
+        }
+
+        if (!await CanAccessLeaveRequest(leaveRequest))
+        {
+            return Forbid();
+        }
+
+        var hospitalName = configuration["Hospital:Name"]
+            ?? configuration["VITE_HOSPITAL_NAME"]
+            ?? configuration["Vite:HospitalName"]
+            ?? "Hospital";
+        var pdfBytes = leavePdfService.GenerateLeaveRequestPdf(leaveRequest, hospitalName);
+        await auditLogService.WriteAsync(GetCurrentUserId(), "LeaveRequest.PdfGenerated", "LeaveRequest", leaveRequest.Id.ToString(), "Generated leave request PDF.", "Success", HttpContext);
+
+        return File(pdfBytes, "application/pdf", $"leave-request-{leaveRequest.Id}.pdf");
     }
 
     [HttpPost]
@@ -241,9 +278,10 @@ public class LeaveRequestsController(
         leaveRequest.UpdatedAt = DateTime.UtcNow;
         await db.SaveChangesAsync();
         await auditLogService.WriteAsync(GetCurrentUserId(), "LeaveRequest.Cancel", "LeaveRequest", leaveRequest.Id.ToString(), "Cancelled leave request.", "Success", HttpContext);
+        var cancelled = await LoadLeaveRequests().SingleAsync(item => item.Id == id);
+        await NotifyPlaceholder(cancelled, "Cancelled", null);
 
-        var updated = await LoadLeaveRequests().SingleAsync(item => item.Id == id);
-        return ApiResponse<LeaveRequestResponse>.Ok(ToResponse(updated));
+        return ApiResponse<LeaveRequestResponse>.Ok(ToResponse(cancelled));
     }
 
     [HttpPost("{id:guid}/approve")]
@@ -303,6 +341,15 @@ public class LeaveRequestsController(
 
         try
         {
+            var scanResult = await fileScanningService.ScanAsync(file, HttpContext.RequestAborted);
+            if (!scanResult.IsClean)
+            {
+                await auditLogService.WriteAsync(GetCurrentUserId(), "LeaveAttachment.ScanFailed", "LeaveRequest", id.ToString(), scanResult.Message, "Denied", HttpContext);
+                return BadRequest(ApiResponse<LeaveAttachmentResponse>.Fail(scanResult.Message));
+            }
+
+            await auditLogService.WriteAsync(GetCurrentUserId(), "LeaveAttachment.ScanPassed", "LeaveRequest", id.ToString(), $"{scanResult.Provider}: {scanResult.Message}", "Success", HttpContext);
+
             var attachment = await attachmentStorage.SaveAsync(id, GetCurrentUserId()!.Value, file);
             db.LeaveAttachments.Add(attachment);
             await db.SaveChangesAsync();

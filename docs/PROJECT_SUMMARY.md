@@ -81,10 +81,10 @@ This scaffold focuses on structure, configuration, and future-ready foundations.
 ## Current Limitations
 
 - Business workflows are not implemented yet.
-- LINE notification sending is not implemented yet.
+- Background LINE retry worker is not implemented yet; immediate send attempts record failed delivery for later retry handling.
 - Full module-specific business workflows are not implemented yet.
 - Production secrets must be replaced before deployment.
-- Refresh token rotation is implemented, but advanced token reuse detection is not yet implemented.
+- Refresh token rotation and reuse detection are implemented.
 - Dashboard still returns `0` for modules not implemented yet.
 
 ## Phase 2 Leave Workflow Started
@@ -96,7 +96,16 @@ This scaffold focuses on structure, configuration, and future-ready foundations.
 - Session management API and page
 - Refresh token reuse detection
 - Audit log CSV export and retention run endpoint
-- LINE Messaging placeholder service
+- LINE Messaging delivery log foundation
+
+## Phase 2.2 Leave Production Readiness Completed
+
+- Database schema and seed aligned with EF Core model
+- Leave request PDF export endpoint and frontend button
+- Dashboard leave metrics from real leave data
+- LINE Messaging push attempt with delivery logging
+- Backend tests for auth, permission, leave validation, and PDF generation
+- GitHub Actions CI for backend and frontend
 
 ## Main URLs
 

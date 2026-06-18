@@ -32,12 +32,25 @@ services:
       Jwt__Key: ${JWT_SECRET:?JWT_SECRET is required}
       Jwt__Issuer: ${Jwt__Issuer:-Hop.Api}
       Jwt__Audience: ${Jwt__Audience:-Hop.Client}
+      Hospital__Name: ${VITE_HOSPITAL_NAME:-โรงพยาบาลนาหมื่น}
+      Line__Enabled: ${LINE_ENABLED:-false}
       Line__ChannelSecret: ${LINE_CHANNEL_SECRET:-}
       Line__ChannelAccessToken: ${LINE_ACCESS_TOKEN:-}
+      LineRetry__Enabled: ${LINE_RETRY_ENABLED:-false}
+      LineRetry__MaxAttempts: ${LINE_RETRY_MAX_ATTEMPTS:-3}
+      LineRetry__IntervalMinutes: ${LINE_RETRY_INTERVAL_MINUTES:-5}
+      FileScan__Enabled: ${FILE_SCAN_ENABLED:-false}
+      FileScan__Provider: ${FILE_SCAN_PROVIDER:-Placeholder}
+      ApprovalEscalation__Enabled: ${APPROVAL_ESCALATION_ENABLED:-false}
+      ApprovalEscalation__IntervalMinutes: ${APPROVAL_ESCALATION_INTERVAL_MINUTES:-30}
       Storage__RootPath: ${STORAGE_ROOT_PATH:-/app/storage}
       LeaveAttachments__MaxFileSizeMb: ${LEAVE_ATTACHMENT_MAX_FILE_SIZE_MB:-5}
       LeaveAttachments__AllowedExtensions: ${LEAVE_ATTACHMENT_ALLOWED_EXTENSIONS:-.pdf,.jpg,.jpeg,.png}
       RefreshToken__ReuseDetectionEnabled: ${REFRESH_TOKEN_REUSE_DETECTION_ENABLED:-true}
+      LoginRateLimit__Enabled: ${LOGIN_RATE_LIMIT_ENABLED:-true}
+      LoginRateLimit__MaxFailedAttempts: ${LOGIN_RATE_LIMIT_MAX_FAILED_ATTEMPTS:-5}
+      LoginRateLimit__WindowMinutes: ${LOGIN_RATE_LIMIT_WINDOW_MINUTES:-15}
+      LoginRateLimit__LockoutMinutes: ${LOGIN_RATE_LIMIT_LOCKOUT_MINUTES:-15}
       AuditLog__RetentionDays: ${AUDIT_LOG_RETENTION_DAYS:-365}
       Cors__AllowedOrigins__0: http://localhost:5173
       Cors__AllowedOrigins__1: http://127.0.0.1:5173

@@ -131,6 +131,115 @@ namespace Hop.Api.Migrations
                     b.ToTable("approval_chain_steps", (string)null);
                 });
 
+            modelBuilder.Entity("Hop.Api.Models.ApprovalDelegation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("ApproverUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("approver_user_id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("DelegateUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("delegate_user_id");
+
+                    b.Property<DateOnly>("EndDate")
+                        .HasColumnType("date")
+                        .HasColumnName("end_date");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_active");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("reason");
+
+                    b.Property<DateOnly>("StartDate")
+                        .HasColumnType("date")
+                        .HasColumnName("start_date");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DelegateUserId");
+
+                    b.HasIndex("ApproverUserId", "StartDate", "EndDate");
+
+                    b.ToTable("approval_delegations", (string)null);
+                });
+
+            modelBuilder.Entity("Hop.Api.Models.ApprovalEscalationRule", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid?>("DepartmentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("department_id");
+
+                    b.Property<int>("EscalateAfterHours")
+                        .HasColumnType("integer")
+                        .HasColumnName("escalate_after_hours");
+
+                    b.Property<Guid?>("EscalateToRoleId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("escalate_to_role_id");
+
+                    b.Property<Guid?>("EscalateToUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("escalate_to_user_id");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_active");
+
+                    b.Property<Guid?>("LeaveTypeId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("leave_type_id");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("name");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EscalateToRoleId");
+
+                    b.HasIndex("EscalateToUserId");
+
+                    b.HasIndex("LeaveTypeId");
+
+                    b.HasIndex("Name")
+                        .IsUnique();
+
+                    b.HasIndex("DepartmentId", "LeaveTypeId", "IsActive");
+
+                    b.ToTable("approval_escalation_rules", (string)null);
+                });
+
             modelBuilder.Entity("Hop.Api.Models.ApprovalLog", b =>
                 {
                     b.Property<Guid>("Id")
@@ -995,6 +1104,52 @@ namespace Hop.Api.Migrations
                     b.Navigation("ApproverRole");
 
                     b.Navigation("ApproverUser");
+                });
+
+            modelBuilder.Entity("Hop.Api.Models.ApprovalDelegation", b =>
+                {
+                    b.HasOne("Hop.Api.Models.User", "ApproverUser")
+                        .WithMany()
+                        .HasForeignKey("ApproverUserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Hop.Api.Models.User", "DelegateUser")
+                        .WithMany()
+                        .HasForeignKey("DelegateUserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ApproverUser");
+
+                    b.Navigation("DelegateUser");
+                });
+
+            modelBuilder.Entity("Hop.Api.Models.ApprovalEscalationRule", b =>
+                {
+                    b.HasOne("Hop.Api.Models.Department", "Department")
+                        .WithMany()
+                        .HasForeignKey("DepartmentId");
+
+                    b.HasOne("Hop.Api.Models.Role", "EscalateToRole")
+                        .WithMany()
+                        .HasForeignKey("EscalateToRoleId");
+
+                    b.HasOne("Hop.Api.Models.User", "EscalateToUser")
+                        .WithMany()
+                        .HasForeignKey("EscalateToUserId");
+
+                    b.HasOne("Hop.Api.Models.LeaveType", "LeaveType")
+                        .WithMany()
+                        .HasForeignKey("LeaveTypeId");
+
+                    b.Navigation("Department");
+
+                    b.Navigation("EscalateToRole");
+
+                    b.Navigation("EscalateToUser");
+
+                    b.Navigation("LeaveType");
                 });
 
             modelBuilder.Entity("Hop.Api.Models.AuditLog", b =>

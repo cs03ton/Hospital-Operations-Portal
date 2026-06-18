@@ -22,6 +22,7 @@ public static class DevelopmentDataSeeder
         "RoleManagement",
         "LeaveManagement",
         "ApprovalChain",
+        "ApprovalDelegation",
         "LeaveBalance",
         "LeaveHoliday",
         "LeaveAttachment",

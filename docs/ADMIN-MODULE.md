@@ -79,11 +79,15 @@ Current summary values:
 - Total users
 - Total departments
 - Pending approvals
+- Staff on leave today
+- Staff on leave this week
+- Staff on leave this month
+- Current user's remaining leave days
 - Open repair requests
 - Active borrow requests
 - Inventory items
 
-Modules not implemented yet return `0`.
+Modules not implemented yet still return `0`.
 
 ## Audit Logs
 

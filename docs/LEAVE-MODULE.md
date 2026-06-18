@@ -10,6 +10,7 @@ Phase 2 starts the Leave Management API and Thai frontend workflow.
 - `DELETE /api/leave-types/{id}`
 - `GET /api/leave-requests`
 - `GET /api/leave-requests/{id}`
+- `GET /api/leave-requests/{id}/pdf`
 - `POST /api/leave-requests`
 - `PUT /api/leave-requests/{id}`
 - `POST /api/leave-requests/{id}/submit`
@@ -67,6 +68,7 @@ Phase 2 starts the Leave Management API and Thai frontend workflow.
 - `LeaveRequest.Update`
 - `LeaveRequest.Submit`
 - `LeaveRequest.Cancel`
+- `LeaveRequest.PdfGenerated`
 - `LeaveRequest.Approved`
 - `LeaveRequest.Rejected`
 - `LeaveAttachment.Upload`

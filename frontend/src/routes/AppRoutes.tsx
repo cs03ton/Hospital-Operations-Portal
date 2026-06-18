@@ -14,6 +14,7 @@ import { LeaveManagementPage } from "../pages/LeaveManagementPage";
 import { LeaveBalanceAdjustmentPage } from "../pages/LeaveBalanceAdjustmentPage";
 import { LeaveBalancePage } from "../pages/LeaveBalancePage";
 import { LeaveHolidayManagementPage } from "../pages/LeaveHolidayManagementPage";
+import { LeaveCalendarPage } from "../pages/LeaveCalendarPage";
 import { LeaveRequestDetailPage } from "../pages/LeaveRequestDetailPage";
 import { LeaveRequestFormPage } from "../pages/LeaveRequestFormPage";
 import { LeaveTypeManagementPage } from "../pages/LeaveTypeManagementPage";
@@ -22,6 +23,8 @@ import { MaterialRequestPage } from "../pages/MaterialRequestPage";
 import { MeetingRoomBookingPage } from "../pages/MeetingRoomBookingPage";
 import { RepairManagementPage } from "../pages/RepairManagementPage";
 import { ReportsPage } from "../pages/ReportsPage";
+import { LeaveReportsPage } from "../pages/LeaveReportsPage";
+import { ApprovalDelegationPage } from "../pages/ApprovalDelegationPage";
 import { UserManagementPage } from "../pages/UserManagementPage";
 import { UserFormPage } from "../pages/UserFormPage";
 import { RoleManagementPage } from "../pages/RoleManagementPage";
@@ -64,10 +67,12 @@ export function AppRoutes() {
           <Route path="/admin/approval-chains" element={withPermission(<ApprovalChainManagementPage />, "ApprovalChain.View")} />
           <Route path="/admin/approval-chains/create" element={withPermission(<ApprovalChainFormPage />, "ApprovalChain.Create")} />
           <Route path="/admin/approval-chains/:id/edit" element={withPermission(<ApprovalChainFormPage />, "ApprovalChain.Edit")} />
+          <Route path="/admin/approval-delegations" element={withPermission(<ApprovalDelegationPage />, "ApprovalDelegation.View")} />
           <Route path="/admin/leave-balances/adjustments" element={withPermission(<LeaveBalanceAdjustmentPage />, "LeaveBalance.Adjust")} />
           <Route path="/admin/leave-holidays" element={withPermission(<LeaveHolidayManagementPage />, "LeaveHoliday.Manage")} />
           <Route path="/leave" element={withPermission(<LeaveManagementPage />, "LeaveManagement.View")} />
           <Route path="/leave/create" element={withPermission(<LeaveRequestFormPage />, "LeaveManagement.Create")} />
+          <Route path="/leave/calendar" element={withPermission(<LeaveCalendarPage />, "LeaveManagement.View")} />
           <Route path="/leave/types" element={withPermission(<LeaveTypeManagementPage />, "LeaveManagement.Manage")} />
           <Route path="/leave/balances" element={withPermission(<LeaveBalancePage />, "LeaveManagement.View")} />
           <Route path="/leave/:id" element={withPermission(<LeaveRequestDetailPage />, "LeaveManagement.View")} />
@@ -78,6 +83,7 @@ export function AppRoutes() {
           <Route path="/materials" element={withPermission(<MaterialRequestPage />, "InventoryManagement.View")} />
           <Route path="/inventory" element={withPermission(<InventoryPage />, "InventoryManagement.View")} />
           <Route path="/reports" element={withPermission(<ReportsPage />, "ReportManagement.View")} />
+          <Route path="/reports/leaves" element={withPermission(<LeaveReportsPage />, "ReportManagement.View")} />
           <Route path="/administration" element={withPermission(<AdministrationPage />, "SystemSettings.Manage")} />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Route>

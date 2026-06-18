@@ -31,5 +31,9 @@ public record DashboardSummaryResponse(
     int PendingApprovals,
     int OpenRepairRequests,
     int ActiveBorrowRequests,
-    int InventoryItems
+    int InventoryItems,
+    int StaffOnLeaveToday,
+    int StaffOnLeaveThisWeek,
+    int StaffOnLeaveThisMonth,
+    decimal MyRemainingLeaveDays
 );

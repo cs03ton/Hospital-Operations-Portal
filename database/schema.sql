@@ -5,8 +5,8 @@ CREATE TABLE IF NOT EXISTS departments (
     name VARCHAR(255) NOT NULL,
     description TEXT,
     is_active BOOLEAN DEFAULT TRUE,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ
 );
 
 CREATE TABLE IF NOT EXISTS users (
@@ -18,8 +18,8 @@ CREATE TABLE IF NOT EXISTS users (
     department_id UUID REFERENCES departments(id),
     line_user_id VARCHAR(255),
     is_active BOOLEAN DEFAULT TRUE,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ
 );
 
 CREATE TABLE IF NOT EXISTS roles (
@@ -28,8 +28,8 @@ CREATE TABLE IF NOT EXISTS roles (
     description TEXT,
     is_system_role BOOLEAN DEFAULT FALSE,
     is_active BOOLEAN DEFAULT TRUE,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ
 );
 
 CREATE TABLE IF NOT EXISTS permissions (
@@ -39,8 +39,8 @@ CREATE TABLE IF NOT EXISTS permissions (
     group_name VARCHAR(100) NOT NULL,
     action VARCHAR(50) NOT NULL,
     is_active BOOLEAN DEFAULT TRUE,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ
 );
 
 CREATE TABLE IF NOT EXISTS user_roles (
@@ -59,14 +59,14 @@ CREATE TABLE IF NOT EXISTS refresh_tokens (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     token TEXT UNIQUE NOT NULL,
-    expires_at TIMESTAMP NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    revoked_at TIMESTAMP,
+    expires_at TIMESTAMPTZ NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    revoked_at TIMESTAMPTZ,
     revoked_reason TEXT,
     replaced_by_token TEXT,
     created_by_ip TEXT,
     user_agent TEXT,
-    last_used_at TIMESTAMP
+    last_used_at TIMESTAMPTZ
 );
 
 CREATE TABLE IF NOT EXISTS approval_logs (
@@ -76,7 +76,7 @@ CREATE TABLE IF NOT EXISTS approval_logs (
     approver_id UUID REFERENCES users(id),
     action VARCHAR(50) NOT NULL,
     remark TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS notifications (
@@ -86,7 +86,7 @@ CREATE TABLE IF NOT EXISTS notifications (
     title VARCHAR(255) NOT NULL,
     message TEXT NOT NULL,
     is_read BOOLEAN DEFAULT FALSE,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS audit_logs (
@@ -98,7 +98,7 @@ CREATE TABLE IF NOT EXISTS audit_logs (
     detail TEXT,
     ip_address VARCHAR(100),
     result VARCHAR(50) NOT NULL DEFAULT 'Success',
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS leave_types (
@@ -110,8 +110,8 @@ CREATE TABLE IF NOT EXISTS leave_types (
     requires_attachment BOOLEAN NOT NULL DEFAULT FALSE,
     is_paid BOOLEAN NOT NULL DEFAULT TRUE,
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ
 );
 
 CREATE TABLE IF NOT EXISTS leave_balances (
@@ -122,8 +122,8 @@ CREATE TABLE IF NOT EXISTS leave_balances (
     entitled_days NUMERIC(6,2) NOT NULL DEFAULT 0,
     used_days NUMERIC(6,2) NOT NULL DEFAULT 0,
     pending_days NUMERIC(6,2) NOT NULL DEFAULT 0,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ,
     UNIQUE (user_id, leave_type_id, year)
 );
 
@@ -137,9 +137,9 @@ CREATE TABLE IF NOT EXISTS leave_requests (
     reason TEXT NOT NULL,
     status VARCHAR(50) NOT NULL DEFAULT 'Draft',
     current_approver_id UUID REFERENCES users(id),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    submitted_at TIMESTAMP,
-    updated_at TIMESTAMP
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    submitted_at TIMESTAMPTZ,
+    updated_at TIMESTAMPTZ
 );
 
 CREATE TABLE IF NOT EXISTS leave_attachments (
@@ -150,55 +150,113 @@ CREATE TABLE IF NOT EXISTS leave_attachments (
     content_type VARCHAR(100),
     file_size_bytes BIGINT NOT NULL DEFAULT 0,
     uploaded_by_user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS approval_chains (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name VARCHAR(255) UNIQUE NOT NULL,
+    description TEXT,
+    department_id UUID REFERENCES departments(id),
+    leave_type_id UUID REFERENCES leave_types(id),
+    minimum_days NUMERIC(6,2) NOT NULL DEFAULT 0,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ
+);
+
+CREATE TABLE IF NOT EXISTS approval_chain_steps (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    approval_chain_id UUID NOT NULL REFERENCES approval_chains(id) ON DELETE CASCADE,
+    step_order INTEGER NOT NULL,
+    name VARCHAR(255) NOT NULL,
+    approver_role_id UUID REFERENCES roles(id),
+    approver_user_id UUID REFERENCES users(id),
+    required_permission_code VARCHAR(150) NOT NULL DEFAULT 'LeaveManagement.Approve',
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ,
+    UNIQUE (approval_chain_id, step_order)
+);
+
+CREATE TABLE IF NOT EXISTS approval_delegations (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    approver_user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    delegate_user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    start_date DATE NOT NULL,
+    end_date DATE NOT NULL,
+    reason TEXT NOT NULL,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ
+);
+
+CREATE TABLE IF NOT EXISTS approval_escalation_rules (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name VARCHAR(255) UNIQUE NOT NULL,
+    department_id UUID REFERENCES departments(id),
+    leave_type_id UUID REFERENCES leave_types(id),
+    escalate_after_hours INTEGER NOT NULL DEFAULT 24,
+    escalate_to_user_id UUID REFERENCES users(id),
+    escalate_to_role_id UUID REFERENCES roles(id),
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ
 );
 
 CREATE TABLE IF NOT EXISTS leave_approvals (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     leave_request_id UUID NOT NULL REFERENCES leave_requests(id) ON DELETE CASCADE,
     approver_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    approval_chain_id UUID REFERENCES approval_chains(id),
+    approval_chain_step_id UUID REFERENCES approval_chain_steps(id),
     step_order INTEGER NOT NULL,
     status VARCHAR(50) NOT NULL DEFAULT 'Pending',
+    step_name VARCHAR(255),
+    required_permission_code VARCHAR(150) NOT NULL DEFAULT 'LeaveManagement.Approve',
     remark TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    action_at TIMESTAMP
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    action_at TIMESTAMPTZ
 );
 
-ALTER TABLE departments ADD COLUMN IF NOT EXISTS description TEXT;
-ALTER TABLE departments ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;
-ALTER TABLE departments ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP;
+CREATE TABLE IF NOT EXISTS leave_balance_adjustments (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    leave_type_id UUID NOT NULL REFERENCES leave_types(id) ON DELETE CASCADE,
+    year INTEGER NOT NULL,
+    adjustment_days NUMERIC(6,2) NOT NULL,
+    reason TEXT NOT NULL,
+    adjusted_by_user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
 
-ALTER TABLE roles ADD COLUMN IF NOT EXISTS is_system_role BOOLEAN DEFAULT FALSE;
-ALTER TABLE roles ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;
-ALTER TABLE roles ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP;
+CREATE TABLE IF NOT EXISTS leave_holidays (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    holiday_date DATE UNIQUE NOT NULL,
+    name VARCHAR(255) NOT NULL,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ
+);
 
-ALTER TABLE permissions ADD COLUMN IF NOT EXISTS group_name VARCHAR(100);
-ALTER TABLE permissions ADD COLUMN IF NOT EXISTS action VARCHAR(50);
-ALTER TABLE permissions ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;
-ALTER TABLE permissions ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP;
+CREATE TABLE IF NOT EXISTS line_delivery_logs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    leave_request_id UUID REFERENCES leave_requests(id),
+    recipient_user_id UUID REFERENCES users(id),
+    event_name VARCHAR(100) NOT NULL,
+    status VARCHAR(50) NOT NULL DEFAULT 'Queued',
+    payload TEXT NOT NULL,
+    response_detail TEXT,
+    attempt_count INTEGER NOT NULL DEFAULT 0,
+    next_retry_at TIMESTAMPTZ,
+    sent_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ
+);
 
-UPDATE permissions
-SET group_name = split_part(code, '.', 1),
-    action = split_part(code, '.', 2)
-WHERE group_name IS NULL OR action IS NULL;
-
-ALTER TABLE permissions ALTER COLUMN group_name SET NOT NULL;
-ALTER TABLE permissions ALTER COLUMN action SET NOT NULL;
-
-ALTER TABLE users ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP;
-
-ALTER TABLE refresh_tokens ADD COLUMN IF NOT EXISTS revoked_reason TEXT;
-ALTER TABLE refresh_tokens ADD COLUMN IF NOT EXISTS replaced_by_token TEXT;
-ALTER TABLE refresh_tokens ADD COLUMN IF NOT EXISTS created_by_ip TEXT;
-ALTER TABLE refresh_tokens ADD COLUMN IF NOT EXISTS user_agent TEXT;
-ALTER TABLE refresh_tokens ADD COLUMN IF NOT EXISTS last_used_at TIMESTAMP;
-
-ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS ip_address VARCHAR(100);
-ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS result VARCHAR(50) NOT NULL DEFAULT 'Success';
-
-CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_departments_name ON departments(name);
-CREATE UNIQUE INDEX IF NOT EXISTS idx_users_employee_code ON users(employee_code);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_employee_code ON users(employee_code) WHERE employee_code IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
 CREATE INDEX IF NOT EXISTS idx_refresh_tokens_token ON refresh_tokens(token);
 CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user_revoked ON refresh_tokens(user_id, revoked_at);
 CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at ON audit_logs(created_at);
@@ -206,9 +264,24 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_leave_types_code ON leave_types(code);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_leave_balances_user_type_year ON leave_balances(user_id, leave_type_id, year);
 CREATE INDEX IF NOT EXISTS idx_leave_requests_user_status ON leave_requests(user_id, status);
 CREATE INDEX IF NOT EXISTS idx_leave_requests_current_approver ON leave_requests(current_approver_id);
+CREATE INDEX IF NOT EXISTS idx_leave_requests_status_dates ON leave_requests(status, start_date, end_date);
 CREATE INDEX IF NOT EXISTS idx_leave_attachments_request ON leave_attachments(leave_request_id);
+CREATE INDEX IF NOT EXISTS idx_approval_chains_department_type_days ON approval_chains(department_id, leave_type_id, minimum_days);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_approval_chain_steps_chain_order ON approval_chain_steps(approval_chain_id, step_order);
+CREATE INDEX IF NOT EXISTS idx_approval_delegations_approver_dates ON approval_delegations(approver_user_id, start_date, end_date);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_approval_escalation_rules_name ON approval_escalation_rules(name);
+CREATE INDEX IF NOT EXISTS idx_approval_escalation_rules_scope ON approval_escalation_rules(department_id, leave_type_id, is_active);
 CREATE INDEX IF NOT EXISTS idx_leave_approvals_request_step ON leave_approvals(leave_request_id, step_order);
+CREATE INDEX IF NOT EXISTS idx_leave_approvals_approver_status ON leave_approvals(approver_id, status);
+CREATE INDEX IF NOT EXISTS idx_leave_balance_adjustments_user_type_year ON leave_balance_adjustments(user_id, leave_type_id, year);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_leave_holidays_date ON leave_holidays(holiday_date);
+CREATE INDEX IF NOT EXISTS idx_line_delivery_logs_status_retry ON line_delivery_logs(status, next_retry_at);
 
-GRANT USAGE ON SCHEMA public TO hop_user;
-GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO hop_user;
-GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO hop_user;
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'hop_user') THEN
+        GRANT USAGE ON SCHEMA public TO hop_user;
+        GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO hop_user;
+        GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO hop_user;
+    END IF;
+END $$;

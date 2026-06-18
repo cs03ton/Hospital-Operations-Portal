@@ -4,7 +4,7 @@ This runbook fixes PostgreSQL table owner and permission issues that can block E
 
 ## Problem
 
-EF Core migration `20260617010548_Phase21LeaveApprovalAdvanced` needs to alter existing Leave Module tables.
+EF Core migrations through `20260618075042_LeaveOperationsReliability` need to alter existing Leave Module tables.
 
 The application connects as `hop_user`, but some existing Leave Module tables were created with owner `postgres`.
 
@@ -52,7 +52,9 @@ WHERE schemaname = 'public'
     'approval_chain_steps',
     'leave_balance_adjustments',
     'leave_holidays',
-    'line_delivery_logs'
+    'line_delivery_logs',
+    'approval_delegations',
+    'approval_escalation_rules'
   )
 ORDER BY tablename;
 ```
@@ -88,6 +90,8 @@ ALTER TABLE IF EXISTS public.approval_chain_steps OWNER TO hop_user;
 ALTER TABLE IF EXISTS public.leave_balance_adjustments OWNER TO hop_user;
 ALTER TABLE IF EXISTS public.leave_holidays OWNER TO hop_user;
 ALTER TABLE IF EXISTS public.line_delivery_logs OWNER TO hop_user;
+ALTER TABLE IF EXISTS public.approval_delegations OWNER TO hop_user;
+ALTER TABLE IF EXISTS public.approval_escalation_rules OWNER TO hop_user;
 
 GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO hop_user;
 GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO hop_user;
@@ -141,10 +145,10 @@ ORDER BY "MigrationId" DESC;
 Expected latest migration:
 
 ```text
-20260617010548_Phase21LeaveApprovalAdvanced
+20260618075042_LeaveOperationsReliability
 ```
 
-Check Phase 2.1 tables:
+Check Leave reliability tables:
 
 ```sql
 SELECT schemaname, tablename, tableowner
@@ -155,7 +159,9 @@ WHERE schemaname = 'public'
     'approval_chain_steps',
     'leave_balance_adjustments',
     'leave_holidays',
-    'line_delivery_logs'
+    'line_delivery_logs',
+    'approval_delegations',
+    'approval_escalation_rules'
   )
 ORDER BY tablename;
 ```
@@ -183,7 +189,7 @@ If the migration fails before completion, EF Core usually rolls back the failed 
 If the migration succeeds but must be reverted, run:
 
 ```bash
-dotnet tool run dotnet-ef database update 20260616235228_LeaveWorkflowSessionsAuditRetention --project backend\Hop.Api\Hop.Api.csproj --startup-project backend\Hop.Api\Hop.Api.csproj
+dotnet tool run dotnet-ef database update 20260617010548_Phase21LeaveApprovalAdvanced --project backend\Hop.Api\Hop.Api.csproj --startup-project backend\Hop.Api\Hop.Api.csproj
 ```
 
 Before rollback in shared or production environments:

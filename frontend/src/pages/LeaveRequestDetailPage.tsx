@@ -10,6 +10,7 @@ import {
   approveLeaveRequest,
   cancelLeaveRequest,
   downloadLeaveAttachment,
+  downloadLeaveRequestPdf,
   getLeaveApprovals,
   getLeaveAttachments,
   getLeaveRequest,
@@ -71,6 +72,18 @@ export function LeaveRequestDetailPage() {
     window.URL.revokeObjectURL(url);
   }
 
+  async function handleDownloadPdf() {
+    const blob = await downloadLeaveRequestPdf(id!);
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `leave-request-${id}.pdf`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(url);
+  }
+
   if (!request) {
     return <PageHeader title="รายละเอียดคำขอลา" subtitle="กำลังโหลดข้อมูลคำขอลา..." />;
   }
@@ -83,7 +96,14 @@ export function LeaveRequestDetailPage() {
     <>
       <Stack direction={{ xs: "column", sm: "row" }} justifyContent="space-between" spacing={2}>
         <PageHeader title="รายละเอียดคำขอลา" subtitle={`${request.leaveTypeName ?? "-"} · ${statusLabels[request.status] ?? request.status}`} />
-        <Button variant="outlined" onClick={() => navigate("/leave")}>กลับรายการคำขอลา</Button>
+        <Stack direction="row" spacing={1}>
+          <PermissionGuard permission="LeaveManagement.View">
+            <Button variant="contained" startIcon={<DownloadOutlinedIcon />} onClick={handleDownloadPdf}>
+              ดาวน์โหลดใบลา PDF
+            </Button>
+          </PermissionGuard>
+          <Button variant="outlined" onClick={() => navigate("/leave")}>กลับรายการคำขอลา</Button>
+        </Stack>
       </Stack>
 
       <Stack spacing={2}>

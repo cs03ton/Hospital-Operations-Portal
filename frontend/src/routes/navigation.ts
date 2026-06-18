@@ -6,6 +6,7 @@ import BusinessOutlinedIcon from "@mui/icons-material/BusinessOutlined";
 import DashboardOutlinedIcon from "@mui/icons-material/DashboardOutlined";
 import DirectionsCarOutlinedIcon from "@mui/icons-material/DirectionsCarOutlined";
 import EventAvailableOutlinedIcon from "@mui/icons-material/EventAvailableOutlined";
+import CalendarMonthOutlinedIcon from "@mui/icons-material/CalendarMonthOutlined";
 import FactCheckOutlinedIcon from "@mui/icons-material/FactCheckOutlined";
 import GroupOutlinedIcon from "@mui/icons-material/GroupOutlined";
 import HandymanOutlinedIcon from "@mui/icons-material/HandymanOutlined";
@@ -23,9 +24,11 @@ import type { NavigationItem } from "../types/navigation";
 export const navigationItems: NavigationItem[] = [
   { label: "แดชบอร์ด", path: "/dashboard", icon: DashboardOutlinedIcon, permission: "Dashboard.View" },
   { label: "รายการคำขอลา", path: "/leave", icon: EventAvailableOutlinedIcon, permission: "LeaveManagement.View" },
+  { label: "ปฏิทินการลา", path: "/leave/calendar", icon: CalendarMonthOutlinedIcon, permission: "LeaveManagement.View" },
   { label: "วันลาคงเหลือ", path: "/leave/balances", icon: AccountBalanceWalletOutlinedIcon, permission: "LeaveManagement.View" },
   { label: "ประเภทการลา", path: "/leave/types", icon: TuneOutlinedIcon, permission: "LeaveManagement.Manage" },
   { label: "สายอนุมัติวันลา", path: "/admin/approval-chains", icon: AccountTreeOutlinedIcon, permission: "ApprovalChain.View" },
+  { label: "มอบหมายอนุมัติ", path: "/admin/approval-delegations", icon: AccountTreeOutlinedIcon, permission: "ApprovalDelegation.View" },
   { label: "ปรับยอดวันลา", path: "/admin/leave-balances/adjustments", icon: AccountBalanceWalletOutlinedIcon, permission: "LeaveBalance.Adjust" },
   { label: "วันหยุดราชการ", path: "/admin/leave-holidays", icon: EventBusyOutlinedIcon, permission: "LeaveHoliday.Manage" },
   { label: "ระบบยืมอุปกรณ์", path: "/borrowing", icon: AssignmentReturnOutlinedIcon, permission: "BorrowManagement.View" },
@@ -35,6 +38,7 @@ export const navigationItems: NavigationItem[] = [
   { label: "ระบบเบิกวัสดุ", path: "/materials", icon: FactCheckOutlinedIcon, permission: "InventoryManagement.View" },
   { label: "คลังพัสดุ", path: "/inventory", icon: Inventory2OutlinedIcon, permission: "InventoryManagement.View" },
   { label: "รายงาน", path: "/reports", icon: BarChartOutlinedIcon, permission: "ReportManagement.View" },
+  { label: "รายงานการลา", path: "/reports/leaves", icon: BarChartOutlinedIcon, permission: "ReportManagement.View" },
   { label: "จัดการผู้ใช้", path: "/admin/users", icon: GroupOutlinedIcon, permission: "UserManagement.View" },
   { label: "จัดการหน่วยงาน", path: "/admin/departments", icon: BusinessOutlinedIcon, permission: "DepartmentManagement.View" },
   { label: "บทบาทและสิทธิ์", path: "/admin/roles", icon: SecurityOutlinedIcon, permission: "RoleManagement.View" },

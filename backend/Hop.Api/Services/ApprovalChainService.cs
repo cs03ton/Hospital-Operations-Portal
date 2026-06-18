@@ -41,6 +41,8 @@ public sealed class ApprovalChainService(AppDbContext db) : IApprovalChainServic
                 continue;
             }
 
+            approver = await ResolveDelegatedApproverAsync(approver, leaveRequest, step.RequiredPermissionCode);
+
             var hasPermission = await UserHasPermissionAsync(approver.Id, step.RequiredPermissionCode);
             if (!hasPermission)
             {
@@ -117,5 +119,27 @@ public sealed class ApprovalChainService(AppDbContext db) : IApprovalChainServic
             .Where(item => item.UserId == userId && item.Role != null && item.Role.IsActive)
             .SelectMany(item => item.Role!.RolePermissions)
             .AnyAsync(item => item.Permission != null && item.Permission.IsActive && item.Permission.Code == permissionCode);
+    }
+
+    private async Task<User> ResolveDelegatedApproverAsync(User approver, LeaveRequest leaveRequest, string permissionCode)
+    {
+        var date = leaveRequest.StartDate;
+        var delegation = await db.ApprovalDelegations
+            .AsNoTracking()
+            .Include(item => item.DelegateUser)
+            .Where(item => item.IsActive)
+            .Where(item => item.ApproverUserId == approver.Id)
+            .Where(item => item.StartDate <= date && item.EndDate >= date)
+            .OrderByDescending(item => item.CreatedAt)
+            .FirstOrDefaultAsync();
+
+        if (delegation?.DelegateUser is null || !delegation.DelegateUser.IsActive)
+        {
+            return approver;
+        }
+
+        return await UserHasPermissionAsync(delegation.DelegateUserId, permissionCode)
+            ? delegation.DelegateUser
+            : approver;
     }
 }

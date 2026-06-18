@@ -18,4 +18,8 @@
     <PackageReference Include="Swashbuckle.AspNetCore.SwaggerGen" Version="9.0.0" />
     <PackageReference Include="Swashbuckle.AspNetCore.SwaggerUI" Version="9.0.0" />
   </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="assets\logo\hospital-logo.png" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Condition="Exists('assets\logo\hospital-logo.png')" />
+  </ItemGroup>
 </Project>

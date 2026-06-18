@@ -163,6 +163,106 @@ export type SaveLeaveHolidayRequest = {
   isActive: boolean;
 };
 
+export type LeaveCalendarItem = {
+  id: string;
+  userId: string;
+  fullname?: string | null;
+  departmentId?: string | null;
+  departmentName?: string | null;
+  leaveTypeId: string;
+  leaveTypeName?: string | null;
+  startDate: string;
+  endDate: string;
+  totalDays: number;
+  status: string;
+};
+
+export type ApprovalDelegation = {
+  id: string;
+  approverUserId: string;
+  approverName?: string | null;
+  delegateUserId: string;
+  delegateName?: string | null;
+  startDate: string;
+  endDate: string;
+  reason: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt?: string | null;
+};
+
+export type SaveApprovalDelegationRequest = {
+  approverUserId: string;
+  delegateUserId: string;
+  startDate: string;
+  endDate: string;
+  reason: string;
+  isActive: boolean;
+};
+
+export type ApprovalEscalationRule = {
+  id: string;
+  name: string;
+  departmentId?: string | null;
+  departmentName?: string | null;
+  leaveTypeId?: string | null;
+  leaveTypeName?: string | null;
+  escalateAfterHours: number;
+  escalateToUserId?: string | null;
+  escalateToUserName?: string | null;
+  escalateToRoleId?: string | null;
+  escalateToRoleName?: string | null;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt?: string | null;
+};
+
+export type SaveApprovalEscalationRuleRequest = {
+  name: string;
+  departmentId?: string | null;
+  leaveTypeId?: string | null;
+  escalateAfterHours: number;
+  escalateToUserId?: string | null;
+  escalateToRoleId?: string | null;
+  isActive: boolean;
+};
+
+export type LeaveReportItem = {
+  id: string;
+  fullname?: string | null;
+  departmentName?: string | null;
+  leaveTypeName?: string | null;
+  startDate: string;
+  endDate: string;
+  totalDays: number;
+  status: string;
+  currentApproverName?: string | null;
+};
+
+export type LeaveBalanceReportItem = {
+  userId: string;
+  fullname?: string | null;
+  leaveTypeName: string;
+  year: number;
+  entitledDays: number;
+  usedDays: number;
+  pendingDays: number;
+  remainingDays: number;
+};
+
+export type LeaveReport = {
+  leaveRequests: LeaveReportItem[];
+  leaveBalances: LeaveBalanceReportItem[];
+  pendingApprovalCount: number;
+};
+
+export type LeaveReportQuery = {
+  from?: string;
+  to?: string;
+  departmentId?: string;
+  leaveTypeId?: string;
+};
+
 export async function getLeaveTypes() {
   const response = await httpClient.get<ApiResponse<LeaveType[]>>("/api/leave-types");
   return response.data.data;
@@ -249,6 +349,13 @@ export async function downloadLeaveAttachment(id: string) {
   return response.data as Blob;
 }
 
+export async function downloadLeaveRequestPdf(id: string) {
+  const response = await httpClient.get(`/api/leave-requests/${id}/pdf`, {
+    responseType: "blob",
+  });
+  return response.data as Blob;
+}
+
 export async function getLeaveApprovals(id: string) {
   const response = await httpClient.get<ApiResponse<LeaveApproval[]>>(`/api/leave-approvals/request/${id}`);
   return response.data.data;
@@ -329,4 +436,58 @@ export async function updateLeaveHoliday(id: string, payload: SaveLeaveHolidayRe
 
 export async function deactivateLeaveHoliday(id: string) {
   await httpClient.delete(`/api/leave-holidays/${id}`);
+}
+
+export async function getLeaveCalendar(params: { year?: number; month?: number; departmentId?: string; leaveTypeId?: string }) {
+  const response = await httpClient.get<ApiResponse<LeaveCalendarItem[]>>("/api/leave-calendar", { params });
+  return response.data.data;
+}
+
+export async function getApprovalDelegations() {
+  const response = await httpClient.get<ApiResponse<ApprovalDelegation[]>>("/api/approval-delegations");
+  return response.data.data;
+}
+
+export async function createApprovalDelegation(payload: SaveApprovalDelegationRequest) {
+  const response = await httpClient.post<ApiResponse<ApprovalDelegation>>("/api/approval-delegations", payload);
+  return response.data.data;
+}
+
+export async function updateApprovalDelegation(id: string, payload: SaveApprovalDelegationRequest) {
+  const response = await httpClient.put<ApiResponse<ApprovalDelegation>>(`/api/approval-delegations/${id}`, payload);
+  return response.data.data;
+}
+
+export async function deactivateApprovalDelegation(id: string) {
+  await httpClient.delete(`/api/approval-delegations/${id}`);
+}
+
+export async function getApprovalEscalationRules() {
+  const response = await httpClient.get<ApiResponse<ApprovalEscalationRule[]>>("/api/approval-escalation-rules");
+  return response.data.data;
+}
+
+export async function createApprovalEscalationRule(payload: SaveApprovalEscalationRuleRequest) {
+  const response = await httpClient.post<ApiResponse<ApprovalEscalationRule>>("/api/approval-escalation-rules", payload);
+  return response.data.data;
+}
+
+export async function runApprovalEscalation() {
+  const response = await httpClient.post<ApiResponse<number>>("/api/approval-escalation-rules/run");
+  return response.data.data;
+}
+
+export async function getLeaveReport(params: LeaveReportQuery) {
+  const response = await httpClient.get<ApiResponse<LeaveReport>>("/api/reports/leaves", { params });
+  return response.data.data;
+}
+
+export async function downloadLeaveReportExcel(params: LeaveReportQuery) {
+  const response = await httpClient.get("/api/reports/leaves/export-excel", { params, responseType: "blob" });
+  return response.data as Blob;
+}
+
+export async function downloadLeaveReportPdf(params: LeaveReportQuery) {
+  const response = await httpClient.get("/api/reports/leaves/export-pdf", { params, responseType: "blob" });
+  return response.data as Blob;
 }

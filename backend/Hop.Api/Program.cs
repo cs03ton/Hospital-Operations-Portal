@@ -45,11 +45,17 @@ builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
 builder.Services.AddScoped<IAuditLogService, AuditLogService>();
 builder.Services.AddScoped<ILeaveAttachmentStorageService, LeaveAttachmentStorageService>();
+builder.Services.AddScoped<ILeavePdfService, LeavePdfService>();
+builder.Services.AddScoped<IFileScanningService, PlaceholderFileScanningService>();
 builder.Services.AddScoped<ILeaveCalendarService, LeaveCalendarService>();
 builder.Services.AddScoped<ILeaveValidationService, LeaveValidationService>();
 builder.Services.AddScoped<IApprovalChainService, ApprovalChainService>();
+builder.Services.AddScoped<IApprovalEscalationService, ApprovalEscalationService>();
 builder.Services.AddScoped<IAuditRetentionService, AuditRetentionService>();
-builder.Services.AddScoped<ILineMessagingService, LineMessagingService>();
+builder.Services.AddSingleton<ILoginRateLimiter, InMemoryLoginRateLimiter>();
+builder.Services.AddHttpClient<ILineMessagingService, LineMessagingService>();
+builder.Services.AddHostedService<LineRetryWorker>();
+builder.Services.AddHostedService<ApprovalEscalationWorker>();
 builder.Services.AddSingleton<IAuthorizationPolicyProvider, PermissionPolicyProvider>();
 builder.Services.AddScoped<IAuthorizationHandler, PermissionAuthorizationHandler>();
 

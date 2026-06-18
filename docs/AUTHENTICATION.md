@@ -54,6 +54,25 @@ Role: SuperAdmin
 
 This account is for development only. Change or remove it before production deployment.
 
+## Login Rate Limit
+
+The backend includes configurable in-memory login lockout for repeated failed login attempts.
+
+Environment keys:
+
+```text
+LoginRateLimit__Enabled=true
+LoginRateLimit__MaxFailedAttempts=5
+LoginRateLimit__WindowMinutes=15
+LoginRateLimit__LockoutMinutes=15
+```
+
+When the limit is reached, login returns HTTP `429` and records:
+
+```text
+Auth.LoginLocked
+```
+
 ## Protected Route Behavior
 
 Frontend protected routes check the auth context.

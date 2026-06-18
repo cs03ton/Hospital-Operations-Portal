@@ -9,7 +9,7 @@ The project follows the setup standard in `docs/SETUP-PROJECT.md`.
 - Backend: .NET 9 Web API, Entity Framework Core, PostgreSQL, JWT-ready configuration
 - Database: PostgreSQL
 - Deployment: Docker Compose, Nginx reverse proxy
-- Notification readiness: LINE Messaging API settings prepared
+- Notification readiness: LINE Messaging API delivery logging and push sender
 
 ## Project Structure
 
@@ -245,7 +245,16 @@ Implemented:
 - Audit Log CSV export and retention run page
 - Session Management API and page
 - Refresh token reuse detection
-- LINE Messaging placeholder service
+- LINE Messaging delivery logging and push sender
+- Leave PDF export
+- Dashboard leave metrics from real leave tables
+- Backend test project and GitHub Actions CI
+- Leave calendar API and page
+- LINE retry worker
+- File scanning interface for leave attachments
+- Approval delegation and escalation foundation
+- Leave reports with hardened Excel/PDF export
+- Login rate limit and lockout foundation
 
 New frontend routes:
 
@@ -254,6 +263,9 @@ New frontend routes:
 - `/leave/{id}`
 - `/leave/types`
 - `/leave/balances`
+- `/leave/calendar`
+- `/admin/approval-delegations`
+- `/reports/leaves`
 - `/admin/audit-logs/export`
 - `/admin/sessions`
 
@@ -266,6 +278,21 @@ LEAVE_ATTACHMENT_ALLOWED_EXTENSIONS
 REFRESH_TOKEN_REUSE_DETECTION_ENABLED
 AUDIT_LOG_RETENTION_DAYS
 VITE_MAX_UPLOAD_SIZE_MB
+Hospital__Name
+LINE_ENABLED
+LINE_ACCESS_TOKEN
+LINE_CHANNEL_SECRET
+LINE_RETRY_ENABLED
+LINE_RETRY_MAX_ATTEMPTS
+LINE_RETRY_INTERVAL_MINUTES
+FILE_SCAN_ENABLED
+FILE_SCAN_PROVIDER
+APPROVAL_ESCALATION_ENABLED
+APPROVAL_ESCALATION_INTERVAL_MINUTES
+LOGIN_RATE_LIMIT_ENABLED
+LOGIN_RATE_LIMIT_MAX_FAILED_ATTEMPTS
+LOGIN_RATE_LIMIT_WINDOW_MINUTES
+LOGIN_RATE_LIMIT_LOCKOUT_MINUTES
 ```
 
 Run latest migration:
@@ -308,8 +335,51 @@ curl.exe -X POST "http://localhost:5000/api/leave-requests/<id>/attachments" `
 More details:
 
 - `docs/LEAVE-MODULE.md`
+- `docs/LEAVE-PRODUCTION-READINESS.md`
+- `docs/LEAVE-PDF.md`
+- `docs/LINE-MESSAGING.md`
+- `docs/DASHBOARD-METRICS.md`
+- `docs/TESTING.md`
+- `docs/CI-CD.md`
+- `docs/DATABASE-MIGRATION.md`
+- `docs/LEAVE-CALENDAR.md`
+- `docs/LINE-RETRY-WORKER.md`
+- `docs/FILE-SCANNING.md`
+- `docs/APPROVAL-DELEGATION.md`
+- `docs/LEAVE-REPORTS.md`
 - `docs/APPROVAL-WORKFLOW.md`
 - `docs/STORAGE-UPLOAD.md`
 - `docs/SESSION-SECURITY.md`
 - `docs/AUDIT-RETENTION.md`
 - `docs/LINE-INTEGRATION-PLAN.md`
+
+PDF test:
+
+```powershell
+curl.exe -L "http://localhost:5000/api/leave-requests/<leave-request-id>/pdf" `
+  -H "Authorization: Bearer <token>" `
+  -o leave-request.pdf
+```
+
+Build and test:
+
+```powershell
+dotnet build backend/Hop.Api/Hop.Api.csproj
+dotnet test backend/Hop.Api.Tests/Hop.Api.Tests.csproj
+cd frontend
+npm ci
+npm run build
+```
+
+Fresh database smoke test:
+
+```powershell
+$env:POSTGRES_DB='hop_qa'
+$env:POSTGRES_USER='hop_qa'
+$env:POSTGRES_PASSWORD='hop_qa_password'
+$env:POSTGRES_PORT='55432'
+$env:JWT_SECRET='qa-test-secret-key-that-is-long-enough-32'
+docker compose -p hop_qa_stabilization up -d postgres
+docker compose -p hop_qa_stabilization exec postgres psql -U hop_qa -d hop_qa -c "\dt"
+docker compose -p hop_qa_stabilization down -v
+```

@@ -55,6 +55,9 @@ Permission:<PermissionCode>
 - Leave balance adjustment APIs: `LeaveBalance.Adjust`
 - Leave holiday APIs: `LeaveHoliday.Manage`
 - Leave attachment download: `LeaveAttachment.Download`
+- Leave calendar APIs: `LeaveManagement.View`
+- Approval delegation APIs: `ApprovalDelegation.View`, `ApprovalDelegation.Create`, `ApprovalDelegation.Edit`, `ApprovalDelegation.Delete`, `ApprovalDelegation.Manage`
+- Leave report APIs: `ReportManagement.View`, `ReportManagement.Export`
 - Audit export: `SystemSettings.Export`
 - Audit retention and session management: `SystemSettings.Manage`
 

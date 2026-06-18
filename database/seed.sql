@@ -1,6 +1,8 @@
-INSERT INTO departments (name, description)
-VALUES ('Information Technology', 'Default IT department')
-ON CONFLICT DO NOTHING;
+INSERT INTO departments (name, description, is_active)
+VALUES ('Information Technology', 'Default IT department', TRUE)
+ON CONFLICT (name) DO UPDATE
+SET description = EXCLUDED.description,
+    is_active = TRUE;
 
 INSERT INTO roles (name, description, is_system_role, is_active)
 VALUES
@@ -15,17 +17,35 @@ SET description = EXCLUDED.description,
     is_active = TRUE;
 
 WITH permission_seed(group_name, action) AS (
-    VALUES
-        ('Dashboard', 'View'), ('Dashboard', 'Create'), ('Dashboard', 'Edit'), ('Dashboard', 'Delete'), ('Dashboard', 'Approve'), ('Dashboard', 'Export'), ('Dashboard', 'Manage'),
-        ('UserManagement', 'View'), ('UserManagement', 'Create'), ('UserManagement', 'Edit'), ('UserManagement', 'Delete'), ('UserManagement', 'Approve'), ('UserManagement', 'Export'), ('UserManagement', 'Manage'),
-        ('DepartmentManagement', 'View'), ('DepartmentManagement', 'Create'), ('DepartmentManagement', 'Edit'), ('DepartmentManagement', 'Delete'), ('DepartmentManagement', 'Approve'), ('DepartmentManagement', 'Export'), ('DepartmentManagement', 'Manage'),
-        ('RoleManagement', 'View'), ('RoleManagement', 'Create'), ('RoleManagement', 'Edit'), ('RoleManagement', 'Delete'), ('RoleManagement', 'Approve'), ('RoleManagement', 'Export'), ('RoleManagement', 'Manage'),
-        ('LeaveManagement', 'View'), ('LeaveManagement', 'Create'), ('LeaveManagement', 'Edit'), ('LeaveManagement', 'Delete'), ('LeaveManagement', 'Approve'), ('LeaveManagement', 'Export'), ('LeaveManagement', 'Manage'),
-        ('RepairManagement', 'View'), ('RepairManagement', 'Create'), ('RepairManagement', 'Edit'), ('RepairManagement', 'Delete'), ('RepairManagement', 'Approve'), ('RepairManagement', 'Export'), ('RepairManagement', 'Manage'),
-        ('BorrowManagement', 'View'), ('BorrowManagement', 'Create'), ('BorrowManagement', 'Edit'), ('BorrowManagement', 'Delete'), ('BorrowManagement', 'Approve'), ('BorrowManagement', 'Export'), ('BorrowManagement', 'Manage'),
-        ('InventoryManagement', 'View'), ('InventoryManagement', 'Create'), ('InventoryManagement', 'Edit'), ('InventoryManagement', 'Delete'), ('InventoryManagement', 'Approve'), ('InventoryManagement', 'Export'), ('InventoryManagement', 'Manage'),
-        ('ReportManagement', 'View'), ('ReportManagement', 'Create'), ('ReportManagement', 'Edit'), ('ReportManagement', 'Delete'), ('ReportManagement', 'Approve'), ('ReportManagement', 'Export'), ('ReportManagement', 'Manage'),
-        ('SystemSettings', 'View'), ('SystemSettings', 'Create'), ('SystemSettings', 'Edit'), ('SystemSettings', 'Delete'), ('SystemSettings', 'Approve'), ('SystemSettings', 'Export'), ('SystemSettings', 'Manage')
+    SELECT permission_group, permission_action
+    FROM (
+        VALUES
+            ('Dashboard'),
+            ('UserManagement'),
+            ('DepartmentManagement'),
+            ('RoleManagement'),
+            ('LeaveManagement'),
+            ('ApprovalChain'),
+            ('ApprovalDelegation'),
+            ('LeaveBalance'),
+            ('LeaveHoliday'),
+            ('LeaveAttachment'),
+            ('RepairManagement'),
+            ('BorrowManagement'),
+            ('InventoryManagement'),
+            ('ReportManagement'),
+            ('SystemSettings')
+    ) AS permission_groups(permission_group)
+    CROSS JOIN (
+        VALUES
+            ('View'),
+            ('Create'),
+            ('Edit'),
+            ('Delete'),
+            ('Approve'),
+            ('Export'),
+            ('Manage')
+    ) AS permission_actions(permission_action)
 )
 INSERT INTO permissions (code, name, group_name, action, is_active)
 SELECT group_name || '.' || action, group_name || '.' || action, group_name, action, TRUE

@@ -11,21 +11,31 @@ namespace Hop.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-public class AuthController(AppDbContext db, IJwtTokenService jwtTokenService, IAuditLogService auditLogService) : ControllerBase
+public class AuthController(AppDbContext db, IJwtTokenService jwtTokenService, IAuditLogService auditLogService, ILoginRateLimiter loginRateLimiter) : ControllerBase
 {
     [HttpPost("login")]
     [AllowAnonymous]
     public async Task<ActionResult<ApiResponse<LoginResponse>>> Login(LoginRequest request)
     {
         var username = request.Username.Trim();
+        var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString();
+        if (loginRateLimiter.IsLocked(username, ipAddress, DateTime.UtcNow))
+        {
+            await auditLogService.WriteAsync(null, "Auth.LoginLocked", "Auth", null, $"Login temporarily locked for username: {username}", "Denied", HttpContext);
+            return StatusCode(StatusCodes.Status429TooManyRequests, ApiResponse<LoginResponse>.Fail("เข้าสู่ระบบผิดพลาดหลายครั้ง กรุณารอสักครู่แล้วลองใหม่อีกครั้ง"));
+        }
+
         var user = await LoadUserQuery()
             .FirstOrDefaultAsync(item => item.Username == username);
 
         if (user is null || !user.IsActive || !BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
         {
+            loginRateLimiter.RecordFailedAttempt(username, ipAddress, DateTime.UtcNow);
             await auditLogService.WriteAsync(null, "Auth.LoginFailed", "Auth", null, $"Failed login for username: {username}", "Failed", HttpContext);
             return Unauthorized(ApiResponse<LoginResponse>.Fail("Invalid username or password."));
         }
+
+        loginRateLimiter.Reset(username, ipAddress);
 
         var roleName = GetRoleName(user);
         var accessToken = jwtTokenService.GenerateAccessToken(user, roleName);

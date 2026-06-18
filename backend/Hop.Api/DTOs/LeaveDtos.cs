@@ -171,3 +171,96 @@ public record SaveLeaveHolidayRequest(
     string Name,
     bool IsActive
 );
+
+public record LeaveCalendarItemResponse(
+    Guid Id,
+    Guid UserId,
+    string? Fullname,
+    Guid? DepartmentId,
+    string? DepartmentName,
+    Guid LeaveTypeId,
+    string? LeaveTypeName,
+    DateOnly StartDate,
+    DateOnly EndDate,
+    decimal TotalDays,
+    string Status
+);
+
+public record ApprovalDelegationResponse(
+    Guid Id,
+    Guid ApproverUserId,
+    string? ApproverName,
+    Guid DelegateUserId,
+    string? DelegateName,
+    DateOnly StartDate,
+    DateOnly EndDate,
+    string Reason,
+    bool IsActive,
+    DateTime CreatedAt,
+    DateTime? UpdatedAt
+);
+
+public record SaveApprovalDelegationRequest(
+    Guid ApproverUserId,
+    Guid DelegateUserId,
+    DateOnly StartDate,
+    DateOnly EndDate,
+    string Reason,
+    bool IsActive
+);
+
+public record ApprovalEscalationRuleResponse(
+    Guid Id,
+    string Name,
+    Guid? DepartmentId,
+    string? DepartmentName,
+    Guid? LeaveTypeId,
+    string? LeaveTypeName,
+    int EscalateAfterHours,
+    Guid? EscalateToUserId,
+    string? EscalateToUserName,
+    Guid? EscalateToRoleId,
+    string? EscalateToRoleName,
+    bool IsActive,
+    DateTime CreatedAt,
+    DateTime? UpdatedAt
+);
+
+public record SaveApprovalEscalationRuleRequest(
+    string Name,
+    Guid? DepartmentId,
+    Guid? LeaveTypeId,
+    int EscalateAfterHours,
+    Guid? EscalateToUserId,
+    Guid? EscalateToRoleId,
+    bool IsActive
+);
+
+public record LeaveReportItemResponse(
+    Guid Id,
+    string? Fullname,
+    string? DepartmentName,
+    string? LeaveTypeName,
+    DateOnly StartDate,
+    DateOnly EndDate,
+    decimal TotalDays,
+    string Status,
+    string? CurrentApproverName
+);
+
+public record LeaveBalanceReportItemResponse(
+    Guid UserId,
+    string? Fullname,
+    string LeaveTypeName,
+    int Year,
+    decimal EntitledDays,
+    decimal UsedDays,
+    decimal PendingDays,
+    decimal RemainingDays
+);
+
+public record LeaveReportResponse(
+    IReadOnlyList<LeaveReportItemResponse> LeaveRequests,
+    IReadOnlyList<LeaveBalanceReportItemResponse> LeaveBalances,
+    int PendingApprovalCount
+);

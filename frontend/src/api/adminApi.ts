@@ -74,6 +74,10 @@ export type DashboardSummary = {
   openRepairRequests: number;
   activeBorrowRequests: number;
   inventoryItems: number;
+  staffOnLeaveToday: number;
+  staffOnLeaveThisWeek: number;
+  staffOnLeaveThisMonth: number;
+  myRemainingLeaveDays: number;
 };
 
 export type PagedResponse<T> = {

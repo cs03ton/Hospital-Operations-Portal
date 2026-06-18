@@ -65,13 +65,29 @@ Phase 2.1 completed:
 5. Overlap and remaining-balance validation on submit
 6. LINE delivery log foundation for future retry worker
 
+Phase 2.2 completed:
+
+1. Database schema and seed alignment with EF Core model
+2. Leave PDF export endpoint and frontend download action
+3. Dashboard leave metrics from real leave data
+4. LINE Messaging push delivery attempt with delivery log status
+5. Backend test project and GitHub Actions CI foundation
+
 Recommended next focus:
 
 1. Virus scanning for uploaded/downloaded attachments
 2. Background LINE sender worker with retry execution
 3. Approval delegation and escalation
-4. Leave reporting and export
+4. Leave calendar and leave reporting export
 5. More granular session self-service controls
+
+Phase 2.3 completed:
+
+1. Leave calendar API and Thai frontend page
+2. Background LINE retry worker
+3. File scanning interface and placeholder implementation for leave attachments
+4. Approval delegation and escalation foundation
+5. Leave reports with Excel and PDF export
 
 ## Phase 2: Approval and Notification
 

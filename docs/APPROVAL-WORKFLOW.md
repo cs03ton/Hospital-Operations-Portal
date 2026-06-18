@@ -24,7 +24,8 @@ Phase 2.1 adds configurable multi-step approval chains.
 - Approve removes pending days and adds used days.
 - Reject removes pending days.
 
-## Current Limitations
+## Reliability Additions
 
-- Delegation and escalation are not implemented yet.
-- LINE notifications are placeholders only.
+- Approval delegation can replace an approver during approval plan creation when the delegate has the required permission.
+- Approval escalation rules can move overdue pending approval steps to another configured user or role.
+- LINE delivery writes delivery logs and the retry worker can retry `Queued` or `Failed` deliveries when enabled.

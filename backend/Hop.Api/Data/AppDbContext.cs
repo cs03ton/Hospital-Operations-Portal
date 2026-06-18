@@ -22,6 +22,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<LeaveApproval> LeaveApprovals => Set<LeaveApproval>();
     public DbSet<ApprovalChain> ApprovalChains => Set<ApprovalChain>();
     public DbSet<ApprovalChainStep> ApprovalChainSteps => Set<ApprovalChainStep>();
+    public DbSet<ApprovalDelegation> ApprovalDelegations => Set<ApprovalDelegation>();
+    public DbSet<ApprovalEscalationRule> ApprovalEscalationRules => Set<ApprovalEscalationRule>();
     public DbSet<LeaveBalanceAdjustment> LeaveBalanceAdjustments => Set<LeaveBalanceAdjustment>();
     public DbSet<LeaveHoliday> LeaveHolidays => Set<LeaveHoliday>();
     public DbSet<LineDeliveryLog> LineDeliveryLogs => Set<LineDeliveryLog>();
@@ -333,6 +335,56 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             entity.HasOne(item => item.ApproverUser)
                 .WithMany()
                 .HasForeignKey(item => item.ApproverUserId);
+        });
+
+        modelBuilder.Entity<ApprovalDelegation>(entity =>
+        {
+            entity.ToTable("approval_delegations");
+            entity.Property(item => item.Id).HasColumnName("id");
+            entity.Property(item => item.ApproverUserId).HasColumnName("approver_user_id");
+            entity.Property(item => item.DelegateUserId).HasColumnName("delegate_user_id");
+            entity.Property(item => item.StartDate).HasColumnName("start_date");
+            entity.Property(item => item.EndDate).HasColumnName("end_date");
+            entity.Property(item => item.Reason).HasColumnName("reason");
+            entity.Property(item => item.IsActive).HasColumnName("is_active");
+            entity.Property(item => item.CreatedAt).HasColumnName("created_at");
+            entity.Property(item => item.UpdatedAt).HasColumnName("updated_at");
+            entity.HasIndex(item => new { item.ApproverUserId, item.StartDate, item.EndDate });
+            entity.HasOne(item => item.ApproverUser)
+                .WithMany()
+                .HasForeignKey(item => item.ApproverUserId);
+            entity.HasOne(item => item.DelegateUser)
+                .WithMany()
+                .HasForeignKey(item => item.DelegateUserId);
+        });
+
+        modelBuilder.Entity<ApprovalEscalationRule>(entity =>
+        {
+            entity.ToTable("approval_escalation_rules");
+            entity.Property(item => item.Id).HasColumnName("id");
+            entity.Property(item => item.Name).HasColumnName("name");
+            entity.Property(item => item.DepartmentId).HasColumnName("department_id");
+            entity.Property(item => item.LeaveTypeId).HasColumnName("leave_type_id");
+            entity.Property(item => item.EscalateAfterHours).HasColumnName("escalate_after_hours");
+            entity.Property(item => item.EscalateToUserId).HasColumnName("escalate_to_user_id");
+            entity.Property(item => item.EscalateToRoleId).HasColumnName("escalate_to_role_id");
+            entity.Property(item => item.IsActive).HasColumnName("is_active");
+            entity.Property(item => item.CreatedAt).HasColumnName("created_at");
+            entity.Property(item => item.UpdatedAt).HasColumnName("updated_at");
+            entity.HasIndex(item => item.Name).IsUnique();
+            entity.HasIndex(item => new { item.DepartmentId, item.LeaveTypeId, item.IsActive });
+            entity.HasOne(item => item.Department)
+                .WithMany()
+                .HasForeignKey(item => item.DepartmentId);
+            entity.HasOne(item => item.LeaveType)
+                .WithMany()
+                .HasForeignKey(item => item.LeaveTypeId);
+            entity.HasOne(item => item.EscalateToUser)
+                .WithMany()
+                .HasForeignKey(item => item.EscalateToUserId);
+            entity.HasOne(item => item.EscalateToRole)
+                .WithMany()
+                .HasForeignKey(item => item.EscalateToRoleId);
         });
 
         modelBuilder.Entity<LeaveBalanceAdjustment>(entity =>
