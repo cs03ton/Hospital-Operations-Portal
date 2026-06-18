@@ -1,5 +1,7 @@
 using Hop.Api.Models;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Hosting;
 
 namespace Hop.Api.Data;
 
@@ -26,11 +28,15 @@ public static class DevelopmentDataSeeder
         "LeaveBalance",
         "LeaveHoliday",
         "LeaveAttachment",
-        "RepairManagement",
-        "BorrowManagement",
-        "InventoryManagement",
         "ReportManagement",
         "SystemSettings"
+    ];
+
+    private static readonly string[] DisabledPhase1PermissionGroups =
+    [
+        "RepairManagement",
+        "BorrowManagement",
+        "InventoryManagement"
     ];
 
     private static readonly string[] PermissionActions =
@@ -56,10 +62,17 @@ public static class DevelopmentDataSeeder
     {
         using var scope = services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var configuration = scope.ServiceProvider.GetRequiredService<IConfiguration>();
+        var environment = scope.ServiceProvider.GetRequiredService<IHostEnvironment>();
 
         try
         {
-            await db.Database.EnsureCreatedAsync();
+            var pendingMigrations = await db.Database.GetPendingMigrationsAsync();
+            if (pendingMigrations.Any())
+            {
+                throw new InvalidOperationException(
+                    $"Database has pending EF Core migrations: {string.Join(", ", pendingMigrations)}. Run migrations before startup seeding.");
+            }
 
             foreach (var roleSeed in RoleSeeds)
             {
@@ -112,6 +125,15 @@ public static class DevelopmentDataSeeder
                 await db.SaveChangesAsync();
             }
 
+            var disabledPhase1Permissions = await db.Permissions
+                .Where(permission => DisabledPhase1PermissionGroups.Contains(permission.Group))
+                .ToListAsync();
+            if (disabledPhase1Permissions.Count > 0)
+            {
+                db.Permissions.RemoveRange(disabledPhase1Permissions);
+                await db.SaveChangesAsync();
+            }
+
             foreach (var group in PermissionGroups)
             {
                 foreach (var action in PermissionActions)
@@ -135,27 +157,52 @@ public static class DevelopmentDataSeeder
 
             var superAdminRole = await db.Roles.SingleAsync(role => role.Name == "SuperAdmin");
             var adminRole = await db.Roles.SingleAsync(role => role.Name == "Admin");
+            var adminUsername = configuration["Seed:AdminUsername"] ?? configuration["SEED_ADMIN_USERNAME"] ?? "admin";
             var admin = await db.Users
                 .Include(user => user.UserRoles)
-                .FirstOrDefaultAsync(user => user.Username == "admin");
+                .FirstOrDefaultAsync(user => user.Username == adminUsername);
 
-            if (admin is null)
+            var shouldCreateDefaultAdmin = configuration.GetValue<bool?>("Seed:CreateDefaultAdmin")
+                ?? configuration.GetValue<bool?>("SEED_CREATE_DEFAULT_ADMIN")
+                ?? !environment.IsProduction();
+
+            if (admin is null && shouldCreateDefaultAdmin)
             {
+                var adminPassword = configuration["Seed:AdminPassword"] ?? configuration["SEED_ADMIN_PASSWORD"];
+                if (string.IsNullOrWhiteSpace(adminPassword))
+                {
+                    if (environment.IsProduction())
+                    {
+                        throw new InvalidOperationException("Seed:AdminPassword is required when creating a bootstrap admin in production.");
+                    }
+
+                    adminPassword = "Admin@1234";
+                }
+
+                if (environment.IsProduction() && adminPassword == "Admin@1234")
+                {
+                    throw new InvalidOperationException("The development admin password cannot be used in production.");
+                }
+
+                var adminEmployeeCode = configuration["Seed:AdminEmployeeCode"] ?? configuration["SEED_ADMIN_EMPLOYEE_CODE"] ?? "ADMIN";
+                var adminFullName = configuration["Seed:AdminFullName"] ?? configuration["SEED_ADMIN_FULLNAME"] ?? "Default Administrator";
+
                 admin = new User
                 {
-                    EmployeeCode = "ADMIN",
-                    FullName = "Default Administrator",
-                    Username = "admin",
-                    PasswordHash = BCrypt.Net.BCrypt.HashPassword("Admin@1234"),
+                    EmployeeCode = adminEmployeeCode,
+                    FullName = adminFullName,
+                    Username = adminUsername,
+                    PasswordHash = BCrypt.Net.BCrypt.HashPassword(adminPassword),
                     DepartmentId = department.Id,
                     IsActive = true
                 };
 
                 db.Users.Add(admin);
                 await db.SaveChangesAsync();
+                logger.LogInformation("Bootstrap admin user {Username} was created by seed configuration.", adminUsername);
             }
 
-            if (!admin.UserRoles.Any(userRole => userRole.RoleId == superAdminRole.Id))
+            if (admin is not null && !admin.UserRoles.Any(userRole => userRole.RoleId == superAdminRole.Id))
             {
                 db.UserRoles.Add(new UserRole
                 {
@@ -213,6 +260,12 @@ public static class DevelopmentDataSeeder
         }
         catch (Exception ex)
         {
+            if (environment.IsProduction())
+            {
+                logger.LogError(ex, "Database seed failed in production.");
+                throw;
+            }
+
             logger.LogWarning(ex, "Database seed skipped. Start PostgreSQL and run the app again to seed defaults.");
         }
     }

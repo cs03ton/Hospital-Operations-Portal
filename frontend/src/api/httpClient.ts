@@ -3,18 +3,26 @@ import { authStorageKeys } from "../types/auth";
 
 const apiBaseUrl =
   import.meta.env.VITE_API_URL ?? import.meta.env.VITE_API_BASE_URL ?? "http://localhost:5000";
+const tokenStorageMode = (import.meta.env.VITE_AUTH_TOKEN_STORAGE_MODE ?? "localStorage").toLowerCase();
+const cookieTokenMode = tokenStorageMode === "cookie";
+const csrfCookieName = import.meta.env.VITE_AUTH_CSRF_COOKIE_NAME ?? "hop_csrf_token";
+const csrfHeaderName = import.meta.env.VITE_AUTH_CSRF_HEADER_NAME ?? "X-CSRF-TOKEN";
+let memoryAccessToken: string | null = null;
 
 export const httpClient = axios.create({
   baseURL: apiBaseUrl,
   timeout: 15000,
+  withCredentials: cookieTokenMode,
 });
 
 const refreshClient = axios.create({
   baseURL: apiBaseUrl,
   timeout: 15000,
+  withCredentials: cookieTokenMode,
 });
 
 export function setAuthToken(token: string | null) {
+  memoryAccessToken = token;
   if (token) {
     httpClient.defaults.headers.common.Authorization = `Bearer ${token}`;
     return;
@@ -23,10 +31,21 @@ export function setAuthToken(token: string | null) {
   delete httpClient.defaults.headers.common.Authorization;
 }
 
+export function isCookieTokenMode() {
+  return cookieTokenMode;
+}
+
 httpClient.interceptors.request.use((config) => {
-  const token = localStorage.getItem(authStorageKeys.accessToken);
+  const token = memoryAccessToken ?? (cookieTokenMode ? null : localStorage.getItem(authStorageKeys.accessToken));
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
+  }
+
+  if (cookieTokenMode && isUnsafeMethod(config.method)) {
+    const csrfToken = readCookie(csrfCookieName);
+    if (csrfToken) {
+      config.headers[csrfHeaderName] = csrfToken;
+    }
   }
 
   return config;
@@ -41,8 +60,8 @@ httpClient.interceptors.response.use(
       return Promise.reject(error);
     }
 
-    const refreshToken = localStorage.getItem(authStorageKeys.refreshToken);
-    if (!refreshToken) {
+    const refreshToken = cookieTokenMode ? null : localStorage.getItem(authStorageKeys.refreshToken);
+    if (!cookieTokenMode && !refreshToken) {
       clearStoredSession();
       return Promise.reject(error);
     }
@@ -53,11 +72,13 @@ httpClient.interceptors.response.use(
       const response = await refreshClient.post("/api/auth/refresh-token", { refreshToken });
       const data = response.data.data;
 
-      localStorage.setItem(authStorageKeys.accessToken, data.accessToken);
-      localStorage.setItem(authStorageKeys.refreshToken, data.refreshToken);
+      if (!cookieTokenMode) {
+        localStorage.setItem(authStorageKeys.accessToken, data.accessToken);
+        localStorage.setItem(authStorageKeys.refreshToken, data.refreshToken);
+      }
       localStorage.setItem(authStorageKeys.user, JSON.stringify(data.user));
       setAuthToken(data.accessToken);
-      window.dispatchEvent(new Event("hop-auth-refreshed"));
+      window.dispatchEvent(new CustomEvent("hop-auth-refreshed", { detail: data }));
 
       originalRequest.headers.Authorization = `Bearer ${data.accessToken}`;
       return httpClient(originalRequest);
@@ -74,4 +95,16 @@ function clearStoredSession() {
   localStorage.removeItem(authStorageKeys.refreshToken);
   localStorage.removeItem(authStorageKeys.user);
   setAuthToken(null);
+}
+
+function isUnsafeMethod(method?: string) {
+  return ["post", "put", "patch", "delete"].includes((method ?? "get").toLowerCase());
+}
+
+function readCookie(name: string) {
+  return document.cookie
+    .split(";")
+    .map((value) => value.trim())
+    .find((value) => value.startsWith(`${name}=`))
+    ?.slice(name.length + 1);
 }

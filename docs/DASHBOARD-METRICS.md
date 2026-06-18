@@ -15,14 +15,9 @@ GET /api/dashboard/summary
 - `staffOnLeaveThisWeek`
 - `staffOnLeaveThisMonth`
 - `myRemainingLeaveDays`
-- `openRepairRequests`
-- `activeBorrowRequests`
-- `inventoryItems`
 
 ## Data Sources
 
-- `users`
-- `departments`
 - `leave_requests`
 - `leave_balances`
 
@@ -32,3 +27,4 @@ GET /api/dashboard/summary
 - Staff on leave counts distinct users with approved leave overlapping the selected period.
 - Remaining leave days sums current-year leave balances for the current user.
 - Missing data returns `0`.
+- Phase 1 frontend displays only leave-related dashboard cards.

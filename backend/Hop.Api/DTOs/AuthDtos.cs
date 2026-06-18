@@ -2,7 +2,7 @@ namespace Hop.Api.DTOs;
 
 public record LoginRequest(string Username, string Password);
 
-public record RefreshTokenRequest(string RefreshToken);
+public record RefreshTokenRequest(string? RefreshToken);
 
 public record LogoutRequest(string? RefreshToken);
 

@@ -39,6 +39,8 @@ jobs:
         run: dotnet build backend/Hop.Api/Hop.Api.csproj --configuration Release --no-restore
 
       - name: Test backend
+        env:
+          HOP_E2E_CONNECTION_STRING: Host=localhost;Port=5432;Database=hop_ci;Username=hop_ci;Password=hop_ci_password
         run: dotnet test backend/Hop.Api.Tests/Hop.Api.Tests.csproj --configuration Release
 
       - name: Restore EF tools

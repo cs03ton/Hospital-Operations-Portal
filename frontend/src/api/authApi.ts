@@ -15,6 +15,11 @@ export async function getCurrentUser() {
   return response.data.data;
 }
 
+export async function refreshSession(refreshToken?: string | null) {
+  const response = await httpClient.post<ApiResponse<LoginResponse>>("/api/auth/refresh-token", { refreshToken });
+  return response.data.data;
+}
+
 export async function logout(refreshToken: string | null) {
   await httpClient.post("/api/auth/logout", { refreshToken });
 }

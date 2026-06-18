@@ -9,6 +9,7 @@ GitHub Actions workflow:
 ## Jobs
 
 - Backend build and test
+- PostgreSQL-backed E2E API tests
 - PostgreSQL migration smoke test
 - Frontend install and build
 
@@ -17,12 +18,12 @@ GitHub Actions workflow:
 ```text
 dotnet restore backend/Hop.Api/Hop.Api.csproj
 dotnet build backend/Hop.Api/Hop.Api.csproj --configuration Release --no-restore
-dotnet test backend/Hop.Api.Tests/Hop.Api.Tests.csproj --configuration Release
+HOP_E2E_CONNECTION_STRING=Host=localhost;Port=5432;Database=hop_ci;Username=hop_ci;Password=hop_ci_password dotnet test backend/Hop.Api.Tests/Hop.Api.Tests.csproj --configuration Release
 dotnet tool restore
 dotnet tool run dotnet-ef database update --project backend/Hop.Api/Hop.Api.csproj --startup-project backend/Hop.Api/Hop.Api.csproj
 ```
 
-The migration smoke test runs against a temporary PostgreSQL service with CI-only credentials.
+The backend test job starts a temporary PostgreSQL service with CI-only credentials. The E2E fixture resets that database before running API flow tests.
 
 ## Frontend
 

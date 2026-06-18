@@ -38,7 +38,7 @@ PostgreSQL defaults:
 - Password: configured by `POSTGRES_PASSWORD` in `.env`
 - Port: `5432`
 
-The initial database schema is in `database/schema.sql`.
+EF Core migrations are the database source of truth. `database/schema.sql` is kept as a reference/bootstrap artifact, not the production migration path.
 
 Copy environment settings before running services:
 
@@ -53,6 +53,8 @@ Update `.env` values before any non-local deployment.
 ```bash
 cd backend/Hop.Api
 dotnet restore
+dotnet tool restore
+dotnet tool run dotnet-ef database update --project Hop.Api.csproj --startup-project Hop.Api.csproj
 dotnet run
 ```
 
@@ -79,7 +81,12 @@ http://localhost:5173
 
 ## Run With Docker Compose
 
+For a new database, run EF Core migrations before starting the full application stack.
+
 ```bash
+docker compose up -d postgres
+dotnet tool restore
+dotnet tool run dotnet-ef database update --project backend/Hop.Api/Hop.Api.csproj --startup-project backend/Hop.Api/Hop.Api.csproj
 docker compose up --build
 ```
 
@@ -103,6 +110,27 @@ Implemented foundation:
 - Main layout with sidebar, topbar, dashboard, and logout
 - User and department management foundation pages
 
+Phase 1 production deploy opens only:
+
+- Dashboard with leave metrics
+- User Management
+- Department Management
+- Role/Permission Management
+- Audit Log
+- Leave Management
+- Leave report page
+
+Future module menus and routes are hidden for Phase 1:
+
+- Repair Management
+- Asset Borrowing
+- Vehicle Booking
+- Meeting Room Booking
+- Material Request
+- Inventory Management
+- Generic Reports
+- Generic Administration placeholder pages
+
 Development default login:
 
 ```text
@@ -112,22 +140,38 @@ Password: Admin@1234
 
 This account is for local development only. Change or remove it before production.
 
+Production must not use the development admin credentials. Keep these defaults unless explicitly bootstrapping a first production admin with a strong temporary password:
+
+```text
+Database__SeedOnStartup=false
+Seed__CreateDefaultAdmin=false
+```
+
+If a bootstrap admin is required, enable it only after migrations are applied and rotate the password immediately:
+
+```text
+Database__SeedOnStartup=true
+Seed__CreateDefaultAdmin=true
+Seed__AdminUsername=<admin-username>
+Seed__AdminPassword=<strong-temporary-password>
+```
+
 ## Initial Modules
 
-The frontend includes placeholder pages for:
+The codebase may contain placeholder pages for future modules, but Phase 1 production navigation and routes expose only User Management and Leave Management.
 
-- Dashboard
-- Leave Management
+Hidden future modules:
+
 - Asset Borrowing
 - Repair Management
 - Vehicle Booking
 - Meeting Room Booking
 - Material Request
 - Inventory Management
-- Reports
-- Administration
+- Generic Reports
+- Generic Administration
 
-These pages are scaffolds only. Full business logic has not been implemented yet.
+These pages are scaffolds only and must remain hidden until a later approved phase.
 
 ## Phase 1 API Endpoints
 
@@ -253,8 +297,12 @@ Implemented:
 - LINE retry worker
 - File scanning interface for leave attachments
 - Approval delegation and escalation foundation
-- Leave reports with hardened Excel/PDF export
+- Leave reports with native `.xlsx` and PDF export
 - Login rate limit and lockout foundation
+- Optional httpOnly cookie refresh-token mode
+- Double-submit CSRF protection for cookie token mode
+- ClamAV file scanning adapter behind `IFileScanningService`
+- Security monitoring summary API
 
 New frontend routes:
 
@@ -287,12 +335,23 @@ LINE_RETRY_MAX_ATTEMPTS
 LINE_RETRY_INTERVAL_MINUTES
 FILE_SCAN_ENABLED
 FILE_SCAN_PROVIDER
+FILE_SCAN_FAIL_CLOSED
+CLAMAV_HOST
+CLAMAV_PORT
 APPROVAL_ESCALATION_ENABLED
 APPROVAL_ESCALATION_INTERVAL_MINUTES
 LOGIN_RATE_LIMIT_ENABLED
 LOGIN_RATE_LIMIT_MAX_FAILED_ATTEMPTS
 LOGIN_RATE_LIMIT_WINDOW_MINUTES
 LOGIN_RATE_LIMIT_LOCKOUT_MINUTES
+AUTH_TOKEN_STORAGE_MODE
+AUTH_COOKIE_SECURE
+AUTH_COOKIE_SAMESITE
+AUTH_COOKIE_DOMAIN
+AUTH_COOKIE_CSRF_ENABLED
+VITE_AUTH_TOKEN_STORAGE_MODE
+VITE_AUTH_CSRF_COOKIE_NAME
+VITE_AUTH_CSRF_HEADER_NAME
 ```
 
 Run latest migration:
@@ -347,6 +406,11 @@ More details:
 - `docs/FILE-SCANNING.md`
 - `docs/APPROVAL-DELEGATION.md`
 - `docs/LEAVE-REPORTS.md`
+- `docs/E2E-API-TESTING.md`
+- `docs/SECURITY-HARDENING.md`
+- `docs/MONITORING.md`
+- `docs/DEPLOYMENT.md`
+- `docs/PRODUCTION-CHECKLIST.md`
 - `docs/APPROVAL-WORKFLOW.md`
 - `docs/STORAGE-UPLOAD.md`
 - `docs/SESSION-SECURITY.md`
@@ -373,13 +437,14 @@ npm run build
 
 Fresh database smoke test:
 
-```powershell
-$env:POSTGRES_DB='hop_qa'
-$env:POSTGRES_USER='hop_qa'
-$env:POSTGRES_PASSWORD='hop_qa_password'
-$env:POSTGRES_PORT='55432'
-$env:JWT_SECRET='qa-test-secret-key-that-is-long-enough-32'
-docker compose -p hop_qa_stabilization up -d postgres
-docker compose -p hop_qa_stabilization exec postgres psql -U hop_qa -d hop_qa -c "\dt"
-docker compose -p hop_qa_stabilization down -v
+See `docs/TESTING.md` for the disposable Docker PostgreSQL smoke test that runs EF Core migrations, starts the backend, checks `/healthz`, verifies critical tables, and logs in with the default development admin.
+
+Production admin bootstrap:
+
+See `docs/TESTING.md` and `docs/DEPLOYMENT.md`. Production must use:
+
+```text
+Seed__CreateDefaultAdmin=false
 ```
+
+after the real production admin is bootstrapped and verified.

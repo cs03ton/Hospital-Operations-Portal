@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using System.Security.Cryptography;
 using Hop.Api.Data;
 using Hop.Api.DTOs;
 using Hop.Api.Interfaces;
@@ -11,7 +12,7 @@ namespace Hop.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-public class AuthController(AppDbContext db, IJwtTokenService jwtTokenService, IAuditLogService auditLogService, ILoginRateLimiter loginRateLimiter) : ControllerBase
+public class AuthController(AppDbContext db, IJwtTokenService jwtTokenService, IAuditLogService auditLogService, ILoginRateLimiter loginRateLimiter, IConfiguration configuration) : ControllerBase
 {
     [HttpPost("login")]
     [AllowAnonymous]
@@ -52,10 +53,12 @@ public class AuthController(AppDbContext db, IJwtTokenService jwtTokenService, I
 
         await db.SaveChangesAsync();
         await auditLogService.WriteAsync(user.Id, "Auth.LoginSuccess", "Auth", user.Id.ToString(), "User logged in.", "Success", HttpContext);
+        AppendRefreshTokenCookie(refreshTokenValue);
+        AppendCsrfCookie();
 
         return ApiResponse<LoginResponse>.Ok(new LoginResponse(
             accessToken,
-            refreshTokenValue,
+            ShouldUseCookieTokenStorage() ? string.Empty : refreshTokenValue,
             ToAuthUserDto(user, roleName)
         ));
     }
@@ -64,6 +67,12 @@ public class AuthController(AppDbContext db, IJwtTokenService jwtTokenService, I
     [AllowAnonymous]
     public async Task<ActionResult<ApiResponse<LoginResponse>>> RefreshToken(RefreshTokenRequest request)
     {
+        var refreshToken = GetRefreshToken(request.RefreshToken);
+        if (string.IsNullOrWhiteSpace(refreshToken))
+        {
+            return Unauthorized(ApiResponse<LoginResponse>.Fail("Invalid refresh token."));
+        }
+
         var storedToken = await db.RefreshTokens
             .Include(token => token.User)!
                 .ThenInclude(user => user!.Department)
@@ -72,7 +81,7 @@ public class AuthController(AppDbContext db, IJwtTokenService jwtTokenService, I
                 .ThenInclude(userRole => userRole.Role)!
                     .ThenInclude(role => role!.RolePermissions)
                         .ThenInclude(rolePermission => rolePermission.Permission)
-            .FirstOrDefaultAsync(token => token.Token == request.RefreshToken);
+            .FirstOrDefaultAsync(token => token.Token == refreshToken);
 
         if (storedToken is null || !storedToken.IsActive || storedToken.User is null || !storedToken.User.IsActive)
         {
@@ -114,10 +123,12 @@ public class AuthController(AppDbContext db, IJwtTokenService jwtTokenService, I
         });
 
         await db.SaveChangesAsync();
+        AppendRefreshTokenCookie(newRefreshTokenValue);
+        AppendCsrfCookie();
 
         return ApiResponse<LoginResponse>.Ok(new LoginResponse(
             jwtTokenService.GenerateAccessToken(storedToken.User, roleName),
-            newRefreshTokenValue,
+            ShouldUseCookieTokenStorage() ? string.Empty : newRefreshTokenValue,
             ToAuthUserDto(storedToken.User, roleName)
         ));
     }
@@ -126,10 +137,11 @@ public class AuthController(AppDbContext db, IJwtTokenService jwtTokenService, I
     [Authorize]
     public async Task<ActionResult<ApiResponse<string>>> Logout(LogoutRequest request)
     {
-        if (!string.IsNullOrWhiteSpace(request.RefreshToken))
+        var refreshToken = GetRefreshToken(request.RefreshToken);
+        if (!string.IsNullOrWhiteSpace(refreshToken))
         {
             var storedToken = await db.RefreshTokens
-                .FirstOrDefaultAsync(token => token.Token == request.RefreshToken);
+                .FirstOrDefaultAsync(token => token.Token == refreshToken);
 
             if (storedToken is not null && storedToken.RevokedAt is null)
             {
@@ -141,6 +153,8 @@ public class AuthController(AppDbContext db, IJwtTokenService jwtTokenService, I
 
         var userId = GetCurrentUserId();
         await db.SaveChangesAsync();
+        DeleteRefreshTokenCookie();
+        DeleteCsrfCookie();
         await auditLogService.WriteAsync(userId, "Auth.Logout", "Auth", userId?.ToString(), "User logged out.", "Success", HttpContext);
 
         return ApiResponse<string>.Ok("Logged out.");
@@ -205,6 +219,117 @@ public class AuthController(AppDbContext db, IJwtTokenService jwtTokenService, I
     {
         var value = User.FindFirstValue(ClaimTypes.NameIdentifier);
         return Guid.TryParse(value, out var userId) ? userId : null;
+    }
+
+    private string? GetRefreshToken(string? requestRefreshToken)
+    {
+        if (!string.IsNullOrWhiteSpace(requestRefreshToken))
+        {
+            return requestRefreshToken;
+        }
+
+        return Request.Cookies[GetRefreshCookieName()];
+    }
+
+    private void AppendRefreshTokenCookie(string refreshToken)
+    {
+        if (!ShouldUseCookieTokenStorage())
+        {
+            return;
+        }
+
+        Response.Cookies.Append(GetRefreshCookieName(), refreshToken, CreateRefreshCookieOptions(DateTimeOffset.UtcNow.AddDays(7)));
+    }
+
+    private void AppendCsrfCookie()
+    {
+        if (!ShouldUseCookieTokenStorage())
+        {
+            return;
+        }
+
+        Response.Cookies.Append(GetCsrfCookieName(), GenerateCsrfToken(), CreateCsrfCookieOptions(DateTimeOffset.UtcNow.AddDays(7)));
+    }
+
+    private void DeleteRefreshTokenCookie()
+    {
+        if (!ShouldUseCookieTokenStorage())
+        {
+            return;
+        }
+
+        Response.Cookies.Delete(GetRefreshCookieName(), CreateRefreshCookieOptions(DateTimeOffset.UtcNow.AddDays(-1)));
+    }
+
+    private void DeleteCsrfCookie()
+    {
+        if (!ShouldUseCookieTokenStorage())
+        {
+            return;
+        }
+
+        Response.Cookies.Delete(GetCsrfCookieName(), CreateCsrfCookieOptions(DateTimeOffset.UtcNow.AddDays(-1)));
+    }
+
+    private CookieOptions CreateRefreshCookieOptions(DateTimeOffset expires)
+    {
+        var domain = configuration["Auth:Cookie:Domain"] ?? configuration["AUTH_COOKIE_DOMAIN"];
+        var secureDefault = !HttpContext.Request.Host.Host.Contains("localhost", StringComparison.OrdinalIgnoreCase);
+        return new CookieOptions
+        {
+            HttpOnly = true,
+            Secure = configuration.GetValue("Auth:Cookie:Secure", configuration.GetValue("AUTH_COOKIE_SECURE", secureDefault)),
+            SameSite = ParseSameSite(configuration["Auth:Cookie:SameSite"] ?? configuration["AUTH_COOKIE_SAMESITE"]),
+            Expires = expires,
+            Path = "/api/auth",
+            Domain = string.IsNullOrWhiteSpace(domain) ? null : domain
+        };
+    }
+
+    private CookieOptions CreateCsrfCookieOptions(DateTimeOffset expires)
+    {
+        var domain = configuration["Auth:Cookie:Domain"] ?? configuration["AUTH_COOKIE_DOMAIN"];
+        var secureDefault = !HttpContext.Request.Host.Host.Contains("localhost", StringComparison.OrdinalIgnoreCase);
+        return new CookieOptions
+        {
+            HttpOnly = false,
+            Secure = configuration.GetValue("Auth:Cookie:Secure", configuration.GetValue("AUTH_COOKIE_SECURE", secureDefault)),
+            SameSite = ParseSameSite(configuration["Auth:Cookie:SameSite"] ?? configuration["AUTH_COOKIE_SAMESITE"]),
+            Expires = expires,
+            Path = "/",
+            Domain = string.IsNullOrWhiteSpace(domain) ? null : domain
+        };
+    }
+
+    private bool ShouldUseCookieTokenStorage()
+    {
+        var mode = configuration["Auth:TokenStorageMode"] ?? configuration["AUTH_TOKEN_STORAGE_MODE"] ?? "LocalStorage";
+        return string.Equals(mode, "Cookie", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private string GetRefreshCookieName()
+    {
+        return configuration["Auth:Cookie:RefreshTokenName"] ?? "hop_refresh_token";
+    }
+
+    private string GetCsrfCookieName()
+    {
+        return configuration["Auth:Cookie:CsrfTokenName"] ?? configuration["AUTH_COOKIE_CSRF_TOKEN_NAME"] ?? "hop_csrf_token";
+    }
+
+    private static string GenerateCsrfToken()
+    {
+        return Convert.ToHexString(RandomNumberGenerator.GetBytes(32));
+    }
+
+    private static SameSiteMode ParseSameSite(string? value)
+    {
+        return value?.ToLowerInvariant() switch
+        {
+            "strict" => SameSiteMode.Strict,
+            "none" => SameSiteMode.None,
+            _ => SameSiteMode.Lax
+        };
     }
 
 }

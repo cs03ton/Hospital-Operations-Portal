@@ -21,7 +21,8 @@ public class LeaveRequestsController(
     ILineMessagingService lineMessagingService,
     ILeavePdfService leavePdfService,
     IFileScanningService fileScanningService,
-    IConfiguration configuration) : ControllerBase
+    IConfiguration configuration,
+    ILogger<LeaveRequestsController> logger) : ControllerBase
 {
     [HttpGet]
     [RequirePermission("LeaveManagement.View")]
@@ -362,6 +363,8 @@ public class LeaveRequestsController(
         }
         catch (InvalidOperationException ex)
         {
+            logger.LogWarning(ex, "Leave attachment upload failed for leave request {LeaveRequestId}.", id);
+            await auditLogService.WriteAsync(GetCurrentUserId(), "LeaveAttachment.UploadFailed", "LeaveRequest", id.ToString(), ex.Message, "Denied", HttpContext);
             return BadRequest(ApiResponse<LeaveAttachmentResponse>.Fail(ex.Message));
         }
     }

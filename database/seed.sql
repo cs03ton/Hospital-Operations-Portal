@@ -30,9 +30,6 @@ WITH permission_seed(group_name, action) AS (
             ('LeaveBalance'),
             ('LeaveHoliday'),
             ('LeaveAttachment'),
-            ('RepairManagement'),
-            ('BorrowManagement'),
-            ('InventoryManagement'),
             ('ReportManagement'),
             ('SystemSettings')
     ) AS permission_groups(permission_group)
@@ -58,6 +55,9 @@ SET name = EXCLUDED.name,
 
 DELETE FROM permissions
 WHERE code IN ('dashboard.view', 'users.manage', 'departments.manage', 'approvals.manage', 'roles.view');
+
+DELETE FROM permissions
+WHERE group_name IN ('RepairManagement', 'BorrowManagement', 'InventoryManagement');
 
 INSERT INTO users (
     employee_code,

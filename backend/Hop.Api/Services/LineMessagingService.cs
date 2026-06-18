@@ -90,6 +90,7 @@ public sealed class LineMessagingService(
         if (string.IsNullOrWhiteSpace(accessToken))
         {
             MarkFailed(deliveryLog, "LINE access token is not configured.");
+            logger.LogWarning("LINE delivery failed: access token missing for delivery {DeliveryLogId} leave request {LeaveRequestId}.", deliveryLog.Id, deliveryLog.LeaveRequestId);
             return;
         }
 
@@ -102,6 +103,7 @@ public sealed class LineMessagingService(
         if (string.IsNullOrWhiteSpace(recipient))
         {
             MarkFailed(deliveryLog, "Recipient LINE user id is not configured.");
+            logger.LogWarning("LINE delivery failed: recipient LINE user id missing for delivery {DeliveryLogId} recipient user {RecipientUserId}.", deliveryLog.Id, recipientUserId);
             return;
         }
 
@@ -132,6 +134,11 @@ public sealed class LineMessagingService(
 
             deliveryLog.Status = "Failed";
             deliveryLog.NextRetryAt = DateTime.UtcNow.AddMinutes(GetRetryDelayMinutes(deliveryLog.AttemptCount));
+            logger.LogWarning(
+                "LINE delivery failed for delivery {DeliveryLogId} leave request {LeaveRequestId}. StatusCode={StatusCode}",
+                deliveryLog.Id,
+                deliveryLog.LeaveRequestId,
+                (int)response.StatusCode);
         }
         catch (Exception ex)
         {

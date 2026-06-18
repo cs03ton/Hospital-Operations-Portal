@@ -6,8 +6,8 @@ public sealed class PlaceholderFileScanningService(IConfiguration configuration)
 {
     public Task<FileScanResult> ScanAsync(IFormFile file, CancellationToken cancellationToken = default)
     {
-        var enabled = configuration.GetValue("FileScan:Enabled", false);
-        var provider = configuration["FileScan:Provider"] ?? "Placeholder";
+        var enabled = configuration.GetValue("FileScan:Enabled", configuration.GetValue("FILE_SCAN_ENABLED", false));
+        var provider = configuration["FileScan:Provider"] ?? configuration["FILE_SCAN_PROVIDER"] ?? "Placeholder";
         if (!enabled)
         {
             return Task.FromResult(new FileScanResult(true, provider, "File scanning is disabled."));

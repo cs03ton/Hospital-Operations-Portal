@@ -43,7 +43,7 @@ export function LeaveReportsPage() {
               {leaveTypes.map((item) => <MenuItem key={item.id} value={item.id}>{item.name}</MenuItem>)}
             </TextField>
             <PermissionGuard permission="ReportManagement.Export">
-              <Button variant="outlined" startIcon={<DownloadOutlinedIcon />} onClick={() => download(downloadLeaveReportExcel(filters), "leave-report.xls")}>ส่งออก Excel</Button>
+              <Button variant="outlined" startIcon={<DownloadOutlinedIcon />} onClick={() => download(downloadLeaveReportExcel(filters), "leave-report.xlsx")}>ส่งออก Excel</Button>
             </PermissionGuard>
             <PermissionGuard permission="ReportManagement.Export">
               <Button variant="outlined" startIcon={<DownloadOutlinedIcon />} onClick={() => download(downloadLeaveReportPdf(filters), "leave-report.pdf")}>ส่งออก PDF</Button>

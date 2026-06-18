@@ -7,10 +7,10 @@ This runbook describes the standard EF Core migration flow for Hospital Operatio
 Latest migration file:
 
 ```text
-20260617010548_Phase21LeaveApprovalAdvanced
+20260618075042_LeaveOperationsReliability
 ```
 
-The migration adds Phase 2.1 Leave Approval Advanced schema changes.
+The migration includes the current Leave Operations and Reliability schema.
 
 If PostgreSQL reports `must be owner of table leave_approvals`, complete `docs/DATABASE-OWNER-FIX.md` before continuing.
 
@@ -56,6 +56,13 @@ From the project root:
 dotnet tool run dotnet-ef database update --project backend\Hop.Api\Hop.Api.csproj --startup-project backend\Hop.Api\Hop.Api.csproj
 ```
 
+For production, keep startup seeding disabled while running migrations:
+
+```text
+Database__SeedOnStartup=false
+Seed__CreateDefaultAdmin=false
+```
+
 ## Verify After Migration
 
 Check that the latest migration is applied:
@@ -69,10 +76,10 @@ ORDER BY "MigrationId" DESC;
 Expected latest migration:
 
 ```text
-20260617010548_Phase21LeaveApprovalAdvanced
+20260618075042_LeaveOperationsReliability
 ```
 
-Check Phase 2.1 tables:
+Check Phase 1 deployment-critical tables:
 
 ```sql
 SELECT schemaname, tablename, tableowner
@@ -81,12 +88,49 @@ WHERE schemaname = 'public'
   AND tablename IN (
     'approval_chains',
     'approval_chain_steps',
+    'approval_delegations',
+    'approval_escalation_rules',
+    'audit_logs',
+    'departments',
     'leave_balance_adjustments',
+    'leave_balances',
     'leave_holidays',
-    'line_delivery_logs'
+    'leave_requests',
+    'leave_approvals',
+    'leave_attachments',
+    'leave_types',
+    'line_delivery_logs',
+    'permissions',
+    'refresh_tokens',
+    'role_permissions',
+    'roles',
+    'user_roles',
+    'users'
   )
 ORDER BY tablename;
 ```
+
+## Startup Seed / Bootstrap
+
+The application seeder no longer creates database schema. Run EF Core migrations first.
+
+For local development or disposable QA only:
+
+```text
+Database__SeedOnStartup=true
+Seed__CreateDefaultAdmin=true
+Seed__AdminUsername=admin
+Seed__AdminPassword=Admin@1234
+```
+
+For production default:
+
+```text
+Database__SeedOnStartup=false
+Seed__CreateDefaultAdmin=false
+```
+
+If an initial production admin must be bootstrapped, set a strong temporary password and rotate it immediately after first login. Never use `Admin@1234` in production.
 
 Check application health:
 
@@ -135,9 +179,9 @@ If `dotnet build` cannot copy `Hop.Api.dll` or `Hop.Api.exe`, stop the running b
 
 ## Next Phase Preparation
 
-After the owner fix and migration succeed, the recommended next work is:
+After the owner fix and migration succeed, the recommended next Phase 1 work is:
 
-- Real LINE sender worker
-- Virus scanning for attachments
-- Approval delegation and escalation
-- Leave reports and export
+- Run the fresh DB smoke test in `docs/TESTING.md`
+- Verify production admin bootstrap
+- Verify login, user management, permissions, and leave workflow
+- Verify backup and restore

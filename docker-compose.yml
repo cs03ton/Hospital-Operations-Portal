@@ -11,8 +11,6 @@ services:
       - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - hop_postgres_data:/var/lib/postgresql/data
-      - ./database/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
-      - ./database/seed.sql:/docker-entrypoint-initdb.d/02_seed.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-hop_user} -d ${POSTGRES_DB:-hop_db}"]
       interval: 10s
@@ -26,9 +24,15 @@ services:
     container_name: hop-api
     restart: unless-stopped
     environment:
-      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
       ASPNETCORE_URLS: http://+:8080
       ConnectionStrings__DefaultConnection: Host=postgres;Port=5432;Database=${POSTGRES_DB:?POSTGRES_DB is required};Username=${POSTGRES_USER:?POSTGRES_USER is required};Password=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      Database__SeedOnStartup: ${DATABASE_SEED_ON_STARTUP:-false}
+      Seed__CreateDefaultAdmin: ${SEED_CREATE_DEFAULT_ADMIN:-false}
+      Seed__AdminUsername: ${SEED_ADMIN_USERNAME:-}
+      Seed__AdminPassword: ${SEED_ADMIN_PASSWORD:-}
+      Seed__AdminFullName: ${SEED_ADMIN_FULLNAME:-}
+      Seed__AdminEmployeeCode: ${SEED_ADMIN_EMPLOYEE_CODE:-}
       Jwt__Key: ${JWT_SECRET:?JWT_SECRET is required}
       Jwt__Issuer: ${Jwt__Issuer:-Hop.Api}
       Jwt__Audience: ${Jwt__Audience:-Hop.Client}
@@ -41,27 +45,57 @@ services:
       LineRetry__IntervalMinutes: ${LINE_RETRY_INTERVAL_MINUTES:-5}
       FileScan__Enabled: ${FILE_SCAN_ENABLED:-false}
       FileScan__Provider: ${FILE_SCAN_PROVIDER:-Placeholder}
+      FileScan__FailClosed: ${FILE_SCAN_FAIL_CLOSED:-true}
+      ClamAv__Host: ${CLAMAV_HOST:-clamav}
+      ClamAv__Port: ${CLAMAV_PORT:-3310}
+      ClamAv__TimeoutMs: ${CLAMAV_TIMEOUT_MS:-5000}
       ApprovalEscalation__Enabled: ${APPROVAL_ESCALATION_ENABLED:-false}
       ApprovalEscalation__IntervalMinutes: ${APPROVAL_ESCALATION_INTERVAL_MINUTES:-30}
       Storage__RootPath: ${STORAGE_ROOT_PATH:-/app/storage}
       LeaveAttachments__MaxFileSizeMb: ${LEAVE_ATTACHMENT_MAX_FILE_SIZE_MB:-5}
       LeaveAttachments__AllowedExtensions: ${LEAVE_ATTACHMENT_ALLOWED_EXTENSIONS:-.pdf,.jpg,.jpeg,.png}
       RefreshToken__ReuseDetectionEnabled: ${REFRESH_TOKEN_REUSE_DETECTION_ENABLED:-true}
+      Auth__TokenStorageMode: ${AUTH_TOKEN_STORAGE_MODE:-LocalStorage}
+      Auth__Cookie__Secure: ${AUTH_COOKIE_SECURE:-false}
+      Auth__Cookie__SameSite: ${AUTH_COOKIE_SAMESITE:-Lax}
+      Auth__Cookie__Domain: ${AUTH_COOKIE_DOMAIN:-}
+      Auth__Cookie__RefreshTokenName: ${AUTH_COOKIE_REFRESH_TOKEN_NAME:-hop_refresh_token}
+      Auth__Cookie__CsrfEnabled: ${AUTH_COOKIE_CSRF_ENABLED:-true}
+      Auth__Cookie__CsrfTokenName: ${AUTH_COOKIE_CSRF_TOKEN_NAME:-hop_csrf_token}
+      Auth__Cookie__CsrfHeaderName: ${AUTH_COOKIE_CSRF_HEADER_NAME:-X-CSRF-TOKEN}
       LoginRateLimit__Enabled: ${LOGIN_RATE_LIMIT_ENABLED:-true}
       LoginRateLimit__MaxFailedAttempts: ${LOGIN_RATE_LIMIT_MAX_FAILED_ATTEMPTS:-5}
       LoginRateLimit__WindowMinutes: ${LOGIN_RATE_LIMIT_WINDOW_MINUTES:-15}
       LoginRateLimit__LockoutMinutes: ${LOGIN_RATE_LIMIT_LOCKOUT_MINUTES:-15}
       AuditLog__RetentionDays: ${AUDIT_LOG_RETENTION_DAYS:-365}
+      Cors__AllowCredentials: ${CORS_ALLOW_CREDENTIALS:-false}
       Cors__AllowedOrigins__0: http://localhost:5173
       Cors__AllowedOrigins__1: http://127.0.0.1:5173
       Cors__AllowedOrigins__2: http://localhost:8080
     depends_on:
       postgres:
         condition: service_healthy
+      clamav:
+        condition: service_healthy
     ports:
       - "${API_PORT:-5000}:8080"
     volumes:
       - hop_storage:/app/storage
+
+  clamav:
+    image: clamav/clamav:1.4
+    container_name: hop-clamav
+    restart: unless-stopped
+    ports:
+      - "${CLAMAV_PORT:-3310}:3310"
+    healthcheck:
+      test: ["CMD-SHELL", "clamdscan --version >/dev/null 2>&1 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    volumes:
+      - hop_clamav_data:/var/lib/clamav
 
   frontend:
     build:
@@ -71,6 +105,9 @@ services:
         VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:5000}
         VITE_APP_NAME: ${VITE_APP_NAME:-Hospital Operations Portal}
         VITE_HOSPITAL_NAME: ${VITE_HOSPITAL_NAME:-โรงพยาบาลนาหมื่น}
+        VITE_AUTH_TOKEN_STORAGE_MODE: ${VITE_AUTH_TOKEN_STORAGE_MODE:-localStorage}
+        VITE_AUTH_CSRF_COOKIE_NAME: ${VITE_AUTH_CSRF_COOKIE_NAME:-hop_csrf_token}
+        VITE_AUTH_CSRF_HEADER_NAME: ${VITE_AUTH_CSRF_HEADER_NAME:-X-CSRF-TOKEN}
     container_name: hop-frontend
     restart: unless-stopped
     environment:
@@ -79,6 +116,9 @@ services:
       VITE_MAX_UPLOAD_SIZE_MB: ${VITE_MAX_UPLOAD_SIZE_MB:-5}
       VITE_APP_NAME: ${VITE_APP_NAME:-Hospital Operations Portal}
       VITE_HOSPITAL_NAME: ${VITE_HOSPITAL_NAME:-โรงพยาบาลนาหมื่น}
+      VITE_AUTH_TOKEN_STORAGE_MODE: ${VITE_AUTH_TOKEN_STORAGE_MODE:-localStorage}
+      VITE_AUTH_CSRF_COOKIE_NAME: ${VITE_AUTH_CSRF_COOKIE_NAME:-hop_csrf_token}
+      VITE_AUTH_CSRF_HEADER_NAME: ${VITE_AUTH_CSRF_HEADER_NAME:-X-CSRF-TOKEN}
     ports:
       - "${FRONTEND_PORT:-5173}:80"
     depends_on:
@@ -99,3 +139,4 @@ services:
 volumes:
   hop_postgres_data:
   hop_storage:
+  hop_clamav_data:

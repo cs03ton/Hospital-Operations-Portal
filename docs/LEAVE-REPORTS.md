@@ -27,9 +27,13 @@ GET /api/reports/leaves/export-pdf
 - Leave balances
 - Pending approval count
 
-## Export Hardening
+## Excel Export
 
-- Excel export returns HTML-compatible `.xls` and encodes all user-controlled text.
+- Excel export returns a native `.xlsx` workbook.
+- Content type: `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`.
+- Filename: `leave-report.xlsx`.
+- Headers are Thai.
+- Column widths are configured in the workbook.
 - Values starting with `=`, `+`, `-`, or `@` are prefixed before export to reduce spreadsheet formula injection risk.
 - PDF export paginates leave request rows instead of truncating the report.
 

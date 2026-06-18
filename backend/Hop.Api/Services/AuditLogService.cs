@@ -4,7 +4,7 @@ using Hop.Api.Models;
 
 namespace Hop.Api.Services;
 
-public sealed class AuditLogService(AppDbContext db, IHttpContextAccessor httpContextAccessor) : IAuditLogService
+public sealed class AuditLogService(AppDbContext db, IHttpContextAccessor httpContextAccessor, ILogger<AuditLogService> logger) : IAuditLogService
 {
     public async Task WriteAsync(
         Guid? userId,
@@ -29,5 +29,13 @@ public sealed class AuditLogService(AppDbContext db, IHttpContextAccessor httpCo
         });
 
         await db.SaveChangesAsync();
+        logger.LogInformation(
+            "Audit event recorded: {Action} {Resource} {ResourceId} {Result} UserId={UserId} IpAddress={IpAddress}",
+            action,
+            resource,
+            resourceId,
+            result,
+            userId,
+            context?.Connection.RemoteIpAddress?.ToString());
     }
 }

@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import * as authApi from "../api/authApi";
-import { setAuthToken } from "../api/httpClient";
+import { isCookieTokenMode, setAuthToken } from "../api/httpClient";
 import { authStorageKeys, type AuthUser } from "../types/auth";
 
 type AuthContextValue = {
@@ -18,10 +18,10 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [accessToken, setAccessToken] = useState<string | null>(() =>
-    localStorage.getItem(authStorageKeys.accessToken),
+    isCookieTokenMode() ? null : localStorage.getItem(authStorageKeys.accessToken),
   );
   const [refreshToken, setRefreshToken] = useState<string | null>(() =>
-    localStorage.getItem(authStorageKeys.refreshToken),
+    isCookieTokenMode() ? null : localStorage.getItem(authStorageKeys.refreshToken),
   );
   const [user, setUser] = useState<AuthUser | null>(() => {
     const raw = localStorage.getItem(authStorageKeys.user);
@@ -34,6 +34,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     async function loadProfile() {
       if (!accessToken) {
+        if (isCookieTokenMode()) {
+          try {
+            const refreshed = await authApi.refreshSession(null);
+            setAuthToken(refreshed.accessToken);
+            setAccessToken(refreshed.accessToken);
+            setRefreshToken(null);
+            const normalizedUser = normalizeUser(refreshed.user);
+            setUser(normalizedUser);
+            localStorage.setItem(authStorageKeys.user, JSON.stringify(normalizedUser));
+          } catch {
+            clearSession();
+          } finally {
+            setIsLoading(false);
+          }
+          return;
+        }
+
         setIsLoading(false);
         return;
       }
@@ -54,11 +71,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [accessToken]);
 
   useEffect(() => {
-    function syncRefreshedSession() {
-      setAccessToken(localStorage.getItem(authStorageKeys.accessToken));
-      setRefreshToken(localStorage.getItem(authStorageKeys.refreshToken));
+    function syncRefreshedSession(event: Event) {
+      const detail = (event as CustomEvent<Awaited<ReturnType<typeof authApi.refreshSession>>>).detail;
+      setAccessToken(detail?.accessToken ?? (isCookieTokenMode() ? null : localStorage.getItem(authStorageKeys.accessToken)));
+      setRefreshToken(isCookieTokenMode() ? null : detail?.refreshToken ?? localStorage.getItem(authStorageKeys.refreshToken));
       const raw = localStorage.getItem(authStorageKeys.user);
-      setUser(raw ? normalizeUser(JSON.parse(raw) as AuthUser) : null);
+      setUser(detail?.user ? normalizeUser(detail.user) : raw ? normalizeUser(JSON.parse(raw) as AuthUser) : null);
     }
 
     window.addEventListener("hop-auth-refreshed", syncRefreshedSession);
@@ -69,11 +87,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const result = await authApi.login(username, password);
     setAuthToken(result.accessToken);
     setAccessToken(result.accessToken);
-    setRefreshToken(result.refreshToken);
+    setRefreshToken(isCookieTokenMode() ? null : result.refreshToken);
     const normalizedUser = normalizeUser(result.user);
     setUser(normalizedUser);
-    localStorage.setItem(authStorageKeys.accessToken, result.accessToken);
-    localStorage.setItem(authStorageKeys.refreshToken, result.refreshToken);
+    if (!isCookieTokenMode()) {
+      localStorage.setItem(authStorageKeys.accessToken, result.accessToken);
+      localStorage.setItem(authStorageKeys.refreshToken, result.refreshToken);
+    }
     localStorage.setItem(authStorageKeys.user, JSON.stringify(normalizedUser));
   }
 

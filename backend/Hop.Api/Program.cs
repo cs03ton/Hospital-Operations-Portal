@@ -17,6 +17,7 @@ var builder = WebApplication.CreateBuilder(args);
 
 var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
     ?? ["http://localhost:5173"];
+var allowCredentials = builder.Configuration.GetValue("Cors:AllowCredentials", builder.Configuration.GetValue("CORS_ALLOW_CREDENTIALS", false));
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
@@ -29,6 +30,10 @@ builder.Services.AddCors(options =>
         policy.WithOrigins(allowedOrigins)
             .AllowAnyHeader()
             .AllowAnyMethod();
+        if (allowCredentials)
+        {
+            policy.AllowCredentials();
+        }
     });
 });
 
@@ -46,7 +51,14 @@ builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
 builder.Services.AddScoped<IAuditLogService, AuditLogService>();
 builder.Services.AddScoped<ILeaveAttachmentStorageService, LeaveAttachmentStorageService>();
 builder.Services.AddScoped<ILeavePdfService, LeavePdfService>();
-builder.Services.AddScoped<IFileScanningService, PlaceholderFileScanningService>();
+builder.Services.AddScoped<IFileScanningService>(provider =>
+{
+    var configuration = provider.GetRequiredService<IConfiguration>();
+    var scannerProvider = configuration["FileScan:Provider"] ?? configuration["FILE_SCAN_PROVIDER"] ?? "Placeholder";
+    return string.Equals(scannerProvider, "ClamAV", StringComparison.OrdinalIgnoreCase)
+        ? ActivatorUtilities.CreateInstance<ClamAvFileScanningService>(provider)
+        : ActivatorUtilities.CreateInstance<PlaceholderFileScanningService>(provider);
+});
 builder.Services.AddScoped<ILeaveCalendarService, LeaveCalendarService>();
 builder.Services.AddScoped<ILeaveValidationService, LeaveValidationService>();
 builder.Services.AddScoped<IApprovalChainService, ApprovalChainService>();
@@ -88,7 +100,17 @@ builder.Services.AddHealthChecks();
 
 var app = builder.Build();
 
-await DevelopmentDataSeeder.SeedAsync(app.Services, app.Logger);
+var seedOnStartup = app.Configuration.GetValue<bool?>("Database:SeedOnStartup")
+    ?? app.Configuration.GetValue<bool?>("DATABASE_SEED_ON_STARTUP")
+    ?? (app.Environment.IsDevelopment() || app.Environment.IsEnvironment("CI"));
+if (seedOnStartup)
+{
+    await DevelopmentDataSeeder.SeedAsync(app.Services, app.Logger);
+}
+else
+{
+    app.Logger.LogInformation("Database startup seeding is disabled. Run EF Core migrations and bootstrap production data explicitly.");
+}
 
 if (app.Environment.IsDevelopment())
 {
@@ -98,6 +120,7 @@ if (app.Environment.IsDevelopment())
 
 app.UseCors("Frontend");
 app.UseAuthentication();
+app.UseMiddleware<CsrfProtectionMiddleware>();
 app.UseMiddleware<PermissionDeniedAuditMiddleware>();
 app.UseAuthorization();
 
@@ -106,3 +129,5 @@ app.MapHealthChecks("/healthz");
 app.MapGet("/api", () => ApiResponse<string>.Ok("Hospital Operations Portal API is running."));
 
 app.Run();
+
+public partial class Program;

@@ -1,5 +1,3 @@
-using System.Text;
-using System.Net;
 using Hop.Api.Authorization;
 using Hop.Api.Data;
 using Hop.Api.DTOs;
@@ -32,9 +30,9 @@ public class LeaveReportsController(AppDbContext db, IAuditLogService auditLogSe
     public async Task<IActionResult> ExportExcel([FromQuery] DateOnly? from, [FromQuery] DateOnly? to, [FromQuery] Guid? departmentId, [FromQuery] Guid? leaveTypeId)
     {
         var report = await BuildReport(from, to, departmentId, leaveTypeId);
-        var bytes = Encoding.UTF8.GetBytes(BuildExcelHtml(report));
+        var bytes = BuildExcelWorkbook(report);
         await auditLogService.WriteAsync(GetCurrentUserId(), "LeaveReport.ExportExcel", "LeaveReport", null, "Exported leave report Excel.", "Success", HttpContext);
-        return File(bytes, "application/vnd.ms-excel; charset=utf-8", "leave-report.xls");
+        return File(bytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "leave-report.xlsx");
     }
 
     [HttpGet("export-pdf")]
@@ -114,23 +112,44 @@ public class LeaveReportsController(AppDbContext db, IAuditLogService auditLogSe
         return new LeaveReportResponse(leaves, balances, leaves.Count(item => item.Status == "Pending"));
     }
 
-    internal static string BuildExcelHtml(LeaveReportResponse report)
+    internal static byte[] BuildExcelWorkbook(LeaveReportResponse report)
     {
-        var builder = new StringBuilder();
-        builder.AppendLine("<html><head><meta charset=\"utf-8\"></head><body>");
-        builder.AppendLine("<h1>รายงานการลา</h1>");
-        builder.AppendLine("<table border=\"1\"><tr><th>ชื่อ</th><th>หน่วยงาน</th><th>ประเภทลา</th><th>วันที่เริ่ม</th><th>วันที่สิ้นสุด</th><th>จำนวนวัน</th><th>สถานะ</th></tr>");
+        var rows = new List<IReadOnlyList<string>>
+        {
+            new[] { "รายงานการลา" },
+            new[] { "ชื่อ", "หน่วยงาน", "ประเภทลา", "วันที่เริ่ม", "วันที่สิ้นสุด", "จำนวนวัน", "สถานะ" }
+        };
+
         foreach (var item in report.LeaveRequests)
         {
-            builder.AppendLine($"<tr><td>{SafeExcelCell(item.Fullname)}</td><td>{SafeExcelCell(item.DepartmentName)}</td><td>{SafeExcelCell(item.LeaveTypeName)}</td><td>{item.StartDate:dd/MM/yyyy}</td><td>{item.EndDate:dd/MM/yyyy}</td><td>{item.TotalDays:0.##}</td><td>{SafeExcelCell(item.Status)}</td></tr>");
+            rows.Add([
+                SafeExcelCell(item.Fullname),
+                SafeExcelCell(item.DepartmentName),
+                SafeExcelCell(item.LeaveTypeName),
+                item.StartDate.ToString("dd/MM/yyyy"),
+                item.EndDate.ToString("dd/MM/yyyy"),
+                item.TotalDays.ToString("0.##"),
+                SafeExcelCell(item.Status)
+            ]);
         }
-        builder.AppendLine("</table><h2>ยอดวันลา</h2><table border=\"1\"><tr><th>ชื่อ</th><th>ประเภทลา</th><th>สิทธิ์</th><th>ใช้แล้ว</th><th>รออนุมัติ</th><th>คงเหลือ</th></tr>");
+
+        rows.Add(Array.Empty<string>());
+        rows.Add(new[] { "ยอดวันลา" });
+        rows.Add(new[] { "ชื่อ", "ประเภทลา", "ปี", "สิทธิ์", "ใช้แล้ว", "รออนุมัติ", "คงเหลือ" });
         foreach (var item in report.LeaveBalances)
         {
-            builder.AppendLine($"<tr><td>{SafeExcelCell(item.Fullname)}</td><td>{SafeExcelCell(item.LeaveTypeName)}</td><td>{item.EntitledDays:0.##}</td><td>{item.UsedDays:0.##}</td><td>{item.PendingDays:0.##}</td><td>{item.RemainingDays:0.##}</td></tr>");
+            rows.Add([
+                SafeExcelCell(item.Fullname),
+                SafeExcelCell(item.LeaveTypeName),
+                item.Year.ToString(),
+                item.EntitledDays.ToString("0.##"),
+                item.UsedDays.ToString("0.##"),
+                item.PendingDays.ToString("0.##"),
+                item.RemainingDays.ToString("0.##")
+            ]);
         }
-        builder.AppendLine("</table></body></html>");
-        return builder.ToString();
+
+        return SimpleXlsxWriter.CreateWorkbook(rows, [24, 24, 18, 14, 14, 12, 14]);
     }
 
     internal static string SafeExcelCell(string? value)
@@ -141,7 +160,7 @@ public class LeaveReportsController(AppDbContext db, IAuditLogService auditLogSe
             normalized = "'" + normalized;
         }
 
-        return WebUtility.HtmlEncode(normalized);
+        return normalized;
     }
 
     internal static IReadOnlyList<IReadOnlyList<PdfLine>> BuildPdfPages(LeaveReportResponse report)
