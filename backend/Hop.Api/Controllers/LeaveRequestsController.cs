@@ -21,20 +21,57 @@ public class LeaveRequestsController(
     ILineMessagingService lineMessagingService,
     ILeavePdfService leavePdfService,
     IFileScanningService fileScanningService,
+    ILeaveNotificationEventPublisher leaveNotificationEventPublisher,
     IConfiguration configuration,
     ILogger<LeaveRequestsController> logger) : ControllerBase
 {
     [HttpGet]
     [RequirePermission("LeaveManagement.View")]
-    public async Task<ActionResult<ApiResponse<IReadOnlyList<LeaveRequestResponse>>>> GetLeaveRequests()
+    public async Task<ActionResult<ApiResponse<IReadOnlyList<LeaveRequestResponse>>>> GetLeaveRequests(
+        [FromQuery] Guid? leaveTypeId,
+        [FromQuery] string? status,
+        [FromQuery] Guid? departmentId,
+        [FromQuery] DateOnly? fromDate,
+        [FromQuery] DateOnly? toDate,
+        [FromQuery(Name = "userId")] Guid? filterUserId)
     {
-        var userId = GetCurrentUserId();
+        var currentUserId = GetCurrentUserId();
         var canApprove = await HasPermissionAsync("LeaveManagement.Approve");
 
         var query = LoadLeaveRequests();
-        if (!canApprove && userId is not null)
+        if (!canApprove && currentUserId is not null)
         {
-            query = query.Where(item => item.UserId == userId);
+            query = query.Where(item => item.UserId == currentUserId);
+        }
+
+        if (leaveTypeId is not null)
+        {
+            query = query.Where(item => item.LeaveTypeId == leaveTypeId);
+        }
+
+        if (!string.IsNullOrWhiteSpace(status))
+        {
+            query = query.Where(item => item.Status == status.Trim());
+        }
+
+        if (departmentId is not null)
+        {
+            query = query.Where(item => item.User != null && item.User.DepartmentId == departmentId);
+        }
+
+        if (fromDate is not null)
+        {
+            query = query.Where(item => item.EndDate >= fromDate.Value);
+        }
+
+        if (toDate is not null)
+        {
+            query = query.Where(item => item.StartDate <= toDate.Value);
+        }
+
+        if (filterUserId is not null)
+        {
+            query = query.Where(item => item.UserId == filterUserId);
         }
 
         var items = await query
@@ -243,6 +280,8 @@ public class LeaveRequestsController(
         await UpdatePendingBalance(leaveRequest, leaveRequest.TotalDays);
         await db.SaveChangesAsync();
         await auditLogService.WriteAsync(GetCurrentUserId(), "LeaveRequest.Submit", "LeaveRequest", leaveRequest.Id.ToString(), "Submitted leave request.", "Success", HttpContext);
+        await leaveNotificationEventPublisher.PublishAsync("LeaveSubmitted", leaveRequest.Id, leaveRequest.CurrentApproverId, HttpContext.RequestAborted);
+        await leaveNotificationEventPublisher.PublishAsync("ApprovalStepActivated", leaveRequest.Id, leaveRequest.CurrentApproverId, HttpContext.RequestAborted);
         await NotifyPlaceholder(leaveRequest, "Pending", null);
 
         var updated = await LoadLeaveRequests().SingleAsync(item => item.Id == id);
@@ -424,6 +463,7 @@ public class LeaveRequestsController(
             {
                 nextApproval.Status = "Pending";
                 leaveRequest.CurrentApproverId = nextApproval.ApproverId;
+                await leaveNotificationEventPublisher.PublishAsync("ApprovalStepActivated", leaveRequest.Id, nextApproval.ApproverId, HttpContext.RequestAborted);
             }
             else
             {
@@ -431,11 +471,16 @@ public class LeaveRequestsController(
                 leaveRequest.CurrentApproverId = null;
                 await UpdatePendingBalance(leaveRequest, -leaveRequest.TotalDays);
                 await UpdateUsedBalance(leaveRequest, leaveRequest.TotalDays);
+                await leaveNotificationEventPublisher.PublishAsync("LeaveApproved", leaveRequest.Id, leaveRequest.UserId, HttpContext.RequestAborted);
             }
         }
 
         await db.SaveChangesAsync();
         await auditLogService.WriteAsync(approverId, $"LeaveRequest.{decision}", "LeaveRequest", leaveRequest.Id.ToString(), $"{decision} leave request step {approval.StepOrder}.", "Success", HttpContext);
+        if (decision == "Rejected")
+        {
+            await leaveNotificationEventPublisher.PublishAsync("LeaveRejected", leaveRequest.Id, leaveRequest.UserId, HttpContext.RequestAborted);
+        }
         await NotifyPlaceholder(leaveRequest, decision, remark);
 
         var updated = await LoadLeaveRequests().SingleAsync(item => item.Id == id);
@@ -448,7 +493,11 @@ public class LeaveRequestsController(
             .AsNoTracking()
             .Include(item => item.User)
             .Include(item => item.LeaveType)
-            .Include(item => item.CurrentApprover);
+            .Include(item => item.CurrentApprover)
+                .ThenInclude(user => user!.UserRoles)
+                    .ThenInclude(userRole => userRole.Role)
+            .Include(item => item.Approvals)
+                .ThenInclude(approval => approval.Approver);
     }
 
     private IQueryable<LeaveRequest> LoadLeaveRequestsForMutation()
@@ -543,6 +592,21 @@ public class LeaveRequestsController(
 
     private static LeaveRequestResponse ToResponse(LeaveRequest item)
     {
+        var currentApproval = item.Approvals
+            .OrderBy(approval => approval.StepOrder)
+            .FirstOrDefault(approval => approval.Status == "Pending");
+        var latestActionAt = item.Approvals
+            .Where(approval => approval.ActionAt is not null)
+            .Select(approval => approval.ActionAt)
+            .OrderByDescending(actionAt => actionAt)
+            .FirstOrDefault();
+        var currentApproverRole = item.CurrentApprover?.UserRoles
+            .Select(userRole => userRole.Role?.Name)
+            .FirstOrDefault(role => !string.IsNullOrWhiteSpace(role));
+        var currentStepName = currentApproval?.StepName;
+        var currentStatusLabel = GetCurrentStatusLabel(item.Status, currentStepName, item.CurrentApprover?.FullName);
+        var trackingMessage = GetTrackingMessage(item.Status, item.Id, currentStepName, item.CurrentApprover?.FullName);
+
         return new LeaveRequestResponse(
             item.Id,
             item.UserId,
@@ -556,10 +620,48 @@ public class LeaveRequestsController(
             item.Status,
             item.CurrentApproverId,
             item.CurrentApprover?.FullName,
+            currentApproverRole,
+            currentStepName,
+            latestActionAt,
+            currentStatusLabel,
+            trackingMessage,
             item.CreatedAt,
             item.SubmittedAt,
             item.UpdatedAt
         );
+    }
+
+    private static string GetCurrentStatusLabel(string status, string? currentStepName, string? currentApproverName)
+    {
+        return status switch
+        {
+            "Draft" => "แบบร่าง",
+            "Pending" when !string.IsNullOrWhiteSpace(currentApproverName) => $"รออนุมัติจาก {currentApproverName}",
+            "Pending" when !string.IsNullOrWhiteSpace(currentStepName) => $"รอ{currentStepName}",
+            "Pending" => "ส่งคำขอแล้ว",
+            "Approved" => "อนุมัติแล้ว",
+            "Rejected" => "ไม่อนุมัติ",
+            "Cancelled" => "ยกเลิกแล้ว",
+            _ => status
+        };
+    }
+
+    private static string GetTrackingMessage(string status, Guid requestId, string? currentStepName, string? currentApproverName)
+    {
+        var requestCode = requestId.ToString("N")[..8].ToUpperInvariant();
+        return status switch
+        {
+            "Draft" => $"คำขอลา {requestCode} ยังเป็นแบบร่าง",
+            "Pending" when !string.IsNullOrWhiteSpace(currentApproverName) && !string.IsNullOrWhiteSpace(currentStepName) =>
+                $"คำขอลา {requestCode} อยู่ที่ขั้นตอน {currentStepName} และรออนุมัติจาก {currentApproverName}",
+            "Pending" when !string.IsNullOrWhiteSpace(currentApproverName) =>
+                $"คำขอลา {requestCode} รออนุมัติจาก {currentApproverName}",
+            "Pending" => $"คำขอลา {requestCode} ส่งคำขอแล้วและอยู่ระหว่างรออนุมัติ",
+            "Approved" => $"คำขอลา {requestCode} ได้รับการอนุมัติแล้ว",
+            "Rejected" => $"คำขอลา {requestCode} ถูกไม่อนุมัติ",
+            "Cancelled" => $"คำขอลา {requestCode} ถูกยกเลิกแล้ว",
+            _ => $"คำขอลา {requestCode} สถานะ {status}"
+        };
     }
 
     private static LeaveAttachmentResponse ToAttachmentResponse(LeaveAttachment item)

@@ -2,6 +2,7 @@ import { Card, CardContent, Table, TableBody, TableCell, TableHead, TableRow } f
 import { useQuery } from "@tanstack/react-query";
 import { getMyLeaveBalances } from "../api/leaveApi";
 import { PageHeader } from "../components/PageHeader";
+import { getLeaveTypeLabel } from "../utils/leaveLabels";
 
 export function LeaveBalancePage() {
   const { data = [], isLoading } = useQuery({ queryKey: ["leave-balances", "me"], queryFn: getMyLeaveBalances });
@@ -27,7 +28,7 @@ export function LeaveBalancePage() {
                 <TableRow><TableCell colSpan={6}>กำลังโหลดข้อมูลวันลา...</TableCell></TableRow>
               ) : data.map((item) => (
                 <TableRow key={item.leaveTypeId}>
-                  <TableCell>{item.leaveTypeName}</TableCell>
+                  <TableCell>{getLeaveTypeLabel(item.leaveTypeName)}</TableCell>
                   <TableCell>{item.year}</TableCell>
                   <TableCell>{item.entitledDays}</TableCell>
                   <TableCell>{item.usedDays}</TableCell>

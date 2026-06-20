@@ -78,6 +78,11 @@ export type DashboardSummary = {
   staffOnLeaveThisWeek: number;
   staffOnLeaveThisMonth: number;
   myRemainingLeaveDays: number;
+  myLeaveRequestsTotal: number;
+  myLeaveRequestsPending: number;
+  myLeaveRequestsApproved: number;
+  myLeaveRequestsRejected: number;
+  myLeaveRequestsCancelled: number;
 };
 
 export type PagedResponse<T> = {

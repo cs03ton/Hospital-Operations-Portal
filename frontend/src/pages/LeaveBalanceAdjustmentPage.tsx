@@ -1,10 +1,11 @@
 import { Alert, Button, Card, CardContent, Grid, MenuItem, Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField } from "@mui/material";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import dayjs from "dayjs";
 import { useForm } from "react-hook-form";
 import { getUsers } from "../api/adminApi";
 import { createLeaveBalanceAdjustment, getLeaveBalanceAdjustments, getLeaveTypes, type CreateLeaveBalanceAdjustmentRequest } from "../api/leaveApi";
 import { PageHeader } from "../components/PageHeader";
+import { formatThaiDateTime } from "../utils/dateFormat";
+import { getLeaveTypeLabel } from "../utils/leaveLabels";
 
 export function LeaveBalanceAdjustmentPage() {
   const queryClient = useQueryClient();
@@ -43,7 +44,7 @@ export function LeaveBalanceAdjustmentPage() {
                 </Grid>
                 <Grid item xs={12} md={6}>
                   <TextField fullWidth select label="ประเภทการลา" error={Boolean(errors.leaveTypeId)} helperText={errors.leaveTypeId?.message} defaultValue="" {...register("leaveTypeId", { required: "กรุณาเลือกประเภทการลา" })}>
-                    {leaveTypes.map((item) => <MenuItem key={item.id} value={item.id}>{item.name}</MenuItem>)}
+                    {leaveTypes.map((item) => <MenuItem key={item.id} value={item.id}>{getLeaveTypeLabel(item.name || item.code)}</MenuItem>)}
                   </TextField>
                 </Grid>
                 <Grid item xs={12} md={3}>
@@ -78,9 +79,9 @@ export function LeaveBalanceAdjustmentPage() {
               <TableBody>
                 {adjustments.length ? adjustments.map((item) => (
                   <TableRow key={item.id}>
-                    <TableCell>{dayjs(item.createdAt).format("DD/MM/YYYY HH:mm")}</TableCell>
+                    <TableCell>{formatThaiDateTime(item.createdAt)}</TableCell>
                     <TableCell>{item.fullname ?? "-"}</TableCell>
-                    <TableCell>{item.leaveTypeName ?? "-"}</TableCell>
+                    <TableCell>{getLeaveTypeLabel(item.leaveTypeName)}</TableCell>
                     <TableCell>{item.year}</TableCell>
                     <TableCell>{item.adjustmentDays}</TableCell>
                     <TableCell>{item.reason}</TableCell>

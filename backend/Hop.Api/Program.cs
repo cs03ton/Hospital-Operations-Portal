@@ -9,11 +9,19 @@ using Hop.Api.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.IdentityModel.Tokens;
 
 EnvFileLoader.LoadFromParentDirectories(".env");
 
 var builder = WebApplication.CreateBuilder(args);
+
+builder.Logging.ClearProviders();
+builder.Logging.AddConsole();
+if (builder.Environment.IsDevelopment())
+{
+    builder.Logging.AddDebug();
+}
 
 var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
     ?? ["http://localhost:5173"];
@@ -44,7 +52,8 @@ if (string.IsNullOrWhiteSpace(connectionString))
 }
 
 builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseNpgsql(connectionString));
+    options.UseNpgsql(connectionString)
+        .ConfigureWarnings(warnings => warnings.Ignore(RelationalEventId.MultipleCollectionIncludeWarning)));
 
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
@@ -63,6 +72,8 @@ builder.Services.AddScoped<ILeaveCalendarService, LeaveCalendarService>();
 builder.Services.AddScoped<ILeaveValidationService, LeaveValidationService>();
 builder.Services.AddScoped<IApprovalChainService, ApprovalChainService>();
 builder.Services.AddScoped<IApprovalEscalationService, ApprovalEscalationService>();
+builder.Services.AddScoped<IPendingApprovalNotificationService, PendingApprovalNotificationService>();
+builder.Services.AddScoped<ILeaveNotificationEventPublisher, LeaveNotificationEventPublisher>();
 builder.Services.AddScoped<IAuditRetentionService, AuditRetentionService>();
 builder.Services.AddSingleton<ILoginRateLimiter, InMemoryLoginRateLimiter>();
 builder.Services.AddHttpClient<ILineMessagingService, LineMessagingService>();
@@ -125,6 +136,7 @@ app.UseMiddleware<PermissionDeniedAuditMiddleware>();
 app.UseAuthorization();
 
 app.MapControllers();
+app.MapHealthChecks("/health");
 app.MapHealthChecks("/healthz");
 app.MapGet("/api", () => ApiResponse<string>.Ok("Hospital Operations Portal API is running."));
 

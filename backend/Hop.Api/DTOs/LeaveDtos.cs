@@ -34,6 +34,11 @@ public record LeaveRequestResponse(
     string Status,
     Guid? CurrentApproverId,
     string? CurrentApproverName,
+    string? CurrentApproverRole,
+    string? CurrentStepName,
+    DateTime? LatestActionAt,
+    string CurrentStatusLabel,
+    string TrackingMessage,
     DateTime CreatedAt,
     DateTime? SubmittedAt,
     DateTime? UpdatedAt
@@ -172,6 +177,37 @@ public record SaveLeaveHolidayRequest(
     bool IsActive
 );
 
+public record LeaveHolidayImportRowRequest(
+    DateOnly HolidayDate,
+    string Name,
+    string HolidayType
+);
+
+public record LeaveHolidayImportPreviewRow(
+    int RowNumber,
+    DateOnly? HolidayDate,
+    string Name,
+    string HolidayType,
+    bool IsValid,
+    IReadOnlyList<string> Errors
+);
+
+public record LeaveHolidayImportPreviewResponse(
+    int TotalRows,
+    int ValidRows,
+    int InvalidRows,
+    IReadOnlyList<LeaveHolidayImportPreviewRow> Rows
+);
+
+public record LeaveHolidayImportConfirmRequest(
+    IReadOnlyList<LeaveHolidayImportRowRequest> Rows
+);
+
+public record LeaveHolidayImportConfirmResponse(
+    int AddedCount,
+    IReadOnlyList<LeaveHolidayImportPreviewRow> FailedRows
+);
+
 public record LeaveCalendarItemResponse(
     Guid Id,
     Guid UserId,
@@ -263,4 +299,26 @@ public record LeaveReportResponse(
     IReadOnlyList<LeaveReportItemResponse> LeaveRequests,
     IReadOnlyList<LeaveBalanceReportItemResponse> LeaveBalances,
     int PendingApprovalCount
+);
+
+public record PendingApprovalNotificationResponse(
+    Guid RequestId,
+    string? EmployeeName,
+    string? LeaveType,
+    DateOnly StartDate,
+    DateOnly EndDate,
+    DateTime? SubmittedAt,
+    int CurrentStep,
+    string Priority
+);
+
+public record LeaveNotificationItemResponse(
+    string Id,
+    string Type,
+    Guid RequestId,
+    string Title,
+    string Message,
+    DateTime CreatedAt,
+    bool Unread,
+    string Path
 );

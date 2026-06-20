@@ -596,6 +596,41 @@ Run backend
 dotnet run
 ```
 
+## Visual Studio 2022 Solution
+
+สร้าง Solution File ที่ root project สำหรับเปิดด้วย Visual Studio 2022
+
+```bash
+cd ..
+dotnet new sln --name Hospital-Operations-Portal
+dotnet sln Hospital-Operations-Portal.sln add backend/Hop.Api/Hop.Api.csproj
+dotnet sln Hospital-Operations-Portal.sln add backend/Hop.Api.Tests/Hop.Api.Tests.csproj
+dotnet sln Hospital-Operations-Portal.sln list
+dotnet build Hospital-Operations-Portal.sln
+```
+
+Project references ปัจจุบัน:
+
+```text
+Hop.Api.Tests
+└─ Hop.Api
+```
+
+หากเพิ่ม Clean Architecture projects ในอนาคต ให้เพิ่มเข้า Solution และตั้ง references ตามแนวทางนี้:
+
+```text
+Hop.Api
+├─ Hop.Application
+└─ Hop.Infrastructure
+
+Hop.Application
+└─ Hop.Domain
+
+Hop.Infrastructure
+├─ Hop.Application
+└─ Hop.Domain
+```
+
 ---
 
 # 5. Backend Project Structure

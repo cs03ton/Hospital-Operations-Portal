@@ -33,7 +33,7 @@ public class LeaveAttachmentsController(
         }
 
         var userId = GetCurrentUserId();
-        if (!CanAccessAttachment(attachment, userId) && !await HasManagePermission(userId))
+        if (!CanAccessAttachment(attachment, userId) && !await HasElevatedLeaveAccess(userId))
         {
             return Forbid();
         }
@@ -96,7 +96,17 @@ public class LeaveAttachmentsController(
             attachment.LeaveRequest.Approvals.Any(item => item.ApproverId == userId);
     }
 
+    private async Task<bool> HasElevatedLeaveAccess(Guid? userId)
+    {
+        return await HasAnyPermission(userId, "LeaveManagement.Manage", "LeaveManagement.Approve");
+    }
+
     private async Task<bool> HasManagePermission(Guid? userId)
+    {
+        return await HasAnyPermission(userId, "LeaveManagement.Manage");
+    }
+
+    private async Task<bool> HasAnyPermission(Guid? userId, params string[] permissionCodes)
     {
         if (userId is null)
         {
@@ -107,7 +117,8 @@ public class LeaveAttachmentsController(
             .AsNoTracking()
             .Where(item => item.UserId == userId && item.Role != null && item.Role.IsActive)
             .SelectMany(item => item.Role!.RolePermissions)
-            .AnyAsync(item => item.Permission != null && item.Permission.IsActive && item.Permission.Code == "LeaveManagement.Manage");
+            .AnyAsync(item => item.Permission != null && item.Permission.IsActive &&
+                permissionCodes.Contains(item.Permission.Code));
     }
 
     private Guid? GetCurrentUserId()

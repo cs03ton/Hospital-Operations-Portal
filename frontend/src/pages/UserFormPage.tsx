@@ -12,6 +12,7 @@ import {
   Select,
   Stack,
   TextField,
+  Typography,
 } from "@mui/material";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
@@ -26,6 +27,7 @@ import {
   type SaveUserRequest,
 } from "../api/adminApi";
 import { PageHeader } from "../components/PageHeader";
+import { getRoleLabel } from "../utils/roleLabels";
 
 type UserFormValues = {
   employeeCode: string;
@@ -121,22 +123,28 @@ export function UserFormPage() {
         <CardContent>
           <Stack component="form" spacing={2.5} onSubmit={handleSubmit(onSubmit)}>
             {saveMutation.isError && <Alert severity="error">บันทึกข้อมูลไม่สำเร็จ</Alert>}
-            <TextField label="รหัสพนักงาน" {...register("employeeCode")} />
+            <TextField fullWidth label="รหัสพนักงาน" InputLabelProps={{ shrink: true }} {...register("employeeCode")} />
             <TextField
+              fullWidth
               label="ชื่อ-สกุล"
+              InputLabelProps={{ shrink: true }}
               error={Boolean(errors.fullname)}
               helperText={errors.fullname?.message}
               {...register("fullname", { required: "กรุณากรอกชื่อ-สกุล" })}
             />
             <TextField
+              fullWidth
               label="ชื่อผู้ใช้"
+              InputLabelProps={{ shrink: true }}
               disabled={isEdit}
               error={Boolean(errors.username)}
               helperText={errors.username?.message}
               {...register("username", { required: "กรุณากรอกชื่อผู้ใช้" })}
             />
             <TextField
+              fullWidth
               label={isEdit ? "รหัสผ่านใหม่ (ไม่กรอกหากไม่เปลี่ยน)" : "รหัสผ่าน"}
+              InputLabelProps={{ shrink: true }}
               type="password"
               error={Boolean(errors.password)}
               helperText={errors.password?.message}
@@ -148,8 +156,8 @@ export function UserFormPage() {
               name="departmentId"
               control={control}
               render={({ field }) => (
-                <FormControl>
-                  <InputLabel>หน่วยงาน</InputLabel>
+                <FormControl fullWidth>
+                  <InputLabel shrink>หน่วยงาน</InputLabel>
                   <Select label="หน่วยงาน" {...field}>
                     <MenuItem value="">ไม่ระบุ</MenuItem>
                     {departments.map((department) => (
@@ -166,14 +174,14 @@ export function UserFormPage() {
               control={control}
               rules={{ validate: (value) => value.length > 0 || "กรุณาเลือกบทบาทอย่างน้อย 1 รายการ" }}
               render={({ field }) => (
-                <FormControl error={Boolean(errors.roleIds)}>
-                  <InputLabel>บทบาท</InputLabel>
+                <FormControl fullWidth error={Boolean(errors.roleIds)}>
+                  <InputLabel shrink>บทบาท</InputLabel>
                   <Select label="บทบาท" multiple {...field}>
                     {roles
                       .filter((role) => role.isActive)
                       .map((role) => (
                         <MenuItem key={role.id} value={role.id}>
-                          {role.name}
+                          {getRoleLabel(role.name)}
                         </MenuItem>
                       ))}
                   </Select>
@@ -185,7 +193,17 @@ export function UserFormPage() {
                 </FormControl>
               )}
             />
-            <TextField label="LINE User ID" {...register("lineUserId")} />
+            <TextField
+              fullWidth
+              label="LINE User ID"
+              InputLabelProps={{ shrink: true }}
+              helperText={
+                <Typography component="span" variant="caption">
+                  ตัวอย่าง: Uxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx ใช้สำหรับส่งแจ้งเตือนผ่าน LINE Messaging API ถ้ายังไม่ทราบสามารถเว้นว่างไว้ก่อนได้
+                </Typography>
+              }
+              {...register("lineUserId")}
+            />
             <Controller
               name="isActive"
               control={control}

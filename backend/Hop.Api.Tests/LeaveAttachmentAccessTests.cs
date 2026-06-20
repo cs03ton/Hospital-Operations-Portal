@@ -13,6 +13,52 @@ namespace Hop.Api.Tests;
 public class LeaveAttachmentAccessTests
 {
     [Fact]
+    public async Task DownloadAttachment_AllowsUserWithLeaveApprovePermission()
+    {
+        await using var db = CreateDbContext();
+        var ownerId = Guid.NewGuid();
+        var approverId = Guid.NewGuid();
+        var roleId = Guid.NewGuid();
+        var permissionId = Guid.NewGuid();
+        var leaveRequest = new LeaveRequest
+        {
+            Id = Guid.NewGuid(),
+            UserId = ownerId,
+            LeaveTypeId = Guid.NewGuid(),
+            StartDate = new DateOnly(2026, 6, 18),
+            EndDate = new DateOnly(2026, 6, 18),
+            TotalDays = 1,
+            Reason = "Leave",
+            Status = "Draft"
+        };
+        var attachment = new LeaveAttachment
+        {
+            Id = Guid.NewGuid(),
+            LeaveRequestId = leaveRequest.Id,
+            FileName = "sample.pdf",
+            FilePath = "leave-attachments/sample.pdf",
+            UploadedByUserId = ownerId,
+            ContentType = "application/pdf"
+        };
+        db.LeaveRequests.Add(leaveRequest);
+        db.LeaveAttachments.Add(attachment);
+        db.Roles.Add(new Role { Id = roleId, Name = "Approver", IsActive = true });
+        db.Permissions.Add(new Permission { Id = permissionId, Code = "LeaveManagement.Approve", Name = "LeaveManagement.Approve", IsActive = true });
+        db.UserRoles.Add(new UserRole { UserId = approverId, RoleId = roleId });
+        db.RolePermissions.Add(new RolePermission { RoleId = roleId, PermissionId = permissionId });
+        await db.SaveChangesAsync();
+        var controller = new LeaveAttachmentsController(db, new NoopAuditLogService(), new FakeAttachmentStorageService());
+        controller.ControllerContext = new ControllerContext
+        {
+            HttpContext = CreateHttpContext(approverId)
+        };
+
+        var result = await controller.DownloadAttachment(attachment.Id);
+
+        Assert.IsType<PhysicalFileResult>(result);
+    }
+
+    [Fact]
     public async Task DownloadAttachment_ForbidsUnrelatedUser()
     {
         await using var db = CreateDbContext();

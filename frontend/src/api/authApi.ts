@@ -23,3 +23,8 @@ export async function refreshSession(refreshToken?: string | null) {
 export async function logout(refreshToken: string | null) {
   await httpClient.post("/api/auth/logout", { refreshToken });
 }
+
+console.log(import.meta.env);
+console.log("MODE", import.meta.env.MODE);
+console.log("VITE_API_URL =", import.meta.env.VITE_API_URL);
+console.log("VITE_API_BASE_URL =", import.meta.env.VITE_API_BASE_URL);

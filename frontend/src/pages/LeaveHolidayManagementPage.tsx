@@ -1,15 +1,21 @@
 import BlockOutlinedIcon from "@mui/icons-material/BlockOutlined";
+import DownloadOutlinedIcon from "@mui/icons-material/DownloadOutlined";
 import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
-import { Alert, Button, Card, CardContent, Checkbox, FormControlLabel, IconButton, Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography } from "@mui/material";
+import UploadFileOutlinedIcon from "@mui/icons-material/UploadFileOutlined";
+import { Alert, Button, Card, CardContent, Checkbox, Chip, Dialog, DialogContent, DialogTitle, FormControlLabel, Grid, IconButton, Stack, TableBody, TableCell, TableHead, TableRow, TextField, Typography } from "@mui/material";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import dayjs from "dayjs";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
-import { createLeaveHoliday, deactivateLeaveHoliday, getLeaveHolidays, updateLeaveHoliday, type LeaveHoliday, type SaveLeaveHolidayRequest } from "../api/leaveApi";
+import { confirmLeaveHolidayImport, createLeaveHoliday, deactivateLeaveHoliday, downloadLeaveHolidayTemplate, getLeaveHolidays, previewLeaveHolidayImport, updateLeaveHoliday, type LeaveHoliday, type LeaveHolidayImportPreview, type SaveLeaveHolidayRequest } from "../api/leaveApi";
+import { ActionTooltip } from "../components/common/ActionTooltip";
+import { AppDatePicker } from "../components/common/AppDatePicker";
+import { DataTableCard } from "../components/common/DataTableCard";
+import { PageToolbar } from "../components/common/PageToolbar";
 import { PageHeader } from "../components/PageHeader";
+import { formatDateForApi, formatThaiDate, isValidApiDate } from "../utils/dateFormat";
 
 const emptyHoliday: SaveLeaveHolidayRequest = {
-  holidayDate: dayjs().format("YYYY-MM-DD"),
+  holidayDate: formatDateForApi(new Date()),
   name: "",
   isActive: true,
 };
@@ -17,7 +23,10 @@ const emptyHoliday: SaveLeaveHolidayRequest = {
 export function LeaveHolidayManagementPage() {
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState<LeaveHoliday | null>(null);
-  const { data = [], isLoading } = useQuery({ queryKey: ["leave-holidays"], queryFn: getLeaveHolidays });
+  const [importOpen, setImportOpen] = useState(false);
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [preview, setPreview] = useState<LeaveHolidayImportPreview | null>(null);
+  const { data = [], isLoading } = useQuery({ queryKey: ["leave-holidays"], queryFn: () => getLeaveHolidays() });
   const { control, register, handleSubmit, reset, formState: { errors } } = useForm<SaveLeaveHolidayRequest>({ defaultValues: emptyHoliday });
 
   const saveMutation = useMutation({
@@ -29,24 +38,88 @@ export function LeaveHolidayManagementPage() {
     },
   });
   const deleteMutation = useMutation({ mutationFn: deactivateLeaveHoliday, onSuccess: () => queryClient.invalidateQueries({ queryKey: ["leave-holidays"] }) });
+  const previewMutation = useMutation({ mutationFn: previewLeaveHolidayImport, onSuccess: setPreview });
+  const confirmMutation = useMutation({
+    mutationFn: confirmLeaveHolidayImport,
+    onSuccess: async () => {
+      setImportOpen(false);
+      setImportFile(null);
+      setPreview(null);
+      await queryClient.invalidateQueries({ queryKey: ["leave-holidays"] });
+    },
+  });
+
+  const validRows = useMemo(() => preview?.rows.filter((row) => row.isValid && row.holidayDate).map((row) => ({
+    holidayDate: row.holidayDate!,
+    name: row.name,
+    holidayType: row.holidayType,
+  })) ?? [], [preview]);
 
   function onEdit(item: LeaveHoliday) {
     setEditing(item);
-    reset({ holidayDate: item.holidayDate, name: item.name, isActive: item.isActive });
+    reset({ holidayDate: formatDateForApi(item.holidayDate), name: item.name, isActive: item.isActive });
+  }
+
+  async function handleDownloadTemplate() {
+    const blob = await downloadLeaveHolidayTemplate();
+    downloadBlob(blob, "leave-holiday-import-template.csv");
+  }
+
+  function handleCloseImport() {
+    setImportOpen(false);
+    setImportFile(null);
+    setPreview(null);
   }
 
   return (
     <>
       <PageHeader title="วันหยุดราชการ" subtitle="กำหนดวันหยุดที่ต้องตัดออกจากการคำนวณจำนวนวันลา" />
+      <PageToolbar>
+        <Typography variant="body2" color="text.secondary">
+          จัดการวันหยุดรายปีและเตรียมนำเข้าข้อมูลวันหยุดสำหรับปีถัดไป
+        </Typography>
+        <Stack direction={{ xs: "column", sm: "row" }} spacing={1} justifyContent="flex-end">
+          <Button variant="outlined" startIcon={<DownloadOutlinedIcon />} onClick={handleDownloadTemplate}>
+            ดาวน์โหลดตัวอย่างไฟล์
+          </Button>
+          <Button variant="contained" startIcon={<UploadFileOutlinedIcon />} onClick={() => setImportOpen(true)}>
+            Import วันหยุดราชการ
+          </Button>
+        </Stack>
+      </PageToolbar>
       <Stack spacing={2}>
         <Card>
           <CardContent>
             <Typography variant="h6" sx={{ mb: 2 }}>{editing ? "แก้ไขวันหยุด" : "เพิ่มวันหยุด"}</Typography>
             <Stack component="form" spacing={2} onSubmit={handleSubmit((values) => saveMutation.mutate(values))}>
               {saveMutation.isError && <Alert severity="error">บันทึกวันหยุดไม่สำเร็จ</Alert>}
-              <TextField type="date" label="วันที่" InputLabelProps={{ shrink: true }} error={Boolean(errors.holidayDate)} helperText={errors.holidayDate?.message} {...register("holidayDate", { required: "กรุณาเลือกวันที่" })} />
-              <TextField label="ชื่อวันหยุด" error={Boolean(errors.name)} helperText={errors.name?.message} {...register("name", { required: "กรุณากรอกชื่อวันหยุด" })} />
-              <Controller name="isActive" control={control} render={({ field }) => <FormControlLabel control={<Checkbox checked={field.value} onChange={(event) => field.onChange(event.target.checked)} />} label="เปิดใช้งาน" />} />
+              <Grid container spacing={1.5}>
+                <Grid item xs={12} md={4}>
+                  <Controller
+                    name="holidayDate"
+                    control={control}
+                    rules={{
+                      required: "กรุณาเลือกวันที่",
+                      validate: (value) => isValidApiDate(value) || "กรุณาเลือกวันที่ให้ถูกต้อง",
+                    }}
+                    render={({ field }) => (
+                      <AppDatePicker
+                        label="วันที่"
+                        value={field.value}
+                        onChange={field.onChange}
+                        error={Boolean(errors.holidayDate)}
+                        helperText={errors.holidayDate?.message ?? "เลือกวันที่จากปฏิทิน"}
+                      />
+                    )}
+                  />
+                </Grid>
+                <Grid item xs={12} md={5}>
+                  <TextField fullWidth size="small" label="ชื่อวันหยุด" InputLabelProps={{ shrink: true }} error={Boolean(errors.name)} helperText={errors.name?.message} {...register("name", { required: "กรุณากรอกชื่อวันหยุด" })} />
+                </Grid>
+                <Grid item xs={12} md={3}>
+                  <Controller name="isActive" control={control} render={({ field }) => <FormControlLabel control={<Checkbox checked={field.value} onChange={(event) => field.onChange(event.target.checked)} />} label="เปิดใช้งาน" />} />
+                </Grid>
+              </Grid>
               <Stack direction="row" spacing={1.5}>
                 <Button type="submit" variant="contained" disabled={saveMutation.isPending}>บันทึกข้อมูล</Button>
                 {editing && <Button variant="outlined" onClick={() => { setEditing(null); reset(emptyHoliday); }}>ยกเลิก</Button>}
@@ -55,9 +128,7 @@ export function LeaveHolidayManagementPage() {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardContent>
-            <Table size="small">
+        <DataTableCard>
               <TableHead>
                 <TableRow>
                   <TableCell>วันที่</TableCell>
@@ -71,22 +142,104 @@ export function LeaveHolidayManagementPage() {
                   <TableRow><TableCell colSpan={4}>กำลังโหลดวันหยุด...</TableCell></TableRow>
                 ) : data.length ? data.map((item) => (
                   <TableRow key={item.id}>
-                    <TableCell>{dayjs(item.holidayDate).format("DD/MM/YYYY")}</TableCell>
+                    <TableCell>{formatThaiDate(item.holidayDate)}</TableCell>
                     <TableCell>{item.name}</TableCell>
-                    <TableCell>{item.isActive ? "ใช้งาน" : "ปิดใช้งาน"}</TableCell>
+                    <TableCell><Chip size="small" label={item.isActive ? "ใช้งาน" : "ปิดใช้งาน"} color={item.isActive ? "success" : "default"} /></TableCell>
                     <TableCell align="right">
-                      <IconButton aria-label="แก้ไขวันหยุด" onClick={() => onEdit(item)}><EditOutlinedIcon /></IconButton>
-                      <IconButton aria-label="ปิดใช้งานวันหยุด" disabled={!item.isActive || deleteMutation.isPending} onClick={() => deleteMutation.mutate(item.id)}><BlockOutlinedIcon /></IconButton>
+                      <ActionTooltip title="แก้ไขวันหยุดราชการ">
+                        <IconButton aria-label="แก้ไขวันหยุดราชการ" onClick={() => onEdit(item)}><EditOutlinedIcon /></IconButton>
+                      </ActionTooltip>
+                      <ActionTooltip title="ปิดใช้งานวันหยุดราชการ">
+                        <IconButton aria-label="ปิดใช้งานวันหยุดราชการ" disabled={!item.isActive || deleteMutation.isPending} onClick={() => deleteMutation.mutate(item.id)}><BlockOutlinedIcon /></IconButton>
+                      </ActionTooltip>
                     </TableCell>
                   </TableRow>
                 )) : (
                   <TableRow><TableCell colSpan={4}>ยังไม่มีวันหยุด</TableCell></TableRow>
                 )}
               </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
+        </DataTableCard>
       </Stack>
+
+      <Dialog open={importOpen} onClose={handleCloseImport} fullWidth maxWidth="md">
+        <DialogTitle>Import วันหยุดราชการ</DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} sx={{ pt: 1 }}>
+            <Alert severity="info">
+              รองรับไฟล์ .csv และ .xlsx โดยใช้คอลัมน์ วันที่, ชื่อวันหยุด, ประเภทวันหยุด วันที่ในไฟล์ใช้รูปแบบ YYYY-MM-DD เช่น 2027-01-01 และระบบจะแสดงเป็น 01/01/2027
+            </Alert>
+            {(previewMutation.isError || confirmMutation.isError) && (
+              <Alert severity="error">Import ไม่สำเร็จ กรุณาตรวจสอบไฟล์และข้อมูลอีกครั้ง</Alert>
+            )}
+            <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
+              <Button component="label" variant="outlined" startIcon={<UploadFileOutlinedIcon />}>
+                Upload File
+                <input hidden type="file" accept=".csv,.xlsx" onChange={(event) => { setImportFile(event.target.files?.[0] ?? null); setPreview(null); }} />
+              </Button>
+              <Button variant="outlined" startIcon={<DownloadOutlinedIcon />} onClick={handleDownloadTemplate}>
+                ดาวน์โหลด Template
+              </Button>
+              <Button variant="contained" disabled={!importFile || previewMutation.isPending} onClick={() => importFile && previewMutation.mutate(importFile)}>
+                Preview ก่อน Import
+              </Button>
+              <Button variant="contained" color="success" disabled={!preview || preview.invalidRows > 0 || validRows.length === 0 || confirmMutation.isPending} onClick={() => confirmMutation.mutate({ rows: validRows })}>
+                Confirm Import
+              </Button>
+            </Stack>
+            <Typography variant="body2" color="text.secondary">
+              ไฟล์ที่เลือก: {importFile?.name ?? "ยังไม่ได้เลือกไฟล์"}
+            </Typography>
+            {preview && (
+              <>
+                <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                  <Chip label={`ทั้งหมด ${preview.totalRows} รายการ`} />
+                  <Chip color="success" label={`ถูกต้อง ${preview.validRows} รายการ`} />
+                  <Chip color={preview.invalidRows ? "error" : "default"} label={`ผิดพลาด ${preview.invalidRows} รายการ`} />
+                </Stack>
+                <DataTableCard>
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>แถว</TableCell>
+                      <TableCell>วันที่</TableCell>
+                      <TableCell>ชื่อวันหยุด</TableCell>
+                      <TableCell>ประเภท</TableCell>
+                      <TableCell>ผลตรวจสอบ</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {preview.rows.map((row) => (
+                      <TableRow key={row.rowNumber}>
+                        <TableCell>{row.rowNumber}</TableCell>
+                        <TableCell>{formatThaiDate(row.holidayDate)}</TableCell>
+                        <TableCell>{row.name || "-"}</TableCell>
+                        <TableCell>{row.holidayType || "-"}</TableCell>
+                        <TableCell>
+                          {row.isValid ? (
+                            <Chip size="small" color="success" label="พร้อม Import" />
+                          ) : (
+                            <Typography variant="body2" color="error">{row.errors.join(", ")}</Typography>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </DataTableCard>
+              </>
+            )}
+          </Stack>
+        </DialogContent>
+      </Dialog>
     </>
   );
+}
+
+function downloadBlob(blob: Blob, fileName: string) {
+  const url = window.URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = fileName;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.URL.revokeObjectURL(url);
 }

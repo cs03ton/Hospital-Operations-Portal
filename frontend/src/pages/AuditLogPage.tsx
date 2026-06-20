@@ -1,4 +1,5 @@
 import SearchOutlinedIcon from "@mui/icons-material/SearchOutlined";
+import ClearOutlinedIcon from "@mui/icons-material/ClearOutlined";
 import {
   Box,
   Button,
@@ -8,6 +9,7 @@ import {
   Dialog,
   DialogContent,
   DialogTitle,
+  Grid,
   Stack,
   Table,
   TableBody,
@@ -19,10 +21,12 @@ import {
   Typography,
 } from "@mui/material";
 import { useQuery } from "@tanstack/react-query";
-import dayjs from "dayjs";
 import { useMemo, useState } from "react";
 import { getAuditLogs, type AuditLogSummary } from "../api/adminApi";
+import { AppDatePicker } from "../components/common/AppDatePicker";
+import { FilterToolbar } from "../components/common/FilterToolbar";
 import { PageHeader } from "../components/PageHeader";
+import { formatThaiDateTime } from "../utils/dateFormat";
 
 const resultLabels: Record<string, { label: string; color: "success" | "error" | "warning" | "default" }> = {
   Success: { label: "สำเร็จ", color: "success" },
@@ -34,17 +38,22 @@ export function AuditLogPage() {
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(20);
   const [search, setSearch] = useState("");
+  const [username, setUsername] = useState("");
   const [action, setAction] = useState("");
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
   const [selectedLog, setSelectedLog] = useState<AuditLogSummary | null>(null);
 
   const queryParams = useMemo(
     () => ({
       page: page + 1,
       pageSize,
-      search: search || undefined,
+      search: [search, username].filter(Boolean).join(" ") || undefined,
       action: action || undefined,
+      from: from || undefined,
+      to: to || undefined,
     }),
-    [action, page, pageSize, search],
+    [action, from, page, pageSize, search, to, username],
   );
 
   const { data, isLoading } = useQuery({
@@ -52,35 +61,88 @@ export function AuditLogPage() {
     queryFn: () => getAuditLogs(queryParams),
   });
 
+  function clearFilters() {
+    setSearch("");
+    setUsername("");
+    setAction("");
+    setFrom("");
+    setTo("");
+    setPage(0);
+  }
+
   return (
     <>
       <PageHeader title="บันทึกการใช้งาน" subtitle="ตรวจสอบประวัติการเข้าสู่ระบบ การเปลี่ยนแปลงข้อมูล และการถูกปฏิเสธสิทธิ์" />
       <Stack spacing={2}>
-        <Card>
-          <CardContent>
-            <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
-              <TextField
-                label="ค้นหา"
-                value={search}
-                onChange={(event) => {
-                  setSearch(event.target.value);
-                  setPage(0);
-                }}
-                InputProps={{ startAdornment: <SearchOutlinedIcon color="action" sx={{ mr: 1 }} /> }}
-                fullWidth
-              />
-              <TextField
-                label="การกระทำ"
-                value={action}
-                onChange={(event) => {
-                  setAction(event.target.value);
-                  setPage(0);
-                }}
-                sx={{ minWidth: { md: 260 } }}
-              />
+        <FilterToolbar>
+          <Grid item xs={12} md={4}>
+            <TextField
+              label="ค้นหาทั่วไป"
+              size="small"
+              value={search}
+              onChange={(event) => {
+                setSearch(event.target.value);
+                setPage(0);
+              }}
+              InputProps={{ startAdornment: <SearchOutlinedIcon color="action" sx={{ mr: 1 }} /> }}
+              fullWidth
+            />
+          </Grid>
+          <Grid item xs={12} sm={6} md={2}>
+            <TextField
+              label="ผู้ใช้งาน"
+              size="small"
+              value={username}
+              onChange={(event) => {
+                setUsername(event.target.value);
+                setPage(0);
+              }}
+              fullWidth
+            />
+          </Grid>
+          <Grid item xs={12} sm={6} md={2}>
+            <TextField
+              label="การกระทำ"
+              size="small"
+              value={action}
+              onChange={(event) => {
+                setAction(event.target.value);
+                setPage(0);
+              }}
+              fullWidth
+            />
+          </Grid>
+          <Grid item xs={12} sm={6} md={2}>
+            <AppDatePicker
+              label="วันที่เริ่มต้น"
+              value={from}
+              onChange={(value) => {
+                setFrom(value);
+                setPage(0);
+              }}
+            />
+          </Grid>
+          <Grid item xs={12} sm={6} md={2}>
+            <AppDatePicker
+              label="วันที่สิ้นสุด"
+              value={to}
+              onChange={(value) => {
+                setTo(value);
+                setPage(0);
+              }}
+            />
+          </Grid>
+          <Grid item xs={12}>
+            <Stack direction="row" spacing={1} justifyContent="flex-end" flexWrap="wrap" useFlexGap>
+              <Button variant="contained" startIcon={<SearchOutlinedIcon />}>
+                ค้นหา
+              </Button>
+              <Button variant="outlined" startIcon={<ClearOutlinedIcon />} onClick={clearFilters}>
+                ล้างตัวกรอง
+              </Button>
             </Stack>
-          </CardContent>
-        </Card>
+          </Grid>
+        </FilterToolbar>
 
         <Card>
           <CardContent>
@@ -111,7 +173,7 @@ export function AuditLogPage() {
                         onClick={() => setSelectedLog(log)}
                         sx={{ cursor: "pointer" }}
                       >
-                        <TableCell>{dayjs(log.timestamp).format("DD/MM/YYYY HH:mm")}</TableCell>
+                        <TableCell>{formatThaiDateTime(log.timestamp)}</TableCell>
                         <TableCell>{log.fullname ?? log.username ?? "-"}</TableCell>
                         <TableCell>{log.action}</TableCell>
                         <TableCell>{log.resource}</TableCell>
@@ -160,7 +222,7 @@ export function AuditLogPage() {
         <DialogContent>
           {selectedLog && (
             <Stack spacing={1.5} sx={{ pt: 1 }}>
-              <Detail label="วันที่" value={dayjs(selectedLog.timestamp).format("DD/MM/YYYY HH:mm:ss")} />
+              <Detail label="วันที่" value={formatThaiDateTime(selectedLog.timestamp, true)} />
               <Detail label="ผู้ใช้งาน" value={selectedLog.fullname ?? selectedLog.username ?? "-"} />
               <Detail label="การกระทำ" value={selectedLog.action} />
               <Detail label="ทรัพยากร" value={selectedLog.resource} />

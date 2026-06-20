@@ -35,5 +35,10 @@ public record DashboardSummaryResponse(
     int StaffOnLeaveToday,
     int StaffOnLeaveThisWeek,
     int StaffOnLeaveThisMonth,
-    decimal MyRemainingLeaveDays
+    decimal MyRemainingLeaveDays,
+    int MyLeaveRequestsTotal,
+    int MyLeaveRequestsPending,
+    int MyLeaveRequestsApproved,
+    int MyLeaveRequestsRejected,
+    int MyLeaveRequestsCancelled
 );

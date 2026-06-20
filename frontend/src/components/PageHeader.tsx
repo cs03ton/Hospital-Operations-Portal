@@ -8,7 +8,7 @@ type PageHeaderProps = {
 export function PageHeader({ title, subtitle }: PageHeaderProps) {
   return (
     <Box sx={{ mb: 3 }}>
-      <Typography variant="h4" sx={{ mb: 0.75 }}>
+      <Typography variant="h4" color="primary" sx={{ mb: 0.75, fontSize: { xs: "1.55rem", md: "2rem" } }}>
         {title}
       </Typography>
       <Typography color="text.secondary">{subtitle}</Typography>

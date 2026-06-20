@@ -17,6 +17,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link as RouterLink } from "react-router-dom";
 import { deactivateDepartment, getDepartments } from "../api/adminApi";
+import { ActionTooltip } from "../components/common/ActionTooltip";
 import { PageHeader } from "../components/PageHeader";
 import { PermissionGuard } from "../context/PermissionContext";
 
@@ -78,22 +79,26 @@ export function DepartmentManagementPage() {
                     </TableCell>
                     <TableCell align="right">
                       <PermissionGuard permission="DepartmentManagement.Edit">
-                        <IconButton
-                          component={RouterLink}
-                          to={`/admin/departments/${department.id}/edit`}
-                          aria-label="แก้ไขหน่วยงาน"
-                        >
-                          <EditOutlinedIcon />
-                        </IconButton>
+                        <ActionTooltip title="แก้ไขข้อมูลหน่วยงาน">
+                          <IconButton
+                            component={RouterLink}
+                            to={`/admin/departments/${department.id}/edit`}
+                            aria-label="แก้ไขข้อมูลหน่วยงาน"
+                          >
+                            <EditOutlinedIcon />
+                          </IconButton>
+                        </ActionTooltip>
                       </PermissionGuard>
                       <PermissionGuard permission="DepartmentManagement.Delete">
-                        <IconButton
-                          aria-label="ปิดใช้งานหน่วยงาน"
-                          disabled={!department.isActive || deactivateMutation.isPending}
-                          onClick={() => deactivateMutation.mutate(department.id)}
-                        >
-                          <BlockOutlinedIcon />
-                        </IconButton>
+                        <ActionTooltip title="ปิดใช้งานหน่วยงาน">
+                          <IconButton
+                            aria-label="ปิดใช้งานหน่วยงาน"
+                            disabled={!department.isActive || deactivateMutation.isPending}
+                            onClick={() => deactivateMutation.mutate(department.id)}
+                          >
+                            <BlockOutlinedIcon />
+                          </IconButton>
+                        </ActionTooltip>
                       </PermissionGuard>
                     </TableCell>
                   </TableRow>

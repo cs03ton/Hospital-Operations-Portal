@@ -18,7 +18,8 @@ public class LeaveCalendarController(AppDbContext db) : ControllerBase
         [FromQuery] int? year,
         [FromQuery] int? month,
         [FromQuery] Guid? departmentId,
-        [FromQuery] Guid? leaveTypeId)
+        [FromQuery] Guid? leaveTypeId,
+        [FromQuery] string? status)
     {
         var now = DateOnly.FromDateTime(DateTime.UtcNow);
         var selectedYear = year ?? now.Year;
@@ -31,8 +32,16 @@ public class LeaveCalendarController(AppDbContext db) : ControllerBase
             .Include(item => item.User)
                 .ThenInclude(user => user!.Department)
             .Include(item => item.LeaveType)
-            .Where(item => item.Status == "Pending" || item.Status == "Approved")
             .Where(item => item.StartDate <= endDate && item.EndDate >= startDate);
+
+        if (!string.IsNullOrWhiteSpace(status))
+        {
+            query = query.Where(item => item.Status == status.Trim());
+        }
+        else
+        {
+            query = query.Where(item => item.Status != "Draft");
+        }
 
         if (departmentId is not null)
         {

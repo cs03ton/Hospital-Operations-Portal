@@ -26,7 +26,7 @@ export async function revokeSession(id: string) {
 }
 
 export function getAuditLogExportUrl() {
-  const baseUrl = import.meta.env.VITE_API_URL ?? import.meta.env.VITE_API_BASE_URL ?? "http://localhost:5000";
+  const baseUrl = import.meta.env.VITE_API_URL ?? import.meta.env.VITE_API_BASE_URL ?? "https://localhost:5000";
   return `${baseUrl}/api/audit-logs/export`;
 }
 

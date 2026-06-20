@@ -31,8 +31,10 @@ import {
   type RoleSummary,
   type SaveRoleRequest,
 } from "../api/adminApi";
+import { ActionTooltip } from "../components/common/ActionTooltip";
 import { PageHeader } from "../components/PageHeader";
 import { PermissionGuard, usePermission } from "../context/PermissionContext";
+import { getRoleLabel } from "../utils/roleLabels";
 
 type RoleFormValues = {
   name: string;
@@ -107,12 +109,14 @@ export function RoleManagementPage() {
               <Stack component="form" spacing={2} onSubmit={handleSubmit(onSubmit)}>
                 {saveMutation.isError && <Alert severity="error">บันทึกบทบาทไม่สำเร็จ</Alert>}
                 <TextField
+                  fullWidth
                   label="ชื่อบทบาท"
+                  InputLabelProps={{ shrink: true }}
                   error={Boolean(errors.name)}
                   helperText={errors.name?.message}
                   {...register("name", { required: "กรุณากรอกชื่อบทบาท" })}
                 />
-                <TextField label="รายละเอียด" {...register("description")} />
+                <TextField fullWidth label="รายละเอียด" InputLabelProps={{ shrink: true }} {...register("description")} />
                 <Controller
                   name="isActive"
                   control={control}
@@ -164,7 +168,7 @@ export function RoleManagementPage() {
                 ) : (
                   data.map((role) => (
                     <TableRow key={role.id}>
-                      <TableCell>{role.name}</TableCell>
+                      <TableCell>{getRoleLabel(role.name)}</TableCell>
                       <TableCell>{role.description ?? "-"}</TableCell>
                       <TableCell>{role.isSystemRole ? "บทบาทระบบ" : "บทบาทกำหนดเอง"}</TableCell>
                       <TableCell>
@@ -176,27 +180,33 @@ export function RoleManagementPage() {
                       </TableCell>
                       <TableCell align="right">
                         <PermissionGuard permission="RoleManagement.Edit">
-                          <IconButton aria-label="แก้ไขบทบาท" onClick={() => editRole(role)}>
-                            <EditOutlinedIcon />
-                          </IconButton>
+                          <ActionTooltip title="แก้ไขข้อมูลบทบาท">
+                            <IconButton aria-label="แก้ไขข้อมูลบทบาท" onClick={() => editRole(role)}>
+                              <EditOutlinedIcon />
+                            </IconButton>
+                          </ActionTooltip>
                         </PermissionGuard>
                         <PermissionGuard permission="RoleManagement.Manage">
-                          <IconButton
-                            component={RouterLink}
-                            to={`/admin/roles/${role.id}/permissions`}
-                            aria-label="กำหนดสิทธิ์"
-                          >
-                            <RuleOutlinedIcon />
-                          </IconButton>
+                          <ActionTooltip title="จัดการสิทธิ์ของบทบาทนี้">
+                            <IconButton
+                              component={RouterLink}
+                              to={`/admin/roles/${role.id}/permissions`}
+                              aria-label="จัดการสิทธิ์ของบทบาทนี้"
+                            >
+                              <RuleOutlinedIcon />
+                            </IconButton>
+                          </ActionTooltip>
                         </PermissionGuard>
                         <PermissionGuard permission="RoleManagement.Delete">
-                          <IconButton
-                            aria-label="ปิดใช้งานบทบาท"
-                            disabled={role.isSystemRole || !role.isActive || deactivateMutation.isPending}
-                            onClick={() => deactivateMutation.mutate(role.id)}
-                          >
-                            <BlockOutlinedIcon />
-                          </IconButton>
+                          <ActionTooltip title="ปิดใช้งานบทบาท">
+                            <IconButton
+                              aria-label="ปิดใช้งานบทบาท"
+                              disabled={role.isSystemRole || !role.isActive || deactivateMutation.isPending}
+                              onClick={() => deactivateMutation.mutate(role.id)}
+                            >
+                              <BlockOutlinedIcon />
+                            </IconButton>
+                          </ActionTooltip>
                         </PermissionGuard>
                       </TableCell>
                     </TableRow>

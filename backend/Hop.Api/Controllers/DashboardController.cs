@@ -27,9 +27,12 @@ public class DashboardController(AppDbContext db) : ControllerBase
 
         var pendingApprovals = userId is null
             ? 0
-            : await db.LeaveRequests.CountAsync(item =>
+            : await db.LeaveApprovals.CountAsync(item =>
+                item.ApproverId == userId &&
                 item.Status == "Pending" &&
-                item.CurrentApproverId == userId);
+                item.LeaveRequest != null &&
+                item.LeaveRequest.Status == "Pending" &&
+                item.LeaveRequest.CurrentApproverId == userId);
 
         var staffOnLeaveToday = await CountDistinctApprovedLeaveUsers(today, today);
         var staffOnLeaveThisWeek = await CountDistinctApprovedLeaveUsers(weekStart, weekEnd);
@@ -41,6 +44,15 @@ public class DashboardController(AppDbContext db) : ControllerBase
                 .Where(item => item.UserId == userId && item.Year == today.Year)
                 .SumAsync(item => item.EntitledDays - item.UsedDays - item.PendingDays);
 
+        var myLeaveQuery = userId is null
+            ? db.LeaveRequests.Where(item => false)
+            : db.LeaveRequests.Where(item => item.UserId == userId);
+        var myLeaveRequestsTotal = await myLeaveQuery.CountAsync();
+        var myLeaveRequestsPending = await myLeaveQuery.CountAsync(item => item.Status == "Pending");
+        var myLeaveRequestsApproved = await myLeaveQuery.CountAsync(item => item.Status == "Approved");
+        var myLeaveRequestsRejected = await myLeaveQuery.CountAsync(item => item.Status == "Rejected");
+        var myLeaveRequestsCancelled = await myLeaveQuery.CountAsync(item => item.Status == "Cancelled");
+
         return ApiResponse<DashboardSummaryResponse>.Ok(new DashboardSummaryResponse(
             totalUsers,
             totalDepartments,
@@ -51,7 +63,12 @@ public class DashboardController(AppDbContext db) : ControllerBase
             staffOnLeaveToday,
             staffOnLeaveThisWeek,
             staffOnLeaveThisMonth,
-            myRemainingLeaveDays
+            myRemainingLeaveDays,
+            myLeaveRequestsTotal,
+            myLeaveRequestsPending,
+            myLeaveRequestsApproved,
+            myLeaveRequestsRejected,
+            myLeaveRequestsCancelled
         ));
     }
 

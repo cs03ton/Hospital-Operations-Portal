@@ -21,6 +21,8 @@ import {
 } from "../api/leaveApi";
 import { PageHeader } from "../components/PageHeader";
 import { PermissionGuard } from "../context/PermissionContext";
+import { getLeaveTypeLabel } from "../utils/leaveLabels";
+import { getRoleLabel } from "../utils/roleLabels";
 
 const emptyChain: SaveApprovalChainRequest = {
   name: "",
@@ -132,7 +134,7 @@ export function ApprovalChainFormPage() {
                 <Grid item xs={12} md={4}>
                   <TextField fullWidth select label="ประเภทการลา" defaultValue="" {...chainForm.register("leaveTypeId")}>
                     <MenuItem value="">ทุกประเภท</MenuItem>
-                    {leaveTypes.map((item) => <MenuItem key={item.id} value={item.id}>{item.name}</MenuItem>)}
+                    {leaveTypes.map((item) => <MenuItem key={item.id} value={item.id}>{getLeaveTypeLabel(item.name || item.code)}</MenuItem>)}
                   </TextField>
                 </Grid>
                 <Grid item xs={12} md={4}>
@@ -165,7 +167,7 @@ export function ApprovalChainFormPage() {
                     <Grid item xs={12} md={3}>
                       <TextField fullWidth select label="บทบาทผู้อนุมัติ" defaultValue="" {...stepForm.register("approverRoleId")}>
                         <MenuItem value="">ไม่ระบุ</MenuItem>
-                        {roles.map((item) => <MenuItem key={item.id} value={item.id}>{item.name}</MenuItem>)}
+                        {roles.map((item) => <MenuItem key={item.id} value={item.id}>{getRoleLabel(item.name)}</MenuItem>)}
                       </TextField>
                     </Grid>
                     <Grid item xs={12} md={3}>
@@ -212,7 +214,7 @@ export function ApprovalChainFormPage() {
                     <TableRow key={step.id}>
                       <TableCell>{step.stepOrder}</TableCell>
                       <TableCell>{step.name}</TableCell>
-                      <TableCell>{step.approverUserName ?? step.approverRoleName ?? "-"}</TableCell>
+                      <TableCell>{step.approverUserName ?? getRoleLabel(step.approverRoleName)}</TableCell>
                       <TableCell>{step.requiredPermissionCode}</TableCell>
                       <TableCell>{step.isActive ? "ใช้งาน" : "ปิดใช้งาน"}</TableCell>
                       <TableCell align="right">

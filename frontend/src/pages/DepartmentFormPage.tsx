@@ -90,12 +90,14 @@ export function DepartmentFormPage() {
           <Stack component="form" spacing={2.5} onSubmit={handleSubmit(onSubmit)}>
             {saveMutation.isError && <Alert severity="error">บันทึกข้อมูลไม่สำเร็จ</Alert>}
             <TextField
+              fullWidth
               label="ชื่อหน่วยงาน"
+              InputLabelProps={{ shrink: true }}
               error={Boolean(errors.name)}
               helperText={errors.name?.message}
               {...register("name", { required: "กรุณากรอกชื่อหน่วยงาน" })}
             />
-            <TextField label="รายละเอียด" multiline minRows={3} {...register("description")} />
+            <TextField fullWidth label="รายละเอียด" InputLabelProps={{ shrink: true }} multiline minRows={3} {...register("description")} />
             <Controller
               name="isActive"
               control={control}

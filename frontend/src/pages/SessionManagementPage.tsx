@@ -1,9 +1,9 @@
 import BlockOutlinedIcon from "@mui/icons-material/BlockOutlined";
 import { Card, CardContent, Chip, IconButton, Table, TableBody, TableCell, TableHead, TableRow } from "@mui/material";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import dayjs from "dayjs";
 import { getSessions, revokeSession } from "../api/securityApi";
 import { PageHeader } from "../components/PageHeader";
+import { formatThaiDateTime } from "../utils/dateFormat";
 
 export function SessionManagementPage() {
   const queryClient = useQueryClient();
@@ -36,8 +36,8 @@ export function SessionManagementPage() {
               ) : data.map((item) => (
                 <TableRow key={item.id}>
                   <TableCell>{item.fullname ?? item.username ?? "-"}</TableCell>
-                  <TableCell>{dayjs(item.createdAt).format("DD/MM/YYYY HH:mm")}</TableCell>
-                  <TableCell>{dayjs(item.expiresAt).format("DD/MM/YYYY HH:mm")}</TableCell>
+                  <TableCell>{formatThaiDateTime(item.createdAt)}</TableCell>
+                  <TableCell>{formatThaiDateTime(item.expiresAt)}</TableCell>
                   <TableCell>{item.createdByIp ?? "-"}</TableCell>
                   <TableCell><Chip size="small" color={item.isActive ? "success" : "default"} label={item.isActive ? "ใช้งาน" : "ถูกยกเลิก"} /></TableCell>
                   <TableCell>{item.revokedReason ?? "-"}</TableCell>

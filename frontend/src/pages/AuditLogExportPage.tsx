@@ -4,6 +4,7 @@ import { Alert, Button, Card, CardContent, Stack, TextField, Typography } from "
 import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
 import { getAuditLogExportUrl, runAuditRetention } from "../api/securityApi";
+import { AppDatePicker } from "../components/common/AppDatePicker";
 import { PageHeader } from "../components/PageHeader";
 
 export function AuditLogExportPage() {
@@ -28,8 +29,8 @@ export function AuditLogExportPage() {
           <Stack spacing={2}>
             <Typography variant="h6">ตัวกรองสำหรับส่งออก</Typography>
             <TextField label="การกระทำ" value={action} onChange={(event) => setAction(event.target.value)} />
-            <TextField type="date" label="ตั้งแต่วันที่" InputLabelProps={{ shrink: true }} value={from} onChange={(event) => setFrom(event.target.value)} />
-            <TextField type="date" label="ถึงวันที่" InputLabelProps={{ shrink: true }} value={to} onChange={(event) => setTo(event.target.value)} />
+            <AppDatePicker label="ตั้งแต่วันที่" value={from} onChange={setFrom} />
+            <AppDatePicker label="ถึงวันที่" value={to} onChange={setTo} />
             <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5}>
               <Button variant="contained" startIcon={<DownloadOutlinedIcon />} onClick={downloadCsv}>
                 ดาวน์โหลด CSV

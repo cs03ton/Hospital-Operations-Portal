@@ -17,8 +17,10 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link as RouterLink } from "react-router-dom";
 import { deactivateUser, getUsers } from "../api/adminApi";
+import { ActionTooltip } from "../components/common/ActionTooltip";
 import { PageHeader } from "../components/PageHeader";
 import { PermissionGuard } from "../context/PermissionContext";
+import { getRoleLabels } from "../utils/roleLabels";
 
 export function UserManagementPage() {
   const queryClient = useQueryClient();
@@ -71,7 +73,7 @@ export function UserManagementPage() {
                   <TableRow key={user.id}>
                     <TableCell>{user.fullname}</TableCell>
                     <TableCell>{user.username}</TableCell>
-                    <TableCell>{user.roles.join(", ") || "-"}</TableCell>
+                    <TableCell>{getRoleLabels(user.roles)}</TableCell>
                     <TableCell>{user.department ?? "-"}</TableCell>
                     <TableCell>
                       <Chip
@@ -82,22 +84,26 @@ export function UserManagementPage() {
                     </TableCell>
                     <TableCell align="right">
                       <PermissionGuard permission="UserManagement.Edit">
-                        <IconButton
-                          component={RouterLink}
-                          to={`/admin/users/${user.id}/edit`}
-                          aria-label="แก้ไขผู้ใช้"
-                        >
-                          <EditOutlinedIcon />
-                        </IconButton>
+                        <ActionTooltip title="แก้ไขข้อมูลผู้ใช้งาน">
+                          <IconButton
+                            component={RouterLink}
+                            to={`/admin/users/${user.id}/edit`}
+                            aria-label="แก้ไขข้อมูลผู้ใช้งาน"
+                          >
+                            <EditOutlinedIcon />
+                          </IconButton>
+                        </ActionTooltip>
                       </PermissionGuard>
                       <PermissionGuard permission="UserManagement.Delete">
-                        <IconButton
-                          aria-label="ปิดใช้งานผู้ใช้"
-                          disabled={!user.isActive || deactivateMutation.isPending}
-                          onClick={() => deactivateMutation.mutate(user.id)}
-                        >
-                          <PersonOffOutlinedIcon />
-                        </IconButton>
+                        <ActionTooltip title="ปิดใช้งานผู้ใช้งาน">
+                          <IconButton
+                            aria-label="ปิดใช้งานผู้ใช้งาน"
+                            disabled={!user.isActive || deactivateMutation.isPending}
+                            onClick={() => deactivateMutation.mutate(user.id)}
+                          >
+                            <PersonOffOutlinedIcon />
+                          </IconButton>
+                        </ActionTooltip>
                       </PermissionGuard>
                     </TableCell>
                   </TableRow>

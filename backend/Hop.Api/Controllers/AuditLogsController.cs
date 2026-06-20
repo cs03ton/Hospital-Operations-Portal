@@ -40,7 +40,11 @@ public class AuditLogsController(AppDbContext db, IAuditRetentionService auditRe
 
         if (!string.IsNullOrWhiteSpace(action))
         {
-            query = query.Where(auditLog => auditLog.Action == action);
+            var actionKeyword = action.Trim().ToLower();
+            query = query.Where(auditLog =>
+                auditLog.Action.ToLower().Contains(actionKeyword) ||
+                auditLog.EntityName.ToLower().Contains(actionKeyword) ||
+                (auditLog.Detail != null && auditLog.Detail.ToLower().Contains(actionKeyword)));
         }
 
         if (from is not null)
@@ -120,7 +124,11 @@ public class AuditLogsController(AppDbContext db, IAuditRetentionService auditRe
 
         if (!string.IsNullOrWhiteSpace(action))
         {
-            query = query.Where(item => item.Action == action);
+            var actionKeyword = action.Trim().ToLower();
+            query = query.Where(item =>
+                item.Action.ToLower().Contains(actionKeyword) ||
+                item.EntityName.ToLower().Contains(actionKeyword) ||
+                (item.Detail != null && item.Detail.ToLower().Contains(actionKeyword)));
         }
 
         if (from is not null)

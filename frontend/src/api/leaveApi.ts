@@ -27,6 +27,11 @@ export type LeaveRequest = {
   status: string;
   currentApproverId?: string | null;
   currentApproverName?: string | null;
+  currentApproverRole?: string | null;
+  currentStepName?: string | null;
+  latestActionAt?: string | null;
+  currentStatusLabel: string;
+  trackingMessage: string;
   createdAt: string;
   submittedAt?: string | null;
   updatedAt?: string | null;
@@ -157,6 +162,35 @@ export type LeaveHoliday = {
   updatedAt?: string | null;
 };
 
+export type LeaveHolidayImportPreviewRow = {
+  rowNumber: number;
+  holidayDate?: string | null;
+  name: string;
+  holidayType: string;
+  isValid: boolean;
+  errors: string[];
+};
+
+export type LeaveHolidayImportPreview = {
+  totalRows: number;
+  validRows: number;
+  invalidRows: number;
+  rows: LeaveHolidayImportPreviewRow[];
+};
+
+export type LeaveHolidayImportConfirmRequest = {
+  rows: {
+    holidayDate: string;
+    name: string;
+    holidayType: string;
+  }[];
+};
+
+export type LeaveHolidayImportConfirmResult = {
+  addedCount: number;
+  failedRows: LeaveHolidayImportPreviewRow[];
+};
+
 export type SaveLeaveHolidayRequest = {
   holidayDate: string;
   name: string;
@@ -189,6 +223,15 @@ export type ApprovalDelegation = {
   isActive: boolean;
   createdAt: string;
   updatedAt?: string | null;
+};
+
+export type LeaveRequestQuery = {
+  leaveTypeId?: string;
+  status?: string;
+  departmentId?: string;
+  fromDate?: string;
+  toDate?: string;
+  userId?: string;
 };
 
 export type SaveApprovalDelegationRequest = {
@@ -263,6 +306,28 @@ export type LeaveReportQuery = {
   leaveTypeId?: string;
 };
 
+export type PendingApprovalNotification = {
+  requestId: string;
+  employeeName?: string | null;
+  leaveType?: string | null;
+  startDate: string;
+  endDate: string;
+  submittedAt?: string | null;
+  currentStep: number;
+  priority: string;
+};
+
+export type LeaveNotificationItem = {
+  id: string;
+  type: string;
+  requestId: string;
+  title: string;
+  message: string;
+  createdAt: string;
+  unread: boolean;
+  path: string;
+};
+
 export async function getLeaveTypes() {
   const response = await httpClient.get<ApiResponse<LeaveType[]>>("/api/leave-types");
   return response.data.data;
@@ -282,8 +347,8 @@ export async function deactivateLeaveType(id: string) {
   await httpClient.delete(`/api/leave-types/${id}`);
 }
 
-export async function getLeaveRequests() {
-  const response = await httpClient.get<ApiResponse<LeaveRequest[]>>("/api/leave-requests");
+export async function getLeaveRequests(params?: LeaveRequestQuery) {
+  const response = await httpClient.get<ApiResponse<LeaveRequest[]>>("/api/leave-requests", { params });
   return response.data.data;
 }
 
@@ -361,6 +426,16 @@ export async function getLeaveApprovals(id: string) {
   return response.data.data;
 }
 
+export async function getMyPendingApprovals() {
+  const response = await httpClient.get<ApiResponse<PendingApprovalNotification[]>>("/api/approvals/my-pending");
+  return response.data.data;
+}
+
+export async function getMyNotifications() {
+  const response = await httpClient.get<ApiResponse<LeaveNotificationItem[]>>("/api/notifications/me");
+  return response.data.data;
+}
+
 export async function getMyLeaveBalances() {
   const response = await httpClient.get<ApiResponse<LeaveBalance[]>>("/api/leave-balances/me");
   return response.data.data;
@@ -419,8 +494,8 @@ export async function createLeaveBalanceAdjustment(payload: CreateLeaveBalanceAd
   return response.data.data;
 }
 
-export async function getLeaveHolidays() {
-  const response = await httpClient.get<ApiResponse<LeaveHoliday[]>>("/api/leave-holidays");
+export async function getLeaveHolidays(params?: { year?: number }) {
+  const response = await httpClient.get<ApiResponse<LeaveHoliday[]>>("/api/leave-holidays", { params });
   return response.data.data;
 }
 
@@ -438,7 +513,31 @@ export async function deactivateLeaveHoliday(id: string) {
   await httpClient.delete(`/api/leave-holidays/${id}`);
 }
 
-export async function getLeaveCalendar(params: { year?: number; month?: number; departmentId?: string; leaveTypeId?: string }) {
+export async function downloadLeaveHolidayTemplate() {
+  const response = await httpClient.get("/api/leave-holidays/import-template", { responseType: "blob" });
+  return response.data as Blob;
+}
+
+export async function previewLeaveHolidayImport(file: File) {
+  const formData = new FormData();
+  formData.append("file", file);
+  const response = await httpClient.post<ApiResponse<LeaveHolidayImportPreview>>(
+    "/api/leave-holidays/import/preview",
+    formData,
+    { headers: { "Content-Type": "multipart/form-data" } },
+  );
+  return response.data.data;
+}
+
+export async function confirmLeaveHolidayImport(payload: LeaveHolidayImportConfirmRequest) {
+  const response = await httpClient.post<ApiResponse<LeaveHolidayImportConfirmResult>>(
+    "/api/leave-holidays/import/confirm",
+    payload,
+  );
+  return response.data.data;
+}
+
+export async function getLeaveCalendar(params: { year?: number; month?: number; departmentId?: string; leaveTypeId?: string; status?: string }) {
   const response = await httpClient.get<ApiResponse<LeaveCalendarItem[]>>("/api/leave-calendar", { params });
   return response.data.data;
 }

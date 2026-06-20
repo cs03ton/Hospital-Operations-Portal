@@ -5,8 +5,10 @@ import { Button, Card, CardContent, Chip, IconButton, Stack, Table, TableBody, T
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { deactivateApprovalChain, getApprovalChains } from "../api/leaveApi";
+import { ActionTooltip } from "../components/common/ActionTooltip";
 import { PageHeader } from "../components/PageHeader";
 import { PermissionGuard } from "../context/PermissionContext";
+import { getLeaveTypeLabel } from "../utils/leaveLabels";
 
 export function ApprovalChainManagementPage() {
   const navigate = useNavigate();
@@ -22,9 +24,11 @@ export function ApprovalChainManagementPage() {
       <Stack direction={{ xs: "column", sm: "row" }} justifyContent="space-between" spacing={2}>
         <PageHeader title="สายอนุมัติวันลา" subtitle="กำหนดลำดับผู้อนุมัติตามหน่วยงาน ประเภทการลา และจำนวนวันลา" />
         <PermissionGuard permission="ApprovalChain.Create">
-          <Button variant="contained" startIcon={<AddOutlinedIcon />} onClick={() => navigate("/admin/approval-chains/create")}>
-            เพิ่มสายอนุมัติ
-          </Button>
+          <ActionTooltip title="เพิ่มสายอนุมัติวันลา">
+            <Button variant="contained" size="medium" startIcon={<AddOutlinedIcon />} onClick={() => navigate("/admin/approval-chains/create")}>
+              เพิ่มสายอนุมัติ
+            </Button>
+          </ActionTooltip>
         </PermissionGuard>
       </Stack>
       <Card>
@@ -47,19 +51,23 @@ export function ApprovalChainManagementPage() {
                 <TableRow key={item.id}>
                   <TableCell>{item.name}</TableCell>
                   <TableCell>{item.departmentName ?? "ทุกหน่วยงาน"}</TableCell>
-                  <TableCell>{item.leaveTypeName ?? "ทุกประเภท"}</TableCell>
+                  <TableCell>{item.leaveTypeName ? getLeaveTypeLabel(item.leaveTypeName) : "ทุกประเภท"}</TableCell>
                   <TableCell>{item.minimumDays}</TableCell>
                   <TableCell><Chip size="small" label={item.isActive ? "ใช้งาน" : "ปิดใช้งาน"} /></TableCell>
                   <TableCell align="right">
                     <PermissionGuard permission="ApprovalChain.Edit">
-                      <IconButton aria-label="แก้ไขสายอนุมัติ" onClick={() => navigate(`/admin/approval-chains/${item.id}/edit`)}>
-                        <EditOutlinedIcon />
-                      </IconButton>
+                      <ActionTooltip title="แก้ไขสายอนุมัติวันลา">
+                        <IconButton aria-label="แก้ไขสายอนุมัติวันลา" onClick={() => navigate(`/admin/approval-chains/${item.id}/edit`)}>
+                          <EditOutlinedIcon />
+                        </IconButton>
+                      </ActionTooltip>
                     </PermissionGuard>
                     <PermissionGuard permission="ApprovalChain.Delete">
-                      <IconButton aria-label="ปิดใช้งานสายอนุมัติ" disabled={!item.isActive || deleteMutation.isPending} onClick={() => deleteMutation.mutate(item.id)}>
-                        <BlockOutlinedIcon />
-                      </IconButton>
+                      <ActionTooltip title="ปิดใช้งานสายอนุมัติวันลา">
+                        <IconButton aria-label="ปิดใช้งานสายอนุมัติวันลา" disabled={!item.isActive || deleteMutation.isPending} onClick={() => deleteMutation.mutate(item.id)}>
+                          <BlockOutlinedIcon />
+                        </IconButton>
+                      </ActionTooltip>
                     </PermissionGuard>
                   </TableCell>
                 </TableRow>

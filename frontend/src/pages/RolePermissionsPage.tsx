@@ -22,6 +22,7 @@ import {
   updateRolePermissions,
 } from "../api/adminApi";
 import { PageHeader } from "../components/PageHeader";
+import { getRoleLabel } from "../utils/roleLabels";
 
 const actionLabels: Record<string, string> = {
   View: "ดูข้อมูล",
@@ -79,7 +80,7 @@ export function RolePermissionsPage() {
     <>
       <PageHeader
         title="กำหนดสิทธิ์บทบาท"
-        subtitle={`บทบาท: ${role?.name ?? "-"}`}
+        subtitle={`บทบาท: ${getRoleLabel(role?.name)}`}
       />
       <Card>
         <CardContent>

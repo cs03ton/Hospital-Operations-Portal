@@ -48,14 +48,34 @@ cp .env.example .env
 
 Update `.env` values before any non-local deployment.
 
+## Open with Visual Studio 2022
+
+Open the solution file at the repository root:
+
+```text
+Hospital-Operations-Portal.sln
+```
+
+Visual Studio 2022 should load these backend projects:
+
+- `backend/Hop.Api/Hop.Api.csproj`
+- `backend/Hop.Api.Tests/Hop.Api.Tests.csproj`
+
+Set `Hop.Api` as the startup project when running the backend from Visual Studio. The current backend is not yet split into separate `Hop.Application`, `Hop.Domain`, or `Hop.Infrastructure` projects, so the solution reflects the existing project structure.
+
+## Build Solution
+
+```bash
+dotnet build Hospital-Operations-Portal.sln
+```
+
 ## Run Backend
 
 ```bash
-cd backend/Hop.Api
 dotnet restore
 dotnet tool restore
-dotnet tool run dotnet-ef database update --project Hop.Api.csproj --startup-project Hop.Api.csproj
-dotnet run
+dotnet tool run dotnet-ef database update --project backend/Hop.Api/Hop.Api.csproj --startup-project backend/Hop.Api/Hop.Api.csproj
+dotnet run --project backend/Hop.Api/Hop.Api.csproj
 ```
 
 Useful endpoints:
@@ -88,6 +108,11 @@ docker compose up -d postgres
 dotnet tool restore
 dotnet tool run dotnet-ef database update --project backend/Hop.Api/Hop.Api.csproj --startup-project backend/Hop.Api/Hop.Api.csproj
 docker compose up --build
+
+docker compose down -v
+docker compose up -d postgres
+dotnet ef database update
+dotnet run
 ```
 
 Open:

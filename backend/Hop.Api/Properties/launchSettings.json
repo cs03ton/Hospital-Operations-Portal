@@ -1,0 +1,13 @@
+{
+  "profiles": {
+    "Hop.Api": {
+      "commandName": "Project",
+      "launchBrowser": true,
+        "environmentVariables": {
+            "ASPNETCORE_ENVIRONMENT": "Development"
+        },
+      "applicationUrl": "https://localhost:5000"
+      //"applicationUrl": "https://localhost:49212;http://localhost:49213"
+    }
+  }
+}
