@@ -181,6 +181,34 @@ Seed__AdminUsername=<admin-username>
 Seed__AdminPassword=<strong-temporary-password>
 ```
 
+## Phase 1 Go-Live Preparation
+
+Production readiness additions for the first real department deployment:
+
+- System Settings page for runtime configuration visibility: `/admin/system-settings`
+- Admin Leave Balance CRUD page: `/admin/leave-balances`
+- Leave balance Excel import template download
+- Dashboard leave/approval metrics with lightweight charts
+- Audit Log Excel and PDF export from the active filter
+- Go-live checklist and backup/restore runbook in `docs/GO-LIVE-PREPARATION.md`
+
+Key configuration values should be supplied through environment variables, not source code:
+
+```text
+HOSPITAL_NAME
+HOSPITAL_LOGO_PATH
+APP_VERSION
+FOOTER_DEVELOPER
+THEME_PRIMARY_COLOR
+THEME_SECONDARY_COLOR
+LINE_ENABLED
+LINE_CHANNEL_ACCESS_TOKEN
+VITE_HOSPITAL_NAME
+VITE_APP_NAME
+VITE_APP_VERSION
+VITE_APP_DEVELOPER
+```
+
 ## Initial Modules
 
 The codebase may contain placeholder pages for future modules, but Phase 1 production navigation and routes expose only User Management and Leave Management.

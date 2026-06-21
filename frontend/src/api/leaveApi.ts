@@ -75,6 +75,7 @@ export type LeaveApproval = {
 export type LeaveBalance = {
   id?: string | null;
   userId: string;
+  fullname?: string | null;
   leaveTypeId: string;
   leaveTypeName: string;
   year: number;
@@ -160,6 +161,15 @@ export type LeaveHoliday = {
   isActive: boolean;
   createdAt: string;
   updatedAt?: string | null;
+};
+
+export type SaveLeaveBalanceRequest = {
+  userId: string;
+  leaveTypeId: string;
+  year: number;
+  entitledDays: number;
+  usedDays: number;
+  pendingDays: number;
 };
 
 export type LeaveHolidayImportPreviewRow = {
@@ -439,6 +449,30 @@ export async function getMyNotifications() {
 export async function getMyLeaveBalances() {
   const response = await httpClient.get<ApiResponse<LeaveBalance[]>>("/api/leave-balances/me");
   return response.data.data;
+}
+
+export async function getLeaveBalances(params?: { year?: number; userId?: string; leaveTypeId?: string }) {
+  const response = await httpClient.get<ApiResponse<LeaveBalance[]>>("/api/leave-balances", { params });
+  return response.data.data;
+}
+
+export async function createLeaveBalance(payload: SaveLeaveBalanceRequest) {
+  const response = await httpClient.post<ApiResponse<LeaveBalance>>("/api/leave-balances", payload);
+  return response.data.data;
+}
+
+export async function updateLeaveBalance(id: string, payload: SaveLeaveBalanceRequest) {
+  const response = await httpClient.put<ApiResponse<LeaveBalance>>(`/api/leave-balances/${id}`, payload);
+  return response.data.data;
+}
+
+export async function deleteLeaveBalance(id: string) {
+  await httpClient.delete(`/api/leave-balances/${id}`);
+}
+
+export async function downloadLeaveBalanceTemplate() {
+  const response = await httpClient.get("/api/leave-balances/import-template", { responseType: "blob" });
+  return response.data as Blob;
 }
 
 export async function getApprovalChains() {

@@ -84,6 +84,7 @@ public record LeaveApprovalResponse(
 public record LeaveBalanceResponse(
     Guid? Id,
     Guid UserId,
+    string? Fullname,
     Guid LeaveTypeId,
     string LeaveTypeName,
     int Year,
@@ -91,6 +92,15 @@ public record LeaveBalanceResponse(
     decimal UsedDays,
     decimal PendingDays,
     decimal RemainingDays
+);
+
+public record SaveLeaveBalanceRequest(
+    Guid UserId,
+    Guid LeaveTypeId,
+    int Year,
+    decimal EntitledDays,
+    decimal UsedDays,
+    decimal PendingDays
 );
 
 public record ApprovalChainResponse(

@@ -67,7 +67,7 @@ export function DashboardPage() {
                   </Typography>
                   {card.action && (
                     <Box>
-                      <Button component={RouterLink} to="/leave" size="small" variant="outlined">
+                      <Button component={RouterLink} to="/leave/pending-approvals" size="small" variant="outlined">
                         ดูทั้งหมด
                       </Button>
                     </Box>
@@ -78,6 +78,53 @@ export function DashboardPage() {
           </Grid>
         ))}
       </Grid>
+      <Grid container spacing={2} sx={{ mt: 0.5 }}>
+        <Grid item xs={12} lg={6}>
+          <Card>
+            <CardContent>
+              <Typography variant="h6" sx={{ mb: 2 }}>
+                ภาพรวมสถานะคำขอลาของฉัน
+              </Typography>
+              <Stack spacing={1.5}>
+                <MetricBar label="รออนุมัติ" value={data?.myLeaveRequestsPending ?? 0} total={data?.myLeaveRequestsTotal ?? 0} color="warning.main" />
+                <MetricBar label="อนุมัติแล้ว" value={data?.myLeaveRequestsApproved ?? 0} total={data?.myLeaveRequestsTotal ?? 0} color="success.main" />
+                <MetricBar label="ไม่อนุมัติ" value={data?.myLeaveRequestsRejected ?? 0} total={data?.myLeaveRequestsTotal ?? 0} color="error.main" />
+                <MetricBar label="ยกเลิกแล้ว" value={data?.myLeaveRequestsCancelled ?? 0} total={data?.myLeaveRequestsTotal ?? 0} color="text.secondary" />
+              </Stack>
+            </CardContent>
+          </Card>
+        </Grid>
+        <Grid item xs={12} lg={6}>
+          <Card>
+            <CardContent>
+              <Typography variant="h6" sx={{ mb: 2 }}>
+                แนวโน้มเจ้าหน้าที่ลางาน
+              </Typography>
+              <Stack spacing={1.5}>
+                <MetricBar label="วันนี้" value={data?.staffOnLeaveToday ?? 0} total={Math.max(data?.staffOnLeaveThisMonth ?? 0, 1)} color="success.main" />
+                <MetricBar label="สัปดาห์นี้" value={data?.staffOnLeaveThisWeek ?? 0} total={Math.max(data?.staffOnLeaveThisMonth ?? 0, 1)} color="info.main" />
+                <MetricBar label="เดือนนี้" value={data?.staffOnLeaveThisMonth ?? 0} total={Math.max(data?.staffOnLeaveThisMonth ?? 0, 1)} color="secondary.main" />
+              </Stack>
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
+    </Box>
+  );
+}
+
+function MetricBar({ label, value, total, color }: { label: string; value: number; total: number; color: string }) {
+  const percent = total > 0 ? Math.min(100, Math.round((value / total) * 100)) : 0;
+
+  return (
+    <Box>
+      <Stack direction="row" justifyContent="space-between" sx={{ mb: 0.75 }}>
+        <Typography variant="body2" color="text.secondary">{label}</Typography>
+        <Typography variant="body2" fontWeight={700}>{value.toLocaleString("th-TH")}</Typography>
+      </Stack>
+      <Box sx={(theme) => ({ height: 10, borderRadius: 999, bgcolor: alpha(theme.palette.primary.main, 0.08), overflow: "hidden" })}>
+        <Box sx={{ width: `${percent}%`, height: "100%", bgcolor: color, borderRadius: 999 }} />
+      </Box>
     </Box>
   );
 }

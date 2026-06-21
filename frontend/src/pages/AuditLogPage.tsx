@@ -1,5 +1,6 @@
 import SearchOutlinedIcon from "@mui/icons-material/SearchOutlined";
 import ClearOutlinedIcon from "@mui/icons-material/ClearOutlined";
+import DownloadOutlinedIcon from "@mui/icons-material/DownloadOutlined";
 import {
   Box,
   Button,
@@ -22,7 +23,7 @@ import {
 } from "@mui/material";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import { getAuditLogs, type AuditLogSummary } from "../api/adminApi";
+import { downloadAuditLogExcel, downloadAuditLogPdf, getAuditLogs, type AuditLogSummary } from "../api/adminApi";
 import { AppDatePicker } from "../components/common/AppDatePicker";
 import { FilterToolbar } from "../components/common/FilterToolbar";
 import { PageHeader } from "../components/PageHeader";
@@ -68,6 +69,16 @@ export function AuditLogPage() {
     setFrom("");
     setTo("");
     setPage(0);
+  }
+
+  async function download(blobPromise: Promise<Blob>, fileName: string) {
+    const blob = await blobPromise;
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = fileName;
+    link.click();
+    URL.revokeObjectURL(url);
   }
 
   return (
@@ -134,6 +145,20 @@ export function AuditLogPage() {
           </Grid>
           <Grid item xs={12}>
             <Stack direction="row" spacing={1} justifyContent="flex-end" flexWrap="wrap" useFlexGap>
+              <Button
+                variant="outlined"
+                startIcon={<DownloadOutlinedIcon />}
+                onClick={() => download(downloadAuditLogExcel(queryParams), "audit-logs.xlsx")}
+              >
+                ส่งออก Excel
+              </Button>
+              <Button
+                variant="outlined"
+                startIcon={<DownloadOutlinedIcon />}
+                onClick={() => download(downloadAuditLogPdf(queryParams), "audit-logs.pdf")}
+              >
+                ส่งออก PDF
+              </Button>
               <Button variant="contained" startIcon={<SearchOutlinedIcon />}>
                 ค้นหา
               </Button>

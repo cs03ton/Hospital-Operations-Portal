@@ -8,6 +8,7 @@ import CalendarMonthOutlinedIcon from "@mui/icons-material/CalendarMonthOutlined
 import DashboardOutlinedIcon from "@mui/icons-material/DashboardOutlined";
 import EventAvailableOutlinedIcon from "@mui/icons-material/EventAvailableOutlined";
 import EventBusyOutlinedIcon from "@mui/icons-material/EventBusyOutlined";
+import FactCheckOutlinedIcon from "@mui/icons-material/FactCheckOutlined";
 import GroupOutlinedIcon from "@mui/icons-material/GroupOutlined";
 import HistoryOutlinedIcon from "@mui/icons-material/HistoryOutlined";
 import Inventory2OutlinedIcon from "@mui/icons-material/Inventory2Outlined";
@@ -36,9 +37,11 @@ export const navigationModules: NavigationModule[] = [
     enabled: true,
     children: [
       { label: "แดชบอร์ดการลา", path: "/dashboard", icon: DashboardOutlinedIcon, permission: "Dashboard.View" },
+      { label: "งานรออนุมัติของฉัน", path: "/leave/pending-approvals", icon: FactCheckOutlinedIcon, permission: "LeaveManagement.Approve" },
       { label: "รายการคำขอลา", path: "/leave", icon: EventAvailableOutlinedIcon, permission: "LeaveManagement.View" },
       { label: "ปฏิทินการลา", path: "/leave/calendar", icon: CalendarMonthOutlinedIcon, permission: "LeaveManagement.View" },
       { label: "วันลาคงเหลือ", path: "/leave/balances", icon: AccountBalanceWalletOutlinedIcon, permission: "LeaveManagement.View" },
+      { label: "จัดการวันลาคงเหลือ", path: "/admin/leave-balances", icon: AccountBalanceWalletOutlinedIcon, permission: "LeaveBalance.Manage" },
       { label: "ประเภทการลา", path: "/leave/types", icon: TuneOutlinedIcon, permission: "LeaveManagement.Manage" },
       { label: "สายอนุมัติวันลา", path: "/admin/approval-chains", icon: AccountTreeOutlinedIcon, permission: "ApprovalChain.View" },
       { label: "มอบหมายอนุมัติ", path: "/admin/approval-delegations", icon: AccountTreeOutlinedIcon, permission: "ApprovalDelegation.View" },
@@ -56,6 +59,7 @@ export const navigationModules: NavigationModule[] = [
       { label: "จัดการหน่วยงาน", path: "/admin/departments", icon: BusinessOutlinedIcon, permission: "DepartmentManagement.View" },
       { label: "บทบาทและสิทธิ์", path: "/admin/roles", icon: SecurityOutlinedIcon, permission: "RoleManagement.View" },
       { label: "บันทึกการใช้งาน", path: "/admin/audit-logs", icon: HistoryOutlinedIcon, permission: "SystemSettings.View" },
+      { label: "ตั้งค่าระบบ", path: "/admin/system-settings", icon: TuneOutlinedIcon, permission: "SystemSettings.View" },
     ],
   },
   {

@@ -30,6 +30,7 @@ const pageTitleEntries: PageTitleEntry[] = [
   { path: "/admin/approval-delegations", title: "มอบหมายอนุมัติ", subtitle: "จัดการผู้รับมอบหมายอนุมัติแทน", breadcrumbs: [{ label: "มอบหมายอนุมัติ" }] },
   { path: "/admin/leave-holidays", title: "วันหยุดราชการ", subtitle: "จัดการวันหยุดที่ใช้คำนวณวันลา", breadcrumbs: [{ label: "วันหยุดราชการ" }] },
   { path: "/leave/create", title: "สร้างคำขอลา", subtitle: "กรอกข้อมูลและส่งคำขอลา", exact: true, breadcrumbs: [{ label: "รายการคำขอลา", path: "/leave" }, { label: "สร้างคำขอลา" }] },
+  { path: "/leave/pending-approvals", title: "งานรออนุมัติของฉัน", subtitle: "คำขอลาที่ถึงคิวอนุมัติของผู้ใช้งานปัจจุบัน", exact: true, breadcrumbs: [{ label: "ระบบลา" }, { label: "งานรออนุมัติของฉัน" }] },
   { path: "/leave/calendar", title: "ปฏิทินการลา", subtitle: "ดูภาพรวมการลาของเจ้าหน้าที่ตามเดือน", breadcrumbs: [{ label: "ปฏิทินการลา" }] },
   { path: "/leave/types", title: "ประเภทการลา", subtitle: "กำหนดประเภทลาและเงื่อนไขเบื้องต้น", breadcrumbs: [{ label: "ประเภทการลา" }] },
   { path: "/leave/balances", title: "วันลาคงเหลือ", subtitle: "ตรวจสอบสิทธิ์วันลาของผู้ใช้งาน", breadcrumbs: [{ label: "วันลาคงเหลือ" }] },

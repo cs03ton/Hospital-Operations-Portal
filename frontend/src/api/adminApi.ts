@@ -117,6 +117,19 @@ export type AuditLogQuery = {
   to?: string;
 };
 
+export type SystemSettings = {
+  hospitalName: string;
+  hospitalLogoPath: string;
+  footerText: string;
+  footerDeveloper: string;
+  themePrimaryColor: string;
+  themeSecondaryColor: string;
+  applicationVersion: string;
+  lineEnabled: boolean;
+  lineChannelAccessTokenConfigured: boolean;
+  lineEndpoint: string;
+};
+
 export async function getUsers() {
   const response = await httpClient.get<ApiResponse<UserSummary[]>>("/api/users");
   return response.data.data;
@@ -224,5 +237,20 @@ export async function getAuditLogs(params: AuditLogQuery = {}) {
 
 export async function getAuditLog(id: string) {
   const response = await httpClient.get<ApiResponse<AuditLogSummary>>(`/api/audit-logs/${id}`);
+  return response.data.data;
+}
+
+export async function downloadAuditLogExcel(params: AuditLogQuery = {}) {
+  const response = await httpClient.get("/api/audit-logs/export-excel", { params, responseType: "blob" });
+  return response.data as Blob;
+}
+
+export async function downloadAuditLogPdf(params: AuditLogQuery = {}) {
+  const response = await httpClient.get("/api/audit-logs/export-pdf", { params, responseType: "blob" });
+  return response.data as Blob;
+}
+
+export async function getSystemSettings() {
+  const response = await httpClient.get<ApiResponse<SystemSettings>>("/api/system-settings");
   return response.data.data;
 }

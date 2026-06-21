@@ -7,6 +7,7 @@ import {
   ListItemButton,
   ListItemText,
   Menu,
+  Button,
   Stack,
   Typography,
 } from "@mui/material";
@@ -62,12 +63,19 @@ export function NotificationBell() {
         }}
       >
         <Box sx={(theme) => ({ px: 2, py: 1.5, bgcolor: alpha(theme.palette.primary.main, 0.06) })}>
-          <Typography variant="subtitle1" fontWeight={700}>
-            การแจ้งเตือน
-          </Typography>
-          <Typography variant="caption" color="text.secondary">
-            งานรออนุมัติและสถานะคำขอลาของฉัน
-          </Typography>
+          <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={1.5}>
+            <Box>
+              <Typography variant="subtitle1" fontWeight={700}>
+                การแจ้งเตือน
+              </Typography>
+              <Typography variant="caption" color="text.secondary">
+                งานรออนุมัติและสถานะคำขอลาของฉัน
+              </Typography>
+            </Box>
+            <Button size="small" variant="text" onClick={() => handleSelect("/leave/pending-approvals")}>
+              ดูทั้งหมด
+            </Button>
+          </Stack>
         </Box>
         <Divider />
         {notifications.length ? (

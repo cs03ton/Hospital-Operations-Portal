@@ -9,6 +9,7 @@ import { DepartmentManagementPage } from "../pages/DepartmentManagementPage";
 import { DepartmentFormPage } from "../pages/DepartmentFormPage";
 import { LeaveManagementPage } from "../pages/LeaveManagementPage";
 import { LeaveBalanceAdjustmentPage } from "../pages/LeaveBalanceAdjustmentPage";
+import { LeaveBalanceManagementPage } from "../pages/LeaveBalanceManagementPage";
 import { LeaveBalancePage } from "../pages/LeaveBalancePage";
 import { LeaveHolidayManagementPage } from "../pages/LeaveHolidayManagementPage";
 import { LeaveCalendarPage } from "../pages/LeaveCalendarPage";
@@ -17,11 +18,13 @@ import { LeaveRequestFormPage } from "../pages/LeaveRequestFormPage";
 import { LeaveTypeManagementPage } from "../pages/LeaveTypeManagementPage";
 import { LoginPage } from "../pages/LoginPage";
 import { LeaveReportsPage } from "../pages/LeaveReportsPage";
+import { PendingApprovalsPage } from "../pages/PendingApprovalsPage";
 import { ApprovalDelegationPage } from "../pages/ApprovalDelegationPage";
 import { UserManagementPage } from "../pages/UserManagementPage";
 import { UserFormPage } from "../pages/UserFormPage";
 import { RoleManagementPage } from "../pages/RoleManagementPage";
 import { RolePermissionsPage } from "../pages/RolePermissionsPage";
+import { SystemSettingsPage } from "../pages/SystemSettingsPage";
 import { UnauthorizedPage } from "../pages/UnauthorizedPage";
 import { PermissionGuard } from "../context/PermissionContext";
 import { ProtectedRoute } from "./ProtectedRoute";
@@ -53,14 +56,17 @@ export function AppRoutes() {
           <Route path="/admin/roles/:id/permissions" element={withPermission(<RolePermissionsPage />, "RoleManagement.Manage")} />
           <Route path="/admin/audit-logs" element={withPermission(<AuditLogPage />, "SystemSettings.View")} />
           <Route path="/admin/audit-logs/export" element={withPermission(<AuditLogExportPage />, "SystemSettings.Export")} />
+          <Route path="/admin/system-settings" element={withPermission(<SystemSettingsPage />, "SystemSettings.View")} />
           <Route path="/admin/approval-chains" element={withPermission(<ApprovalChainManagementPage />, "ApprovalChain.View")} />
           <Route path="/admin/approval-chains/create" element={withPermission(<ApprovalChainFormPage />, "ApprovalChain.Create")} />
           <Route path="/admin/approval-chains/:id/edit" element={withPermission(<ApprovalChainFormPage />, "ApprovalChain.Edit")} />
           <Route path="/admin/approval-delegations" element={withPermission(<ApprovalDelegationPage />, "ApprovalDelegation.View")} />
+          <Route path="/admin/leave-balances" element={withPermission(<LeaveBalanceManagementPage />, "LeaveBalance.Manage")} />
           <Route path="/admin/leave-balances/adjustments" element={withPermission(<LeaveBalanceAdjustmentPage />, "LeaveBalance.Adjust")} />
           <Route path="/admin/leave-holidays" element={withPermission(<LeaveHolidayManagementPage />, "LeaveHoliday.Manage")} />
           <Route path="/leave" element={withPermission(<LeaveManagementPage />, "LeaveManagement.View")} />
           <Route path="/leave/create" element={withPermission(<LeaveRequestFormPage />, "LeaveManagement.Create")} />
+          <Route path="/leave/pending-approvals" element={withPermission(<PendingApprovalsPage />, "LeaveManagement.Approve")} />
           <Route path="/leave/calendar" element={withPermission(<LeaveCalendarPage />, "LeaveManagement.View")} />
           <Route path="/leave/types" element={withPermission(<LeaveTypeManagementPage />, "LeaveManagement.Manage")} />
           <Route path="/leave/balances" element={withPermission(<LeaveBalancePage />, "LeaveManagement.View")} />
