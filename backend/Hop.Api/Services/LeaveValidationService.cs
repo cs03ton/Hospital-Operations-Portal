@@ -30,6 +30,19 @@ public sealed class LeaveValidationService(
             return new LeaveValidationResult(false, "การลาครึ่งวันต้องเลือกวันที่เริ่มลาและวันที่สิ้นสุดเป็นวันเดียวกัน", 0);
         }
 
+        var holidaysInRange = await db.LeaveHolidays
+            .AsNoTracking()
+            .Where(item => item.IsActive)
+            .Where(item => item.HolidayDate >= leaveRequest.StartDate && item.HolidayDate <= leaveRequest.EndDate)
+            .OrderBy(item => item.HolidayDate)
+            .Select(item => item.Name)
+            .ToListAsync();
+
+        if (holidaysInRange.Count > 0)
+        {
+            return new LeaveValidationResult(false, $"ไม่สามารถขอลาในวันหยุดได้: {string.Join(", ", holidaysInRange)}", 0);
+        }
+
         var calculatedDays = await calendarService.CalculateBusinessDaysAsync(
             leaveRequest.StartDate,
             leaveRequest.EndDate,

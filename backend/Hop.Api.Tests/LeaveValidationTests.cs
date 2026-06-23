@@ -80,6 +80,38 @@ public class LeaveValidationTests
     }
 
     [Fact]
+    public async Task ValidateDraftAsync_RejectsLeaveOnActiveHoliday()
+    {
+        await using var db = CreateDbContext();
+        var leaveType = await AddLeaveType(db);
+        db.LeaveHolidays.Add(new LeaveHoliday
+        {
+            Id = Guid.NewGuid(),
+            HolidayDate = new DateOnly(2026, 6, 22),
+            Name = "วันหยุดทดสอบ",
+            IsActive = true
+        });
+        await db.SaveChangesAsync();
+        var service = CreateService(db);
+
+        var result = await service.ValidateDraftAsync(new LeaveRequest
+        {
+            UserId = Guid.NewGuid(),
+            LeaveTypeId = leaveType.Id,
+            LeaveType = leaveType,
+            StartDate = new DateOnly(2026, 6, 22),
+            EndDate = new DateOnly(2026, 6, 22),
+            DurationType = LeaveDurationTypes.FullDay,
+            TotalDays = 1,
+            Reason = "Holiday leave"
+        });
+
+        Assert.False(result.IsValid);
+        Assert.Contains("วันหยุด", result.Message);
+        Assert.Contains("วันหยุดทดสอบ", result.Message);
+    }
+
+    [Fact]
     public async Task ValidateSubmitAsync_AllowsHalfDayWhenRemainingBalanceIsPointFive()
     {
         await using var db = CreateDbContext();

@@ -5,7 +5,7 @@ import dayjs from "dayjs";
 import { useEffect } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { useNavigate } from "react-router-dom";
-import { createLeaveRequest, getLeaveTypes, getMyLeaveBalances, type SaveLeaveRequest } from "../api/leaveApi";
+import { createLeaveRequest, getLeaveHolidays, getLeaveTypes, getMyLeaveBalances, type SaveLeaveRequest } from "../api/leaveApi";
 import { AppDatePicker } from "../components/common/AppDatePicker";
 import { PageHeader } from "../components/PageHeader";
 import { useNotification } from "../hooks/useNotification";
@@ -25,12 +25,16 @@ export function LeaveRequestFormPage() {
   const leaveTypeId = watch("leaveTypeId");
   const durationType = watch("durationType") ?? "FULL_DAY";
   const isHalfDay = durationType === "HALF_DAY_AM" || durationType === "HALF_DAY_PM";
+  const holidayYear = startDate && dayjs(startDate).isValid() ? dayjs(startDate).year() : dayjs().year();
+  const { data: holidays = [] } = useQuery({ queryKey: ["leave-holidays", holidayYear], queryFn: () => getLeaveHolidays({ year: holidayYear }) });
   const selectedLeaveType = leaveTypes.find((item) => item.id === leaveTypeId);
   const selectedBalance = leaveBalances.find((item) => item.leaveTypeId === leaveTypeId);
   const requestedDays = isHalfDay ? 0.5 : estimateRequestedDays(startDate, endDate);
   const availableDays = selectedBalance?.remainingDays ?? selectedLeaveType?.defaultDaysPerYear ?? 0;
   const shouldValidateBalance = selectedLeaveType?.requiresBalance !== false;
   const hasInsufficientBalance = Boolean(leaveTypeId && shouldValidateBalance && requestedDays > 0 && requestedDays > availableDays);
+  const holidayNamesInRange = getHolidayNamesInRange(startDate, isHalfDay ? startDate : endDate, holidays);
+  const hasHolidayInRange = holidayNamesInRange.length > 0;
   useEffect(() => {
     setValue("totalDays", isHalfDay ? 0.5 : 1);
     if (isHalfDay && startDate) {
@@ -67,6 +71,11 @@ export function LeaveRequestFormPage() {
                 ) : (
                   "ประเภทการลานี้ไม่ใช้โควตาวันลา"
                 )}
+              </Alert>
+            )}
+            {hasHolidayInRange && (
+              <Alert severity="warning">
+                ไม่สามารถขอลาในวันหยุดได้: {holidayNamesInRange.join(", ")}
               </Alert>
             )}
             <TextField fullWidth select label="ประเภทการลา" InputLabelProps={{ shrink: true }} error={Boolean(errors.leaveTypeId)} helperText={errors.leaveTypeId?.message} {...register("leaveTypeId", { required: "กรุณาเลือกประเภทการลา" })}>
@@ -137,7 +146,7 @@ export function LeaveRequestFormPage() {
             </Typography>
             <TextField label="เหตุผล" multiline minRows={4} error={Boolean(errors.reason)} helperText={errors.reason?.message} {...register("reason", { required: "กรุณากรอกเหตุผล" })} />
             <Stack direction="row" spacing={1.5}>
-              <Button type="submit" variant="contained" disabled={mutation.isPending || hasInsufficientBalance}>บันทึกแบบร่าง</Button>
+              <Button type="submit" variant="contained" disabled={mutation.isPending || hasInsufficientBalance || hasHolidayInRange}>บันทึกแบบร่าง</Button>
               <Button variant="outlined" onClick={() => navigate("/leave")}>ยกเลิก</Button>
             </Stack>
           </Stack>
@@ -145,6 +154,26 @@ export function LeaveRequestFormPage() {
       </Card>
     </>
   );
+}
+
+function getHolidayNamesInRange(startDate?: string, endDate?: string, holidays: { holidayDate: string; name: string; isActive: boolean }[] = []) {
+  if (!startDate || !endDate || !dayjs(startDate).isValid() || !dayjs(endDate).isValid()) {
+    return [];
+  }
+
+  const start = dayjs(startDate).startOf("day");
+  const end = dayjs(endDate).startOf("day");
+  if (end.isBefore(start)) {
+    return [];
+  }
+
+  return holidays
+    .filter((holiday) => holiday.isActive)
+    .filter((holiday) => {
+      const date = dayjs(holiday.holidayDate).startOf("day");
+      return (date.isAfter(start) || date.isSame(start)) && (date.isBefore(end) || date.isSame(end));
+    })
+    .map((holiday) => holiday.name);
 }
 
 function estimateRequestedDays(startDate?: string, endDate?: string) {
