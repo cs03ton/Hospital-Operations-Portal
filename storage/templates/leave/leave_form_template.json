@@ -1,0 +1,35 @@
+{
+  "staticText": [
+    { "text": "แบบฟอร์มใบลา", "x": 50, "y": 790, "fontSize": 20 },
+    { "text": "Hospital Operations Portal", "x": 50, "y": 746, "fontSize": 10 },
+    { "text": "ข้อมูลคำขอลา", "x": 50, "y": 700, "fontSize": 15 },
+    { "text": "ข้อมูลการอนุมัติ", "x": 50, "y": 402, "fontSize": 15 },
+    { "text": "ลายเซ็นผู้ขอลา ______________________________", "x": 70, "y": 110, "fontSize": 12 },
+    { "text": "ลายเซ็นผู้อนุมัติ ____________________________", "x": 330, "y": 110, "fontSize": 12 }
+  ],
+  "fields": [
+    { "key": "hospitalName", "label": "", "x": 50, "y": 766, "fontSize": 15 },
+    { "key": "requestNumber", "label": "เลขที่คำขอ", "x": 50, "y": 724, "fontSize": 12 },
+    { "key": "requesterName", "label": "ชื่อผู้ขอลา", "x": 70, "y": 674, "fontSize": 12 },
+    { "key": "employeeCode", "label": "รหัสพนักงาน", "x": 330, "y": 674, "fontSize": 12 },
+    { "key": "position", "label": "ตำแหน่ง/บทบาท", "x": 70, "y": 652, "fontSize": 12 },
+    { "key": "departmentName", "label": "หน่วยงาน", "x": 330, "y": 652, "fontSize": 12 },
+    { "key": "leaveTypeName", "label": "ประเภทการลา", "x": 70, "y": 626, "fontSize": 12 },
+    { "key": "durationType", "label": "ประเภทช่วงเวลา", "x": 330, "y": 626, "fontSize": 12 },
+    { "key": "startDate", "label": "วันที่เริ่มลา", "x": 70, "y": 604, "fontSize": 12 },
+    { "key": "endDate", "label": "วันที่สิ้นสุด", "x": 330, "y": 604, "fontSize": 12 },
+    { "key": "totalDays", "label": "จำนวนวัน", "x": 70, "y": 582, "fontSize": 12 },
+    { "key": "submittedAt", "label": "วันที่ยื่นคำขอ", "x": 330, "y": 582, "fontSize": 12 },
+    { "key": "status", "label": "สถานะ", "x": 70, "y": 560, "fontSize": 12 },
+    { "key": "currentApproverName", "label": "ผู้อนุมัติปัจจุบัน", "x": 330, "y": 560, "fontSize": 12 },
+    { "key": "reason", "label": "เหตุผล", "x": 70, "y": 532, "fontSize": 12 }
+  ],
+  "approvalRows": {
+    "x": 70,
+    "startY": 374,
+    "rowHeight": 20,
+    "fontSize": 10,
+    "maxRows": 10,
+    "format": "{{stepOrder}}. {{stepName}} | {{approverName}} | {{status}} | {{actionAt}} | {{remark}}"
+  }
+}

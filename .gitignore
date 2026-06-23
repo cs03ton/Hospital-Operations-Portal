@@ -94,6 +94,8 @@ docs/qa/*.txt
 # Runtime uploads / generated storage
 storage/*
 !storage/.gitkeep
+!storage/templates/
+!storage/templates/**
 backend/Hop.Api/storage/
 backend/Hop.Api/wwwroot/uploads/
 backend/Hop.Api/uploads/

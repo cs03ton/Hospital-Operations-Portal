@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.IO.Compression;
 using System.Text;
+using System.Text.Json;
 using Hop.Api.Interfaces;
 using Hop.Api.Models;
 
@@ -10,9 +11,85 @@ public sealed class LeavePdfService(IWebHostEnvironment environment, IConfigurat
 {
     public byte[] GenerateLeaveRequestPdf(LeaveRequest leaveRequest, string hospitalName)
     {
-        var lines = BuildLines(leaveRequest, hospitalName);
+        var lines = TryBuildTemplateLines(leaveRequest, hospitalName) ?? BuildLines(leaveRequest, hospitalName);
         var logo = TryLoadLogo();
         return SimplePdfWriter.CreateA4(lines, logo);
+    }
+
+    private IReadOnlyList<PdfLine>? TryBuildTemplateLines(LeaveRequest leaveRequest, string hospitalName)
+    {
+        var template = TryLoadTemplateConfig();
+        if (template is null)
+        {
+            return null;
+        }
+
+        var values = BuildFieldValues(leaveRequest, hospitalName);
+        var lines = new List<PdfLine>();
+        foreach (var item in template.StaticText)
+        {
+            lines.Add(new PdfLine(item.Text, item.X, item.Y, item.FontSize));
+        }
+
+        foreach (var field in template.Fields)
+        {
+            var value = values.GetValueOrDefault(field.Key, "-");
+            var text = string.IsNullOrWhiteSpace(field.Label) ? value : $"{field.Label}: {value}";
+            lines.Add(new PdfLine(text, field.X, field.Y, field.FontSize));
+        }
+
+        if (template.ApprovalRows is not null)
+        {
+            var y = template.ApprovalRows.StartY;
+            foreach (var approval in leaveRequest.Approvals.OrderBy(item => item.StepOrder).Take(template.ApprovalRows.MaxRows))
+            {
+                var rowValues = BuildApprovalValues(approval);
+                var text = template.ApprovalRows.Format;
+                foreach (var pair in rowValues)
+                {
+                    text = text.Replace($"{{{{{pair.Key}}}}}", pair.Value, StringComparison.OrdinalIgnoreCase);
+                }
+
+                lines.Add(new PdfLine(text, template.ApprovalRows.X, y, template.ApprovalRows.FontSize));
+                y -= template.ApprovalRows.RowHeight;
+            }
+        }
+
+        return lines.Count == 0 ? null : lines;
+    }
+
+    private LeaveFormTemplateConfig? TryLoadTemplateConfig()
+    {
+        var configuredPath = configuration["LeavePdf:TemplateConfigPath"];
+        var candidates = new[]
+        {
+            configuredPath,
+            Path.Combine(environment.ContentRootPath, "storage", "templates", "leave", "leave_form_template.json"),
+            Path.GetFullPath(Path.Combine(environment.ContentRootPath, "..", "..", "storage", "templates", "leave", "leave_form_template.json"))
+        };
+
+        foreach (var candidate in candidates.Where(path => !string.IsNullOrWhiteSpace(path)))
+        {
+            if (!File.Exists(candidate))
+            {
+                continue;
+            }
+
+            try
+            {
+                var json = File.ReadAllText(candidate);
+                return JsonSerializer.Deserialize<LeaveFormTemplateConfig>(json, new JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true
+                });
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        return null;
     }
 
     private PdfImage? TryLoadLogo()
@@ -96,10 +173,58 @@ public sealed class LeavePdfService(IWebHostEnvironment environment, IConfigurat
         return lines;
     }
 
+    private static Dictionary<string, string> BuildFieldValues(LeaveRequest leaveRequest, string hospitalName)
+    {
+        var requester = leaveRequest.User?.FullName ?? "-";
+        var employeeCode = leaveRequest.User?.EmployeeCode ?? "-";
+        var department = leaveRequest.User?.Department?.Name ?? "-";
+        var position = leaveRequest.User?.UserRoles.Select(item => item.Role?.Name).FirstOrDefault(item => !string.IsNullOrWhiteSpace(item)) ?? "-";
+        var leaveType = leaveRequest.LeaveType?.Name ?? "-";
+        var submittedAt = leaveRequest.SubmittedAt is null ? "-" : FormatDateTime(leaveRequest.SubmittedAt.Value);
+
+        return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["hospitalName"] = hospitalName,
+            ["requestNumber"] = leaveRequest.RequestNumber ?? "-",
+            ["requesterName"] = requester,
+            ["employeeCode"] = employeeCode,
+            ["position"] = position,
+            ["departmentName"] = department,
+            ["leaveTypeName"] = leaveType,
+            ["startDate"] = FormatDate(leaveRequest.StartDate),
+            ["endDate"] = FormatDate(leaveRequest.EndDate),
+            ["totalDays"] = leaveRequest.TotalDays.ToString("0.##", CultureInfo.InvariantCulture),
+            ["durationType"] = TranslateDurationType(leaveRequest.DurationType),
+            ["reason"] = leaveRequest.Reason,
+            ["submittedAt"] = submittedAt,
+            ["status"] = TranslateStatus(leaveRequest.Status),
+            ["currentApproverName"] = leaveRequest.CurrentApprover?.FullName ?? "-"
+        };
+    }
+
+    private static Dictionary<string, string> BuildApprovalValues(LeaveApproval approval)
+    {
+        return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["stepOrder"] = approval.StepOrder.ToString(CultureInfo.InvariantCulture),
+            ["stepName"] = approval.StepName ?? "ขั้นอนุมัติ",
+            ["approverName"] = approval.Approver?.FullName ?? "-",
+            ["status"] = TranslateStatus(approval.Status),
+            ["actionAt"] = approval.ActionAt is null ? "-" : FormatDateTime(approval.ActionAt.Value),
+            ["remark"] = string.IsNullOrWhiteSpace(approval.Remark) ? "-" : approval.Remark
+        };
+    }
+
     private static string FormatDate(DateOnly date)
     {
         var buddhistYear = date.Year + 543;
         return $"{date.Day:00}/{date.Month:00}/{buddhistYear}";
+    }
+
+    private static string FormatDateTime(DateTime value)
+    {
+        var local = value.ToLocalTime();
+        return $"{local.Day:00}/{local.Month:00}/{local.Year + 543} {local:HH:mm}";
     }
 
     private static string TranslateStatus(string status)
@@ -127,6 +252,40 @@ public sealed class LeavePdfService(IWebHostEnvironment environment, IConfigurat
             _ => durationType
         };
     }
+}
+
+public sealed class LeaveFormTemplateConfig
+{
+    public List<TemplateText> StaticText { get; set; } = [];
+    public List<TemplateField> Fields { get; set; } = [];
+    public ApprovalRowsTemplate? ApprovalRows { get; set; }
+}
+
+public sealed class TemplateText
+{
+    public string Text { get; set; } = string.Empty;
+    public double X { get; set; }
+    public double Y { get; set; }
+    public int FontSize { get; set; } = 12;
+}
+
+public sealed class TemplateField
+{
+    public string Key { get; set; } = string.Empty;
+    public string Label { get; set; } = string.Empty;
+    public double X { get; set; }
+    public double Y { get; set; }
+    public int FontSize { get; set; } = 12;
+}
+
+public sealed class ApprovalRowsTemplate
+{
+    public double X { get; set; }
+    public double StartY { get; set; }
+    public double RowHeight { get; set; } = 18;
+    public int FontSize { get; set; } = 10;
+    public int MaxRows { get; set; } = 8;
+    public string Format { get; set; } = "{{stepOrder}}. {{stepName}} - {{approverName}} - {{status}} - {{actionAt}} - {{remark}}";
 }
 
 public sealed record PdfLine(string Text, double X, double Y, int FontSize);

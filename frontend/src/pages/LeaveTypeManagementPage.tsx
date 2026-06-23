@@ -1,7 +1,28 @@
-import BlockOutlinedIcon from "@mui/icons-material/BlockOutlined";
+import DeleteOutlineOutlinedIcon from "@mui/icons-material/DeleteOutlineOutlined";
 import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 import AddOutlinedIcon from "@mui/icons-material/AddOutlined";
-import { Alert, Button, Card, CardContent, Checkbox, Chip, FormControlLabel, Grid, IconButton, Stack, TableBody, TableCell, TableHead, TableRow, TextField, Typography } from "@mui/material";
+import {
+  Alert,
+  Button,
+  Card,
+  CardContent,
+  Checkbox,
+  Chip,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  FormControlLabel,
+  Grid,
+  IconButton,
+  Stack,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableRow,
+  TextField,
+  Typography,
+} from "@mui/material";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
@@ -19,8 +40,10 @@ export function LeaveTypeManagementPage() {
   const queryClient = useQueryClient();
   const { showSuccess } = useNotification();
   const [editing, setEditing] = useState<LeaveType | null>(null);
+  const [deleting, setDeleting] = useState<LeaveType | null>(null);
   const canSeeManageColumn = user?.role === "Admin" || user?.role === "SuperAdmin";
   const { data = [], isLoading } = useQuery({ queryKey: ["leave-types"], queryFn: getLeaveTypes });
+  const activeLeaveTypes = data.filter((item) => item.isActive);
   const { control, register, handleSubmit, reset, formState: { errors } } = useForm<SaveLeaveTypeRequest>({
     defaultValues: { code: "", name: "", description: "", defaultDaysPerYear: 0, requiresBalance: true, requiresAttachment: false, isPaid: true, isActive: true },
   });
@@ -37,7 +60,8 @@ export function LeaveTypeManagementPage() {
   const deleteMutation = useMutation({
     mutationFn: deactivateLeaveType,
     onSuccess: () => {
-      showSuccess("ปิดใช้งานประเภทการลาเรียบร้อยแล้ว");
+      showSuccess("ลบประเภทการลาเรียบร้อยแล้ว");
+      setDeleting(null);
       queryClient.invalidateQueries({ queryKey: ["leave-types"] });
     },
   });
@@ -99,7 +123,7 @@ export function LeaveTypeManagementPage() {
               <TableBody>
                 {isLoading ? (
                   <TableRow><TableCell colSpan={canSeeManageColumn ? 7 : 6}>กำลังโหลดประเภทการลา...</TableCell></TableRow>
-                ) : data.length ? data.map((item) => (
+                ) : activeLeaveTypes.length ? activeLeaveTypes.map((item) => (
                   <TableRow key={item.id}>
                     <TableCell>{item.code}</TableCell>
                     <TableCell>{getLeaveTypeLabel(item.name || item.code)}</TableCell>
@@ -113,8 +137,15 @@ export function LeaveTypeManagementPage() {
                           <ActionTooltip title="แก้ไขประเภทการลา">
                             <IconButton aria-label="แก้ไขประเภทการลา" onClick={() => onEdit(item)}><EditOutlinedIcon /></IconButton>
                           </ActionTooltip>
-                          <ActionTooltip title="ปิดใช้งานประเภทการลา">
-                            <IconButton aria-label="ปิดใช้งานประเภทการลา" disabled={!item.isActive || deleteMutation.isPending} onClick={() => deleteMutation.mutate(item.id)}><BlockOutlinedIcon /></IconButton>
+                          <ActionTooltip title="ลบประเภทการลา">
+                            <IconButton
+                              aria-label="ลบประเภทการลา"
+                              color="error"
+                              disabled={deleteMutation.isPending}
+                              onClick={() => setDeleting(item)}
+                            >
+                              <DeleteOutlineOutlinedIcon />
+                            </IconButton>
                           </ActionTooltip>
                         </PermissionGuard>
                       </TableCell>
@@ -126,6 +157,30 @@ export function LeaveTypeManagementPage() {
               </TableBody>
         </DataTableCard>
       </Stack>
+      <Dialog open={Boolean(deleting)} onClose={() => setDeleting(null)} fullWidth maxWidth="xs">
+        <DialogTitle>ยืนยันการลบประเภทการลา</DialogTitle>
+        <DialogContent>
+          <Stack spacing={1}>
+            <Typography>
+              ต้องการลบประเภทการลา “{deleting ? getLeaveTypeLabel(deleting.name || deleting.code) : ""}” ใช่หรือไม่?
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              ระบบจะซ่อนประเภทการลานี้จากหน้าจัดการและการเลือกใช้งานใหม่ แต่ยังเก็บประวัติคำขอลาเดิมไว้
+            </Typography>
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeleting(null)}>ยกเลิก</Button>
+          <Button
+            color="error"
+            variant="contained"
+            disabled={!deleting || deleteMutation.isPending}
+            onClick={() => deleting && deleteMutation.mutate(deleting.id)}
+          >
+            ลบประเภทการลา
+          </Button>
+        </DialogActions>
+      </Dialog>
     </>
   );
 }

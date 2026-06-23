@@ -1,12 +1,29 @@
 import AddOutlinedIcon from "@mui/icons-material/AddOutlined";
-import BlockOutlinedIcon from "@mui/icons-material/BlockOutlined";
+import DeleteOutlineOutlinedIcon from "@mui/icons-material/DeleteOutlineOutlined";
 import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 import RuleOutlinedIcon from "@mui/icons-material/RuleOutlined";
-import { Button, Card, CardContent, Chip, IconButton, Stack, Table, TableBody, TableCell, TableHead, TableRow } from "@mui/material";
+import {
+  Button,
+  Card,
+  CardContent,
+  Chip,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  IconButton,
+  Stack,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableRow,
+  Typography,
+} from "@mui/material";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { deactivateApprovalChain, getApprovalChains, resolveApprovalRulePreview, type ApprovalRulePreview } from "../api/leaveApi";
+import { deactivateApprovalChain, getApprovalChains, resolveApprovalRulePreview, type ApprovalChain, type ApprovalRulePreview } from "../api/leaveApi";
 import { ActionTooltip } from "../components/common/ActionTooltip";
 import { ApprovalRulePreviewDialog } from "../components/leave/ApprovalRulePreviewDialog";
 import { PageHeader } from "../components/PageHeader";
@@ -19,11 +36,14 @@ export function ApprovalChainManagementPage() {
   const queryClient = useQueryClient();
   const { showSuccess } = useNotification();
   const [preview, setPreview] = useState<ApprovalRulePreview | null>(null);
+  const [deletingChain, setDeletingChain] = useState<ApprovalChain | null>(null);
   const { data = [], isLoading } = useQuery({ queryKey: ["approval-chains"], queryFn: getApprovalChains });
+  const activeChains = data.filter((item) => item.isActive);
   const deleteMutation = useMutation({
     mutationFn: deactivateApprovalChain,
     onSuccess: () => {
-      showSuccess("ปิดใช้งานกฎการอนุมัติเรียบร้อยแล้ว");
+      showSuccess("ลบกฎการอนุมัติเรียบร้อยแล้ว");
+      setDeletingChain(null);
       return queryClient.invalidateQueries({ queryKey: ["approval-chains"] });
     },
   });
@@ -61,7 +81,7 @@ export function ApprovalChainManagementPage() {
             <TableBody>
               {isLoading ? (
                 <TableRow><TableCell colSpan={7}>กำลังโหลดกฎการอนุมัติ...</TableCell></TableRow>
-              ) : data.length ? data.map((item) => (
+              ) : activeChains.length ? activeChains.map((item) => (
                 <TableRow key={item.id}>
                   <TableCell>{item.name}</TableCell>
                   <TableCell>{item.departmentName ?? "ทุกหน่วยงาน"}</TableCell>
@@ -85,9 +105,14 @@ export function ApprovalChainManagementPage() {
                       </ActionTooltip>
                     </PermissionGuard>
                     <PermissionGuard permission="LeaveAdmin.ManageApprovalChains">
-                      <ActionTooltip title="ปิดใช้งานกฎการอนุมัติวันลา">
-                        <IconButton aria-label="ปิดใช้งานกฎการอนุมัติวันลา" disabled={!item.isActive || deleteMutation.isPending} onClick={() => deleteMutation.mutate(item.id)}>
-                          <BlockOutlinedIcon />
+                      <ActionTooltip title="ลบกฎการอนุมัติวันลา">
+                        <IconButton
+                          aria-label="ลบกฎการอนุมัติวันลา"
+                          color="error"
+                          disabled={!item.isActive || deleteMutation.isPending}
+                          onClick={() => setDeletingChain(item)}
+                        >
+                          <DeleteOutlineOutlinedIcon />
                         </IconButton>
                       </ActionTooltip>
                     </PermissionGuard>
@@ -101,6 +126,33 @@ export function ApprovalChainManagementPage() {
         </CardContent>
       </Card>
       <ApprovalRulePreviewDialog open={Boolean(preview)} preview={preview} onClose={() => setPreview(null)} />
+      <Dialog open={Boolean(deletingChain)} onClose={() => setDeletingChain(null)} fullWidth maxWidth="xs">
+        <DialogTitle>ยืนยันการลบกฎการอนุมัติ</DialogTitle>
+        <DialogContent>
+          <Stack spacing={1.5}>
+            <Typography>
+              ต้องการลบกฎการอนุมัติ “{deletingChain?.name}” ใช่หรือไม่?
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              ระบบจะปิดใช้งานกฎนี้เพื่อรักษาประวัติการอนุมัติเดิมไว้ หากมีผู้ใช้งานผูกกับกฎนี้อยู่ กรุณาเปลี่ยนกฎให้ผู้ใช้งานก่อนใช้งานจริง
+            </Typography>
+            {(deletingChain?.userCount ?? 0) > 0 && (
+              <Chip color="warning" label={`มีผู้ใช้งานที่ใช้กฎนี้ ${deletingChain?.userCount} คน`} />
+            )}
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeletingChain(null)}>ยกเลิก</Button>
+          <Button
+            color="error"
+            variant="contained"
+            disabled={!deletingChain || deleteMutation.isPending}
+            onClick={() => deletingChain && deleteMutation.mutate(deletingChain.id)}
+          >
+            ลบกฎ
+          </Button>
+        </DialogActions>
+      </Dialog>
     </>
   );
 }

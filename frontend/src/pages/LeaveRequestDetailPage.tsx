@@ -42,9 +42,10 @@ export function LeaveRequestDetailPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { user } = useAuth();
-  const { showSuccess } = useNotification();
+  const { showError, showSuccess } = useNotification();
   const [remark, setRemark] = useState("");
   const [file, setFile] = useState<File | null>(null);
+  const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
   const maxUploadMb = Number(import.meta.env.VITE_MAX_UPLOAD_SIZE_MB ?? 5);
 
   const { data: request } = useQuery({ queryKey: ["leave-requests", id], queryFn: () => getLeaveRequest(id!), enabled: Boolean(id) });
@@ -87,16 +88,23 @@ export function LeaveRequestDetailPage() {
   }
 
   async function handleDownloadPdf() {
-    const blob = await downloadLeaveRequestPdf(id!);
-    const url = window.URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `leave-request-${request?.requestNumber ?? id}.pdf`;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    window.URL.revokeObjectURL(url);
-    showSuccess("ดาวน์โหลดเอกสารเรียบร้อยแล้ว");
+    setIsDownloadingPdf(true);
+    try {
+      const blob = await downloadLeaveRequestPdf(id!);
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `leave-request-${request?.requestNumber ?? id}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      showSuccess("ดาวน์โหลดแบบฟอร์มใบลาเรียบร้อยแล้ว");
+    } catch {
+      showError("ดาวน์โหลดแบบฟอร์มใบลาไม่สำเร็จ");
+    } finally {
+      setIsDownloadingPdf(false);
+    }
   }
 
   if (!request) {
@@ -135,9 +143,9 @@ export function LeaveRequestDetailPage() {
                 </Button>
               </ActionTooltip>
               <PermissionGuard permissions={["LeaveRequest.ViewOwn", "LeaveRequest.ViewPendingApproval", "LeaveRequest.ViewDepartment", "LeaveRequest.ViewAll"]}>
-                <ActionTooltip title="ดาวน์โหลดใบลา PDF">
-                  <Button variant="contained" startIcon={<DownloadOutlinedIcon />} onClick={handleDownloadPdf}>
-                    ดาวน์โหลด PDF
+                <ActionTooltip title="ดาวน์โหลดแบบฟอร์มใบลา">
+                  <Button variant="contained" startIcon={<DownloadOutlinedIcon />} disabled={isDownloadingPdf} onClick={handleDownloadPdf}>
+                    {isDownloadingPdf ? "กำลังสร้าง PDF..." : "ดาวน์โหลดแบบฟอร์มใบลา"}
                   </Button>
                 </ActionTooltip>
               </PermissionGuard>
