@@ -18,6 +18,7 @@ export type PageBreadcrumb = {
 
 const pageTitleEntries: PageTitleEntry[] = [
   { path: "/dashboard", title: "แดชบอร์ด", subtitle: "ภาพรวมระบบลาและงานที่ต้องติดตาม", exact: true, breadcrumbs: [{ label: "แดชบอร์ด" }] },
+  { path: "/profile", title: "ข้อมูลส่วนตัวของฉัน", subtitle: "ข้อมูลสำหรับระบบลาและเอกสารใบลา", exact: true, breadcrumbs: [{ label: "ข้อมูลส่วนตัวของฉัน" }] },
   { path: "/admin/users/create", title: "เพิ่มผู้ใช้", subtitle: "สร้างบัญชีผู้ใช้งานระบบ", exact: true, breadcrumbs: [{ label: "จัดการผู้ใช้", path: "/admin/users" }, { label: "เพิ่มผู้ใช้" }] },
   { path: "/admin/users", title: "จัดการผู้ใช้", subtitle: "ดูแลบัญชีเจ้าหน้าที่และสิทธิ์การใช้งาน", breadcrumbs: [{ label: "จัดการผู้ใช้" }] },
   { path: "/admin/departments/create", title: "เพิ่มหน่วยงาน", subtitle: "สร้างข้อมูลหน่วยงานในโรงพยาบาล", exact: true, breadcrumbs: [{ label: "จัดการหน่วยงาน", path: "/admin/departments" }, { label: "เพิ่มหน่วยงาน" }] },

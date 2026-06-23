@@ -7,6 +7,10 @@ public class User
     public string FullName { get; set; } = string.Empty;
     public string Username { get; set; } = string.Empty;
     public string PasswordHash { get; set; } = string.Empty;
+    public string? Position { get; set; }
+    public string? PhoneNumber { get; set; }
+    public string? LeaveContactAddress { get; set; }
+    public string? ProfileImageUrl { get; set; }
     public Guid? DepartmentId { get; set; }
     public Guid? LeaveApprovalRuleId { get; set; }
     public string? LineUserId { get; set; }

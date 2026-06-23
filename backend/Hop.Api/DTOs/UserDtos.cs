@@ -5,6 +5,10 @@ public record UserResponse(
     string? EmployeeCode,
     string Fullname,
     string Username,
+    string? Position,
+    string? PhoneNumber,
+    string? LeaveContactAddress,
+    string? ProfileImageUrl,
     IReadOnlyList<Guid> RoleIds,
     IReadOnlyList<string> Roles,
     Guid? DepartmentId,
@@ -38,4 +42,31 @@ public record UpdateUserRequest(
     string? LineUserId,
     bool IsActive,
     string? Password
+);
+
+public record UserProfileResponse(
+    Guid Id,
+    string? EmployeeCode,
+    string Fullname,
+    string Username,
+    string? Position,
+    string? PhoneNumber,
+    string? LeaveContactAddress,
+    string? ProfileImageUrl,
+    IReadOnlyList<string> Roles,
+    Guid? DepartmentId,
+    string? DepartmentName,
+    Guid? LeaveApprovalRuleId,
+    string? LeaveApprovalRuleName,
+    string? LineUserId,
+    bool IsActive,
+    IReadOnlyList<string> Permissions
+);
+
+public record UpdateUserProfileRequest(
+    string Fullname,
+    string? Position,
+    string? PhoneNumber,
+    string? LeaveContactAddress,
+    string? ProfileImageUrl
 );

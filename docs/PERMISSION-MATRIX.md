@@ -75,6 +75,37 @@ LeaveAdmin.ManageApprovalChains
 
 `LeaveAdmin.ManageApprovalChains` ยังคงเป็น permission code เดิมเพื่อ backward compatibility แต่ UI จะแสดงเป็น `จัดการกฎการอนุมัติวันลา`
 
+## Self Profile
+
+ข้อมูลส่วนตัวของผู้ใช้งานใช้ authenticated endpoint:
+
+```text
+GET /api/me/profile
+PUT /api/me/profile
+```
+
+ไม่ต้องมี permission code เพิ่ม เพราะ backend ใช้ `currentUserId` จาก access token และอนุญาตให้แก้เฉพาะ profile ของตนเองเท่านั้น
+
+ผู้ใช้แก้ได้เฉพาะ:
+
+- ชื่อ-นามสกุล
+- ตำแหน่ง
+- เบอร์โทรศัพท์
+- ที่อยู่ระหว่างลา / ที่อยู่ติดต่อ
+- รูปโปรไฟล์ URL
+
+ผู้ใช้แก้เองไม่ได้:
+
+- Username
+- Role
+- LINE User ID
+- Department
+- Approval Rule
+- สถานะบัญชี
+- Permission
+
+การเปลี่ยนแปลงจะบันทึก audit event `UserProfile.Updated`
+
 ## Approval Rule Visibility
 
 Approval Rule ใช้ model เดิม `approval_chains` แต่ผูกกับผู้ใช้งานผ่าน `users.leave_approval_rule_id`

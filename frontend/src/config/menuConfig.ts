@@ -50,7 +50,7 @@ export const navigationModules: NavigationModule[] = [
       { label: "ปฏิทินการลา", path: "/leave/calendar", icon: CalendarMonthOutlinedIcon, permissions: leaveViewPermissions, activePatterns: ["/leave/calendar"] },
       { label: "วันลาคงเหลือ", path: "/leave/balances", icon: AccountBalanceWalletOutlinedIcon, permission: "LeaveRequest.ViewOwn", activePatterns: ["/leave/balances"] },
       { label: "จัดการวันลาคงเหลือ", path: "/admin/leave-balances", icon: AccountBalanceWalletOutlinedIcon, permission: "LeaveAdmin.ManageBalances" },
-      { label: "ประเภทการลา", path: "/leave/types", icon: TuneOutlinedIcon, permissions: ["LeaveRequest.Create", "LeaveAdmin.ManageTypes"], activePatterns: ["/leave/types"] },
+      { label: "ประเภทการลา", path: "/leave/types", icon: TuneOutlinedIcon, permission: "LeaveAdmin.ManageTypes", activePatterns: ["/leave/types"] },
       { label: "กฎการอนุมัติวันลา", path: "/admin/approval-chains", icon: AccountTreeOutlinedIcon, permission: "LeaveAdmin.ManageApprovalChains" },
       { label: "มอบหมายอนุมัติ", path: "/admin/approval-delegations", icon: AccountTreeOutlinedIcon, permission: "LeaveApproval.Delegate" },
       { label: "วันหยุดราชการ", path: "/admin/leave-holidays", icon: EventBusyOutlinedIcon, permission: "LeaveAdmin.ManageHolidays" },

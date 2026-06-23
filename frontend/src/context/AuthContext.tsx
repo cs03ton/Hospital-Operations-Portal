@@ -13,6 +13,7 @@ type AuthContextValue = {
   isLoading: boolean;
   login: (username: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
+  refreshUser: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -110,6 +111,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  async function refreshUser() {
+    const profile = await authApi.getCurrentUser();
+    const normalizedProfile = normalizeUser(profile);
+    setUser(normalizedProfile);
+    localStorage.setItem(authStorageKeys.user, JSON.stringify(normalizedProfile));
+  }
+
   function clearSession() {
     setAuthToken(null);
     setAccessToken(null);
@@ -129,6 +137,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isLoading,
       login: signIn,
       logout: signOut,
+      refreshUser,
     }),
     [accessToken, isLoading, refreshToken, user],
   );

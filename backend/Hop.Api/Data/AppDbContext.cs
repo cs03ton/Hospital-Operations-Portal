@@ -51,6 +51,10 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             entity.Property(item => item.FullName).HasColumnName("fullname");
             entity.Property(item => item.Username).HasColumnName("username");
             entity.Property(item => item.PasswordHash).HasColumnName("password_hash");
+            entity.Property(item => item.Position).HasColumnName("position");
+            entity.Property(item => item.PhoneNumber).HasColumnName("phone_number");
+            entity.Property(item => item.LeaveContactAddress).HasColumnName("leave_contact_address");
+            entity.Property(item => item.ProfileImageUrl).HasColumnName("profile_image_url");
             entity.Property(item => item.DepartmentId).HasColumnName("department_id");
             entity.Property(item => item.LeaveApprovalRuleId).HasColumnName("leave_approval_rule_id");
             entity.Property(item => item.LineUserId).HasColumnName("line_user_id");

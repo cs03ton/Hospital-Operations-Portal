@@ -20,6 +20,7 @@ import { LoginPage } from "../pages/LoginPage";
 import { LeaveReportsPage } from "../pages/LeaveReportsPage";
 import { LeaveSupportPage } from "../pages/LeaveSupportPage";
 import { PendingApprovalsPage } from "../pages/PendingApprovalsPage";
+import { ProfilePage } from "../pages/ProfilePage";
 import { ApprovalDelegationPage } from "../pages/ApprovalDelegationPage";
 import { UserManagementPage } from "../pages/UserManagementPage";
 import { UserFormPage } from "../pages/UserFormPage";
@@ -63,6 +64,15 @@ function LeaveCreateGuard() {
   return withPermission(<LeaveRequestFormPage />, "LeaveRequest.Create");
 }
 
+function LeaveTypeGuard() {
+  const { user } = useAuth();
+  if (user?.role !== "Admin" && user?.role !== "SuperAdmin") {
+    return <Navigate to="/unauthorized" replace />;
+  }
+
+  return withPermission(<LeaveTypeManagementPage />, "LeaveAdmin.ManageTypes");
+}
+
 export function AppRoutes() {
   return (
     <Routes>
@@ -72,6 +82,7 @@ export function AppRoutes() {
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="/unauthorized" element={<UnauthorizedPage />} />
           <Route path="/dashboard" element={withPermission(<DashboardPage />, "Dashboard.View")} />
+          <Route path="/profile" element={<ProfilePage />} />
           <Route path="/admin/users" element={withPermission(<UserManagementPage />, "UserManagement.View")} />
           <Route path="/admin/users/create" element={withPermission(<UserFormPage />, "UserManagement.Create")} />
           <Route path="/admin/users/:id/edit" element={withPermission(<UserFormPage />, "UserManagement.Edit")} />
@@ -95,7 +106,7 @@ export function AppRoutes() {
           <Route path="/leave/create" element={<LeaveCreateGuard />} />
           <Route path="/leave/pending-approvals" element={withPermission(<PendingApprovalsPage />, "LeaveRequest.ViewPendingApproval")} />
           <Route path="/leave/calendar" element={withAnyPermission(<LeaveCalendarPage />, leaveViewPermissions)} />
-          <Route path="/leave/types" element={withAnyPermission(<LeaveTypeManagementPage />, ["LeaveRequest.Create", "LeaveAdmin.ManageTypes"])} />
+          <Route path="/leave/types" element={<LeaveTypeGuard />} />
           <Route path="/leave/balances" element={withPermission(<LeaveBalancePage />, "LeaveRequest.ViewOwn")} />
           <Route path="/leave/:id" element={withAnyPermission(<LeaveRequestDetailPage />, leaveViewPermissions)} />
           <Route path="/reports/leaves" element={withPermission(<LeaveReportsPage />, "ReportManagement.View")} />

@@ -1,9 +1,10 @@
 import LogoutOutlinedIcon from "@mui/icons-material/LogoutOutlined";
 import MenuIcon from "@mui/icons-material/Menu";
 import MenuOpenOutlinedIcon from "@mui/icons-material/MenuOpenOutlined";
-import { AppBar, Avatar, Box, Button, IconButton, Stack, Toolbar, Tooltip, Typography, useMediaQuery } from "@mui/material";
+import PersonOutlineOutlinedIcon from "@mui/icons-material/PersonOutlineOutlined";
+import { AppBar, Avatar, Box, Button, IconButton, Menu, MenuItem, Stack, Toolbar, Tooltip, Typography, useMediaQuery } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { getPageTitle } from "../../config/pageTitleConfig";
 import { useAuth } from "../../context/AuthContext";
@@ -24,6 +25,7 @@ export function AppHeader({ drawerWidth, isSidebarCollapsed, onMobileMenuClick, 
   const location = useLocation();
   const navigate = useNavigate();
   const { logout, user } = useAuth();
+  const [userMenuAnchor, setUserMenuAnchor] = useState<HTMLElement | null>(null);
   const pageTitle = useMemo(() => getPageTitle(location.pathname), [location.pathname]);
 
   async function handleLogout() {
@@ -66,7 +68,13 @@ export function AppHeader({ drawerWidth, isSidebarCollapsed, onMobileMenuClick, 
           <PageTitle title={pageTitle.title} subtitle={pageTitle.subtitle} />
         </Box>
         <NotificationBell />
-        <Stack direction="row" spacing={1.25} alignItems="center" sx={{ minWidth: 0, display: { xs: "none", md: "flex" } }}>
+        <Stack
+          direction="row"
+          spacing={1.25}
+          alignItems="center"
+          onClick={(event) => setUserMenuAnchor(event.currentTarget)}
+          sx={{ minWidth: 0, display: { xs: "none", md: "flex" }, cursor: "pointer" }}
+        >
           <Avatar sx={{ width: 36, height: 36, bgcolor: "secondary.main", fontSize: 14 }}>
             {(user?.fullname ?? "U").slice(0, 1)}
           </Avatar>
@@ -79,6 +87,30 @@ export function AppHeader({ drawerWidth, isSidebarCollapsed, onMobileMenuClick, 
             </Typography>
           </Box>
         </Stack>
+        <Menu anchorEl={userMenuAnchor} open={Boolean(userMenuAnchor)} onClose={() => setUserMenuAnchor(null)}>
+          <MenuItem
+            onClick={() => {
+              setUserMenuAnchor(null);
+              navigate("/profile");
+            }}
+          >
+            <Stack direction="row" spacing={1} alignItems="center">
+              <PersonOutlineOutlinedIcon fontSize="small" />
+              <Typography variant="body2">ข้อมูลส่วนตัวของฉัน</Typography>
+            </Stack>
+          </MenuItem>
+          <MenuItem
+            onClick={async () => {
+              setUserMenuAnchor(null);
+              await handleLogout();
+            }}
+          >
+            <Stack direction="row" spacing={1} alignItems="center">
+              <LogoutOutlinedIcon fontSize="small" />
+              <Typography variant="body2">ออกจากระบบ</Typography>
+            </Stack>
+          </MenuItem>
+        </Menu>
         <Button
           color="primary"
           variant="outlined"

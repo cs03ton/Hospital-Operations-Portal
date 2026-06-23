@@ -23,8 +23,29 @@ Phase นี้รองรับ JSON field mapping สำหรับสร้
 - `staticText`: ข้อความคงที่ เช่น ชื่อฟอร์ม หัวข้อ ลายเซ็น
 - `fields`: mapping ข้อมูลคำขอลาไปยังตำแหน่ง X/Y บนหน้า A4
 - `approvalRows`: รูปแบบแถวประวัติการอนุมัติ
+- `documentSettings`: ค่า font เริ่มต้นของเอกสาร เช่น font family, font size, line height
 
 หมายเหตุ: หากโรงพยาบาลมี PDF/DOCX ฟอร์มจริง ให้เก็บไฟล์ไว้ในโฟลเดอร์นี้และใช้ JSON mapping เป็น source of truth สำหรับตำแหน่ง field ปัจจุบัน ระบบยังไม่ commit template ที่มีข้อมูลจริงของบุคลากร
+
+## Font Settings
+
+ค่าเริ่มต้น:
+
+```json
+{
+  "documentSettings": {
+    "fontFamily": "TH Sarabun New",
+    "fontSize": 16,
+    "lineHeight": 1.2
+  }
+}
+```
+
+แต่ละ field สามารถ override `fontFamily`, `fontSize`, และ `lineHeight` ได้ อ่านรายละเอียดที่:
+
+```text
+docs/PDF-TEMPLATE-STYLING.md
+```
 
 ## Supported Fields
 
@@ -36,6 +57,8 @@ Phase นี้รองรับ JSON field mapping สำหรับสร้
 | `employeeCode` | รหัสพนักงาน |
 | `position` | ตำแหน่ง/บทบาทจาก role ผู้ใช้งาน |
 | `departmentName` | หน่วยงาน |
+| `phoneNumber` | เบอร์โทรศัพท์จากข้อมูลส่วนตัว |
+| `leaveContactAddress` | ที่อยู่ระหว่างลา / ที่อยู่ติดต่อ |
 | `leaveTypeName` | ประเภทลา |
 | `startDate` | วันที่เริ่มลา |
 | `endDate` | วันที่สิ้นสุด |

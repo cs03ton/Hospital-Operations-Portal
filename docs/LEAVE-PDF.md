@@ -62,6 +62,8 @@ Supported fields include:
 - employee code
 - position / role
 - department
+- phone number
+- leave contact address
 - leave type
 - start date
 - end date

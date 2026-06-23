@@ -25,22 +25,37 @@ public sealed class LeavePdfService(IWebHostEnvironment environment, IConfigurat
         }
 
         var values = BuildFieldValues(leaveRequest, hospitalName);
+        var documentSettings = template.DocumentSettings ?? new DocumentTemplateSettings();
         var lines = new List<PdfLine>();
         foreach (var item in template.StaticText)
         {
-            lines.Add(new PdfLine(item.Text, item.X, item.Y, item.FontSize));
+            lines.Add(new PdfLine(
+                item.Text,
+                item.X,
+                item.Y,
+                ResolveFontSize(item.FontSize, documentSettings),
+                ResolveFontFamily(item.FontFamily, documentSettings)));
         }
 
         foreach (var field in template.Fields)
         {
             var value = values.GetValueOrDefault(field.Key, "-");
             var text = string.IsNullOrWhiteSpace(field.Label) ? value : $"{field.Label}: {value}";
-            lines.Add(new PdfLine(text, field.X, field.Y, field.FontSize));
+            lines.Add(new PdfLine(
+                text,
+                field.X,
+                field.Y,
+                ResolveFontSize(field.FontSize, documentSettings),
+                ResolveFontFamily(field.FontFamily, documentSettings)));
         }
 
         if (template.ApprovalRows is not null)
         {
             var y = template.ApprovalRows.StartY;
+            var approvalFontSize = ResolveFontSize(template.ApprovalRows.FontSize, documentSettings);
+            var approvalFontFamily = ResolveFontFamily(template.ApprovalRows.FontFamily, documentSettings);
+            var approvalRowHeight = template.ApprovalRows.RowHeight
+                ?? approvalFontSize * ResolveLineHeight(template.ApprovalRows.LineHeight, documentSettings);
             foreach (var approval in leaveRequest.Approvals.OrderBy(item => item.StepOrder).Take(template.ApprovalRows.MaxRows))
             {
                 var rowValues = BuildApprovalValues(approval);
@@ -50,8 +65,8 @@ public sealed class LeavePdfService(IWebHostEnvironment environment, IConfigurat
                     text = text.Replace($"{{{{{pair.Key}}}}}", pair.Value, StringComparison.OrdinalIgnoreCase);
                 }
 
-                lines.Add(new PdfLine(text, template.ApprovalRows.X, y, template.ApprovalRows.FontSize));
-                y -= template.ApprovalRows.RowHeight;
+                lines.Add(new PdfLine(text, template.ApprovalRows.X, y, approvalFontSize, approvalFontFamily));
+                y -= approvalRowHeight;
             }
         }
 
@@ -90,6 +105,21 @@ public sealed class LeavePdfService(IWebHostEnvironment environment, IConfigurat
         }
 
         return null;
+    }
+
+    private static int ResolveFontSize(int? fontSize, DocumentTemplateSettings settings)
+    {
+        return fontSize is > 0 ? fontSize.Value : settings.FontSize;
+    }
+
+    private static double ResolveLineHeight(double? lineHeight, DocumentTemplateSettings settings)
+    {
+        return lineHeight is > 0 ? lineHeight.Value : settings.LineHeight;
+    }
+
+    private static string ResolveFontFamily(string? fontFamily, DocumentTemplateSettings settings)
+    {
+        return string.IsNullOrWhiteSpace(fontFamily) ? settings.FontFamily : fontFamily.Trim();
     }
 
     private PdfImage? TryLoadLogo()
@@ -178,7 +208,9 @@ public sealed class LeavePdfService(IWebHostEnvironment environment, IConfigurat
         var requester = leaveRequest.User?.FullName ?? "-";
         var employeeCode = leaveRequest.User?.EmployeeCode ?? "-";
         var department = leaveRequest.User?.Department?.Name ?? "-";
-        var position = leaveRequest.User?.UserRoles.Select(item => item.Role?.Name).FirstOrDefault(item => !string.IsNullOrWhiteSpace(item)) ?? "-";
+        var position = !string.IsNullOrWhiteSpace(leaveRequest.User?.Position)
+            ? leaveRequest.User.Position
+            : leaveRequest.User?.UserRoles.Select(item => item.Role?.Name).FirstOrDefault(item => !string.IsNullOrWhiteSpace(item)) ?? "-";
         var leaveType = leaveRequest.LeaveType?.Name ?? "-";
         var submittedAt = leaveRequest.SubmittedAt is null ? "-" : FormatDateTime(leaveRequest.SubmittedAt.Value);
 
@@ -190,6 +222,8 @@ public sealed class LeavePdfService(IWebHostEnvironment environment, IConfigurat
             ["employeeCode"] = employeeCode,
             ["position"] = position,
             ["departmentName"] = department,
+            ["phoneNumber"] = leaveRequest.User?.PhoneNumber ?? "-",
+            ["leaveContactAddress"] = leaveRequest.User?.LeaveContactAddress ?? "-",
             ["leaveTypeName"] = leaveType,
             ["startDate"] = FormatDate(leaveRequest.StartDate),
             ["endDate"] = FormatDate(leaveRequest.EndDate),
@@ -256,9 +290,17 @@ public sealed class LeavePdfService(IWebHostEnvironment environment, IConfigurat
 
 public sealed class LeaveFormTemplateConfig
 {
+    public DocumentTemplateSettings? DocumentSettings { get; set; }
     public List<TemplateText> StaticText { get; set; } = [];
     public List<TemplateField> Fields { get; set; } = [];
     public ApprovalRowsTemplate? ApprovalRows { get; set; }
+}
+
+public sealed class DocumentTemplateSettings
+{
+    public string FontFamily { get; set; } = "TH Sarabun New";
+    public int FontSize { get; set; } = 16;
+    public double LineHeight { get; set; } = 1.2;
 }
 
 public sealed class TemplateText
@@ -266,7 +308,9 @@ public sealed class TemplateText
     public string Text { get; set; } = string.Empty;
     public double X { get; set; }
     public double Y { get; set; }
-    public int FontSize { get; set; } = 12;
+    public string? FontFamily { get; set; }
+    public int? FontSize { get; set; }
+    public double? LineHeight { get; set; }
 }
 
 public sealed class TemplateField
@@ -275,20 +319,24 @@ public sealed class TemplateField
     public string Label { get; set; } = string.Empty;
     public double X { get; set; }
     public double Y { get; set; }
-    public int FontSize { get; set; } = 12;
+    public string? FontFamily { get; set; }
+    public int? FontSize { get; set; }
+    public double? LineHeight { get; set; }
 }
 
 public sealed class ApprovalRowsTemplate
 {
     public double X { get; set; }
     public double StartY { get; set; }
-    public double RowHeight { get; set; } = 18;
-    public int FontSize { get; set; } = 10;
+    public double? RowHeight { get; set; }
+    public string? FontFamily { get; set; }
+    public int? FontSize { get; set; }
+    public double? LineHeight { get; set; }
     public int MaxRows { get; set; } = 8;
     public string Format { get; set; } = "{{stepOrder}}. {{stepName}} - {{approverName}} - {{status}} - {{actionAt}} - {{remark}}";
 }
 
-public sealed record PdfLine(string Text, double X, double Y, int FontSize);
+public sealed record PdfLine(string Text, double X, double Y, int FontSize, string? FontFamily = null);
 
 public sealed record PdfImage(int Width, int Height, byte[] RgbBytes);
 
@@ -306,6 +354,12 @@ public static class SimplePdfWriter
             pages = [[new PdfLine(string.Empty, 50, 790, 10)]];
         }
 
+        var fontFamily = pages
+            .SelectMany(page => page)
+            .Select(line => line.FontFamily)
+            .FirstOrDefault(value => !string.IsNullOrWhiteSpace(value))
+            ?? "TH Sarabun New";
+        var pdfFontName = ToPdfFontName(fontFamily);
         var hasLogo = logo is not null;
         var pageCount = pages.Count;
         var fontObjectNumber = 3 + pageCount;
@@ -330,8 +384,8 @@ public static class SimplePdfWriter
             objects.Add(Encoding.ASCII.GetBytes($"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources {pageResources} /Contents {contentStartObjectNumber + index} 0 R >>"));
         }
 
-        objects.Add(Encoding.ASCII.GetBytes($"<< /Type /Font /Subtype /Type0 /BaseFont /Tahoma /Encoding /Identity-H /DescendantFonts [{cidFontObjectNumber} 0 R] /ToUnicode {unicodeMapObjectNumber} 0 R >>"));
-        objects.Add(Encoding.ASCII.GetBytes("<< /Type /Font /Subtype /CIDFontType2 /BaseFont /Tahoma /CIDSystemInfo << /Registry (Adobe) /Ordering (Identity) /Supplement 0 >> /DW 1000 >>"));
+        objects.Add(Encoding.ASCII.GetBytes($"<< /Type /Font /Subtype /Type0 /BaseFont /{pdfFontName} /Encoding /Identity-H /DescendantFonts [{cidFontObjectNumber} 0 R] /ToUnicode {unicodeMapObjectNumber} 0 R >>"));
+        objects.Add(Encoding.ASCII.GetBytes($"<< /Type /Font /Subtype /CIDFontType2 /BaseFont /{pdfFontName} /CIDSystemInfo << /Registry (Adobe) /Ordering (Identity) /Supplement 0 >> /DW 1000 >>"));
         objects.Add(WrapStream(unicodeMap));
 
         if (logo is not null)
@@ -376,6 +430,12 @@ public static class SimplePdfWriter
         }
 
         return content.ToString();
+    }
+
+    private static string ToPdfFontName(string fontFamily)
+    {
+        var chars = fontFamily.Where(char.IsLetterOrDigit).ToArray();
+        return chars.Length == 0 ? "THSarabunNew" : new string(chars);
     }
 
     private static string ToPdfHexString(string value)
