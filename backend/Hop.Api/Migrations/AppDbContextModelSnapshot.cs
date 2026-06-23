@@ -142,9 +142,17 @@ namespace Hop.Api.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("approver_user_id");
 
+                    b.Property<DateTime?>("CancelledAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("cancelled_at");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
+
+                    b.Property<Guid?>("CreatedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by");
 
                     b.Property<Guid>("DelegateUserId")
                         .HasColumnType("uuid")
@@ -172,6 +180,8 @@ namespace Hop.Api.Migrations
                         .HasColumnName("updated_at");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("CreatedByUserId");
 
                     b.HasIndex("DelegateUserId");
 
@@ -276,6 +286,58 @@ namespace Hop.Api.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("approval_logs", (string)null);
+                });
+
+            modelBuilder.Entity("Hop.Api.Models.ApprovalOverrideLog", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("action");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("IpAddress")
+                        .HasColumnType("text")
+                        .HasColumnName("ip_address");
+
+                    b.Property<Guid>("LeaveRequestId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("leave_request_id");
+
+                    b.Property<Guid?>("OriginalApproverId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("original_approver_id");
+
+                    b.Property<Guid>("OverrideByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("override_by_user_id");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("reason");
+
+                    b.Property<string>("UserAgent")
+                        .HasColumnType("text")
+                        .HasColumnName("user_agent");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LeaveRequestId");
+
+                    b.HasIndex("OriginalApproverId");
+
+                    b.HasIndex("OverrideByUserId");
+
+                    b.ToTable("approval_override_logs", (string)null);
                 });
 
             modelBuilder.Entity("Hop.Api.Models.AuditLog", b =>
@@ -624,6 +686,14 @@ namespace Hop.Api.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("current_approver_id");
 
+                    b.Property<string>("DurationType")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasDefaultValue("FULL_DAY")
+                        .HasColumnName("duration_type");
+
                     b.Property<DateOnly>("EndDate")
                         .HasColumnType("date")
                         .HasColumnName("end_date");
@@ -636,6 +706,11 @@ namespace Hop.Api.Migrations
                         .IsRequired()
                         .HasColumnType("text")
                         .HasColumnName("reason");
+
+                    b.Property<string>("RequestNumber")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("request_number");
 
                     b.Property<DateOnly>("StartDate")
                         .HasColumnType("date")
@@ -667,6 +742,9 @@ namespace Hop.Api.Migrations
                     b.HasIndex("CurrentApproverId");
 
                     b.HasIndex("LeaveTypeId");
+
+                    b.HasIndex("RequestNumber")
+                        .IsUnique();
 
                     b.HasIndex("UserId", "Status");
 
@@ -713,6 +791,12 @@ namespace Hop.Api.Migrations
                     b.Property<bool>("RequiresAttachment")
                         .HasColumnType("boolean")
                         .HasColumnName("requires_attachment");
+
+                    b.Property<bool>("RequiresBalance")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true)
+                        .HasColumnName("requires_balance");
 
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("timestamp with time zone")
@@ -1020,6 +1104,10 @@ namespace Hop.Api.Migrations
                         .HasColumnType("boolean")
                         .HasColumnName("is_active");
 
+                    b.Property<Guid?>("LeaveApprovalRuleId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("leave_approval_rule_id");
+
                     b.Property<string>("LineUserId")
                         .HasColumnType("text")
                         .HasColumnName("line_user_id");
@@ -1044,6 +1132,8 @@ namespace Hop.Api.Migrations
 
                     b.HasIndex("EmployeeCode")
                         .IsUnique();
+
+                    b.HasIndex("LeaveApprovalRuleId");
 
                     b.HasIndex("Username")
                         .IsUnique();
@@ -1114,6 +1204,10 @@ namespace Hop.Api.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("Hop.Api.Models.User", "CreatedByUser")
+                        .WithMany()
+                        .HasForeignKey("CreatedByUserId");
+
                     b.HasOne("Hop.Api.Models.User", "DelegateUser")
                         .WithMany()
                         .HasForeignKey("DelegateUserId")
@@ -1121,6 +1215,8 @@ namespace Hop.Api.Migrations
                         .IsRequired();
 
                     b.Navigation("ApproverUser");
+
+                    b.Navigation("CreatedByUser");
 
                     b.Navigation("DelegateUser");
                 });
@@ -1150,6 +1246,31 @@ namespace Hop.Api.Migrations
                     b.Navigation("EscalateToUser");
 
                     b.Navigation("LeaveType");
+                });
+
+            modelBuilder.Entity("Hop.Api.Models.ApprovalOverrideLog", b =>
+                {
+                    b.HasOne("Hop.Api.Models.LeaveRequest", "LeaveRequest")
+                        .WithMany()
+                        .HasForeignKey("LeaveRequestId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Hop.Api.Models.User", "OriginalApprover")
+                        .WithMany()
+                        .HasForeignKey("OriginalApproverId");
+
+                    b.HasOne("Hop.Api.Models.User", "OverrideByUser")
+                        .WithMany()
+                        .HasForeignKey("OverrideByUserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("LeaveRequest");
+
+                    b.Navigation("OriginalApprover");
+
+                    b.Navigation("OverrideByUser");
                 });
 
             modelBuilder.Entity("Hop.Api.Models.AuditLog", b =>
@@ -1333,7 +1454,13 @@ namespace Hop.Api.Migrations
                         .WithMany()
                         .HasForeignKey("DepartmentId");
 
+                    b.HasOne("Hop.Api.Models.ApprovalChain", "LeaveApprovalRule")
+                        .WithMany()
+                        .HasForeignKey("LeaveApprovalRuleId");
+
                     b.Navigation("Department");
+
+                    b.Navigation("LeaveApprovalRule");
                 });
 
             modelBuilder.Entity("Hop.Api.Models.UserRole", b =>

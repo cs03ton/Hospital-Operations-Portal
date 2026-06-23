@@ -69,11 +69,14 @@ builder.Services.AddScoped<IFileScanningService>(provider =>
         : ActivatorUtilities.CreateInstance<PlaceholderFileScanningService>(provider);
 });
 builder.Services.AddScoped<ILeaveCalendarService, LeaveCalendarService>();
+builder.Services.AddScoped<ILeaveBalanceValidationService, LeaveBalanceValidationService>();
 builder.Services.AddScoped<ILeaveValidationService, LeaveValidationService>();
 builder.Services.AddScoped<IApprovalChainService, ApprovalChainService>();
 builder.Services.AddScoped<IApprovalEscalationService, ApprovalEscalationService>();
 builder.Services.AddScoped<IPendingApprovalNotificationService, PendingApprovalNotificationService>();
 builder.Services.AddScoped<ILeaveNotificationEventPublisher, LeaveNotificationEventPublisher>();
+builder.Services.AddScoped<ILeaveRequestAccessService, LeaveRequestAccessService>();
+builder.Services.AddScoped<ILeaveRequestNumberService, LeaveRequestNumberService>();
 builder.Services.AddScoped<IAuditRetentionService, AuditRetentionService>();
 builder.Services.AddSingleton<ILoginRateLimiter, InMemoryLoginRateLimiter>();
 builder.Services.AddHttpClient<ILineMessagingService, LineMessagingService>();

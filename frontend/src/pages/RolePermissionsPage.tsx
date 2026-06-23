@@ -5,12 +5,15 @@ import {
   Card,
   CardContent,
   Checkbox,
+  Divider,
   Stack,
   Table,
   TableBody,
   TableCell,
   TableHead,
   TableRow,
+  TextField,
+  Typography,
 } from "@mui/material";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
@@ -22,23 +25,45 @@ import {
   updateRolePermissions,
 } from "../api/adminApi";
 import { PageHeader } from "../components/PageHeader";
+import { useNotification } from "../hooks/useNotification";
 import { getRoleLabel } from "../utils/roleLabels";
 
-const actionLabels: Record<string, string> = {
-  View: "ดูข้อมูล",
-  Create: "เพิ่ม",
-  Edit: "แก้ไข",
-  Delete: "ลบ",
-  Approve: "อนุมัติ",
-  Export: "ส่งออก",
-  Manage: "จัดการ",
+const groupLabels: Record<string, string> = {
+  LeaveRequest: "คำขอลา",
+  LeaveApproval: "การอนุมัติวันลา",
+  LeaveAdmin: "จัดการระบบลา",
+  Dashboard: "แดชบอร์ด",
+  UserManagement: "จัดการผู้ใช้",
+  DepartmentManagement: "จัดการหน่วยงาน",
+  RoleManagement: "บทบาทและสิทธิ์",
+  SystemSettings: "ตั้งค่าระบบ",
+  ReportManagement: "รายงาน",
+};
+
+const permissionDescriptions: Record<string, string> = {
+  "LeaveRequest.ViewOwn": "เห็นเฉพาะคำขอลาของตนเอง",
+  "LeaveRequest.ViewPendingApproval": "เห็นเฉพาะคำขอที่ถึงคิวตนเองต้องอนุมัติ",
+  "LeaveRequest.ViewDepartment": "เห็นคำขอลาภายในหน่วยงานของตนเอง",
+  "LeaveRequest.ViewAll": "เห็นคำขอลาทั้งหมด ใช้สำหรับผู้ดูแลระบบ",
+  "LeaveRequest.Create": "สร้างและส่งคำขอลาของตนเอง",
+  "LeaveRequest.EditOwn": "แก้ไขคำขอลาของตนเองที่ยังแก้ไขได้",
+  "LeaveRequest.CancelOwn": "ยกเลิกคำขอลาของตนเอง",
+  "LeaveApproval.ApproveCurrentStep": "อนุมัติหรือไม่อนุมัติเฉพาะขั้นตอนปัจจุบันของตนเอง",
+  "LeaveApproval.Delegate": "จัดการการมอบหมายผู้อนุมัติ",
+  "LeaveApproval.Override": "สิทธิ์ override สำหรับกรณีพิเศษ ยังไม่เปิด flow ใช้งาน",
+  "LeaveAdmin.ManageTypes": "จัดการประเภทการลา",
+  "LeaveAdmin.ManageBalances": "จัดการยอดวันลาและปรับยอดวันลา",
+  "LeaveAdmin.ManageHolidays": "จัดการวันหยุดราชการ",
+  "LeaveAdmin.ManageApprovalChains": "จัดการกฎการอนุมัติวันลา",
 };
 
 export function RolePermissionsPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { showSuccess } = useNotification();
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [search, setSearch] = useState("");
 
   const { data: role } = useQuery({ queryKey: ["roles", id], queryFn: () => getRole(id!), enabled: Boolean(id) });
   const { data: permissions = [] } = useQuery({ queryKey: ["permissions"], queryFn: getPermissions });
@@ -53,17 +78,26 @@ export function RolePermissionsPage() {
   }, [rolePermissions]);
 
   const groupedPermissions = useMemo(() => {
-    return permissions.reduce<Record<string, typeof permissions>>((groups, permission) => {
+    const keyword = search.trim().toLowerCase();
+    const filtered = keyword
+      ? permissions.filter((permission) =>
+        [permission.code, permission.name, permission.group, permission.action, permissionDescriptions[permission.code] ?? ""]
+          .some((value) => value.toLowerCase().includes(keyword)),
+      )
+      : permissions;
+
+    return filtered.reduce<Record<string, typeof permissions>>((groups, permission) => {
       groups[permission.group] ??= [];
       groups[permission.group].push(permission);
       return groups;
     }, {});
-  }, [permissions]);
+  }, [permissions, search]);
 
   const saveMutation = useMutation({
     mutationFn: () => updateRolePermissions(id!, selectedIds),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["roles", id, "permissions"] });
+      showSuccess("บันทึกสิทธิ์การใช้งานเรียบร้อยแล้ว");
       navigate("/admin/roles");
     },
   });
@@ -76,6 +110,14 @@ export function RolePermissionsPage() {
     );
   }
 
+  function selectPermissions(permissionIds: string[]) {
+    setSelectedIds((current) => Array.from(new Set([...current, ...permissionIds])));
+  }
+
+  function clearPermissions(permissionIds: string[]) {
+    setSelectedIds((current) => current.filter((idValue) => !permissionIds.includes(idValue)));
+  }
+
   return (
     <>
       <PageHeader
@@ -86,40 +128,62 @@ export function RolePermissionsPage() {
         <CardContent>
           <Stack spacing={2}>
             {saveMutation.isError && <Alert severity="error">บันทึกสิทธิ์ไม่สำเร็จ</Alert>}
-            <Table size="small">
-              <TableHead>
-                <TableRow>
-                  <TableCell>กลุ่มสิทธิ์</TableCell>
-                  {Object.values(actionLabels).map((label) => (
-                    <TableCell align="center" key={label}>
-                      {label}
-                    </TableCell>
-                  ))}
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {Object.entries(groupedPermissions).map(([group, groupPermissions]) => (
-                  <TableRow key={group}>
-                    <TableCell>{group}</TableCell>
-                    {Object.keys(actionLabels).map((action) => {
-                      const permission = groupPermissions.find((item) => item.action === action);
-                      return (
-                        <TableCell align="center" key={action}>
-                          {permission ? (
-                            <Checkbox
-                              checked={selectedIds.includes(permission.id)}
-                              onChange={() => togglePermission(permission.id)}
-                            />
-                          ) : (
-                            <Box component="span">-</Box>
-                          )}
+            <Stack direction={{ xs: "column", md: "row" }} spacing={1.5} alignItems={{ xs: "stretch", md: "center" }}>
+              <TextField
+                fullWidth
+                size="small"
+                label="ค้นหาสิทธิ์"
+                placeholder="ค้นหาจากชื่อ กลุ่ม หรือ code"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+              />
+              <Button variant="outlined" onClick={() => selectPermissions(Object.values(groupedPermissions).flat().map((permission) => permission.id))}>
+                เลือกทั้งหมดที่ค้นหา
+              </Button>
+              <Button variant="outlined" color="secondary" onClick={() => clearPermissions(Object.values(groupedPermissions).flat().map((permission) => permission.id))}>
+                ล้างที่ค้นหา
+              </Button>
+            </Stack>
+            {Object.entries(groupedPermissions).map(([group, groupPermissions]) => (
+              <Box key={group}>
+                <Stack direction={{ xs: "column", sm: "row" }} justifyContent="space-between" spacing={1} sx={{ mb: 1 }}>
+                  <Box>
+                    <Typography variant="subtitle1" fontWeight={700}>{groupLabels[group] ?? group}</Typography>
+                    <Typography variant="body2" color="text.secondary">{group}</Typography>
+                  </Box>
+                  <Stack direction="row" spacing={1}>
+                    <Button size="small" onClick={() => selectPermissions(groupPermissions.map((permission) => permission.id))}>เลือกทั้งกลุ่ม</Button>
+                    <Button size="small" color="secondary" onClick={() => clearPermissions(groupPermissions.map((permission) => permission.id))}>ล้างทั้งกลุ่ม</Button>
+                  </Stack>
+                </Stack>
+                <Table size="small">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell width={56}>เลือก</TableCell>
+                      <TableCell>สิทธิ์</TableCell>
+                      <TableCell>คำอธิบาย</TableCell>
+                      <TableCell>Code</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {groupPermissions.map((permission) => (
+                      <TableRow key={permission.id}>
+                        <TableCell>
+                          <Checkbox
+                            checked={selectedIds.includes(permission.id)}
+                            onChange={() => togglePermission(permission.id)}
+                          />
                         </TableCell>
-                      );
-                    })}
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                        <TableCell>{permission.name}</TableCell>
+                        <TableCell>{permissionDescriptions[permission.code] ?? `${permission.group} ${permission.action}`}</TableCell>
+                        <TableCell><Box component="code">{permission.code}</Box></TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+                <Divider sx={{ my: 2 }} />
+              </Box>
+            ))}
             <Stack direction="row" spacing={1.5}>
               <Button variant="contained" onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending}>
                 บันทึกสิทธิ์

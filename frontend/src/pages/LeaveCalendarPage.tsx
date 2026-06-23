@@ -9,6 +9,7 @@ import { LeaveCalendarEventChip } from "../components/leave/LeaveCalendarEventCh
 import { LeaveCalendarToolbar } from "../components/leave/LeaveCalendarToolbar";
 import { LeaveStatusLegend } from "../components/leave/LeaveStatusLegend";
 import { PageHeader } from "../components/PageHeader";
+import { usePermission } from "../context/PermissionContext";
 
 const thaiMonths = [
   "มกราคม",
@@ -28,6 +29,8 @@ const thaiMonths = [
 const thaiShortDays = ["อา.", "จ.", "อ.", "พ.", "พฤ.", "ศ.", "ส."];
 
 export function LeaveCalendarPage() {
+  const { hasAnyPermission } = usePermission();
+  const canFilterDepartments = hasAnyPermission(["DepartmentManagement.View", "LeaveRequest.ViewAll"]);
   const current = dayjs();
   const [year, setYear] = useState(current.year());
   const [month, setMonth] = useState(current.month() + 1);
@@ -35,15 +38,20 @@ export function LeaveCalendarPage() {
   const [leaveTypeId, setLeaveTypeId] = useState("");
   const [status, setStatus] = useState("");
   const [selectedDay, setSelectedDay] = useState<{ date: dayjs.Dayjs; items: LeaveCalendarItem[]; holidays: LeaveHoliday[] } | null>(null);
-  const { data: departments = [] } = useQuery({ queryKey: ["departments"], queryFn: getDepartments });
+  const { data: departments = [] } = useQuery({
+    queryKey: ["departments"],
+    queryFn: getDepartments,
+    enabled: canFilterDepartments,
+    retry: false,
+  });
   const { data: leaveTypes = [] } = useQuery({ queryKey: ["leave-types"], queryFn: getLeaveTypes });
   const { data: holidays = [] } = useQuery({ queryKey: ["leave-holidays", year], queryFn: () => getLeaveHolidays({ year }) });
   const { data = [], isError, isLoading } = useQuery({
-    queryKey: ["leave-calendar", year, month, departmentId, leaveTypeId, status],
+    queryKey: ["leave-calendar", year, month, canFilterDepartments ? departmentId : "", leaveTypeId, status],
     queryFn: () => getLeaveCalendar({
       year,
       month,
-      departmentId: departmentId || undefined,
+      departmentId: canFilterDepartments ? departmentId || undefined : undefined,
       leaveTypeId: leaveTypeId || undefined,
       status: status || undefined,
     }),
@@ -69,6 +77,7 @@ export function LeaveCalendarPage() {
         months={thaiMonths}
         departments={departments}
         leaveTypes={leaveTypes}
+        showDepartmentFilter={canFilterDepartments}
         onMonthChange={setMonth}
         onYearChange={setYear}
         onDepartmentChange={setDepartmentId}

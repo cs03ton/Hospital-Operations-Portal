@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import * as authApi from "../api/authApi";
 import { isCookieTokenMode, setAuthToken } from "../api/httpClient";
+import { notifyGlobal } from "../contexts/NotificationContext";
 import { authStorageKeys, type AuthUser } from "../types/auth";
 
 type AuthContextValue = {
@@ -95,6 +96,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       localStorage.setItem(authStorageKeys.refreshToken, result.refreshToken);
     }
     localStorage.setItem(authStorageKeys.user, JSON.stringify(normalizedUser));
+    notifyGlobal("success", "เข้าสู่ระบบสำเร็จ");
   }
 
   async function signOut() {
@@ -104,6 +106,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     } finally {
       clearSession();
+      notifyGlobal("success", "ออกจากระบบเรียบร้อยแล้ว");
     }
   }
 

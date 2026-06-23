@@ -30,14 +30,19 @@ import { LoadingState } from "../components/common/LoadingState";
 import { ApprovalWorkflowTimeline } from "../components/leave/ApprovalWorkflowTimeline";
 import { LeaveTrackingCard } from "../components/leave/LeaveTrackingCard";
 import { PageHeader } from "../components/PageHeader";
+import { useAuth } from "../context/AuthContext";
 import { PermissionGuard } from "../context/PermissionContext";
+import { useNotification } from "../hooks/useNotification";
 import { formatThaiDate, formatThaiDateTime } from "../utils/dateFormat";
-import { getLeaveStatusColor, getLeaveStatusLabel, getLeaveTypeLabel } from "../utils/leaveLabels";
+import { getLeaveDurationTypeLabel, getLeaveStatusColor, getLeaveStatusLabel, getLeaveTypeLabel } from "../utils/leaveLabels";
+import { getLeaveRequestCode } from "../utils/leaveTrackingLabels";
 
 export function LeaveRequestDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { user } = useAuth();
+  const { showSuccess } = useNotification();
   const [remark, setRemark] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const maxUploadMb = Number(import.meta.env.VITE_MAX_UPLOAD_SIZE_MB ?? 5);
@@ -51,18 +56,20 @@ export function LeaveRequestDetailPage() {
     await queryClient.invalidateQueries({ queryKey: ["leave-requests", id] });
     await queryClient.invalidateQueries({ queryKey: ["leave-requests", id, "attachments"] });
     await queryClient.invalidateQueries({ queryKey: ["leave-requests", id, "approvals"] });
+    await queryClient.invalidateQueries({ queryKey: ["approvals", "my-pending"] });
     await queryClient.invalidateQueries({ queryKey: ["notifications"] });
     await queryClient.invalidateQueries({ queryKey: ["dashboard-summary"] });
   };
 
-  const submitMutation = useMutation({ mutationFn: () => submitLeaveRequest(id!), onSuccess: invalidate });
-  const cancelMutation = useMutation({ mutationFn: () => cancelLeaveRequest(id!), onSuccess: invalidate });
-  const approveMutation = useMutation({ mutationFn: () => approveLeaveRequest(id!, remark), onSuccess: invalidate });
-  const rejectMutation = useMutation({ mutationFn: () => rejectLeaveRequest(id!, remark), onSuccess: invalidate });
+  const submitMutation = useMutation({ mutationFn: () => submitLeaveRequest(id!), onSuccess: async () => { showSuccess("ส่งคำขอลาเข้าสู่กระบวนการอนุมัติเรียบร้อยแล้ว"); await invalidate(); } });
+  const cancelMutation = useMutation({ mutationFn: () => cancelLeaveRequest(id!), onSuccess: async () => { showSuccess("ยกเลิกคำขอลาเรียบร้อยแล้ว"); await invalidate(); } });
+  const approveMutation = useMutation({ mutationFn: () => approveLeaveRequest(id!, remark), onSuccess: async () => { showSuccess("อนุมัติคำขอลาเรียบร้อยแล้ว"); await invalidate(); } });
+  const rejectMutation = useMutation({ mutationFn: () => rejectLeaveRequest(id!, remark), onSuccess: async () => { showSuccess("ไม่อนุมัติคำขอลาเรียบร้อยแล้ว"); await invalidate(); } });
   const uploadMutation = useMutation({
     mutationFn: () => uploadLeaveAttachment(id!, file!),
     onSuccess: async () => {
       setFile(null);
+      showSuccess("อัปโหลดไฟล์แนบเรียบร้อยแล้ว");
       await invalidate();
     },
   });
@@ -84,11 +91,12 @@ export function LeaveRequestDetailPage() {
     const url = window.URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `leave-request-${id}.pdf`;
+    link.download = `leave-request-${request?.requestNumber ?? id}.pdf`;
     document.body.appendChild(link);
     link.click();
     link.remove();
     window.URL.revokeObjectURL(url);
+    showSuccess("ดาวน์โหลดเอกสารเรียบร้อยแล้ว");
   }
 
   if (!request) {
@@ -107,8 +115,9 @@ export function LeaveRequestDetailPage() {
   const canSubmit = request.status === "Draft";
   const canCancel = request.status === "Draft" || request.status === "Pending";
   const canDecide = request.status === "Pending";
+  const canCurrentUserDecide = canDecide && Boolean(user?.id && request.currentApproverId && user.id === request.currentApproverId);
   const statusColor = getLeaveStatusColor(request.status);
-  const requestCode = request.id.slice(0, 8).toUpperCase();
+  const requestCode = getLeaveRequestCode(request.requestNumber, request.id);
 
   return (
     <>
@@ -125,21 +134,21 @@ export function LeaveRequestDetailPage() {
                   กลับ
                 </Button>
               </ActionTooltip>
-              <PermissionGuard permission="LeaveManagement.View">
+              <PermissionGuard permissions={["LeaveRequest.ViewOwn", "LeaveRequest.ViewPendingApproval", "LeaveRequest.ViewDepartment", "LeaveRequest.ViewAll"]}>
                 <ActionTooltip title="ดาวน์โหลดใบลา PDF">
                   <Button variant="contained" startIcon={<DownloadOutlinedIcon />} onClick={handleDownloadPdf}>
                     ดาวน์โหลด PDF
                   </Button>
                 </ActionTooltip>
               </PermissionGuard>
-              <PermissionGuard permission="LeaveManagement.Create">
+              <PermissionGuard permission="LeaveRequest.Create">
                 <ActionTooltip title="ส่งคำขอลาเพื่ออนุมัติ">
                   <Button variant="contained" startIcon={<SendOutlinedIcon />} disabled={!canSubmit || submitMutation.isPending} onClick={() => submitMutation.mutate()}>
                     ส่งคำขอ
                   </Button>
                 </ActionTooltip>
               </PermissionGuard>
-              <PermissionGuard permission="LeaveManagement.Edit">
+              <PermissionGuard permission="LeaveRequest.CancelOwn">
                 <ActionTooltip title="ยกเลิกคำขอลา">
                   <Button variant="outlined" color="error" startIcon={<CancelOutlinedIcon />} disabled={!canCancel || cancelMutation.isPending} onClick={() => cancelMutation.mutate()}>
                     ยกเลิกคำขอ
@@ -155,6 +164,9 @@ export function LeaveRequestDetailPage() {
             </Grid>
             <Grid item xs={12} sm={6} md={3}>
               <DetailItem label="ประเภทลา" value={getLeaveTypeLabel(request.leaveTypeName)} />
+            </Grid>
+            <Grid item xs={12} sm={6} md={3}>
+              <DetailItem label="ประเภทช่วงเวลา" value={getLeaveDurationTypeLabel(request.durationType)} />
             </Grid>
             <Grid item xs={12} sm={6} md={3}>
               <DetailItem label="วันที่เริ่มลา" value={formatThaiDate(request.startDate)} />
@@ -212,6 +224,9 @@ export function LeaveRequestDetailPage() {
                     <DetailItem label="ประเภทลา" value={getLeaveTypeLabel(request.leaveTypeName)} />
                   </Grid>
                   <Grid item xs={12} sm={6}>
+                    <DetailItem label="ประเภทช่วงเวลา" value={getLeaveDurationTypeLabel(request.durationType)} />
+                  </Grid>
+                  <Grid item xs={12} sm={6}>
                     <DetailItem label="สถานะคำขอ" value={getLeaveStatusLabel(request.status)} chipColor={statusColor} />
                   </Grid>
                   <Grid item xs={12} sm={6}>
@@ -224,7 +239,7 @@ export function LeaveRequestDetailPage() {
                     <DetailItem label="จำนวนวัน" value={`${request.totalDays.toLocaleString("th-TH")} วัน`} />
                   </Grid>
                   <Grid item xs={12} sm={6}>
-                    <DetailItem label="ลาครึ่งวัน" value="-" />
+                    <DetailItem label="ลาครึ่งวัน" value={request.durationType === "FULL_DAY" ? "ไม่ใช่" : getLeaveDurationTypeLabel(request.durationType)} />
                   </Grid>
                   <Grid item xs={12}>
                     <DetailItem label="เหตุผลการลา" value={request.reason || "-"} />
@@ -237,24 +252,26 @@ export function LeaveRequestDetailPage() {
 
         <InfoCard title="การอนุมัติ" subtitle="แสดงลำดับขั้น ผู้อนุมัติ สถานะ วันที่ดำเนินการ และหมายเหตุของคำขอนี้">
           <Stack spacing={2}>
-            <PermissionGuard permission="LeaveManagement.Approve">
-              <Stack
-                direction={{ xs: "column", md: "row" }}
-                spacing={1.5}
-                alignItems={{ xs: "stretch", md: "center" }}
-                sx={{ p: 2, border: 1, borderColor: "divider", borderRadius: 3, bgcolor: "background.default" }}
-              >
-                <TextField fullWidth size="small" label="หมายเหตุ" InputLabelProps={{ shrink: true }} value={remark} onChange={(event) => setRemark(event.target.value)} />
-                <Stack direction="row" spacing={1} justifyContent={{ xs: "flex-start", md: "flex-end" }} flexWrap="wrap" useFlexGap>
-                  <Button variant="contained" color="success" startIcon={<CheckCircleOutlineOutlinedIcon />} disabled={!canDecide || approveMutation.isPending} onClick={() => approveMutation.mutate()}>
-                    อนุมัติ
-                  </Button>
-                  <Button variant="outlined" color="error" startIcon={<HighlightOffOutlinedIcon />} disabled={!canDecide || rejectMutation.isPending} onClick={() => rejectMutation.mutate()}>
-                    ไม่อนุมัติ
-                  </Button>
+            {canCurrentUserDecide && (
+              <PermissionGuard permission="LeaveApproval.ApproveCurrentStep">
+                <Stack
+                  direction={{ xs: "column", md: "row" }}
+                  spacing={1.5}
+                  alignItems={{ xs: "stretch", md: "center" }}
+                  sx={{ p: 2, border: 1, borderColor: "divider", borderRadius: 3, bgcolor: "background.default" }}
+                >
+                  <TextField fullWidth size="small" label="หมายเหตุ" InputLabelProps={{ shrink: true }} value={remark} onChange={(event) => setRemark(event.target.value)} />
+                  <Stack direction="row" spacing={1} justifyContent={{ xs: "flex-start", md: "flex-end" }} flexWrap="wrap" useFlexGap>
+                    <Button variant="contained" color="success" startIcon={<CheckCircleOutlineOutlinedIcon />} disabled={approveMutation.isPending} onClick={() => approveMutation.mutate()}>
+                      อนุมัติ
+                    </Button>
+                    <Button variant="outlined" color="error" startIcon={<HighlightOffOutlinedIcon />} disabled={rejectMutation.isPending} onClick={() => rejectMutation.mutate()}>
+                      ไม่อนุมัติ
+                    </Button>
+                  </Stack>
                 </Stack>
-              </Stack>
-            </PermissionGuard>
+              </PermissionGuard>
+            )}
             <ApprovalWorkflowTimeline approvals={approvals} />
           </Stack>
         </InfoCard>
@@ -322,7 +339,7 @@ function AttachmentActions({
   onUpload: () => void;
 }) {
   return (
-    <PermissionGuard permission="LeaveManagement.Edit">
+    <PermissionGuard permission="LeaveRequest.EditOwn">
       <Stack direction={{ xs: "column", sm: "row" }} spacing={1} alignItems={{ xs: "stretch", sm: "center" }} flexWrap="wrap" useFlexGap>
         <Button component="label" variant="outlined" startIcon={<UploadFileOutlinedIcon />}>
           เลือกไฟล์

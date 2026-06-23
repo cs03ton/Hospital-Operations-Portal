@@ -86,7 +86,7 @@ function ApprovalStepCard({ approval, isCurrent }: { approval: LeaveApproval; is
           </Box>
           <Box sx={{ minWidth: 0 }}>
             <Typography variant="subtitle2" fontWeight={800}>
-              {approval.stepName || `ผู้อนุมัติขั้นที่ ${approval.stepOrder}`}
+              ขั้นที่ {approval.stepOrder}: {approval.stepName || "ผู้อนุมัติ"}
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ overflowWrap: "anywhere" }}>
               {approval.approverName || "-"}
@@ -97,7 +97,8 @@ function ApprovalStepCard({ approval, isCurrent }: { approval: LeaveApproval; is
         <Chip size="small" color={getApprovalStatusColor(approval.status)} label={getApprovalStatusLabel(approval.status)} sx={{ alignSelf: "flex-start" }} />
 
         <Stack spacing={0.75}>
-          <ApprovalMeta label="บทบาท/ตำแหน่ง" value="-" />
+          <ApprovalMeta label="ผู้อนุมัติ" value={approval.approverName || "-"} />
+          <ApprovalMeta label="สถานะ" value={getApprovalStatusLabel(approval.status)} />
           <ApprovalMeta label="วันที่ดำเนินการ" value={formatThaiDateTime(approval.actionAt)} />
           <ApprovalMeta label="หมายเหตุ" value={approval.remark || "-"} />
         </Stack>

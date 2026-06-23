@@ -47,6 +47,7 @@ public class PostgresApiE2ETests
             leaveType.Id,
             DateOnly.FromDateTime(DateTime.UtcNow.Date.AddDays(7)),
             DateOnly.FromDateTime(DateTime.UtcNow.Date.AddDays(7)),
+            "FULL_DAY",
             1,
             "E2E leave request"));
 
@@ -80,6 +81,7 @@ public class PostgresApiE2ETests
             leaveType.Id,
             DateOnly.FromDateTime(DateTime.UtcNow.Date.AddDays(9)),
             DateOnly.FromDateTime(DateTime.UtcNow.Date.AddDays(9)),
+            "FULL_DAY",
             1,
             "E2E reject request"));
         await PostApi<LeaveRequestResponse>(client, $"/api/leave-requests/{rejectDraft.Id}/submit", new { });

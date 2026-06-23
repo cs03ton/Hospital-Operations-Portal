@@ -15,7 +15,7 @@ namespace Hop.Api.Controllers;
 public class ApprovalChainStepsController(AppDbContext db, IAuditLogService auditLogService) : ControllerBase
 {
     [HttpPut("{id:guid}")]
-    [RequirePermission("ApprovalChain.Edit")]
+    [RequirePermission(LeavePermissions.ManageApprovalChains)]
     public async Task<ActionResult<ApiResponse<ApprovalChainStepResponse>>> UpdateStep(Guid id, SaveApprovalChainStepRequest request)
     {
         var item = await db.ApprovalChainSteps.FirstOrDefaultAsync(step => step.Id == id);
@@ -46,7 +46,7 @@ public class ApprovalChainStepsController(AppDbContext db, IAuditLogService audi
     }
 
     [HttpDelete("{id:guid}")]
-    [RequirePermission("ApprovalChain.Delete")]
+    [RequirePermission(LeavePermissions.ManageApprovalChains)]
     public async Task<IActionResult> DeleteStep(Guid id)
     {
         var item = await db.ApprovalChainSteps.FirstOrDefaultAsync(step => step.Id == id);

@@ -22,7 +22,7 @@ public class LeaveHolidaysController(AppDbContext db, IAuditLogService auditLogS
     private static readonly XNamespace Spreadsheet = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
 
     [HttpGet]
-    [RequirePermission("LeaveManagement.View")]
+    [RequireAnyPermission(LeavePermissions.ViewOwn, LeavePermissions.ViewPendingApproval, LeavePermissions.ViewDepartment, LeavePermissions.ViewAll, LeavePermissions.ManageHolidays)]
     public async Task<ActionResult<ApiResponse<IReadOnlyList<LeaveHolidayResponse>>>> GetHolidays([FromQuery] int? year = null)
     {
         var query = db.LeaveHolidays.AsNoTracking();
@@ -40,7 +40,7 @@ public class LeaveHolidaysController(AppDbContext db, IAuditLogService auditLogS
     }
 
     [HttpPost]
-    [RequirePermission("LeaveHoliday.Manage")]
+    [RequirePermission(LeavePermissions.ManageHolidays)]
     public async Task<ActionResult<ApiResponse<LeaveHolidayResponse>>> CreateHoliday(SaveLeaveHolidayRequest request)
     {
         if (await db.LeaveHolidays.AnyAsync(item => item.HolidayDate == request.HolidayDate))
@@ -63,7 +63,7 @@ public class LeaveHolidaysController(AppDbContext db, IAuditLogService auditLogS
     }
 
     [HttpPut("{id:guid}")]
-    [RequirePermission("LeaveHoliday.Manage")]
+    [RequirePermission(LeavePermissions.ManageHolidays)]
     public async Task<ActionResult<ApiResponse<LeaveHolidayResponse>>> UpdateHoliday(Guid id, SaveLeaveHolidayRequest request)
     {
         var item = await db.LeaveHolidays.FirstOrDefaultAsync(holiday => holiday.Id == id);
@@ -89,7 +89,7 @@ public class LeaveHolidaysController(AppDbContext db, IAuditLogService auditLogS
     }
 
     [HttpDelete("{id:guid}")]
-    [RequirePermission("LeaveHoliday.Manage")]
+    [RequirePermission(LeavePermissions.ManageHolidays)]
     public async Task<IActionResult> DeleteHoliday(Guid id)
     {
         var item = await db.LeaveHolidays.FirstOrDefaultAsync(holiday => holiday.Id == id);
@@ -107,7 +107,7 @@ public class LeaveHolidaysController(AppDbContext db, IAuditLogService auditLogS
     }
 
     [HttpGet("import-template")]
-    [RequirePermission("LeaveHoliday.Manage")]
+    [RequirePermission(LeavePermissions.ManageHolidays)]
     public IActionResult DownloadImportTemplate()
     {
         var rows = new[]
@@ -124,7 +124,7 @@ public class LeaveHolidaysController(AppDbContext db, IAuditLogService auditLogS
     }
 
     [HttpPost("import/preview")]
-    [RequirePermission("LeaveHoliday.Manage")]
+    [RequirePermission(LeavePermissions.ManageHolidays)]
     public async Task<ActionResult<ApiResponse<LeaveHolidayImportPreviewResponse>>> PreviewImport(IFormFile file)
     {
         var parsedRows = await ParseImportFile(file);
@@ -134,7 +134,7 @@ public class LeaveHolidaysController(AppDbContext db, IAuditLogService auditLogS
     }
 
     [HttpPost("import/confirm")]
-    [RequirePermission("LeaveHoliday.Manage")]
+    [RequirePermission(LeavePermissions.ManageHolidays)]
     public async Task<ActionResult<ApiResponse<LeaveHolidayImportConfirmResponse>>> ConfirmImport(LeaveHolidayImportConfirmRequest request)
     {
         var parsedRows = request.Rows.Select((row, index) => new ParsedHolidayRow(index + 2, row.HolidayDate.ToString("yyyy-MM-dd"), row.Name, row.HolidayType)).ToList();

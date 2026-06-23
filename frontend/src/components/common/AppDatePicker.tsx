@@ -14,6 +14,7 @@ type AppDatePickerProps = {
   helperText?: string;
   fullWidth?: boolean;
   size?: "small" | "medium";
+  disabled?: boolean;
 };
 
 export function AppDatePicker({
@@ -24,6 +25,7 @@ export function AppDatePicker({
   helperText,
   fullWidth = true,
   size = "small",
+  disabled = false,
 }: AppDatePickerProps) {
   function handleChange(nextValue: Dayjs | null) {
     onChange(nextValue?.isValid() ? formatDateForApi(nextValue.toDate()) : "");
@@ -35,6 +37,7 @@ export function AppDatePicker({
         label={label}
         value={value ? dayjs(value) : null}
         onChange={handleChange}
+        disabled={disabled}
         format="DD/MM/YYYY"
         slotProps={{
           textField: {

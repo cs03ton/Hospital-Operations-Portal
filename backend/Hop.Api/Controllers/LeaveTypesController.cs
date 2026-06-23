@@ -15,7 +15,7 @@ namespace Hop.Api.Controllers;
 public class LeaveTypesController(AppDbContext db, IAuditLogService auditLogService) : ControllerBase
 {
     [HttpGet]
-    [RequirePermission("LeaveManagement.View")]
+    [RequireAnyPermission(LeavePermissions.ViewOwn, LeavePermissions.ViewPendingApproval, LeavePermissions.ViewDepartment, LeavePermissions.ViewAll, LeavePermissions.ManageTypes)]
     public async Task<ActionResult<ApiResponse<IReadOnlyList<LeaveTypeResponse>>>> GetLeaveTypes()
     {
         var items = await db.LeaveTypes
@@ -28,7 +28,7 @@ public class LeaveTypesController(AppDbContext db, IAuditLogService auditLogServ
     }
 
     [HttpPost]
-    [RequirePermission("LeaveManagement.Manage")]
+    [RequirePermission(LeavePermissions.ManageTypes)]
     public async Task<ActionResult<ApiResponse<LeaveTypeResponse>>> CreateLeaveType(SaveLeaveTypeRequest request)
     {
         var code = request.Code.Trim();
@@ -43,6 +43,7 @@ public class LeaveTypesController(AppDbContext db, IAuditLogService auditLogServ
             Name = request.Name.Trim(),
             Description = request.Description,
             DefaultDaysPerYear = request.DefaultDaysPerYear,
+            RequiresBalance = request.RequiresBalance,
             RequiresAttachment = request.RequiresAttachment,
             IsPaid = request.IsPaid,
             IsActive = request.IsActive
@@ -56,7 +57,7 @@ public class LeaveTypesController(AppDbContext db, IAuditLogService auditLogServ
     }
 
     [HttpPut("{id:guid}")]
-    [RequirePermission("LeaveManagement.Manage")]
+    [RequirePermission(LeavePermissions.ManageTypes)]
     public async Task<ActionResult<ApiResponse<LeaveTypeResponse>>> UpdateLeaveType(Guid id, SaveLeaveTypeRequest request)
     {
         var leaveType = await db.LeaveTypes.FirstOrDefaultAsync(item => item.Id == id);
@@ -75,6 +76,7 @@ public class LeaveTypesController(AppDbContext db, IAuditLogService auditLogServ
         leaveType.Name = request.Name.Trim();
         leaveType.Description = request.Description;
         leaveType.DefaultDaysPerYear = request.DefaultDaysPerYear;
+        leaveType.RequiresBalance = request.RequiresBalance;
         leaveType.RequiresAttachment = request.RequiresAttachment;
         leaveType.IsPaid = request.IsPaid;
         leaveType.IsActive = request.IsActive;
@@ -87,7 +89,7 @@ public class LeaveTypesController(AppDbContext db, IAuditLogService auditLogServ
     }
 
     [HttpDelete("{id:guid}")]
-    [RequirePermission("LeaveManagement.Manage")]
+    [RequirePermission(LeavePermissions.ManageTypes)]
     public async Task<IActionResult> DeleteLeaveType(Guid id)
     {
         var leaveType = await db.LeaveTypes.FirstOrDefaultAsync(item => item.Id == id);
@@ -112,6 +114,7 @@ public class LeaveTypesController(AppDbContext db, IAuditLogService auditLogServ
             item.Name,
             item.Description,
             item.DefaultDaysPerYear,
+            item.RequiresBalance,
             item.RequiresAttachment,
             item.IsPaid,
             item.IsActive

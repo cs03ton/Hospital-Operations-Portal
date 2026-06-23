@@ -7,6 +7,7 @@ import App from "./App";
 import { appName, hospitalName } from "./config/appConfig";
 import { AuthProvider } from "./context/AuthContext";
 import { PermissionProvider } from "./context/PermissionContext";
+import { NotificationProvider } from "./contexts/NotificationContext";
 import { theme } from "./theme/theme";
 
 const queryClient = new QueryClient();
@@ -19,11 +20,13 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
       <ThemeProvider theme={theme}>
         <CssBaseline />
         <BrowserRouter>
-          <AuthProvider>
-            <PermissionProvider>
-              <App />
-            </PermissionProvider>
-          </AuthProvider>
+          <NotificationProvider>
+            <AuthProvider>
+              <PermissionProvider>
+                <App />
+              </PermissionProvider>
+            </AuthProvider>
+          </NotificationProvider>
         </BrowserRouter>
       </ThemeProvider>
     </QueryClientProvider>

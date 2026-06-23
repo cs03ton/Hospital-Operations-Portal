@@ -4,6 +4,7 @@ import { Collapse, List, ListItemButton, ListItemIcon, ListItemText, Tooltip } f
 import { alpha } from "@mui/material/styles";
 import type { NavigationModule } from "../../config/menuConfig";
 import { brandColors } from "../../theme/theme";
+import type { NavigationItem } from "../../types/navigation";
 import { ModuleMenuItem } from "./ModuleMenuItem";
 
 type ModuleMenuGroupProps = {
@@ -93,7 +94,7 @@ export function ModuleMenuGroup({
               <ModuleMenuItem
                 key={item.path}
                 item={item}
-                isActive={isItemActive(activePath, item.path)}
+                isActive={isItemActive(activePath, item)}
                 isCollapsed={false}
                 onClick={onNavigate}
               />
@@ -105,15 +106,43 @@ export function ModuleMenuGroup({
   );
 }
 
-export function isItemActive(pathname: string, itemPath: string) {
-  if (itemPath === "/dashboard") {
+export function isItemActive(pathname: string, item: NavigationItem) {
+  if (item.activePatterns?.length) {
+    return item.activePatterns.some((pattern) => matchRoutePattern(pathname, pattern));
+  }
+
+  if (item.path === "/dashboard") {
     return pathname === "/" || pathname === "/dashboard";
   }
 
-  if (itemPath === "/leave") {
-    const leaveChildMenuPaths = ["/leave/create", "/leave/calendar", "/leave/types", "/leave/balances"];
-    return pathname === "/leave" || (pathname.startsWith("/leave/") && !leaveChildMenuPaths.some((path) => pathname.startsWith(path)));
+  return pathname === item.path || pathname.startsWith(`${item.path}/`);
+}
+
+function matchRoutePattern(pathname: string, pattern: string) {
+  if (pattern === "/") {
+    return pathname === "/";
   }
 
-  return pathname === itemPath || pathname.startsWith(`${itemPath}/`);
+  const pathSegments = trimSlashes(pathname).split("/");
+  const patternSegments = trimSlashes(pattern).split("/");
+
+  if (pathSegments.length !== patternSegments.length) {
+    return false;
+  }
+
+  return patternSegments.every((segment, index) => {
+    if (segment === ":id") {
+      return isGuid(pathSegments[index]);
+    }
+
+    return segment.startsWith(":") || segment === pathSegments[index];
+  });
+}
+
+function trimSlashes(value: string) {
+  return value.replace(/^\/+|\/+$/g, "");
+}
+
+function isGuid(value: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
 }

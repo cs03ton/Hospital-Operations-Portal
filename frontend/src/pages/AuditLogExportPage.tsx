@@ -6,12 +6,17 @@ import { useState } from "react";
 import { getAuditLogExportUrl, runAuditRetention } from "../api/securityApi";
 import { AppDatePicker } from "../components/common/AppDatePicker";
 import { PageHeader } from "../components/PageHeader";
+import { useNotification } from "../hooks/useNotification";
 
 export function AuditLogExportPage() {
+  const { showInfo, showSuccess } = useNotification();
   const [action, setAction] = useState("");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
-  const retentionMutation = useMutation({ mutationFn: runAuditRetention });
+  const retentionMutation = useMutation({
+    mutationFn: runAuditRetention,
+    onSuccess: (result) => showSuccess(`ลบรายการหมดอายุแล้ว ${result.deletedCount} รายการ`),
+  });
 
   function downloadCsv() {
     const params = new URLSearchParams();
@@ -19,6 +24,7 @@ export function AuditLogExportPage() {
     if (from) params.set("from", from);
     if (to) params.set("to", to);
     window.open(`${getAuditLogExportUrl()}?${params.toString()}`, "_blank", "noopener,noreferrer");
+    showInfo("เริ่มดาวน์โหลด Audit Log แล้ว");
   }
 
   return (

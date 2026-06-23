@@ -3,10 +3,12 @@ namespace Hop.Api.Models;
 public class LeaveRequest
 {
     public Guid Id { get; set; }
+    public string? RequestNumber { get; set; }
     public Guid UserId { get; set; }
     public Guid LeaveTypeId { get; set; }
     public DateOnly StartDate { get; set; }
     public DateOnly EndDate { get; set; }
+    public string DurationType { get; set; } = "FULL_DAY";
     public decimal TotalDays { get; set; }
     public string Reason { get; set; } = string.Empty;
     public string Status { get; set; } = "Draft";

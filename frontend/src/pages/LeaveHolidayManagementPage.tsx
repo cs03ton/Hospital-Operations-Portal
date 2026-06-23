@@ -12,6 +12,7 @@ import { AppDatePicker } from "../components/common/AppDatePicker";
 import { DataTableCard } from "../components/common/DataTableCard";
 import { PageToolbar } from "../components/common/PageToolbar";
 import { PageHeader } from "../components/PageHeader";
+import { useNotification } from "../hooks/useNotification";
 import { formatDateForApi, formatThaiDate, isValidApiDate } from "../utils/dateFormat";
 
 const emptyHoliday: SaveLeaveHolidayRequest = {
@@ -22,6 +23,7 @@ const emptyHoliday: SaveLeaveHolidayRequest = {
 
 export function LeaveHolidayManagementPage() {
   const queryClient = useQueryClient();
+  const { showSuccess } = useNotification();
   const [editing, setEditing] = useState<LeaveHoliday | null>(null);
   const [importOpen, setImportOpen] = useState(false);
   const [importFile, setImportFile] = useState<File | null>(null);
@@ -32,16 +34,24 @@ export function LeaveHolidayManagementPage() {
   const saveMutation = useMutation({
     mutationFn: (values: SaveLeaveHolidayRequest) => editing ? updateLeaveHoliday(editing.id, values) : createLeaveHoliday(values),
     onSuccess: async () => {
+      showSuccess(editing ? "บันทึกวันหยุดราชการเรียบร้อยแล้ว" : "เพิ่มวันหยุดราชการเรียบร้อยแล้ว");
       setEditing(null);
       reset(emptyHoliday);
       await queryClient.invalidateQueries({ queryKey: ["leave-holidays"] });
     },
   });
-  const deleteMutation = useMutation({ mutationFn: deactivateLeaveHoliday, onSuccess: () => queryClient.invalidateQueries({ queryKey: ["leave-holidays"] }) });
+  const deleteMutation = useMutation({
+    mutationFn: deactivateLeaveHoliday,
+    onSuccess: () => {
+      showSuccess("ปิดใช้งานวันหยุดราชการเรียบร้อยแล้ว");
+      queryClient.invalidateQueries({ queryKey: ["leave-holidays"] });
+    },
+  });
   const previewMutation = useMutation({ mutationFn: previewLeaveHolidayImport, onSuccess: setPreview });
   const confirmMutation = useMutation({
     mutationFn: confirmLeaveHolidayImport,
     onSuccess: async () => {
+      showSuccess("นำเข้าวันหยุดราชการเรียบร้อยแล้ว");
       setImportOpen(false);
       setImportFile(null);
       setPreview(null);
@@ -63,6 +73,7 @@ export function LeaveHolidayManagementPage() {
   async function handleDownloadTemplate() {
     const blob = await downloadLeaveHolidayTemplate();
     downloadBlob(blob, "leave-holiday-import-template.csv");
+    showSuccess("ดาวน์โหลดตัวอย่างไฟล์เรียบร้อยแล้ว");
   }
 
   function handleCloseImport() {

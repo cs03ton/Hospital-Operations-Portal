@@ -25,6 +25,7 @@ public class PendingApprovalNotificationService(AppDbContext db) : IPendingAppro
             .Select(item => new
             {
                 item.LeaveRequestId,
+                RequestNumber = item.LeaveRequest!.RequestNumber,
                 EmployeeName = item.LeaveRequest!.User != null ? item.LeaveRequest.User.FullName : null,
                 LeaveType = item.LeaveRequest.LeaveType != null ? item.LeaveRequest.LeaveType.Name : null,
                 item.LeaveRequest.StartDate,
@@ -37,6 +38,7 @@ public class PendingApprovalNotificationService(AppDbContext db) : IPendingAppro
         return items
             .Select(item => new PendingApprovalNotificationResponse(
                 item.LeaveRequestId,
+                item.RequestNumber,
                 item.EmployeeName,
                 item.LeaveType,
                 item.StartDate,

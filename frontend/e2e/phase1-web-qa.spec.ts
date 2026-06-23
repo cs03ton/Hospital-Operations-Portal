@@ -215,7 +215,7 @@ async function findAvailableLeaveDate(page: Page) {
     const token = localStorage.getItem("hop.accessToken");
     const rawUser = localStorage.getItem("hop.user");
     const user = rawUser ? JSON.parse(rawUser) as { id?: string } : null;
-    const response = await fetch("http://localhost:5000/api/leave-requests", {
+    const response = await fetch("https://localhost:5000/api/leave-requests", {
       headers: token ? { Authorization: `Bearer ${token}` } : undefined,
     });
     const payload = await response.json();

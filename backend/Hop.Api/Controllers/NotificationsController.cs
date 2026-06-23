@@ -24,14 +24,14 @@ public class NotificationsController(IPendingApprovalNotificationService notific
         }
 
         var items = new List<LeaveNotificationItemResponse>();
-        if (await HasPermissionAsync(userId.Value, "LeaveManagement.Approve"))
+        if (await HasPermissionAsync(userId.Value, LeavePermissions.ViewPendingApproval))
         {
             var pendingApprovals = await notificationService.GetMyPendingApprovalsAsync(userId.Value, cancellationToken);
             items.AddRange(pendingApprovals.Select(item => new LeaveNotificationItemResponse(
                 $"approval-{item.RequestId}",
                 "ApprovalPending",
                 item.RequestId,
-                $"รออนุมัติขั้นที่ {item.CurrentStep}",
+                $"คำขอลา {item.RequestNumber ?? "-"} รออนุมัติขั้นที่ {item.CurrentStep}",
                 $"{item.EmployeeName ?? "-"} · {item.LeaveType ?? "-"} · {item.StartDate:dd/MM/yyyy}-{item.EndDate:dd/MM/yyyy} · ส่งเมื่อ {FormatDateTime(item.SubmittedAt)}",
                 item.SubmittedAt ?? DateTime.UtcNow,
                 true,
@@ -69,7 +69,7 @@ public class NotificationsController(IPendingApprovalNotificationService notific
 
     private static LeaveNotificationItemResponse ToOwnerNotification(LeaveRequest request)
     {
-        var requestCode = request.Id.ToString("N")[..8].ToUpperInvariant();
+        var requestCode = request.RequestNumber ?? "-";
         var currentStepName = request.Approvals
             .OrderBy(item => item.StepOrder)
             .FirstOrDefault(item => item.Status == "Pending")

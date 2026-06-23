@@ -28,7 +28,6 @@ import { Link as RouterLink } from "react-router-dom";
 import { getMyPendingApprovals, type PendingApprovalNotification } from "../api/leaveApi";
 import { EmptyState } from "../components/common/EmptyState";
 import { LoadingState } from "../components/common/LoadingState";
-import { PageHeader } from "../components/PageHeader";
 import { formatThaiDate, formatThaiDateTime } from "../utils/dateFormat";
 import { getLeaveTypeLabel } from "../utils/leaveLabels";
 
@@ -98,8 +97,6 @@ export function PendingApprovalsPage() {
 
   return (
     <Box>
-      <PageHeader title="งานรออนุมัติของฉัน" subtitle="แสดงเฉพาะคำขอลาที่ถึงคิวอนุมัติของผู้ใช้งานปัจจุบัน" />
-
       {isError && (
         <Alert severity="error" sx={{ mb: 2 }}>
           ไม่สามารถโหลดรายการรออนุมัติได้ กรุณาลองใหม่อีกครั้ง

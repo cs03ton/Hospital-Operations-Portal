@@ -25,7 +25,7 @@ public sealed class PermissionAuthorizationHandler(AppDbContext db)
             .AnyAsync(rolePermission =>
                 rolePermission.Permission != null &&
                 rolePermission.Permission.IsActive &&
-                rolePermission.Permission.Code == requirement.PermissionCode);
+                requirement.PermissionCodes.Contains(rolePermission.Permission.Code));
 
         if (hasPermission)
         {

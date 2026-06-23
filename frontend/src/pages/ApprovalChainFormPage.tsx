@@ -21,6 +21,7 @@ import {
 } from "../api/leaveApi";
 import { PageHeader } from "../components/PageHeader";
 import { PermissionGuard } from "../context/PermissionContext";
+import { useNotification } from "../hooks/useNotification";
 import { getLeaveTypeLabel } from "../utils/leaveLabels";
 import { getRoleLabel } from "../utils/roleLabels";
 
@@ -38,7 +39,7 @@ const emptyStep: SaveApprovalChainStepRequest = {
   name: "",
   approverRoleId: "",
   approverUserId: "",
-  requiredPermissionCode: "LeaveManagement.Approve",
+  requiredPermissionCode: "LeaveApproval.ApproveCurrentStep",
   isActive: true,
 };
 
@@ -47,6 +48,7 @@ export function ApprovalChainFormPage() {
   const isEdit = Boolean(id);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { showSuccess } = useNotification();
   const [editingStep, setEditingStep] = useState<ApprovalChainStep | null>(null);
   const { data: chain } = useQuery({ queryKey: ["approval-chains", id], queryFn: () => getApprovalChain(id!), enabled: isEdit });
   const { data: steps = [] } = useQuery({ queryKey: ["approval-chains", id, "steps"], queryFn: () => getApprovalChainSteps(id!), enabled: isEdit });
@@ -79,6 +81,7 @@ export function ApprovalChainFormPage() {
     },
     onSuccess: async (saved) => {
       await queryClient.invalidateQueries({ queryKey: ["approval-chains"] });
+      showSuccess(isEdit ? "บันทึกกฎการอนุมัติเรียบร้อยแล้ว" : "เพิ่มกฎการอนุมัติเรียบร้อยแล้ว");
       if (!isEdit) {
         navigate(`/admin/approval-chains/${saved.id}/edit`);
       }
@@ -93,13 +96,17 @@ export function ApprovalChainFormPage() {
     onSuccess: async () => {
       setEditingStep(null);
       stepForm.reset(emptyStep);
+      showSuccess("บันทึกขั้นอนุมัติเรียบร้อยแล้ว");
       await queryClient.invalidateQueries({ queryKey: ["approval-chains", id, "steps"] });
     },
   });
 
   const deleteStepMutation = useMutation({
     mutationFn: deleteApprovalChainStep,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["approval-chains", id, "steps"] }),
+    onSuccess: () => {
+      showSuccess("ลบขั้นอนุมัติเรียบร้อยแล้ว");
+      return queryClient.invalidateQueries({ queryKey: ["approval-chains", id, "steps"] });
+    },
   });
 
   function onEditStep(step: ApprovalChainStep) {
@@ -116,24 +123,24 @@ export function ApprovalChainFormPage() {
 
   return (
     <>
-      <PageHeader title={isEdit ? "แก้ไขสายอนุมัติ" : "สร้างสายอนุมัติ"} subtitle="กำหนดเงื่อนไขและลำดับผู้อนุมัติสำหรับคำขอลา" />
+      <PageHeader title={isEdit ? "แก้ไขกฎการอนุมัติวันลา" : "สร้างกฎการอนุมัติวันลา"} subtitle="กำหนด rule และลำดับผู้อนุมัติสำหรับผูกกับผู้ใช้งาน" />
       <Stack spacing={2}>
         <Card>
           <CardContent>
             <Stack component="form" spacing={2} onSubmit={chainForm.handleSubmit((values) => saveChainMutation.mutate(values))}>
-              {saveChainMutation.isError && <Alert severity="error">บันทึกสายอนุมัติไม่สำเร็จ</Alert>}
-              <TextField label="ชื่อสายอนุมัติ" error={Boolean(chainForm.formState.errors.name)} helperText={chainForm.formState.errors.name?.message} {...chainForm.register("name", { required: "กรุณากรอกชื่อสายอนุมัติ" })} />
+              {saveChainMutation.isError && <Alert severity="error">บันทึกกฎการอนุมัติไม่สำเร็จ</Alert>}
+              <TextField label="ชื่อกฎการอนุมัติ" error={Boolean(chainForm.formState.errors.name)} helperText={chainForm.formState.errors.name?.message} {...chainForm.register("name", { required: "กรุณากรอกชื่อกฎการอนุมัติ" })} />
               <TextField label="รายละเอียด" {...chainForm.register("description")} />
               <Grid container spacing={2}>
                 <Grid item xs={12} md={4}>
                   <TextField fullWidth select label="หน่วยงาน" defaultValue="" {...chainForm.register("departmentId")}>
-                    <MenuItem value="">ทุกหน่วยงาน</MenuItem>
+                    <MenuItem value="">ไม่จำกัดหน่วยงาน</MenuItem>
                     {departments.map((item) => <MenuItem key={item.id} value={item.id}>{item.name}</MenuItem>)}
                   </TextField>
                 </Grid>
                 <Grid item xs={12} md={4}>
                   <TextField fullWidth select label="ประเภทการลา" defaultValue="" {...chainForm.register("leaveTypeId")}>
-                    <MenuItem value="">ทุกประเภท</MenuItem>
+                    <MenuItem value="">ไม่จำกัดประเภท</MenuItem>
                     {leaveTypes.map((item) => <MenuItem key={item.id} value={item.id}>{getLeaveTypeLabel(item.name || item.code)}</MenuItem>)}
                   </TextField>
                 </Grid>
@@ -151,7 +158,7 @@ export function ApprovalChainFormPage() {
         </Card>
 
         {isEdit && (
-          <PermissionGuard permission="ApprovalChain.Edit">
+          <PermissionGuard permission="LeaveAdmin.ManageApprovalChains">
             <Card>
               <CardContent>
                 <Typography variant="h6" sx={{ mb: 2 }}>{editingStep ? "แก้ไขขั้นอนุมัติ" : "เพิ่มขั้นอนุมัติ"}</Typography>
@@ -177,7 +184,7 @@ export function ApprovalChainFormPage() {
                       </TextField>
                     </Grid>
                     <Grid item xs={12} md={6}>
-                      <TextField fullWidth select label="Permission ที่ต้องมี" defaultValue="LeaveManagement.Approve" {...stepForm.register("requiredPermissionCode")}>
+                      <TextField fullWidth select label="Permission ที่ต้องมี" defaultValue="LeaveApproval.ApproveCurrentStep" {...stepForm.register("requiredPermissionCode")}>
                         {permissions.map((item) => <MenuItem key={item.id} value={item.code}>{item.code}</MenuItem>)}
                       </TextField>
                     </Grid>
@@ -250,6 +257,6 @@ function normalizeStep(values: SaveApprovalChainStepRequest): SaveApprovalChainS
     stepOrder: Number(values.stepOrder),
     approverRoleId: values.approverRoleId || null,
     approverUserId: values.approverUserId || null,
-    requiredPermissionCode: values.requiredPermissionCode || "LeaveManagement.Approve",
+    requiredPermissionCode: values.requiredPermissionCode || "LeaveApproval.ApproveCurrentStep",
   };
 }

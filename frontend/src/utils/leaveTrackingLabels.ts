@@ -1,7 +1,11 @@
 import type { LeaveRequest } from "../api/leaveApi";
 
-export function getLeaveRequestCode(id?: string | null) {
-  return id ? id.replace(/-/g, "").slice(0, 8).toUpperCase() : "-";
+export function getLeaveRequestCode(requestNumber?: string | null, _id?: string | null) {
+  if (requestNumber) {
+    return requestNumber;
+  }
+
+  return "-";
 }
 
 export function getTrackingStatusLabel(request: Pick<LeaveRequest, "status" | "currentStatusLabel" | "currentApproverName" | "currentStepName">) {
@@ -49,12 +53,12 @@ export function getTrackingStepLabel(request: Pick<LeaveRequest, "status" | "cur
   return request.currentStepName || "-";
 }
 
-export function getTrackingMessage(request: Pick<LeaveRequest, "id" | "status" | "trackingMessage" | "currentApproverName" | "currentStepName">) {
+export function getTrackingMessage(request: Pick<LeaveRequest, "id" | "requestNumber" | "status" | "trackingMessage" | "currentApproverName" | "currentStepName">) {
   if (request.trackingMessage) {
     return request.trackingMessage;
   }
 
-  const requestCode = getLeaveRequestCode(request.id);
+  const requestCode = getLeaveRequestCode(request.requestNumber, request.id);
   if (request.status === "Pending" && request.currentApproverName) {
     return `คำขอลา ${requestCode} รออนุมัติจาก ${request.currentApproverName}`;
   }

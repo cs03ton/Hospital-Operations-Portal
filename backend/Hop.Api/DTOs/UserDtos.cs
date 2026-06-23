@@ -9,6 +9,8 @@ public record UserResponse(
     IReadOnlyList<string> Roles,
     Guid? DepartmentId,
     string? Department,
+    Guid? LeaveApprovalRuleId,
+    string? LeaveApprovalRuleName,
     string? LineUserId,
     bool IsActive,
     DateTime CreatedAt,
@@ -22,6 +24,7 @@ public record CreateUserRequest(
     string Password,
     IReadOnlyList<Guid> RoleIds,
     Guid? DepartmentId,
+    Guid? LeaveApprovalRuleId,
     string? LineUserId,
     bool IsActive
 );
@@ -31,6 +34,7 @@ public record UpdateUserRequest(
     string Fullname,
     IReadOnlyList<Guid> RoleIds,
     Guid? DepartmentId,
+    Guid? LeaveApprovalRuleId,
     string? LineUserId,
     bool IsActive,
     string? Password

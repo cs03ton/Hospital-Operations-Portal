@@ -21,15 +21,20 @@ import { getNotificationItems } from "../../services/notificationService";
 export function NotificationBell() {
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const navigate = useNavigate();
-  const { hasPermission } = usePermission();
-  const canViewLeave = hasPermission("LeaveManagement.View");
+  const { hasAnyPermission } = usePermission();
+  const canViewLeave = hasAnyPermission([
+    "LeaveRequest.ViewOwn",
+    "LeaveRequest.ViewPendingApproval",
+    "LeaveRequest.ViewDepartment",
+    "LeaveRequest.ViewAll",
+  ]);
   const { data: notifications = [] } = useQuery({
     queryKey: ["notifications", "me", canViewLeave],
     queryFn: () => getNotificationItems(),
     enabled: canViewLeave,
     refetchInterval: 60000,
   });
-  const unreadCount = notifications.filter((item) => item.unread).length;
+  const unreadCount = notifications.filter((item) => item.type === "ApprovalPending" && item.unread).length;
   const isOpen = Boolean(anchorEl);
 
   function handleSelect(path?: string) {

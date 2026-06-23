@@ -19,6 +19,15 @@ public class AuthAndPermissionTests
     }
 
     [Fact]
+    public void RequireAnyPermissionAttribute_BuildsAnyPermissionPolicyName()
+    {
+        var attribute = new RequireAnyPermissionAttribute("LeaveRequest.ViewOwn", "LeaveRequest.ViewAll");
+
+        Assert.Equal(["LeaveRequest.ViewOwn", "LeaveRequest.ViewAll"], attribute.PermissionCodes);
+        Assert.Equal("PermissionAny:LeaveRequest.ViewOwn,LeaveRequest.ViewAll", attribute.Policy);
+    }
+
+    [Fact]
     public void JwtTokenService_GeneratesAccessTokenWithUserClaims()
     {
         var configuration = new ConfigurationBuilder()

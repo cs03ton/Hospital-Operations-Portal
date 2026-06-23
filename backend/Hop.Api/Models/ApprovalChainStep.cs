@@ -8,7 +8,7 @@ public class ApprovalChainStep
     public string Name { get; set; } = string.Empty;
     public Guid? ApproverRoleId { get; set; }
     public Guid? ApproverUserId { get; set; }
-    public string RequiredPermissionCode { get; set; } = "LeaveManagement.Approve";
+    public string RequiredPermissionCode { get; set; } = "LeaveApproval.ApproveCurrentStep";
     public bool IsActive { get; set; } = true;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? UpdatedAt { get; set; }

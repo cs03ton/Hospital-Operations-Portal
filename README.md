@@ -99,6 +99,21 @@ Open:
 http://localhost:5173
 ```
 
+## Leave Management Operations
+
+Key Phase 1 leave-management references:
+
+- Visibility rules: `docs/LEAVE-REQUEST-VISIBILITY.md`
+- Request number format: `docs/LEAVE-REQUEST-NUMBER.md`
+- Approval chain user guide: `docs/USER-GUIDE-APPROVAL-CHAIN.md`
+- Development cleanup script: `docs/DATABASE-CLEANUP.md`
+
+Development-only cleanup command:
+
+```powershell
+Get-Content database/scripts/clear-leave-dev-data.sql | docker exec -i hop-postgres psql -U hop_user -d hop_db
+```
+
 ## Run With Docker Compose
 
 For a new database, run EF Core migrations before starting the full application stack.

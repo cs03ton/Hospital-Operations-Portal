@@ -4,11 +4,13 @@ import { useForm } from "react-hook-form";
 import { getUsers } from "../api/adminApi";
 import { createLeaveBalanceAdjustment, getLeaveBalanceAdjustments, getLeaveTypes, type CreateLeaveBalanceAdjustmentRequest } from "../api/leaveApi";
 import { PageHeader } from "../components/PageHeader";
+import { useNotification } from "../hooks/useNotification";
 import { formatThaiDateTime } from "../utils/dateFormat";
 import { getLeaveTypeLabel } from "../utils/leaveLabels";
 
 export function LeaveBalanceAdjustmentPage() {
   const queryClient = useQueryClient();
+  const { showSuccess } = useNotification();
   const { data: users = [] } = useQuery({ queryKey: ["users"], queryFn: getUsers });
   const { data: leaveTypes = [] } = useQuery({ queryKey: ["leave-types"], queryFn: getLeaveTypes });
   const { data: adjustments = [] } = useQuery({ queryKey: ["leave-balance-adjustments"], queryFn: getLeaveBalanceAdjustments });
@@ -23,6 +25,7 @@ export function LeaveBalanceAdjustmentPage() {
       adjustmentDays: Number(values.adjustmentDays),
     }),
     onSuccess: async () => {
+      showSuccess("ปรับปรุงวันลาคงเหลือเรียบร้อยแล้ว");
       reset({ year: new Date().getFullYear(), adjustmentDays: 0, reason: "" });
       await queryClient.invalidateQueries({ queryKey: ["leave-balance-adjustments"] });
     },

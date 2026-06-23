@@ -6,6 +6,7 @@ public record LeaveTypeResponse(
     string Name,
     string? Description,
     decimal DefaultDaysPerYear,
+    bool RequiresBalance,
     bool RequiresAttachment,
     bool IsPaid,
     bool IsActive
@@ -16,6 +17,7 @@ public record SaveLeaveTypeRequest(
     string Name,
     string? Description,
     decimal DefaultDaysPerYear,
+    bool RequiresBalance,
     bool RequiresAttachment,
     bool IsPaid,
     bool IsActive
@@ -23,12 +25,14 @@ public record SaveLeaveTypeRequest(
 
 public record LeaveRequestResponse(
     Guid Id,
+    string? RequestNumber,
     Guid UserId,
     string? Fullname,
     Guid LeaveTypeId,
     string? LeaveTypeName,
     DateOnly StartDate,
     DateOnly EndDate,
+    string DurationType,
     decimal TotalDays,
     string Reason,
     string Status,
@@ -48,11 +52,14 @@ public record SaveLeaveRequestRequest(
     Guid LeaveTypeId,
     DateOnly StartDate,
     DateOnly EndDate,
+    string? DurationType,
     decimal TotalDays,
     string Reason
 );
 
 public record LeaveDecisionRequest(string? Remark);
+
+public record LeaveOverrideDecisionRequest(string Reason);
 
 public record LeaveAttachmentResponse(
     Guid Id,
@@ -114,7 +121,8 @@ public record ApprovalChainResponse(
     decimal MinimumDays,
     bool IsActive,
     DateTime CreatedAt,
-    DateTime? UpdatedAt
+    DateTime? UpdatedAt,
+    int UserCount
 );
 
 public record SaveApprovalChainRequest(
@@ -187,6 +195,31 @@ public record SaveLeaveHolidayRequest(
     bool IsActive
 );
 
+public record ApprovalRuleResolvePreviewRequest(
+    Guid? UserId,
+    Guid? ApprovalRuleId
+);
+
+public record ApprovalRulePreviewStepResponse(
+    int StepOrder,
+    string StepName,
+    Guid? ApproverId,
+    string? ApproverName,
+    string? ApproverRoleName,
+    string Status,
+    IReadOnlyList<string> Warnings
+);
+
+public record ApprovalRuleResolvePreviewResponse(
+    Guid? UserId,
+    string? Fullname,
+    Guid? ApprovalRuleId,
+    string? ApprovalRuleName,
+    bool IsRuleActive,
+    IReadOnlyList<ApprovalRulePreviewStepResponse> Steps,
+    IReadOnlyList<string> Warnings
+);
+
 public record LeaveHolidayImportRowRequest(
     DateOnly HolidayDate,
     string Name,
@@ -228,6 +261,7 @@ public record LeaveCalendarItemResponse(
     string? LeaveTypeName,
     DateOnly StartDate,
     DateOnly EndDate,
+    string DurationType,
     decimal TotalDays,
     string Status
 );
@@ -242,8 +276,11 @@ public record ApprovalDelegationResponse(
     DateOnly EndDate,
     string Reason,
     bool IsActive,
+    Guid? CreatedByUserId,
+    string? CreatedByName,
     DateTime CreatedAt,
-    DateTime? UpdatedAt
+    DateTime? UpdatedAt,
+    DateTime? CancelledAt
 );
 
 public record SaveApprovalDelegationRequest(
@@ -284,11 +321,13 @@ public record SaveApprovalEscalationRuleRequest(
 
 public record LeaveReportItemResponse(
     Guid Id,
+    string? RequestNumber,
     string? Fullname,
     string? DepartmentName,
     string? LeaveTypeName,
     DateOnly StartDate,
     DateOnly EndDate,
+    string DurationType,
     decimal TotalDays,
     string Status,
     string? CurrentApproverName
@@ -313,6 +352,7 @@ public record LeaveReportResponse(
 
 public record PendingApprovalNotificationResponse(
     Guid RequestId,
+    string? RequestNumber,
     string? EmployeeName,
     string? LeaveType,
     DateOnly StartDate,
@@ -331,4 +371,60 @@ public record LeaveNotificationItemResponse(
     DateTime CreatedAt,
     bool Unread,
     string Path
+);
+
+public record LeaveSupportRequestResponse(
+    Guid Id,
+    string RequestNumber,
+    Guid UserId,
+    string? Fullname,
+    string? DepartmentName,
+    string? LeaveTypeName,
+    DateOnly StartDate,
+    DateOnly EndDate,
+    string DurationType,
+    decimal TotalDays,
+    string Status,
+    Guid? CurrentApproverId,
+    string? CurrentApproverName,
+    DateTime CreatedAt,
+    DateTime? SubmittedAt,
+    DateTime? UpdatedAt,
+    bool IsOverdue,
+    string? BlockingReason
+);
+
+public record LeaveSupportDetailResponse(
+    LeaveSupportRequestResponse Request,
+    IReadOnlyList<LeaveApprovalResponse> Approvals,
+    IReadOnlyList<ApprovalOverrideLogResponse> OverrideLogs,
+    IReadOnlyList<AuditLogItemResponse> AuditLogs
+);
+
+public record ApprovalOverrideLogResponse(
+    Guid Id,
+    Guid LeaveRequestId,
+    Guid? OriginalApproverId,
+    string? OriginalApproverName,
+    Guid OverrideByUserId,
+    string? OverrideByName,
+    string Action,
+    string Reason,
+    string? IpAddress,
+    string? UserAgent,
+    DateTime CreatedAt
+);
+
+public record AuditLogItemResponse(
+    Guid Id,
+    Guid? UserId,
+    string? Username,
+    string? Fullname,
+    string Action,
+    string Resource,
+    string? ResourceId,
+    string? Detail,
+    string? IpAddress,
+    string Result,
+    DateTime Timestamp
 );

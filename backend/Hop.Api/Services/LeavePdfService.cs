@@ -50,16 +50,18 @@ public sealed class LeavePdfService(IWebHostEnvironment environment, IConfigurat
             new(hospitalName, 50, 766, 15),
             new("Hospital Operations Portal", 50, 746, 10),
             new("LOGO", 490, 776, 18),
+            new($"เลขที่คำขอ: {leaveRequest.RequestNumber ?? "-"}", 50, 726, 12),
             new("ข้อมูลผู้ขอลา", 50, 710, 15),
             new($"ชื่อผู้ขอลา: {requester}", 70, 686, 12),
             new($"หน่วยงาน: {department}", 70, 666, 12),
             new($"ประเภทการลา: {leaveType}", 70, 646, 12),
-            new($"วันที่ลา: {FormatDate(leaveRequest.StartDate)} - {FormatDate(leaveRequest.EndDate)}", 70, 626, 12),
-            new($"จำนวนวัน: {leaveRequest.TotalDays:0.##}", 70, 606, 12),
-            new($"เหตุผล: {leaveRequest.Reason}", 70, 586, 12),
-            new($"สถานะ: {TranslateStatus(leaveRequest.Status)}", 70, 566, 12),
-            new($"ผู้อนุมัติปัจจุบัน: {currentApprover}", 70, 546, 12),
-            new("ประวัติการอนุมัติ", 50, 510, 15)
+            new($"ประเภทช่วงเวลา: {TranslateDurationType(leaveRequest.DurationType)}", 70, 626, 12),
+            new($"วันที่ลา: {FormatDate(leaveRequest.StartDate)} - {FormatDate(leaveRequest.EndDate)}", 70, 606, 12),
+            new($"จำนวนวัน: {leaveRequest.TotalDays:0.##}", 70, 586, 12),
+            new($"เหตุผล: {leaveRequest.Reason}", 70, 566, 12),
+            new($"สถานะ: {TranslateStatus(leaveRequest.Status)}", 70, 546, 12),
+            new($"ผู้อนุมัติปัจจุบัน: {currentApprover}", 70, 526, 12),
+            new("ประวัติการอนุมัติ", 50, 492, 15)
         };
 
         if (approvals.Count == 0)
@@ -68,7 +70,7 @@ public sealed class LeavePdfService(IWebHostEnvironment environment, IConfigurat
         }
         else
         {
-            var y = 486;
+            var y = 468;
             foreach (var approval in approvals)
             {
                 var approver = approval.Approver?.FullName ?? "-";
@@ -112,6 +114,17 @@ public sealed class LeavePdfService(IWebHostEnvironment environment, IConfigurat
             "Waiting" => "รอดำเนินการ",
             "Skipped" => "ข้ามขั้นตอน",
             _ => status
+        };
+    }
+
+    private static string TranslateDurationType(string? durationType)
+    {
+        return durationType switch
+        {
+            "HALF_DAY_AM" => "ครึ่งวัน (เช้า)",
+            "HALF_DAY_PM" => "ครึ่งวัน (บ่าย)",
+            "FULL_DAY" or null or "" => "เต็มวัน",
+            _ => durationType
         };
     }
 }

@@ -9,6 +9,12 @@ Phase 1 Production Deploy exposes only User Management and Leave Management capa
 - `DepartmentManagement`
 - `RoleManagement`
 - `LeaveManagement`
+- `LeaveRequest`
+- `LeaveApproval`
+- `LeaveApprovalDelegation`
+- `LeaveApprovalEscalation`
+- `LeaveSupport`
+- `LeaveAdmin`
 - `ApprovalChain`
 - `ApprovalDelegation`
 - `LeaveBalance`
@@ -50,31 +56,68 @@ Examples:
 ```text
 UserManagement.View
 UserManagement.Create
-LeaveManagement.Approve
+LeaveApproval.ApproveCurrentStep
 LeaveAttachment.Download
 ReportManagement.Export
 ```
+
+Granular leave permission examples:
+
+```text
+LeaveRequest.ViewOwn
+LeaveRequest.ViewPendingApproval
+LeaveRequest.ViewDepartment
+LeaveRequest.ViewAll
+LeaveApproval.Override
+LeaveSupport.ViewAll
+LeaveAdmin.ManageApprovalChains
+```
+
+`LeaveAdmin.ManageApprovalChains` ยังคงเป็น permission code เดิมเพื่อ backward compatibility แต่ UI จะแสดงเป็น `จัดการกฎการอนุมัติวันลา`
+
+## Approval Rule Visibility
+
+Approval Rule ใช้ model เดิม `approval_chains` แต่ผูกกับผู้ใช้งานผ่าน `users.leave_approval_rule_id`
+
+- Admin/SuperAdmin/LeaveAdmin ที่มี `LeaveAdmin.ManageApprovalChains` จัดการ rule และ preview ได้
+- ผู้ขอลาไม่สามารถเลือก rule เองตอน submit
+- Approval queue ยังคงแสดงเฉพาะรายการที่ `current_approver_id = currentUserId`
 
 ## Recommended Phase 1 Roles
 
 | Role | Purpose | Suggested Permissions |
 | --- | --- | --- |
-| SuperAdmin | Bootstrap and emergency administration | All Phase 1 permissions |
-| Admin / HR | Manage users, departments, roles, leave setup, balances, audit review | `Dashboard.*`, `UserManagement.*`, `DepartmentManagement.*`, `RoleManagement.*`, `LeaveManagement.*`, `ApprovalChain.*`, `LeaveBalance.*`, `LeaveHoliday.*`, `LeaveAttachment.*`, `ReportManagement.*`, `SystemSettings.View`, `SystemSettings.Export` |
-| DepartmentHead | Approve leave and view department leave data | `Dashboard.View`, `LeaveManagement.View`, `LeaveManagement.Approve`, `LeaveAttachment.Download`, `ReportManagement.View` |
-| Staff | Create and track own leave requests | `Dashboard.View`, `LeaveManagement.View`, `LeaveManagement.Create`, `LeaveManagement.Edit`, `LeaveAttachment.Download` |
+| SuperAdmin | Bootstrap and emergency administration | All Phase 1 permissions, including `LeaveSupport.ViewAll` and `LeaveApproval.Override` |
+| Admin / HR | Manage users, departments, roles, leave setup, balances, audit review | `Dashboard.View`, `LeaveRequest.ViewDepartment`, `LeaveApproval.Delegate`, `LeaveApprovalDelegation.Manage`, `LeaveApprovalEscalation.Manage`, `LeaveSupport.ViewAll`, `LeaveAdmin.*`, `ReportManagement.*`, `SystemSettings.*` |
+| LeaveAdmin | Manage leave setup and department leave data | `LeaveRequest.ViewDepartment`, `LeaveAdmin.ManageTypes`, `LeaveAdmin.ManageBalances`, `LeaveAdmin.ManageHolidays`, `LeaveAdmin.ManageApprovalChains` |
+| Director | Executive approval | `Dashboard.View`, `LeaveRequest.ViewOwn`, `LeaveRequest.ViewPendingApproval`, `LeaveApproval.ApproveCurrentStep` |
+| DepartmentHead | Approve current assigned leave step | `Dashboard.View`, `LeaveRequest.ViewOwn`, `LeaveRequest.ViewPendingApproval`, `LeaveApproval.ApproveCurrentStep` |
+| Staff | Create and track own leave requests | `Dashboard.View`, `LeaveRequest.ViewOwn`, `LeaveRequest.Create`, `LeaveRequest.EditOwn`, `LeaveRequest.CancelOwn` |
 
 ## Current Enforcement
 
 Backend uses:
 
 ```text
-[RequirePermission("<Group>.<Action>")]
+[RequirePermission("<PermissionCode>")]
+[RequireAnyPermission("<PermissionCodeA>", "<PermissionCodeB>")]
 ```
 
 Frontend uses `PermissionProvider`, `PermissionGuard`, and route-level permission checks.
 
 Users without the required backend permission receive HTTP `403`, and denied attempts are recorded in `audit_logs`.
+
+## Leave Request Visibility Rule
+
+| Role | Visibility |
+| --- | --- |
+| Staff | เห็นเฉพาะคำขอลาของตัวเอง |
+| DepartmentHead | เห็นคำขอของตัวเอง และคำขอของ Staff ในหน่วยงานเดียวกัน |
+| Director | เห็นคำขอของทุกคน |
+| Admin | เห็นคำขอของทุกคน |
+| SuperAdmin | เห็นคำขอของทุกคน |
+
+Backend enforces this through `LeaveRequestAccessService` for leave list, detail, PDF, attachment list, and attachment download.
 
 ## Phase 1 Route Exposure
 

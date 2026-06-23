@@ -1,6 +1,7 @@
 import AddOutlinedIcon from "@mui/icons-material/AddOutlined";
 import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 import PersonOffOutlinedIcon from "@mui/icons-material/PersonOffOutlined";
+import RuleOutlinedIcon from "@mui/icons-material/RuleOutlined";
 import {
   Button,
   Card,
@@ -15,15 +16,21 @@ import {
   TableRow,
 } from "@mui/material";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import { Link as RouterLink } from "react-router-dom";
 import { deactivateUser, getUsers } from "../api/adminApi";
+import { resolveApprovalRulePreview, type ApprovalRulePreview } from "../api/leaveApi";
 import { ActionTooltip } from "../components/common/ActionTooltip";
+import { ApprovalRulePreviewDialog } from "../components/leave/ApprovalRulePreviewDialog";
 import { PageHeader } from "../components/PageHeader";
 import { PermissionGuard } from "../context/PermissionContext";
+import { useNotification } from "../hooks/useNotification";
 import { getRoleLabels } from "../utils/roleLabels";
 
 export function UserManagementPage() {
   const queryClient = useQueryClient();
+  const { showSuccess } = useNotification();
+  const [preview, setPreview] = useState<ApprovalRulePreview | null>(null);
   const { data = [], isLoading } = useQuery({
     queryKey: ["users"],
     queryFn: getUsers,
@@ -31,7 +38,14 @@ export function UserManagementPage() {
 
   const deactivateMutation = useMutation({
     mutationFn: deactivateUser,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["users"] }),
+    onSuccess: () => {
+      showSuccess("ปิดการใช้งานผู้ใช้งานเรียบร้อยแล้ว");
+      return queryClient.invalidateQueries({ queryKey: ["users"] });
+    },
+  });
+  const previewMutation = useMutation({
+    mutationFn: (userId: string) => resolveApprovalRulePreview({ userId }),
+    onSuccess: setPreview,
   });
 
   return (
@@ -59,6 +73,7 @@ export function UserManagementPage() {
                 <TableCell>ชื่อผู้ใช้</TableCell>
                 <TableCell>บทบาท</TableCell>
                 <TableCell>หน่วยงาน</TableCell>
+                <TableCell>กฎการอนุมัติวันลา</TableCell>
                 <TableCell>สถานะ</TableCell>
                 <TableCell align="right">จัดการ</TableCell>
               </TableRow>
@@ -66,7 +81,7 @@ export function UserManagementPage() {
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={6}>กำลังโหลดข้อมูลผู้ใช้...</TableCell>
+                  <TableCell colSpan={7}>กำลังโหลดข้อมูลผู้ใช้...</TableCell>
                 </TableRow>
               ) : (
                 data.map((user) => (
@@ -75,6 +90,7 @@ export function UserManagementPage() {
                     <TableCell>{user.username}</TableCell>
                     <TableCell>{getRoleLabels(user.roles)}</TableCell>
                     <TableCell>{user.department ?? "-"}</TableCell>
+                    <TableCell>{user.leaveApprovalRuleName ?? "-"}</TableCell>
                     <TableCell>
                       <Chip
                         size="small"
@@ -83,6 +99,17 @@ export function UserManagementPage() {
                       />
                     </TableCell>
                     <TableCell align="right">
+                      <PermissionGuard permission="LeaveAdmin.ManageApprovalChains">
+                        <ActionTooltip title="ทดสอบกฎการอนุมัติของผู้ใช้นี้">
+                          <IconButton
+                            aria-label="ทดสอบกฎการอนุมัติของผู้ใช้นี้"
+                            disabled={previewMutation.isPending}
+                            onClick={() => previewMutation.mutate(user.id)}
+                          >
+                            <RuleOutlinedIcon />
+                          </IconButton>
+                        </ActionTooltip>
+                      </PermissionGuard>
                       <PermissionGuard permission="UserManagement.Edit">
                         <ActionTooltip title="แก้ไขข้อมูลผู้ใช้งาน">
                           <IconButton
@@ -113,6 +140,7 @@ export function UserManagementPage() {
           </Table>
         </CardContent>
       </Card>
+      <ApprovalRulePreviewDialog open={Boolean(preview)} preview={preview} onClose={() => setPreview(null)} />
     </>
   );
 }

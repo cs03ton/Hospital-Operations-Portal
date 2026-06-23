@@ -26,11 +26,21 @@ POST /api/approval-escalation-rules/run
 
 ## Permissions
 
-- `ApprovalDelegation.View`
-- `ApprovalDelegation.Create`
-- `ApprovalDelegation.Edit`
-- `ApprovalDelegation.Delete`
-- `ApprovalDelegation.Manage`
+- `LeaveApproval.Delegate`
+- `LeaveApprovalDelegation.Manage`
+
+## Validation
+
+- ต้องระบุเหตุผลการมอบหมาย
+- ผู้มอบหมายและผู้รับมอบหมายต้องไม่เป็นคนเดียวกัน
+- ไม่อนุญาตให้มี active delegation ซ้ำซ้อนในช่วงวันที่เดียวกันสำหรับผู้มอบหมายคนเดียวกัน
+
+## Audit Events
+
+- `LeaveApproval.DelegationCreated`
+- `LeaveApproval.DelegationUpdated`
+- `LeaveApproval.DelegationCancelled`
+- `LeaveApproval.DelegationApplied`
 
 ## Audit Events
 

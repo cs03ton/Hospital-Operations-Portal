@@ -20,9 +20,11 @@ import { deactivateDepartment, getDepartments } from "../api/adminApi";
 import { ActionTooltip } from "../components/common/ActionTooltip";
 import { PageHeader } from "../components/PageHeader";
 import { PermissionGuard } from "../context/PermissionContext";
+import { useNotification } from "../hooks/useNotification";
 
 export function DepartmentManagementPage() {
   const queryClient = useQueryClient();
+  const { showSuccess } = useNotification();
   const { data = [], isLoading } = useQuery({
     queryKey: ["departments"],
     queryFn: getDepartments,
@@ -30,7 +32,10 @@ export function DepartmentManagementPage() {
 
   const deactivateMutation = useMutation({
     mutationFn: deactivateDepartment,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["departments"] }),
+    onSuccess: () => {
+      showSuccess("ปิดใช้งานหน่วยงานเรียบร้อยแล้ว");
+      queryClient.invalidateQueries({ queryKey: ["departments"] });
+    },
   });
 
   return (

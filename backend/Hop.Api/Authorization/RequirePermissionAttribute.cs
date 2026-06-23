@@ -13,3 +13,15 @@ public sealed class RequirePermissionAttribute : AuthorizeAttribute
 
     public string PermissionCode { get; }
 }
+
+[AttributeUsage(AttributeTargets.Class | AttributeTargets.Method, AllowMultiple = true)]
+public sealed class RequireAnyPermissionAttribute : AuthorizeAttribute
+{
+    public RequireAnyPermissionAttribute(params string[] permissionCodes)
+    {
+        PermissionCodes = permissionCodes;
+        Policy = $"{PermissionPolicyProvider.AnyPolicyPrefix}{string.Join(",", permissionCodes)}";
+    }
+
+    public IReadOnlyList<string> PermissionCodes { get; }
+}

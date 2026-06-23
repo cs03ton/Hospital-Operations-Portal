@@ -1,35 +1,35 @@
 using Hop.Api.Data;
+using Hop.Api.Authorization;
 using Hop.Api.Interfaces;
 using Hop.Api.Models;
 using Microsoft.EntityFrameworkCore;
 
 namespace Hop.Api.Services;
 
-public sealed class ApprovalChainService(AppDbContext db) : IApprovalChainService
+public sealed class ApprovalChainService(
+    AppDbContext db,
+    IConfiguration configuration,
+    IAuditLogService auditLogService) : IApprovalChainService
 {
     public async Task<IReadOnlyList<ApprovalStepPlan>> BuildApprovalPlanAsync(LeaveRequest leaveRequest)
     {
         var requestUser = leaveRequest.User ?? await db.Users.AsNoTracking().FirstAsync(item => item.Id == leaveRequest.UserId);
         var departmentId = requestUser.DepartmentId;
 
+        if (requestUser.LeaveApprovalRuleId is null)
+        {
+            return [];
+        }
+
         var chain = await db.ApprovalChains
             .AsNoTracking()
             .Include(item => item.Steps.Where(step => step.IsActive))
-            .Where(item => item.IsActive)
-            .Where(item => item.MinimumDays <= leaveRequest.TotalDays)
-            .Where(item => item.DepartmentId == null || item.DepartmentId == departmentId)
-            .Where(item => item.LeaveTypeId == null || item.LeaveTypeId == leaveRequest.LeaveTypeId)
-            .OrderByDescending(item => item.DepartmentId != null)
-            .ThenByDescending(item => item.LeaveTypeId != null)
-            .ThenByDescending(item => item.MinimumDays)
+            .Where(item => item.Id == requestUser.LeaveApprovalRuleId && item.IsActive)
             .FirstOrDefaultAsync();
 
         if (chain is null || chain.Steps.Count == 0)
         {
-            var defaultApprover = await FindDefaultApproverAsync(departmentId);
-            return defaultApprover is null
-                ? []
-                : [new ApprovalStepPlan(null, null, 1, "ผู้อนุมัติเริ่มต้น", defaultApprover.Id, "LeaveManagement.Approve")];
+            return [];
         }
 
         var plans = new List<ApprovalStepPlan>();
@@ -42,6 +42,11 @@ public sealed class ApprovalChainService(AppDbContext db) : IApprovalChainServic
             }
 
             approver = await ResolveDelegatedApproverAsync(approver, leaveRequest, step.RequiredPermissionCode);
+            approver = await ResolveSecureApproverAsync(approver, leaveRequest, step.RequiredPermissionCode, step.Name, chain.Id);
+            if (approver is null)
+            {
+                return [];
+            }
 
             var hasPermission = await UserHasPermissionAsync(approver.Id, step.RequiredPermissionCode);
             if (!hasPermission)
@@ -139,7 +144,106 @@ public sealed class ApprovalChainService(AppDbContext db) : IApprovalChainServic
         }
 
         return await UserHasPermissionAsync(delegation.DelegateUserId, permissionCode)
-            ? delegation.DelegateUser
+            ? await ApplyDelegationAsync(approver, delegation.DelegateUser, leaveRequest, delegation.Id)
             : approver;
+    }
+
+    private async Task<User> ApplyDelegationAsync(User originalApprover, User delegateUser, LeaveRequest leaveRequest, Guid delegationId)
+    {
+        await auditLogService.WriteAsync(
+            leaveRequest.UserId,
+            "LeaveApproval.DelegationApplied",
+            "ApprovalDelegation",
+            delegationId.ToString(),
+            $"Applied delegation for leave request {leaveRequest.Id} from {originalApprover.Id} to {delegateUser.Id}.",
+            "Success");
+        return delegateUser;
+    }
+
+    private async Task<User?> ResolveSecureApproverAsync(
+        User approver,
+        LeaveRequest leaveRequest,
+        string permissionCode,
+        string stepName,
+        Guid? approvalChainId)
+    {
+        if (approver.Id != leaveRequest.UserId)
+        {
+            return approver;
+        }
+
+        if (await UserHasRoleAsync(leaveRequest.UserId, "Director"))
+        {
+            var fallback = await ResolveDirectorFallbackApproverAsync(permissionCode);
+            if (fallback is not null && fallback.Id != leaveRequest.UserId)
+            {
+                await auditLogService.WriteAsync(
+                    leaveRequest.UserId,
+                    "DirectorLeaveFallbackApplied",
+                    "LeaveRequest",
+                    leaveRequest.Id.ToString(),
+                    $"Applied director leave fallback approver {fallback.Id} for step {stepName} in chain {approvalChainId?.ToString() ?? "default"}.",
+                    "Success");
+                return fallback;
+            }
+        }
+
+        await auditLogService.WriteAsync(
+            leaveRequest.UserId,
+            "SelfApprovalBlocked",
+            "LeaveRequest",
+            leaveRequest.Id.ToString(),
+            $"Blocked self-approval while building approval step {stepName} in chain {approvalChainId?.ToString() ?? "default"}.",
+            "Denied");
+        return null;
+    }
+
+    private async Task<User?> ResolveDirectorFallbackApproverAsync(string permissionCode)
+    {
+        var fallbackUserIdValue =
+            configuration["LeaveApproval:DirectorFallbackApproverId"] ??
+            configuration["LEAVE_DIRECTOR_FALLBACK_APPROVER_ID"];
+
+        User? fallbackUser = null;
+        if (Guid.TryParse(fallbackUserIdValue, out var fallbackUserId))
+        {
+            fallbackUser = await db.Users
+                .AsNoTracking()
+                .FirstOrDefaultAsync(item => item.Id == fallbackUserId && item.IsActive);
+        }
+
+        if (fallbackUser is null)
+        {
+            var fallbackUsername =
+                configuration["LeaveApproval:DirectorFallbackApproverUsername"] ??
+                configuration["LEAVE_DIRECTOR_FALLBACK_APPROVER_USERNAME"];
+
+            if (!string.IsNullOrWhiteSpace(fallbackUsername))
+            {
+                fallbackUser = await db.Users
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(item => item.Username == fallbackUsername.Trim() && item.IsActive);
+            }
+        }
+
+        if (fallbackUser is null)
+        {
+            return null;
+        }
+
+        return await UserHasPermissionAsync(fallbackUser.Id, permissionCode)
+            ? fallbackUser
+            : null;
+    }
+
+    private Task<bool> UserHasRoleAsync(Guid userId, string roleName)
+    {
+        return db.UserRoles
+            .AsNoTracking()
+            .AnyAsync(item =>
+                item.UserId == userId &&
+                item.Role != null &&
+                item.Role.IsActive &&
+                item.Role.Name == roleName);
     }
 }

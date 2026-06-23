@@ -10,6 +10,7 @@ import { createLeaveBalance, deleteLeaveBalance, downloadLeaveBalanceTemplate, g
 import { EmptyState } from "../components/common/EmptyState";
 import { FilterToolbar } from "../components/common/FilterToolbar";
 import { PageHeader } from "../components/PageHeader";
+import { useNotification } from "../hooks/useNotification";
 import { getLeaveTypeLabel } from "../utils/leaveLabels";
 
 const currentYear = new Date().getFullYear();
@@ -24,6 +25,7 @@ const emptyForm: SaveLeaveBalanceRequest = {
 
 export function LeaveBalanceManagementPage() {
   const queryClient = useQueryClient();
+  const { showSuccess } = useNotification();
   const [year, setYear] = useState(currentYear.toString());
   const [userId, setUserId] = useState("");
   const [leaveTypeId, setLeaveTypeId] = useState("");
@@ -49,6 +51,7 @@ export function LeaveBalanceManagementPage() {
   const saveMutation = useMutation({
     mutationFn: (payload: SaveLeaveBalanceRequest) => (editing?.id ? updateLeaveBalance(editing.id, payload) : createLeaveBalance(payload)),
     onSuccess: () => {
+      showSuccess("ปรับปรุงวันลาคงเหลือเรียบร้อยแล้ว");
       queryClient.invalidateQueries({ queryKey: ["leave-balances"] });
       closeDialog();
     },
@@ -56,7 +59,10 @@ export function LeaveBalanceManagementPage() {
 
   const deleteMutation = useMutation({
     mutationFn: deleteLeaveBalance,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["leave-balances"] }),
+    onSuccess: () => {
+      showSuccess("ลบข้อมูลวันลาคงเหลือเรียบร้อยแล้ว");
+      queryClient.invalidateQueries({ queryKey: ["leave-balances"] });
+    },
   });
 
   function openCreate() {
@@ -89,6 +95,7 @@ export function LeaveBalanceManagementPage() {
     link.download = "leave-balance-import-template.xlsx";
     link.click();
     URL.revokeObjectURL(url);
+    showSuccess("ดาวน์โหลด Template เรียบร้อยแล้ว");
   }
 
   return (

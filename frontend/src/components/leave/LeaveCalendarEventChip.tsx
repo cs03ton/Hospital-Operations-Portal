@@ -1,7 +1,7 @@
 import { Box, Chip, Stack, Typography } from "@mui/material";
 import { alpha } from "@mui/material/styles";
 import type { LeaveCalendarItem } from "../../api/leaveApi";
-import { getLeaveTypeLabel } from "../../utils/leaveLabels";
+import { getLeaveTypeWithDurationLabel, isHalfDayLeave } from "../../utils/leaveLabels";
 import { getLeaveStatus } from "./LeaveStatusLegend";
 
 type LeaveCalendarEventChipProps = {
@@ -11,6 +11,7 @@ type LeaveCalendarEventChipProps = {
 
 export function LeaveCalendarEventChip({ item, compact = false }: LeaveCalendarEventChipProps) {
   const status = getLeaveStatus(item.status);
+  const isHalfDay = isHalfDayLeave(item.durationType);
 
   return (
     <Box
@@ -21,6 +22,8 @@ export function LeaveCalendarEventChip({ item, compact = false }: LeaveCalendarE
         bgcolor: getStatusBackground(item.status, theme),
         border: "1px solid",
         borderColor: status.color === "default" ? "divider" : `${status.color}.light`,
+        borderStyle: isHalfDay ? "dashed" : "solid",
+        boxShadow: isHalfDay ? `inset 3px 0 0 ${theme.palette.warning.main}` : "none",
         overflow: "hidden",
       })}
     >
@@ -32,7 +35,7 @@ export function LeaveCalendarEventChip({ item, compact = false }: LeaveCalendarE
       </Stack>
       {!compact && (
         <Typography variant="caption" color="text.secondary" noWrap sx={{ display: "block", mt: 0.25 }}>
-          {getLeaveTypeLabel(item.leaveTypeName)}
+          {getLeaveTypeWithDurationLabel(item.leaveTypeName, item.durationType)}
         </Typography>
       )}
     </Box>

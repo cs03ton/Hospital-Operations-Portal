@@ -34,6 +34,7 @@ import {
 import { ActionTooltip } from "../components/common/ActionTooltip";
 import { PageHeader } from "../components/PageHeader";
 import { PermissionGuard, usePermission } from "../context/PermissionContext";
+import { useNotification } from "../hooks/useNotification";
 import { getRoleLabel } from "../utils/roleLabels";
 
 type RoleFormValues = {
@@ -45,6 +46,7 @@ type RoleFormValues = {
 export function RoleManagementPage() {
   const queryClient = useQueryClient();
   const { hasPermission } = usePermission();
+  const { showSuccess } = useNotification();
   const [editingRole, setEditingRole] = useState<RoleSummary | null>(null);
   const { data = [], isLoading } = useQuery({ queryKey: ["roles"], queryFn: getRoles });
 
@@ -63,6 +65,7 @@ export function RoleManagementPage() {
       editingRole ? updateRole(editingRole.id, values) : createRole(values),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["roles"] });
+      showSuccess(editingRole ? "บันทึกบทบาทเรียบร้อยแล้ว" : "เพิ่มบทบาทเรียบร้อยแล้ว");
       setEditingRole(null);
       reset({ name: "", description: "", isActive: true });
     },
@@ -70,7 +73,10 @@ export function RoleManagementPage() {
 
   const deactivateMutation = useMutation({
     mutationFn: deactivateRole,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["roles"] }),
+    onSuccess: () => {
+      showSuccess("ปิดใช้งานบทบาทเรียบร้อยแล้ว");
+      return queryClient.invalidateQueries({ queryKey: ["roles"] });
+    },
   });
 
   function editRole(role: RoleSummary) {

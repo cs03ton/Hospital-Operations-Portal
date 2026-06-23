@@ -23,6 +23,12 @@ export const leaveStatusLabels: Record<string, string> = {
   Cancelled: "ยกเลิก",
 };
 
+export const leaveDurationTypeLabels: Record<string, string> = {
+  FULL_DAY: "เต็มวัน",
+  HALF_DAY_AM: "ครึ่งวัน (เช้า)",
+  HALF_DAY_PM: "ครึ่งวัน (บ่าย)",
+};
+
 export function getLeaveTypeLabel(type?: string | null) {
   if (!type) {
     return "-";
@@ -38,6 +44,31 @@ export function getLeaveStatusLabel(status?: string | null) {
   }
 
   return leaveStatusLabels[status] ?? status;
+}
+
+export function getLeaveDurationTypeLabel(durationType?: string | null) {
+  if (!durationType) {
+    return "เต็มวัน";
+  }
+
+  return leaveDurationTypeLabels[durationType] ?? durationType;
+}
+
+export function isHalfDayLeave(durationType?: string | null) {
+  return durationType === "HALF_DAY_AM" || durationType === "HALF_DAY_PM";
+}
+
+export function getLeaveTypeWithDurationLabel(leaveType?: string | null, durationType?: string | null) {
+  const leaveTypeLabel = getLeaveTypeLabel(leaveType);
+  if (durationType === "HALF_DAY_AM") {
+    return `${leaveTypeLabel} (เช้า)`;
+  }
+
+  if (durationType === "HALF_DAY_PM") {
+    return `${leaveTypeLabel} (บ่าย)`;
+  }
+
+  return leaveTypeLabel;
 }
 
 export function getLeaveStatusColor(status?: string | null): "default" | "warning" | "success" | "error" {

@@ -2,6 +2,7 @@ import { getMyNotifications, type LeaveNotificationItem } from "../api/leaveApi"
 
 export type NotificationItem = {
   id: string;
+  type: string;
   title: string;
   message: string;
   createdAt: string;
@@ -17,6 +18,7 @@ export async function getNotificationItems(): Promise<NotificationItem[]> {
     return [
       {
         id: "notification-placeholder",
+        type: "Info",
         title: "ระบบแจ้งเตือน",
         message: "ยังไม่สามารถโหลดงานรออนุมัติได้",
         createdAt: new Date().toISOString(),
@@ -29,6 +31,7 @@ export async function getNotificationItems(): Promise<NotificationItem[]> {
 function toNotificationItem(item: LeaveNotificationItem): NotificationItem {
   return {
     id: item.id,
+    type: item.type,
     title: item.title,
     message: item.message,
     createdAt: item.createdAt,

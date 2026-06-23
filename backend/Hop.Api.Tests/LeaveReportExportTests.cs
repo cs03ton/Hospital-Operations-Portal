@@ -24,7 +24,7 @@ public class LeaveReportExportTests
     public void BuildExcelWorkbook_CreatesOpenXmlWorkbookWithSafeContent()
     {
         var report = new LeaveReportResponse(
-            [new LeaveReportItemResponse(Guid.NewGuid(), "<script>", "ER & ICU", "=Annual", new DateOnly(2026, 6, 1), new DateOnly(2026, 6, 1), 1, "Approved", null)],
+            [new LeaveReportItemResponse(Guid.NewGuid(), "LV-202606-001", "<script>", "ER & ICU", "=Annual", new DateOnly(2026, 6, 1), new DateOnly(2026, 6, 1), "FULL_DAY", 1, "Approved", null)],
             [],
             0);
 
@@ -45,7 +45,7 @@ public class LeaveReportExportTests
     public void BuildPdfPages_PaginatesAllLeaveRows()
     {
         var rows = Enumerable.Range(1, 65)
-            .Select(index => new LeaveReportItemResponse(Guid.NewGuid(), $"User {index}", "Dept", "Annual", new DateOnly(2026, 6, 1), new DateOnly(2026, 6, 1), 1, "Approved", null))
+            .Select(index => new LeaveReportItemResponse(Guid.NewGuid(), $"LV-202606-{index:000}", $"User {index}", "Dept", "Annual", new DateOnly(2026, 6, 1), new DateOnly(2026, 6, 1), "FULL_DAY", 1, "Approved", null))
             .ToList();
         var report = new LeaveReportResponse(rows, [], 0);
 

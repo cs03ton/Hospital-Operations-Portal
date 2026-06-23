@@ -15,13 +15,14 @@ namespace Hop.Api.Controllers;
 public class ApprovalDelegationsController(AppDbContext db, IAuditLogService auditLogService) : ControllerBase
 {
     [HttpGet]
-    [RequirePermission("ApprovalDelegation.View")]
+    [RequireAnyPermission(LeavePermissions.Delegate, LeavePermissions.DelegationManage)]
     public async Task<ActionResult<ApiResponse<IReadOnlyList<ApprovalDelegationResponse>>>> GetDelegations()
     {
         var items = await db.ApprovalDelegations
             .AsNoTracking()
             .Include(item => item.ApproverUser)
             .Include(item => item.DelegateUser)
+            .Include(item => item.CreatedByUser)
             .OrderByDescending(item => item.CreatedAt)
             .Select(item => ToResponse(item))
             .ToListAsync();
@@ -30,12 +31,27 @@ public class ApprovalDelegationsController(AppDbContext db, IAuditLogService aud
     }
 
     [HttpPost]
-    [RequirePermission("ApprovalDelegation.Create")]
+    [RequireAnyPermission(LeavePermissions.Delegate, LeavePermissions.DelegationManage)]
     public async Task<ActionResult<ApiResponse<ApprovalDelegationResponse>>> CreateDelegation(SaveApprovalDelegationRequest request)
     {
         if (request.EndDate < request.StartDate)
         {
             return BadRequest(ApiResponse<ApprovalDelegationResponse>.Fail("ช่วงวันที่มอบหมายไม่ถูกต้อง"));
+        }
+
+        if (string.IsNullOrWhiteSpace(request.Reason))
+        {
+            return BadRequest(ApiResponse<ApprovalDelegationResponse>.Fail("กรุณาระบุเหตุผลการมอบหมาย"));
+        }
+
+        if (request.ApproverUserId == request.DelegateUserId)
+        {
+            return BadRequest(ApiResponse<ApprovalDelegationResponse>.Fail("ผู้อนุมัติหลักและผู้รับมอบหมายต้องไม่เป็นคนเดียวกัน"));
+        }
+
+        if (await HasOverlappingDelegation(request.ApproverUserId, request.StartDate, request.EndDate))
+        {
+            return Conflict(ApiResponse<ApprovalDelegationResponse>.Fail("มีการมอบหมายที่ใช้งานอยู่ในช่วงวันที่นี้แล้ว"));
         }
 
         var delegation = new ApprovalDelegation
@@ -45,19 +61,20 @@ public class ApprovalDelegationsController(AppDbContext db, IAuditLogService aud
             StartDate = request.StartDate,
             EndDate = request.EndDate,
             Reason = request.Reason.Trim(),
-            IsActive = request.IsActive
+            IsActive = request.IsActive,
+            CreatedByUserId = GetCurrentUserId()
         };
 
         db.ApprovalDelegations.Add(delegation);
         await db.SaveChangesAsync();
-        await auditLogService.WriteAsync(GetCurrentUserId(), "ApprovalDelegation.Create", "ApprovalDelegation", delegation.Id.ToString(), "Created approval delegation.", "Success", HttpContext);
+        await auditLogService.WriteAsync(GetCurrentUserId(), "LeaveApproval.DelegationCreated", "ApprovalDelegation", delegation.Id.ToString(), "Created approval delegation.", "Success", HttpContext);
 
         var created = await LoadDelegation(delegation.Id);
         return ApiResponse<ApprovalDelegationResponse>.Ok(ToResponse(created!));
     }
 
     [HttpPut("{id:guid}")]
-    [RequirePermission("ApprovalDelegation.Edit")]
+    [RequireAnyPermission(LeavePermissions.Delegate, LeavePermissions.DelegationManage)]
     public async Task<ActionResult<ApiResponse<ApprovalDelegationResponse>>> UpdateDelegation(Guid id, SaveApprovalDelegationRequest request)
     {
         var delegation = await db.ApprovalDelegations.FirstOrDefaultAsync(item => item.Id == id);
@@ -71,6 +88,21 @@ public class ApprovalDelegationsController(AppDbContext db, IAuditLogService aud
             return BadRequest(ApiResponse<ApprovalDelegationResponse>.Fail("ช่วงวันที่มอบหมายไม่ถูกต้อง"));
         }
 
+        if (string.IsNullOrWhiteSpace(request.Reason))
+        {
+            return BadRequest(ApiResponse<ApprovalDelegationResponse>.Fail("กรุณาระบุเหตุผลการมอบหมาย"));
+        }
+
+        if (request.ApproverUserId == request.DelegateUserId)
+        {
+            return BadRequest(ApiResponse<ApprovalDelegationResponse>.Fail("ผู้อนุมัติหลักและผู้รับมอบหมายต้องไม่เป็นคนเดียวกัน"));
+        }
+
+        if (await HasOverlappingDelegation(request.ApproverUserId, request.StartDate, request.EndDate, id))
+        {
+            return Conflict(ApiResponse<ApprovalDelegationResponse>.Fail("มีการมอบหมายที่ใช้งานอยู่ในช่วงวันที่นี้แล้ว"));
+        }
+
         delegation.ApproverUserId = request.ApproverUserId;
         delegation.DelegateUserId = request.DelegateUserId;
         delegation.StartDate = request.StartDate;
@@ -78,15 +110,16 @@ public class ApprovalDelegationsController(AppDbContext db, IAuditLogService aud
         delegation.Reason = request.Reason.Trim();
         delegation.IsActive = request.IsActive;
         delegation.UpdatedAt = DateTime.UtcNow;
+        delegation.CancelledAt = request.IsActive ? null : DateTime.UtcNow;
         await db.SaveChangesAsync();
-        await auditLogService.WriteAsync(GetCurrentUserId(), "ApprovalDelegation.Update", "ApprovalDelegation", delegation.Id.ToString(), "Updated approval delegation.", "Success", HttpContext);
+        await auditLogService.WriteAsync(GetCurrentUserId(), "LeaveApproval.DelegationUpdated", "ApprovalDelegation", delegation.Id.ToString(), "Updated approval delegation.", "Success", HttpContext);
 
         var updated = await LoadDelegation(id);
         return ApiResponse<ApprovalDelegationResponse>.Ok(ToResponse(updated!));
     }
 
     [HttpDelete("{id:guid}")]
-    [RequirePermission("ApprovalDelegation.Delete")]
+    [RequireAnyPermission(LeavePermissions.Delegate, LeavePermissions.DelegationManage)]
     public async Task<IActionResult> DeleteDelegation(Guid id)
     {
         var delegation = await db.ApprovalDelegations.FirstOrDefaultAsync(item => item.Id == id);
@@ -97,9 +130,20 @@ public class ApprovalDelegationsController(AppDbContext db, IAuditLogService aud
 
         delegation.IsActive = false;
         delegation.UpdatedAt = DateTime.UtcNow;
+        delegation.CancelledAt = DateTime.UtcNow;
         await db.SaveChangesAsync();
-        await auditLogService.WriteAsync(GetCurrentUserId(), "ApprovalDelegation.Delete", "ApprovalDelegation", delegation.Id.ToString(), "Deactivated approval delegation.", "Success", HttpContext);
+        await auditLogService.WriteAsync(GetCurrentUserId(), "LeaveApproval.DelegationCancelled", "ApprovalDelegation", delegation.Id.ToString(), "Cancelled approval delegation.", "Success", HttpContext);
         return NoContent();
+    }
+
+    private Task<bool> HasOverlappingDelegation(Guid approverUserId, DateOnly startDate, DateOnly endDate, Guid? excludeId = null)
+    {
+        return db.ApprovalDelegations.AnyAsync(item =>
+            item.IsActive &&
+            item.ApproverUserId == approverUserId &&
+            item.Id != excludeId &&
+            item.StartDate <= endDate &&
+            item.EndDate >= startDate);
     }
 
     private Task<ApprovalDelegation?> LoadDelegation(Guid id)
@@ -108,6 +152,7 @@ public class ApprovalDelegationsController(AppDbContext db, IAuditLogService aud
             .AsNoTracking()
             .Include(item => item.ApproverUser)
             .Include(item => item.DelegateUser)
+            .Include(item => item.CreatedByUser)
             .FirstOrDefaultAsync(item => item.Id == id);
     }
 
@@ -123,8 +168,11 @@ public class ApprovalDelegationsController(AppDbContext db, IAuditLogService aud
             item.EndDate,
             item.Reason,
             item.IsActive,
+            item.CreatedByUserId,
+            item.CreatedByUser?.FullName,
             item.CreatedAt,
-            item.UpdatedAt
+            item.UpdatedAt,
+            item.CancelledAt
         );
     }
 

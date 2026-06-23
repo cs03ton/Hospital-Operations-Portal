@@ -18,6 +18,7 @@ import { LeaveRequestFormPage } from "../pages/LeaveRequestFormPage";
 import { LeaveTypeManagementPage } from "../pages/LeaveTypeManagementPage";
 import { LoginPage } from "../pages/LoginPage";
 import { LeaveReportsPage } from "../pages/LeaveReportsPage";
+import { LeaveSupportPage } from "../pages/LeaveSupportPage";
 import { PendingApprovalsPage } from "../pages/PendingApprovalsPage";
 import { ApprovalDelegationPage } from "../pages/ApprovalDelegationPage";
 import { UserManagementPage } from "../pages/UserManagementPage";
@@ -26,8 +27,16 @@ import { RoleManagementPage } from "../pages/RoleManagementPage";
 import { RolePermissionsPage } from "../pages/RolePermissionsPage";
 import { SystemSettingsPage } from "../pages/SystemSettingsPage";
 import { UnauthorizedPage } from "../pages/UnauthorizedPage";
+import { useAuth } from "../context/AuthContext";
 import { PermissionGuard } from "../context/PermissionContext";
 import { ProtectedRoute } from "./ProtectedRoute";
+
+const leaveViewPermissions = [
+  "LeaveRequest.ViewOwn",
+  "LeaveRequest.ViewPendingApproval",
+  "LeaveRequest.ViewDepartment",
+  "LeaveRequest.ViewAll",
+];
 
 function withPermission(element: JSX.Element, permission: string) {
   return (
@@ -35,6 +44,23 @@ function withPermission(element: JSX.Element, permission: string) {
       {element}
     </PermissionGuard>
   );
+}
+
+function withAnyPermission(element: JSX.Element, permissions: string[]) {
+  return (
+    <PermissionGuard permissions={permissions} redirectTo="/unauthorized">
+      {element}
+    </PermissionGuard>
+  );
+}
+
+function LeaveCreateGuard() {
+  const { user } = useAuth();
+  if (user?.role === "Admin" || user?.role === "SuperAdmin") {
+    return <Navigate to="/unauthorized" replace />;
+  }
+
+  return withPermission(<LeaveRequestFormPage />, "LeaveRequest.Create");
 }
 
 export function AppRoutes() {
@@ -57,20 +83,21 @@ export function AppRoutes() {
           <Route path="/admin/audit-logs" element={withPermission(<AuditLogPage />, "SystemSettings.View")} />
           <Route path="/admin/audit-logs/export" element={withPermission(<AuditLogExportPage />, "SystemSettings.Export")} />
           <Route path="/admin/system-settings" element={withPermission(<SystemSettingsPage />, "SystemSettings.View")} />
-          <Route path="/admin/approval-chains" element={withPermission(<ApprovalChainManagementPage />, "ApprovalChain.View")} />
-          <Route path="/admin/approval-chains/create" element={withPermission(<ApprovalChainFormPage />, "ApprovalChain.Create")} />
-          <Route path="/admin/approval-chains/:id/edit" element={withPermission(<ApprovalChainFormPage />, "ApprovalChain.Edit")} />
-          <Route path="/admin/approval-delegations" element={withPermission(<ApprovalDelegationPage />, "ApprovalDelegation.View")} />
-          <Route path="/admin/leave-balances" element={withPermission(<LeaveBalanceManagementPage />, "LeaveBalance.Manage")} />
-          <Route path="/admin/leave-balances/adjustments" element={withPermission(<LeaveBalanceAdjustmentPage />, "LeaveBalance.Adjust")} />
-          <Route path="/admin/leave-holidays" element={withPermission(<LeaveHolidayManagementPage />, "LeaveHoliday.Manage")} />
-          <Route path="/leave" element={withPermission(<LeaveManagementPage />, "LeaveManagement.View")} />
-          <Route path="/leave/create" element={withPermission(<LeaveRequestFormPage />, "LeaveManagement.Create")} />
-          <Route path="/leave/pending-approvals" element={withPermission(<PendingApprovalsPage />, "LeaveManagement.Approve")} />
-          <Route path="/leave/calendar" element={withPermission(<LeaveCalendarPage />, "LeaveManagement.View")} />
-          <Route path="/leave/types" element={withPermission(<LeaveTypeManagementPage />, "LeaveManagement.Manage")} />
-          <Route path="/leave/balances" element={withPermission(<LeaveBalancePage />, "LeaveManagement.View")} />
-          <Route path="/leave/:id" element={withPermission(<LeaveRequestDetailPage />, "LeaveManagement.View")} />
+          <Route path="/admin/leave-support" element={withPermission(<LeaveSupportPage />, "LeaveSupport.ViewAll")} />
+          <Route path="/admin/approval-chains" element={withPermission(<ApprovalChainManagementPage />, "LeaveAdmin.ManageApprovalChains")} />
+          <Route path="/admin/approval-chains/create" element={withPermission(<ApprovalChainFormPage />, "LeaveAdmin.ManageApprovalChains")} />
+          <Route path="/admin/approval-chains/:id/edit" element={withPermission(<ApprovalChainFormPage />, "LeaveAdmin.ManageApprovalChains")} />
+          <Route path="/admin/approval-delegations" element={withPermission(<ApprovalDelegationPage />, "LeaveApproval.Delegate")} />
+          <Route path="/admin/leave-balances" element={withPermission(<LeaveBalanceManagementPage />, "LeaveAdmin.ManageBalances")} />
+          <Route path="/admin/leave-balances/adjustments" element={withPermission(<LeaveBalanceAdjustmentPage />, "LeaveAdmin.ManageBalances")} />
+          <Route path="/admin/leave-holidays" element={withPermission(<LeaveHolidayManagementPage />, "LeaveAdmin.ManageHolidays")} />
+          <Route path="/leave" element={withAnyPermission(<LeaveManagementPage />, leaveViewPermissions)} />
+          <Route path="/leave/create" element={<LeaveCreateGuard />} />
+          <Route path="/leave/pending-approvals" element={withPermission(<PendingApprovalsPage />, "LeaveRequest.ViewPendingApproval")} />
+          <Route path="/leave/calendar" element={withAnyPermission(<LeaveCalendarPage />, leaveViewPermissions)} />
+          <Route path="/leave/types" element={withAnyPermission(<LeaveTypeManagementPage />, ["LeaveRequest.Create", "LeaveAdmin.ManageTypes"])} />
+          <Route path="/leave/balances" element={withPermission(<LeaveBalancePage />, "LeaveRequest.ViewOwn")} />
+          <Route path="/leave/:id" element={withAnyPermission(<LeaveRequestDetailPage />, leaveViewPermissions)} />
           <Route path="/reports/leaves" element={withPermission(<LeaveReportsPage />, "ReportManagement.View")} />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Route>

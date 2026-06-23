@@ -15,7 +15,7 @@ namespace Hop.Api.Controllers;
 public class LeaveBalanceAdjustmentsController(AppDbContext db, IAuditLogService auditLogService) : ControllerBase
 {
     [HttpGet]
-    [RequirePermission("LeaveBalance.Adjust")]
+    [RequirePermission(LeavePermissions.ManageBalances)]
     public async Task<ActionResult<ApiResponse<IReadOnlyList<LeaveBalanceAdjustmentResponse>>>> GetAdjustments([FromQuery] int? year = null)
     {
         var query = db.LeaveBalanceAdjustments
@@ -39,7 +39,7 @@ public class LeaveBalanceAdjustmentsController(AppDbContext db, IAuditLogService
     }
 
     [HttpPost]
-    [RequirePermission("LeaveBalance.Adjust")]
+    [RequirePermission(LeavePermissions.ManageBalances)]
     public async Task<ActionResult<ApiResponse<LeaveBalanceAdjustmentResponse>>> CreateAdjustment(CreateLeaveBalanceAdjustmentRequest request)
     {
         var adjustedByUserId = GetCurrentUserId();

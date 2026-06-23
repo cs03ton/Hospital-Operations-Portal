@@ -16,7 +16,7 @@ namespace Hop.Api.Controllers;
 public class LeaveBalancesController(AppDbContext db, IAuditLogService auditLogService) : ControllerBase
 {
     [HttpGet]
-    [RequirePermission("LeaveBalance.Manage")]
+    [RequirePermission(LeavePermissions.ManageBalances)]
     public async Task<ActionResult<ApiResponse<IReadOnlyList<LeaveBalanceResponse>>>> GetBalances(
         [FromQuery] int? year = null,
         [FromQuery] Guid? userId = null,
@@ -54,7 +54,7 @@ public class LeaveBalancesController(AppDbContext db, IAuditLogService auditLogS
     }
 
     [HttpGet("me")]
-    [RequirePermission("LeaveManagement.View")]
+    [RequirePermission(LeavePermissions.ViewOwn)]
     public async Task<ActionResult<ApiResponse<IReadOnlyList<LeaveBalanceResponse>>>> GetMyBalances([FromQuery] int? year = null)
     {
         var userId = GetCurrentUserId();
@@ -67,7 +67,7 @@ public class LeaveBalancesController(AppDbContext db, IAuditLogService auditLogS
     }
 
     [HttpGet("user/{userId:guid}")]
-    [RequirePermission("LeaveManagement.Manage")]
+    [RequirePermission(LeavePermissions.ManageBalances)]
     public async Task<ActionResult<ApiResponse<IReadOnlyList<LeaveBalanceResponse>>>> GetUserBalances(Guid userId, [FromQuery] int? year = null)
     {
         if (!await db.Users.AnyAsync(item => item.Id == userId))
@@ -79,7 +79,7 @@ public class LeaveBalancesController(AppDbContext db, IAuditLogService auditLogS
     }
 
     [HttpGet("import-template")]
-    [RequirePermission("LeaveBalance.Manage")]
+    [RequirePermission(LeavePermissions.ManageBalances)]
     public IActionResult DownloadImportTemplate()
     {
         var rows = new List<IReadOnlyList<string>>
@@ -97,7 +97,7 @@ public class LeaveBalancesController(AppDbContext db, IAuditLogService auditLogS
     }
 
     [HttpPost]
-    [RequirePermission("LeaveBalance.Manage")]
+    [RequirePermission(LeavePermissions.ManageBalances)]
     public async Task<ActionResult<ApiResponse<LeaveBalanceResponse>>> CreateBalance(SaveLeaveBalanceRequest request)
     {
         var validation = await ValidateRequest(request);
@@ -133,7 +133,7 @@ public class LeaveBalancesController(AppDbContext db, IAuditLogService auditLogS
     }
 
     [HttpPut("{id:guid}")]
-    [RequirePermission("LeaveBalance.Manage")]
+    [RequirePermission(LeavePermissions.ManageBalances)]
     public async Task<ActionResult<ApiResponse<LeaveBalanceResponse>>> UpdateBalance(Guid id, SaveLeaveBalanceRequest request)
     {
         var balance = await db.LeaveBalances.FirstOrDefaultAsync(item => item.Id == id);
@@ -173,7 +173,7 @@ public class LeaveBalancesController(AppDbContext db, IAuditLogService auditLogS
     }
 
     [HttpDelete("{id:guid}")]
-    [RequirePermission("LeaveBalance.Manage")]
+    [RequirePermission(LeavePermissions.ManageBalances)]
     public async Task<IActionResult> DeleteBalance(Guid id)
     {
         var balance = await db.LeaveBalances.FirstOrDefaultAsync(item => item.Id == id);

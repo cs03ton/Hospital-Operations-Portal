@@ -10,7 +10,7 @@ public class LeaveApproval
     public int StepOrder { get; set; }
     public string Status { get; set; } = "Pending";
     public string? StepName { get; set; }
-    public string RequiredPermissionCode { get; set; } = "LeaveManagement.Approve";
+    public string RequiredPermissionCode { get; set; } = "LeaveApproval.ApproveCurrentStep";
     public string? Remark { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? ActionAt { get; set; }

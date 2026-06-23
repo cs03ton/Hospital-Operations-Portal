@@ -5,4 +5,6 @@ export type NavigationItem = {
   path: string;
   icon: SvgIconComponent;
   permission?: string;
+  permissions?: string[];
+  activePatterns?: string[];
 };

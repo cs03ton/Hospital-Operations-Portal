@@ -41,9 +41,25 @@ public sealed class ApprovalEscalationService(AppDbContext db, IAuditLogService 
                 continue;
             }
 
+            await auditLogService.WriteAsync(
+                null,
+                "LeaveApproval.EscalationDetected",
+                "LeaveApproval",
+                approval.Id.ToString(),
+                $"Detected overdue approval for leave request {leaveRequest.Id}.",
+                "Success");
+
             var newApproverId = rule.EscalateToUserId ?? await ResolveUserFromRoleAsync(rule.EscalateToRoleId, departmentId, cancellationToken);
             if (newApproverId is null || newApproverId == approval.ApproverId)
             {
+                await auditLogService.WriteAsync(
+                    null,
+                    "LeaveApproval.EscalationNotified",
+                    "LeaveApproval",
+                    approval.Id.ToString(),
+                    $"Overdue approval notification prepared for leave request {leaveRequest.Id}. No escalation target changed.",
+                    "Success");
+                processed += 1;
                 continue;
             }
 
@@ -54,7 +70,7 @@ public sealed class ApprovalEscalationService(AppDbContext db, IAuditLogService 
             leaveRequest.UpdatedAt = DateTime.UtcNow;
             processed += 1;
 
-            await auditLogService.WriteAsync(null, "Approval.Escalated", "LeaveApproval", approval.Id.ToString(), $"Escalated leave request {leaveRequest.Id} from {previousApproverId} to {newApproverId}.", "Success");
+            await auditLogService.WriteAsync(null, "LeaveApproval.EscalationNotified", "LeaveApproval", approval.Id.ToString(), $"Escalated leave request {leaveRequest.Id} from {previousApproverId} to {newApproverId}.", "Success");
         }
 
         await db.SaveChangesAsync(cancellationToken);

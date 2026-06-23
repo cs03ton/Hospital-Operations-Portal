@@ -80,6 +80,12 @@ public class UsersController(AppDbContext db, IAuditLogService auditLogService) 
             return BadRequest(ApiResponse<UserResponse>.Fail("Department not found."));
         }
 
+        if (request.LeaveApprovalRuleId is not null &&
+            !await db.ApprovalChains.AnyAsync(rule => rule.Id == request.LeaveApprovalRuleId && rule.IsActive))
+        {
+            return BadRequest(ApiResponse<UserResponse>.Fail("Approval rule not found."));
+        }
+
         var user = new User
         {
             EmployeeCode = request.EmployeeCode,
@@ -87,6 +93,7 @@ public class UsersController(AppDbContext db, IAuditLogService auditLogService) 
             Username = username,
             PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password),
             DepartmentId = request.DepartmentId,
+            LeaveApprovalRuleId = request.LeaveApprovalRuleId,
             LineUserId = request.LineUserId,
             IsActive = request.IsActive
         };
@@ -141,9 +148,16 @@ public class UsersController(AppDbContext db, IAuditLogService auditLogService) 
             return BadRequest(ApiResponse<UserResponse>.Fail("Department not found."));
         }
 
+        if (request.LeaveApprovalRuleId is not null &&
+            !await db.ApprovalChains.AnyAsync(rule => rule.Id == request.LeaveApprovalRuleId && rule.IsActive))
+        {
+            return BadRequest(ApiResponse<UserResponse>.Fail("Approval rule not found."));
+        }
+
         user.EmployeeCode = request.EmployeeCode;
         user.FullName = request.Fullname;
         user.DepartmentId = request.DepartmentId;
+        user.LeaveApprovalRuleId = request.LeaveApprovalRuleId;
         user.LineUserId = request.LineUserId;
         user.IsActive = request.IsActive;
         user.UpdatedAt = DateTime.UtcNow;
@@ -188,6 +202,7 @@ public class UsersController(AppDbContext db, IAuditLogService auditLogService) 
     {
         return db.Users
             .Include(user => user.Department)
+            .Include(user => user.LeaveApprovalRule)
             .Include(user => user.UserRoles)
                 .ThenInclude(userRole => userRole.Role);
     }
@@ -213,6 +228,8 @@ public class UsersController(AppDbContext db, IAuditLogService auditLogService) 
             roles,
             user.DepartmentId,
             user.Department?.Name,
+            user.LeaveApprovalRuleId,
+            user.LeaveApprovalRule?.Name,
             user.LineUserId,
             user.IsActive,
             user.CreatedAt,

@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS users (
     username VARCHAR(100) UNIQUE NOT NULL,
     password_hash TEXT NOT NULL,
     department_id UUID REFERENCES departments(id),
+    leave_approval_rule_id UUID,
     line_user_id VARCHAR(255),
     is_active BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
@@ -107,6 +108,7 @@ CREATE TABLE IF NOT EXISTS leave_types (
     name VARCHAR(255) NOT NULL,
     description TEXT,
     default_days_per_year NUMERIC(6,2) NOT NULL DEFAULT 0,
+    requires_balance BOOLEAN NOT NULL DEFAULT TRUE,
     requires_attachment BOOLEAN NOT NULL DEFAULT FALSE,
     is_paid BOOLEAN NOT NULL DEFAULT TRUE,
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
@@ -133,6 +135,7 @@ CREATE TABLE IF NOT EXISTS leave_requests (
     leave_type_id UUID NOT NULL REFERENCES leave_types(id) ON DELETE CASCADE,
     start_date DATE NOT NULL,
     end_date DATE NOT NULL,
+    duration_type VARCHAR(20) NOT NULL DEFAULT 'FULL_DAY',
     total_days NUMERIC(6,2) NOT NULL,
     reason TEXT NOT NULL,
     status VARCHAR(50) NOT NULL DEFAULT 'Draft',
@@ -178,6 +181,19 @@ CREATE TABLE IF NOT EXISTS approval_chain_steps (
     updated_at TIMESTAMPTZ,
     UNIQUE (approval_chain_id, step_order)
 );
+
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_constraint
+        WHERE conname = 'fk_users_leave_approval_rule'
+    ) THEN
+        ALTER TABLE users
+            ADD CONSTRAINT fk_users_leave_approval_rule
+            FOREIGN KEY (leave_approval_rule_id) REFERENCES approval_chains(id);
+    END IF;
+END $$;
 
 CREATE TABLE IF NOT EXISTS approval_delegations (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -257,6 +273,7 @@ CREATE TABLE IF NOT EXISTS line_delivery_logs (
 CREATE UNIQUE INDEX IF NOT EXISTS idx_departments_name ON departments(name);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_users_employee_code ON users(employee_code) WHERE employee_code IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
+CREATE INDEX IF NOT EXISTS idx_users_leave_approval_rule ON users(leave_approval_rule_id);
 CREATE INDEX IF NOT EXISTS idx_refresh_tokens_token ON refresh_tokens(token);
 CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user_revoked ON refresh_tokens(user_id, revoked_at);
 CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at ON audit_logs(created_at);

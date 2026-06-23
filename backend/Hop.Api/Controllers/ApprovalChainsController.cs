@@ -15,29 +15,132 @@ namespace Hop.Api.Controllers;
 public class ApprovalChainsController(AppDbContext db, IAuditLogService auditLogService) : ControllerBase
 {
     [HttpGet]
-    [RequirePermission("ApprovalChain.View")]
+    [RequirePermission(LeavePermissions.ManageApprovalChains)]
     public async Task<ActionResult<ApiResponse<IReadOnlyList<ApprovalChainResponse>>>> GetApprovalChains()
     {
-        var items = await LoadChains()
+        var chains = await LoadChains()
             .OrderBy(item => item.Name)
-            .Select(item => ToResponse(item))
             .ToListAsync();
+        var counts = await db.Users
+            .AsNoTracking()
+            .Where(user => user.LeaveApprovalRuleId != null)
+            .GroupBy(user => user.LeaveApprovalRuleId!.Value)
+            .Select(group => new { ApprovalRuleId = group.Key, UserCount = group.Count() })
+            .ToDictionaryAsync(item => item.ApprovalRuleId, item => item.UserCount);
+        var items = chains.Select(item => ToResponse(item, counts.GetValueOrDefault(item.Id))).ToList();
 
         return ApiResponse<IReadOnlyList<ApprovalChainResponse>>.Ok(items);
     }
 
     [HttpGet("{id:guid}")]
-    [RequirePermission("ApprovalChain.View")]
+    [RequirePermission(LeavePermissions.ManageApprovalChains)]
     public async Task<ActionResult<ApiResponse<ApprovalChainResponse>>> GetApprovalChain(Guid id)
     {
         var item = await LoadChains().FirstOrDefaultAsync(chain => chain.Id == id);
         return item is null
             ? NotFound(ApiResponse<ApprovalChainResponse>.Fail("Approval chain not found."))
-            : ApiResponse<ApprovalChainResponse>.Ok(ToResponse(item));
+            : ApiResponse<ApprovalChainResponse>.Ok(ToResponse(item, await db.Users.CountAsync(user => user.LeaveApprovalRuleId == item.Id)));
+    }
+
+    [HttpPost("resolve-preview")]
+    [RequirePermission(LeavePermissions.ManageApprovalChains)]
+    public async Task<ActionResult<ApiResponse<ApprovalRuleResolvePreviewResponse>>> ResolvePreview(ApprovalRuleResolvePreviewRequest request)
+    {
+        User? user = null;
+        if (request.UserId is not null)
+        {
+            user = await db.Users
+                .AsNoTracking()
+                .Include(item => item.Department)
+                .FirstOrDefaultAsync(item => item.Id == request.UserId);
+            if (user is null)
+            {
+                return NotFound(ApiResponse<ApprovalRuleResolvePreviewResponse>.Fail("User not found."));
+            }
+        }
+
+        var approvalRuleId = request.ApprovalRuleId ?? user?.LeaveApprovalRuleId;
+        if (approvalRuleId is null)
+        {
+            return ApiResponse<ApprovalRuleResolvePreviewResponse>.Ok(new ApprovalRuleResolvePreviewResponse(
+                user?.Id,
+                user?.FullName,
+                null,
+                null,
+                false,
+                [],
+                ["ยังไม่ได้กำหนดกฎการอนุมัติวันลาให้ผู้ใช้งานนี้"]));
+        }
+
+        var rule = await db.ApprovalChains
+            .AsNoTracking()
+            .Include(item => item.Steps.Where(step => step.IsActive))
+                .ThenInclude(step => step.ApproverUser)
+            .Include(item => item.Steps.Where(step => step.IsActive))
+                .ThenInclude(step => step.ApproverRole)
+            .FirstOrDefaultAsync(item => item.Id == approvalRuleId);
+        if (rule is null)
+        {
+            return NotFound(ApiResponse<ApprovalRuleResolvePreviewResponse>.Fail("Approval rule not found."));
+        }
+
+        var warnings = new List<string>();
+        if (!rule.IsActive)
+        {
+            warnings.Add("กฎการอนุมัตินี้ถูกปิดใช้งาน");
+        }
+
+        if (!rule.Steps.Any(step => step.IsActive))
+        {
+            warnings.Add("กฎการอนุมัตินี้ยังไม่มีขั้นอนุมัติที่เปิดใช้งาน");
+        }
+
+        var steps = new List<ApprovalRulePreviewStepResponse>();
+        foreach (var step in rule.Steps.Where(item => item.IsActive).OrderBy(item => item.StepOrder))
+        {
+            var stepWarnings = new List<string>();
+            var approver = await ResolvePreviewApprover(step, user?.DepartmentId);
+            if (approver is null)
+            {
+                stepWarnings.Add("ไม่พบผู้อนุมัติสำหรับขั้นตอนนี้");
+            }
+            else
+            {
+                if (user is not null && approver.Id == user.Id)
+                {
+                    stepWarnings.Add("พบ self approval ผู้ขอลาเป็นผู้อนุมัติในขั้นนี้");
+                }
+
+                if (!await UserHasPermissionAsync(approver.Id, step.RequiredPermissionCode))
+                {
+                    stepWarnings.Add($"ผู้อนุมัติยังไม่มีสิทธิ์ {step.RequiredPermissionCode}");
+                }
+            }
+
+            steps.Add(new ApprovalRulePreviewStepResponse(
+                step.StepOrder,
+                step.Name,
+                approver?.Id,
+                approver?.FullName,
+                step.ApproverRole?.Name,
+                stepWarnings.Count == 0 ? "พร้อมใช้งาน" : "ต้องตรวจสอบ",
+                stepWarnings));
+        }
+
+        warnings.AddRange(steps.SelectMany(item => item.Warnings).Distinct());
+
+        return ApiResponse<ApprovalRuleResolvePreviewResponse>.Ok(new ApprovalRuleResolvePreviewResponse(
+            user?.Id,
+            user?.FullName,
+            rule.Id,
+            rule.Name,
+            rule.IsActive,
+            steps,
+            warnings));
     }
 
     [HttpPost]
-    [RequirePermission("ApprovalChain.Create")]
+    [RequirePermission(LeavePermissions.ManageApprovalChains)]
     public async Task<ActionResult<ApiResponse<ApprovalChainResponse>>> CreateApprovalChain(SaveApprovalChainRequest request)
     {
         var validation = await ValidateChainRequest(request);
@@ -65,7 +168,7 @@ public class ApprovalChainsController(AppDbContext db, IAuditLogService auditLog
     }
 
     [HttpPut("{id:guid}")]
-    [RequirePermission("ApprovalChain.Edit")]
+    [RequirePermission(LeavePermissions.ManageApprovalChains)]
     public async Task<ActionResult<ApiResponse<ApprovalChainResponse>>> UpdateApprovalChain(Guid id, SaveApprovalChainRequest request)
     {
         var item = await db.ApprovalChains.FirstOrDefaultAsync(chain => chain.Id == id);
@@ -96,7 +199,7 @@ public class ApprovalChainsController(AppDbContext db, IAuditLogService auditLog
     }
 
     [HttpDelete("{id:guid}")]
-    [RequirePermission("ApprovalChain.Delete")]
+    [RequirePermission(LeavePermissions.ManageApprovalChains)]
     public async Task<IActionResult> DeleteApprovalChain(Guid id)
     {
         var item = await db.ApprovalChains.FirstOrDefaultAsync(chain => chain.Id == id);
@@ -114,7 +217,7 @@ public class ApprovalChainsController(AppDbContext db, IAuditLogService auditLog
     }
 
     [HttpGet("{id:guid}/steps")]
-    [RequirePermission("ApprovalChain.View")]
+    [RequirePermission(LeavePermissions.ManageApprovalChains)]
     public async Task<ActionResult<ApiResponse<IReadOnlyList<ApprovalChainStepResponse>>>> GetSteps(Guid id)
     {
         if (!await db.ApprovalChains.AnyAsync(item => item.Id == id))
@@ -132,7 +235,7 @@ public class ApprovalChainsController(AppDbContext db, IAuditLogService auditLog
     }
 
     [HttpPost("{id:guid}/steps")]
-    [RequirePermission("ApprovalChain.Edit")]
+    [RequirePermission(LeavePermissions.ManageApprovalChains)]
     public async Task<ActionResult<ApiResponse<ApprovalChainStepResponse>>> CreateStep(Guid id, SaveApprovalChainStepRequest request)
     {
         if (!await db.ApprovalChains.AnyAsync(item => item.Id == id))
@@ -247,7 +350,40 @@ public class ApprovalChainsController(AppDbContext db, IAuditLogService auditLog
         return null;
     }
 
-    private static ApprovalChainResponse ToResponse(ApprovalChain item)
+    private async Task<User?> ResolvePreviewApprover(ApprovalChainStep step, Guid? departmentId)
+    {
+        if (step.ApproverUserId is not null)
+        {
+            return await db.Users
+                .AsNoTracking()
+                .FirstOrDefaultAsync(item => item.Id == step.ApproverUserId && item.IsActive);
+        }
+
+        if (step.ApproverRoleId is not null)
+        {
+            var query = db.UserRoles
+                .AsNoTracking()
+                .Include(item => item.User)
+                .Where(item => item.RoleId == step.ApproverRoleId && item.User != null && item.User.IsActive);
+            var sameDepartment = departmentId is null
+                ? null
+                : await query.Where(item => item.User!.DepartmentId == departmentId).Select(item => item.User!).FirstOrDefaultAsync();
+            return sameDepartment ?? await query.Select(item => item.User!).FirstOrDefaultAsync();
+        }
+
+        return null;
+    }
+
+    private Task<bool> UserHasPermissionAsync(Guid userId, string permissionCode)
+    {
+        return db.UserRoles
+            .AsNoTracking()
+            .Where(item => item.UserId == userId && item.Role != null && item.Role.IsActive)
+            .SelectMany(item => item.Role!.RolePermissions)
+            .AnyAsync(item => item.Permission != null && item.Permission.IsActive && item.Permission.Code == permissionCode);
+    }
+
+    private static ApprovalChainResponse ToResponse(ApprovalChain item, int userCount = 0)
     {
         return new ApprovalChainResponse(
             item.Id,
@@ -260,7 +396,8 @@ public class ApprovalChainsController(AppDbContext db, IAuditLogService auditLog
             item.MinimumDays,
             item.IsActive,
             item.CreatedAt,
-            item.UpdatedAt);
+            item.UpdatedAt,
+            userCount);
     }
 
     private static ApprovalChainStepResponse ToStepResponse(ApprovalChainStep item)

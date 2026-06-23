@@ -10,6 +10,8 @@ export type UserSummary = {
   roles: string[];
   departmentId?: string | null;
   department?: string | null;
+  leaveApprovalRuleId?: string | null;
+  leaveApprovalRuleName?: string | null;
   lineUserId?: string | null;
   isActive: boolean;
   createdAt: string;
@@ -23,6 +25,7 @@ export type SaveUserRequest = {
   password?: string;
   roleIds: string[];
   departmentId?: string | null;
+  leaveApprovalRuleId?: string | null;
   lineUserId?: string | null;
   isActive: boolean;
 };

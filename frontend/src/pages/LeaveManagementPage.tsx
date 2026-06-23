@@ -8,12 +8,17 @@ import { getDepartments } from "../api/adminApi";
 import { getLeaveRequests, getLeaveTypes, type LeaveRequestQuery } from "../api/leaveApi";
 import { AppDatePicker } from "../components/common/AppDatePicker";
 import { PageHeader } from "../components/PageHeader";
-import { PermissionGuard } from "../context/PermissionContext";
+import { useAuth } from "../context/AuthContext";
+import { PermissionGuard, usePermission } from "../context/PermissionContext";
 import { formatThaiDate } from "../utils/dateFormat";
-import { getLeaveStatusColor, getLeaveStatusLabel, getLeaveTypeLabel } from "../utils/leaveLabels";
-import { getTrackingStatusLabel, getTrackingStepLabel } from "../utils/leaveTrackingLabels";
+import { getLeaveStatusColor, getLeaveStatusLabel, getLeaveTypeLabel, getLeaveTypeWithDurationLabel } from "../utils/leaveLabels";
+import { getLeaveRequestCode, getTrackingStatusLabel, getTrackingStepLabel } from "../utils/leaveTrackingLabels";
 
 export function LeaveManagementPage() {
+  const { user } = useAuth();
+  const { hasAnyPermission } = usePermission();
+  const canRequestLeave = user?.role !== "Admin" && user?.role !== "SuperAdmin";
+  const canFilterDepartments = hasAnyPermission(["DepartmentManagement.View", "LeaveRequest.ViewAll"]);
   const [filters, setFilters] = useState({
     leaveTypeId: "",
     status: "",
@@ -26,16 +31,21 @@ export function LeaveManagementPage() {
     () => ({
       leaveTypeId: filters.leaveTypeId || undefined,
       status: filters.status || undefined,
-      departmentId: filters.departmentId || undefined,
+      departmentId: canFilterDepartments ? filters.departmentId || undefined : undefined,
       fromDate: filters.fromDate || undefined,
       toDate: filters.toDate || undefined,
       userId: filters.userId || undefined,
     }),
-    [filters],
+    [canFilterDepartments, filters],
   );
   const { data = [], isLoading } = useQuery({ queryKey: ["leave-requests", queryFilters], queryFn: () => getLeaveRequests(queryFilters) });
   const { data: leaveTypes = [] } = useQuery({ queryKey: ["leave-types"], queryFn: getLeaveTypes });
-  const { data: departments = [] } = useQuery({ queryKey: ["departments"], queryFn: getDepartments, retry: false });
+  const { data: departments = [] } = useQuery({
+    queryKey: ["departments"],
+    queryFn: getDepartments,
+    enabled: canFilterDepartments,
+    retry: false,
+  });
   const requesterOptions = useMemo(() => {
     const map = new Map<string, string>();
     data.forEach((item) => {
@@ -51,23 +61,25 @@ export function LeaveManagementPage() {
         <Box sx={{ minWidth: 0 }}>
           <PageHeader title="รายการคำขอลา" subtitle="สร้างคำขอลา ติดตามสถานะ และดำเนินการอนุมัติ" />
         </Box>
-        <PermissionGuard permission="LeaveManagement.Create">
-          <Button
-            component={RouterLink}
-            to="/leave/create"
-            variant="contained"
-            size="medium"
-            startIcon={<AddCircleOutlineOutlinedIcon />}
-            sx={{
-              alignSelf: { xs: "stretch", sm: "center" },
-              px: 2,
-              minWidth: { xs: "auto", sm: 148 },
-              whiteSpace: "nowrap",
-            }}
-          >
-            เพิ่มคำขอลา
-          </Button>
-        </PermissionGuard>
+        {canRequestLeave && (
+          <PermissionGuard permission="LeaveRequest.Create">
+            <Button
+              component={RouterLink}
+              to="/leave/create"
+              variant="contained"
+              size="medium"
+              startIcon={<AddCircleOutlineOutlinedIcon />}
+              sx={{
+                alignSelf: { xs: "stretch", sm: "center" },
+                px: 2,
+                minWidth: { xs: "auto", sm: 148 },
+                whiteSpace: "nowrap",
+              }}
+            >
+              เพิ่มคำขอลา
+            </Button>
+          </PermissionGuard>
+        )}
       </Stack>
       <Card sx={{ mb: 2 }}>
         <CardContent sx={{ py: 2 }}>
@@ -92,16 +104,18 @@ export function LeaveManagementPage() {
                 <MenuItem value="Cancelled">ยกเลิก</MenuItem>
               </TextField>
             </Grid>
-            <Grid item xs={12} sm={6} md={2}>
-              <TextField select fullWidth size="small" label="หน่วยงาน" value={filters.departmentId} onChange={(event) => setFilters({ ...filters, departmentId: event.target.value })}>
-                <MenuItem value="">ทุกหน่วยงาน</MenuItem>
-                {departments.map((item) => (
-                  <MenuItem key={item.id} value={item.id}>
-                    {item.name}
-                  </MenuItem>
-                ))}
-              </TextField>
-            </Grid>
+            {canFilterDepartments && (
+              <Grid item xs={12} sm={6} md={2}>
+                <TextField select fullWidth size="small" label="หน่วยงาน" value={filters.departmentId} onChange={(event) => setFilters({ ...filters, departmentId: event.target.value })}>
+                  <MenuItem value="">ทุกหน่วยงาน</MenuItem>
+                  {departments.map((item) => (
+                    <MenuItem key={item.id} value={item.id}>
+                      {item.name}
+                    </MenuItem>
+                  ))}
+                </TextField>
+              </Grid>
+            )}
             <Grid item xs={12} sm={6} md={2}>
               <TextField select fullWidth size="small" label="ผู้ขอลา" value={filters.userId} onChange={(event) => setFilters({ ...filters, userId: event.target.value })}>
                 <MenuItem value="">ทุกคน</MenuItem>
@@ -127,6 +141,7 @@ export function LeaveManagementPage() {
             <TableHead>
               <TableRow>
                 <TableCell>ผู้ขอ</TableCell>
+                <TableCell>เลขที่คำขอ</TableCell>
                 <TableCell>ประเภทลา</TableCell>
                 <TableCell>วันที่ลา</TableCell>
                 <TableCell>จำนวนวัน</TableCell>
@@ -139,13 +154,14 @@ export function LeaveManagementPage() {
             </TableHead>
             <TableBody>
               {isLoading ? (
-                <TableRow><TableCell colSpan={9}>กำลังโหลดคำขอลา...</TableCell></TableRow>
+                <TableRow><TableCell colSpan={10}>กำลังโหลดคำขอลา...</TableCell></TableRow>
               ) : visibleData.length ? (
                 visibleData.map((item) => {
                   return (
                     <TableRow key={item.id}>
                       <TableCell>{item.fullname ?? "-"}</TableCell>
-                      <TableCell>{getLeaveTypeLabel(item.leaveTypeName)}</TableCell>
+                      <TableCell>{getLeaveRequestCode(item.requestNumber, item.id)}</TableCell>
+                      <TableCell>{getLeaveTypeWithDurationLabel(item.leaveTypeName, item.durationType)}</TableCell>
                       <TableCell>{formatThaiDate(item.startDate)} - {formatThaiDate(item.endDate)}</TableCell>
                       <TableCell>{item.totalDays}</TableCell>
                       <TableCell><Chip size="small" label={getLeaveStatusLabel(item.status)} color={getLeaveStatusColor(item.status)} /></TableCell>
@@ -168,7 +184,7 @@ export function LeaveManagementPage() {
                   );
                 })
               ) : (
-                <TableRow><TableCell colSpan={9}>ไม่พบคำขอลา</TableCell></TableRow>
+                <TableRow><TableCell colSpan={10}>ไม่พบคำขอลา</TableCell></TableRow>
               )}
             </TableBody>
           </Table>

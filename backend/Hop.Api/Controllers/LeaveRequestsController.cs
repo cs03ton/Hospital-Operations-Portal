@@ -3,6 +3,7 @@ using Hop.Api.Data;
 using Hop.Api.DTOs;
 using Hop.Api.Interfaces;
 using Hop.Api.Models;
+using System.Data;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -22,11 +23,13 @@ public class LeaveRequestsController(
     ILeavePdfService leavePdfService,
     IFileScanningService fileScanningService,
     ILeaveNotificationEventPublisher leaveNotificationEventPublisher,
+    ILeaveRequestAccessService leaveRequestAccessService,
+    ILeaveRequestNumberService leaveRequestNumberService,
     IConfiguration configuration,
     ILogger<LeaveRequestsController> logger) : ControllerBase
 {
     [HttpGet]
-    [RequirePermission("LeaveManagement.View")]
+    [RequireAnyPermission(LeavePermissions.ViewOwn, LeavePermissions.ViewPendingApproval, LeavePermissions.ViewDepartment, LeavePermissions.ViewAll)]
     public async Task<ActionResult<ApiResponse<IReadOnlyList<LeaveRequestResponse>>>> GetLeaveRequests(
         [FromQuery] Guid? leaveTypeId,
         [FromQuery] string? status,
@@ -36,13 +39,9 @@ public class LeaveRequestsController(
         [FromQuery(Name = "userId")] Guid? filterUserId)
     {
         var currentUserId = GetCurrentUserId();
-        var canApprove = await HasPermissionAsync("LeaveManagement.Approve");
+        var visibility = await leaveRequestAccessService.GetVisibilityAsync(currentUserId);
 
-        var query = LoadLeaveRequests();
-        if (!canApprove && currentUserId is not null)
-        {
-            query = query.Where(item => item.UserId == currentUserId);
-        }
+        var query = leaveRequestAccessService.ApplyVisibility(LoadLeaveRequests(), currentUserId, visibility);
 
         if (leaveTypeId is not null)
         {
@@ -83,7 +82,7 @@ public class LeaveRequestsController(
     }
 
     [HttpGet("{id:guid}")]
-    [RequirePermission("LeaveManagement.View")]
+    [RequireAnyPermission(LeavePermissions.ViewOwn, LeavePermissions.ViewPendingApproval, LeavePermissions.ViewDepartment, LeavePermissions.ViewAll)]
     public async Task<ActionResult<ApiResponse<LeaveRequestResponse>>> GetLeaveRequest(Guid id)
     {
         var leaveRequest = await LoadLeaveRequests().FirstOrDefaultAsync(item => item.Id == id);
@@ -101,7 +100,7 @@ public class LeaveRequestsController(
     }
 
     [HttpGet("{id:guid}/pdf")]
-    [RequirePermission("LeaveManagement.View")]
+    [RequireAnyPermission(LeavePermissions.ViewOwn, LeavePermissions.ViewPendingApproval, LeavePermissions.ViewDepartment, LeavePermissions.ViewAll)]
     public async Task<IActionResult> DownloadLeaveRequestPdf(Guid id)
     {
         var leaveRequest = await db.LeaveRequests
@@ -131,11 +130,14 @@ public class LeaveRequestsController(
         var pdfBytes = leavePdfService.GenerateLeaveRequestPdf(leaveRequest, hospitalName);
         await auditLogService.WriteAsync(GetCurrentUserId(), "LeaveRequest.PdfGenerated", "LeaveRequest", leaveRequest.Id.ToString(), "Generated leave request PDF.", "Success", HttpContext);
 
-        return File(pdfBytes, "application/pdf", $"leave-request-{leaveRequest.Id}.pdf");
+        var fileName = string.IsNullOrWhiteSpace(leaveRequest.RequestNumber)
+            ? $"leave-request-{leaveRequest.Id}.pdf"
+            : $"leave-request-{leaveRequest.RequestNumber}.pdf";
+        return File(pdfBytes, "application/pdf", fileName);
     }
 
     [HttpPost]
-    [RequirePermission("LeaveManagement.Create")]
+    [RequirePermission(LeavePermissions.Create)]
     public async Task<ActionResult<ApiResponse<LeaveRequestResponse>>> CreateLeaveRequest(SaveLeaveRequestRequest request)
     {
         var userId = GetCurrentUserId();
@@ -144,26 +146,34 @@ public class LeaveRequestsController(
             return Unauthorized(ApiResponse<LeaveRequestResponse>.Fail("Invalid access token."));
         }
 
+        if (await CurrentUserHasAnyRoleAsync("Admin", "SuperAdmin"))
+        {
+            return Forbid();
+        }
+
         var leaveType = await db.LeaveTypes.FirstOrDefaultAsync(item => item.Id == request.LeaveTypeId && item.IsActive);
         if (leaveType is null)
         {
             return BadRequest(ApiResponse<LeaveRequestResponse>.Fail("Leave type not found."));
         }
 
-        if (request.EndDate < request.StartDate || request.TotalDays <= 0)
+        if (request.EndDate < request.StartDate)
         {
             return BadRequest(ApiResponse<LeaveRequestResponse>.Fail("วันที่ลาไม่ถูกต้อง"));
         }
 
+        var createdAt = DateTime.UtcNow;
         var leaveRequest = new LeaveRequest
         {
             UserId = userId.Value,
             LeaveTypeId = request.LeaveTypeId,
             StartDate = request.StartDate,
             EndDate = request.EndDate,
+            DurationType = LeaveDurationTypes.Normalize(request.DurationType),
             TotalDays = request.TotalDays,
             Reason = request.Reason.Trim(),
-            Status = "Draft"
+            Status = "Draft",
+            CreatedAt = createdAt
         };
 
         var validation = await leaveValidationService.ValidateDraftAsync(leaveRequest);
@@ -174,8 +184,11 @@ public class LeaveRequestsController(
 
         leaveRequest.TotalDays = validation.CalculatedDays;
 
+        await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, HttpContext.RequestAborted);
+        leaveRequest.RequestNumber = await leaveRequestNumberService.GenerateAsync(createdAt, HttpContext.RequestAborted);
         db.LeaveRequests.Add(leaveRequest);
-        await db.SaveChangesAsync();
+        await db.SaveChangesAsync(HttpContext.RequestAborted);
+        await transaction.CommitAsync(HttpContext.RequestAborted);
         await auditLogService.WriteAsync(userId, "LeaveRequest.Create", "LeaveRequest", leaveRequest.Id.ToString(), "Created leave request draft.", "Success", HttpContext);
 
         var created = await LoadLeaveRequests().SingleAsync(item => item.Id == leaveRequest.Id);
@@ -183,7 +196,7 @@ public class LeaveRequestsController(
     }
 
     [HttpPut("{id:guid}")]
-    [RequirePermission("LeaveManagement.Edit")]
+    [RequirePermission(LeavePermissions.EditOwn)]
     public async Task<ActionResult<ApiResponse<LeaveRequestResponse>>> UpdateLeaveRequest(Guid id, SaveLeaveRequestRequest request)
     {
         var leaveRequest = await db.LeaveRequests.FirstOrDefaultAsync(item => item.Id == id);
@@ -205,6 +218,7 @@ public class LeaveRequestsController(
         leaveRequest.LeaveTypeId = request.LeaveTypeId;
         leaveRequest.StartDate = request.StartDate;
         leaveRequest.EndDate = request.EndDate;
+        leaveRequest.DurationType = LeaveDurationTypes.Normalize(request.DurationType);
         leaveRequest.TotalDays = request.TotalDays;
         leaveRequest.Reason = request.Reason.Trim();
         leaveRequest.UpdatedAt = DateTime.UtcNow;
@@ -225,7 +239,7 @@ public class LeaveRequestsController(
     }
 
     [HttpPost("{id:guid}/submit")]
-    [RequirePermission("LeaveManagement.Create")]
+    [RequirePermission(LeavePermissions.Create)]
     public async Task<ActionResult<ApiResponse<LeaveRequestResponse>>> SubmitLeaveRequest(Guid id)
     {
         var leaveRequest = await LoadLeaveRequestsForMutation().FirstOrDefaultAsync(item => item.Id == id);
@@ -251,10 +265,23 @@ public class LeaveRequestsController(
         }
 
         leaveRequest.TotalDays = validation.CalculatedDays;
+        if (leaveRequest.User?.LeaveApprovalRuleId is null)
+        {
+            return BadRequest(ApiResponse<LeaveRequestResponse>.Fail("ยังไม่ได้กำหนดกฎการอนุมัติวันลาให้ผู้ใช้งานนี้"));
+        }
+
+        var approvalRuleIsReady = await db.ApprovalChains
+            .AsNoTracking()
+            .AnyAsync(item => item.Id == leaveRequest.User.LeaveApprovalRuleId && item.IsActive && item.Steps.Any(step => step.IsActive));
+        if (!approvalRuleIsReady)
+        {
+            return BadRequest(ApiResponse<LeaveRequestResponse>.Fail("กฎการอนุมัติวันลาของผู้ใช้งานยังไม่พร้อมใช้งาน"));
+        }
+
         var approvalPlan = await approvalChainService.BuildApprovalPlanAsync(leaveRequest);
         if (approvalPlan.Count == 0)
         {
-            return BadRequest(ApiResponse<LeaveRequestResponse>.Fail("ไม่พบผู้อนุมัติที่มีสิทธิ์ถูกต้องสำหรับคำขอนี้"));
+            return BadRequest(ApiResponse<LeaveRequestResponse>.Fail("ไม่พบผู้อนุมัติที่มีสิทธิ์ถูกต้อง หรือกฎการอนุมัติมี self approval โดยไม่มีผู้อนุมัติสำรอง"));
         }
 
         leaveRequest.Status = "Pending";
@@ -289,7 +316,7 @@ public class LeaveRequestsController(
     }
 
     [HttpPost("{id:guid}/cancel")]
-    [RequirePermission("LeaveManagement.Edit")]
+    [RequirePermission(LeavePermissions.CancelOwn)]
     public async Task<ActionResult<ApiResponse<LeaveRequestResponse>>> CancelLeaveRequest(Guid id)
     {
         var leaveRequest = await db.LeaveRequests.FirstOrDefaultAsync(item => item.Id == id);
@@ -325,21 +352,35 @@ public class LeaveRequestsController(
     }
 
     [HttpPost("{id:guid}/approve")]
-    [RequirePermission("LeaveManagement.Approve")]
+    [RequirePermission(LeavePermissions.ApproveCurrentStep)]
     public async Task<ActionResult<ApiResponse<LeaveRequestResponse>>> ApproveLeaveRequest(Guid id, LeaveDecisionRequest request)
     {
         return await Decide(id, "Approved", request.Remark);
     }
 
     [HttpPost("{id:guid}/reject")]
-    [RequirePermission("LeaveManagement.Approve")]
+    [RequirePermission(LeavePermissions.ApproveCurrentStep)]
     public async Task<ActionResult<ApiResponse<LeaveRequestResponse>>> RejectLeaveRequest(Guid id, LeaveDecisionRequest request)
     {
         return await Decide(id, "Rejected", request.Remark);
     }
 
+    [HttpPost("{id:guid}/override-approve")]
+    [RequirePermission(LeavePermissions.Override)]
+    public async Task<ActionResult<ApiResponse<LeaveRequestResponse>>> OverrideApproveLeaveRequest(Guid id, LeaveOverrideDecisionRequest request)
+    {
+        return await OverrideDecide(id, "Approved", request.Reason);
+    }
+
+    [HttpPost("{id:guid}/override-reject")]
+    [RequirePermission(LeavePermissions.Override)]
+    public async Task<ActionResult<ApiResponse<LeaveRequestResponse>>> OverrideRejectLeaveRequest(Guid id, LeaveOverrideDecisionRequest request)
+    {
+        return await OverrideDecide(id, "Rejected", request.Reason);
+    }
+
     [HttpGet("{id:guid}/attachments")]
-    [RequirePermission("LeaveManagement.View")]
+    [RequireAnyPermission(LeavePermissions.ViewOwn, LeavePermissions.ViewPendingApproval, LeavePermissions.ViewDepartment, LeavePermissions.ViewAll)]
     public async Task<ActionResult<ApiResponse<IReadOnlyList<LeaveAttachmentResponse>>>> GetAttachments(Guid id)
     {
         var leaveRequest = await db.LeaveRequests.FirstOrDefaultAsync(item => item.Id == id);
@@ -365,7 +406,7 @@ public class LeaveRequestsController(
     }
 
     [HttpPost("{id:guid}/attachments")]
-    [RequirePermission("LeaveManagement.Edit")]
+    [RequirePermission(LeavePermissions.EditOwn)]
     public async Task<ActionResult<ApiResponse<LeaveAttachmentResponse>>> UploadAttachment(Guid id, IFormFile file)
     {
         var leaveRequest = await db.LeaveRequests.FirstOrDefaultAsync(item => item.Id == id);
@@ -433,6 +474,19 @@ public class LeaveRequestsController(
             return BadRequest(ApiResponse<LeaveRequestResponse>.Fail("ไม่พบขั้นตอนอนุมัติที่รอดำเนินการ"));
         }
 
+        if (leaveRequest.UserId == approverId)
+        {
+            await auditLogService.WriteAsync(
+                approverId,
+                "SelfApprovalBlocked",
+                "LeaveRequest",
+                leaveRequest.Id.ToString(),
+                $"Blocked self-approval for approval step {approval.StepOrder}.",
+                "Denied",
+                HttpContext);
+            return Forbid();
+        }
+
         if (approval.ApproverId != approverId || !await HasPermissionAsync(approval.RequiredPermissionCode))
         {
             return Forbid();
@@ -487,11 +541,117 @@ public class LeaveRequestsController(
         return ApiResponse<LeaveRequestResponse>.Ok(ToResponse(updated));
     }
 
+    private async Task<ActionResult<ApiResponse<LeaveRequestResponse>>> OverrideDecide(Guid id, string decision, string reason)
+    {
+        var overrideByUserId = GetCurrentUserId();
+        if (overrideByUserId is null)
+        {
+            return Unauthorized(ApiResponse<LeaveRequestResponse>.Fail("Invalid access token."));
+        }
+
+        if (string.IsNullOrWhiteSpace(reason))
+        {
+            return BadRequest(ApiResponse<LeaveRequestResponse>.Fail("กรุณาระบุเหตุผลการดำเนินการแทน"));
+        }
+
+        var leaveRequest = await db.LeaveRequests
+            .Include(item => item.Approvals)
+            .Include(item => item.User)
+            .Include(item => item.LeaveType)
+            .FirstOrDefaultAsync(item => item.Id == id);
+        if (leaveRequest is null)
+        {
+            return NotFound(ApiResponse<LeaveRequestResponse>.Fail("Leave request not found."));
+        }
+
+        if (leaveRequest.UserId == overrideByUserId)
+        {
+            await auditLogService.WriteAsync(
+                overrideByUserId,
+                "SelfApprovalBlocked",
+                "LeaveRequest",
+                leaveRequest.Id.ToString(),
+                "Blocked requester override attempt.",
+                "Denied",
+                HttpContext);
+            return Forbid();
+        }
+
+        if (leaveRequest.Status != "Pending")
+        {
+            return BadRequest(ApiResponse<LeaveRequestResponse>.Fail("Override ได้เฉพาะคำขอที่รออนุมัติเท่านั้น"));
+        }
+
+        var originalApproverId = leaveRequest.CurrentApproverId;
+        var pendingApproval = leaveRequest.Approvals
+            .OrderBy(item => item.StepOrder)
+            .FirstOrDefault(item => item.Status == "Pending");
+        if (pendingApproval is not null)
+        {
+            pendingApproval.Status = decision;
+            pendingApproval.Remark = $"[Override] {reason.Trim()}";
+            pendingApproval.ActionAt = DateTime.UtcNow;
+        }
+
+        foreach (var waitingApproval in leaveRequest.Approvals.Where(item => item.Status == "Waiting"))
+        {
+            waitingApproval.Status = "Skipped";
+            waitingApproval.Remark ??= "Skipped by override.";
+        }
+
+        if (decision == "Rejected")
+        {
+            leaveRequest.Status = "Rejected";
+            await UpdatePendingBalance(leaveRequest, -leaveRequest.TotalDays);
+            await leaveNotificationEventPublisher.PublishAsync("LeaveRejected", leaveRequest.Id, leaveRequest.UserId, HttpContext.RequestAborted);
+        }
+        else
+        {
+            leaveRequest.Status = "Approved";
+            await UpdatePendingBalance(leaveRequest, -leaveRequest.TotalDays);
+            await UpdateUsedBalance(leaveRequest, leaveRequest.TotalDays);
+            await leaveNotificationEventPublisher.PublishAsync("LeaveApproved", leaveRequest.Id, leaveRequest.UserId, HttpContext.RequestAborted);
+        }
+
+        leaveRequest.CurrentApproverId = null;
+        leaveRequest.UpdatedAt = DateTime.UtcNow;
+        db.ApprovalOverrideLogs.Add(new ApprovalOverrideLog
+        {
+            LeaveRequestId = leaveRequest.Id,
+            OriginalApproverId = originalApproverId,
+            OverrideByUserId = overrideByUserId.Value,
+            Action = decision,
+            Reason = reason.Trim(),
+            IpAddress = HttpContext.Connection.RemoteIpAddress?.ToString(),
+            UserAgent = HttpContext.Request.Headers.UserAgent.ToString()
+        });
+
+        await db.SaveChangesAsync();
+        await auditLogService.WriteAsync(
+            overrideByUserId,
+            decision == "Approved" ? "LeaveApproval.OverrideApproved" : "LeaveApproval.OverrideRejected",
+            "LeaveRequest",
+            leaveRequest.Id.ToString(),
+            $"Override {decision} by {overrideByUserId}. Reason: {reason.Trim()}",
+            "Success",
+            HttpContext);
+        if (originalApproverId is not null)
+        {
+            await leaveNotificationEventPublisher.PublishAsync("LeaveOverride", leaveRequest.Id, originalApproverId, HttpContext.RequestAborted);
+        }
+        await NotifyPlaceholder(leaveRequest, decision, reason);
+
+        var updated = await LoadLeaveRequests().SingleAsync(item => item.Id == id);
+        return ApiResponse<LeaveRequestResponse>.Ok(ToResponse(updated));
+    }
+
     private IQueryable<LeaveRequest> LoadLeaveRequests()
     {
         return db.LeaveRequests
             .AsNoTracking()
             .Include(item => item.User)
+                .ThenInclude(user => user!.UserRoles)
+                    .ThenInclude(userRole => userRole.Role)
             .Include(item => item.LeaveType)
             .Include(item => item.CurrentApprover)
                 .ThenInclude(user => user!.UserRoles)
@@ -548,12 +708,12 @@ public class LeaveRequestsController(
 
     private async Task<bool> CanAccessLeaveRequest(LeaveRequest leaveRequest)
     {
-        return leaveRequest.UserId == GetCurrentUserId() || await HasPermissionAsync("LeaveManagement.Approve");
+        return await leaveRequestAccessService.CanAccessLeaveRequestAsync(leaveRequest, GetCurrentUserId());
     }
 
     private async Task<bool> CanEditLeaveRequest(LeaveRequest leaveRequest)
     {
-        return leaveRequest.UserId == GetCurrentUserId() || await HasPermissionAsync("LeaveManagement.Manage");
+        return leaveRequest.UserId == GetCurrentUserId() && await HasPermissionAsync(LeavePermissions.EditOwn);
     }
 
     private async Task<bool> HasPermissionAsync(string permissionCode)
@@ -569,6 +729,23 @@ public class LeaveRequestsController(
             .Where(item => item.UserId == userId && item.Role != null && item.Role.IsActive)
             .SelectMany(item => item.Role!.RolePermissions)
             .AnyAsync(item => item.Permission != null && item.Permission.IsActive && item.Permission.Code == permissionCode);
+    }
+
+    private async Task<bool> CurrentUserHasAnyRoleAsync(params string[] roleNames)
+    {
+        var userId = GetCurrentUserId();
+        if (userId is null)
+        {
+            return false;
+        }
+
+        return await db.UserRoles
+            .AsNoTracking()
+            .AnyAsync(item =>
+                item.UserId == userId &&
+                item.Role != null &&
+                item.Role.IsActive &&
+                roleNames.Contains(item.Role.Name));
     }
 
     private async Task NotifyPlaceholder(LeaveRequest leaveRequest, string status, string? remark)
@@ -605,16 +782,18 @@ public class LeaveRequestsController(
             .FirstOrDefault(role => !string.IsNullOrWhiteSpace(role));
         var currentStepName = currentApproval?.StepName;
         var currentStatusLabel = GetCurrentStatusLabel(item.Status, currentStepName, item.CurrentApprover?.FullName);
-        var trackingMessage = GetTrackingMessage(item.Status, item.Id, currentStepName, item.CurrentApprover?.FullName);
+        var trackingMessage = GetTrackingMessage(item.Status, item.RequestNumber, item.Id, currentStepName, item.CurrentApprover?.FullName);
 
         return new LeaveRequestResponse(
             item.Id,
+            item.RequestNumber,
             item.UserId,
             item.User?.FullName,
             item.LeaveTypeId,
             item.LeaveType?.Name,
             item.StartDate,
             item.EndDate,
+            item.DurationType,
             item.TotalDays,
             item.Reason,
             item.Status,
@@ -646,9 +825,9 @@ public class LeaveRequestsController(
         };
     }
 
-    private static string GetTrackingMessage(string status, Guid requestId, string? currentStepName, string? currentApproverName)
+    private static string GetTrackingMessage(string status, string? requestNumber, Guid requestId, string? currentStepName, string? currentApproverName)
     {
-        var requestCode = requestId.ToString("N")[..8].ToUpperInvariant();
+        var requestCode = string.IsNullOrWhiteSpace(requestNumber) ? "-" : requestNumber;
         return status switch
         {
             "Draft" => $"คำขอลา {requestCode} ยังเป็นแบบร่าง",

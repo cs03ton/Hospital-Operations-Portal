@@ -15,7 +15,7 @@ namespace Hop.Api.Controllers;
 public class ApprovalEscalationRulesController(AppDbContext db, IAuditLogService auditLogService, IApprovalEscalationService escalationService) : ControllerBase
 {
     [HttpGet]
-    [RequirePermission("ApprovalDelegation.Manage")]
+    [RequirePermission(LeavePermissions.EscalationManage)]
     public async Task<ActionResult<ApiResponse<IReadOnlyList<ApprovalEscalationRuleResponse>>>> GetRules()
     {
         var items = await LoadRules().OrderBy(item => item.Name).Select(item => ToResponse(item)).ToListAsync();
@@ -23,7 +23,7 @@ public class ApprovalEscalationRulesController(AppDbContext db, IAuditLogService
     }
 
     [HttpPost]
-    [RequirePermission("ApprovalDelegation.Manage")]
+    [RequirePermission(LeavePermissions.EscalationManage)]
     public async Task<ActionResult<ApiResponse<ApprovalEscalationRuleResponse>>> CreateRule(SaveApprovalEscalationRuleRequest request)
     {
         if (request.EscalateAfterHours <= 0)
@@ -50,7 +50,7 @@ public class ApprovalEscalationRulesController(AppDbContext db, IAuditLogService
     }
 
     [HttpPut("{id:guid}")]
-    [RequirePermission("ApprovalDelegation.Manage")]
+    [RequirePermission(LeavePermissions.EscalationManage)]
     public async Task<ActionResult<ApiResponse<ApprovalEscalationRuleResponse>>> UpdateRule(Guid id, SaveApprovalEscalationRuleRequest request)
     {
         var rule = await db.ApprovalEscalationRules.FirstOrDefaultAsync(item => item.Id == id);
@@ -74,7 +74,7 @@ public class ApprovalEscalationRulesController(AppDbContext db, IAuditLogService
     }
 
     [HttpDelete("{id:guid}")]
-    [RequirePermission("ApprovalDelegation.Manage")]
+    [RequirePermission(LeavePermissions.EscalationManage)]
     public async Task<IActionResult> DeleteRule(Guid id)
     {
         var rule = await db.ApprovalEscalationRules.FirstOrDefaultAsync(item => item.Id == id);
@@ -91,7 +91,7 @@ public class ApprovalEscalationRulesController(AppDbContext db, IAuditLogService
     }
 
     [HttpPost("run")]
-    [RequirePermission("ApprovalDelegation.Manage")]
+    [RequirePermission(LeavePermissions.EscalationManage)]
     public async Task<ActionResult<ApiResponse<int>>> RunEscalation()
     {
         var count = await escalationService.EscalateOverdueApprovalsAsync(HttpContext.RequestAborted);

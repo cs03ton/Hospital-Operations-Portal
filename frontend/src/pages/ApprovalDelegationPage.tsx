@@ -17,11 +17,13 @@ import { ActionTooltip } from "../components/common/ActionTooltip";
 import { AppDatePicker } from "../components/common/AppDatePicker";
 import { PageHeader } from "../components/PageHeader";
 import { PermissionGuard } from "../context/PermissionContext";
+import { useNotification } from "../hooks/useNotification";
 import { formatThaiDate } from "../utils/dateFormat";
 import { getRoleLabel } from "../utils/roleLabels";
 
 export function ApprovalDelegationPage() {
   const queryClient = useQueryClient();
+  const { showInfo, showSuccess } = useNotification();
   const { data: users = [] } = useQuery({ queryKey: ["users"], queryFn: getUsers });
   const { data: roles = [] } = useQuery({ queryKey: ["roles"], queryFn: getRoles });
   const { data: delegations = [] } = useQuery({ queryKey: ["approval-delegations"], queryFn: getApprovalDelegations });
@@ -33,17 +35,41 @@ export function ApprovalDelegationPage() {
     queryClient.invalidateQueries({ queryKey: ["approval-delegations"] });
     queryClient.invalidateQueries({ queryKey: ["approval-escalation-rules"] });
   };
-  const createDelegationMutation = useMutation({ mutationFn: createApprovalDelegation, onSuccess: invalidate });
-  const createRuleMutation = useMutation({ mutationFn: createApprovalEscalationRule, onSuccess: invalidate });
-  const deactivateDelegationMutation = useMutation({ mutationFn: deactivateApprovalDelegation, onSuccess: invalidate });
-  const runEscalationMutation = useMutation({ mutationFn: runApprovalEscalation, onSuccess: invalidate });
+  const createDelegationMutation = useMutation({
+    mutationFn: createApprovalDelegation,
+    onSuccess: () => {
+      showSuccess("บันทึกการมอบหมายอนุมัติเรียบร้อยแล้ว");
+      invalidate();
+    },
+  });
+  const createRuleMutation = useMutation({
+    mutationFn: createApprovalEscalationRule,
+    onSuccess: () => {
+      showSuccess("เพิ่มกติกา Escalation เรียบร้อยแล้ว");
+      invalidate();
+    },
+  });
+  const deactivateDelegationMutation = useMutation({
+    mutationFn: deactivateApprovalDelegation,
+    onSuccess: () => {
+      showSuccess("ปิดใช้งานการมอบหมายอนุมัติเรียบร้อยแล้ว");
+      invalidate();
+    },
+  });
+  const runEscalationMutation = useMutation({
+    mutationFn: runApprovalEscalation,
+    onSuccess: () => {
+      showInfo("รัน Escalation เรียบร้อยแล้ว");
+      invalidate();
+    },
+  });
 
   return (
     <>
       <PageHeader title="มอบหมายและ Escalation งานอนุมัติ" subtitle="ตั้งผู้รับมอบหมายและกติกาการส่งต่อคำขอที่ค้างอนุมัติ" />
       {(createDelegationMutation.isError || createRuleMutation.isError || deactivateDelegationMutation.isError || runEscalationMutation.isError) && <Alert severity="error" sx={{ mb: 2 }}>ดำเนินการไม่สำเร็จ กรุณาตรวจสอบสิทธิ์หรือข้อมูลอีกครั้ง</Alert>}
       <Stack spacing={2}>
-        <PermissionGuard permission="ApprovalDelegation.Create">
+        <PermissionGuard permission="LeaveApproval.Delegate">
           <Card>
             <CardContent>
               <Typography variant="h6" sx={{ mb: 2 }}>เพิ่มการมอบหมายอนุมัติ</Typography>
@@ -91,7 +117,7 @@ export function ApprovalDelegationPage() {
                     <TableCell>{formatThaiDate(item.startDate)} - {formatThaiDate(item.endDate)}</TableCell>
                     <TableCell><Chip size="small" label={item.isActive ? "เปิดใช้งาน" : "ปิดใช้งาน"} color={item.isActive ? "success" : "default"} /></TableCell>
                     <TableCell align="right">
-                      <PermissionGuard permission="ApprovalDelegation.Delete" fallback="-">
+                      <PermissionGuard permission="LeaveApproval.Delegate" fallback="-">
                         <ActionTooltip title="ปิดใช้งานการมอบหมายนี้">
                           <Button size="small" color="warning" variant="outlined" startIcon={<BlockOutlinedIcon />} onClick={() => deactivateDelegationMutation.mutate(item.id)} disabled={!item.isActive || deactivateDelegationMutation.isPending}>ปิดใช้งาน</Button>
                         </ActionTooltip>
@@ -108,7 +134,7 @@ export function ApprovalDelegationPage() {
         <Card>
           <CardContent>
             <Typography variant="h6" sx={{ mb: 2 }}>กติกา Escalation</Typography>
-            <PermissionGuard permission="ApprovalDelegation.Manage">
+            <PermissionGuard permission="LeaveApproval.Delegate">
               <Stack direction={{ xs: "column", md: "row" }} spacing={1.5} alignItems={{ md: "center" }}>
                 <TextField size="small" label="ชื่อกติกา" InputLabelProps={{ shrink: true }} value={rule.name} onChange={(event) => setRule({ ...rule, name: event.target.value })} />
                 <TextField size="small" type="number" label="ค้างเกินกี่ชั่วโมง" InputLabelProps={{ shrink: true }} value={rule.escalateAfterHours} onChange={(event) => setRule({ ...rule, escalateAfterHours: Number(event.target.value) })} />

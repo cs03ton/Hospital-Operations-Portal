@@ -73,11 +73,13 @@ public class LeaveReportsController(AppDbContext db, IAuditLogService auditLogSe
             .OrderByDescending(item => item.CreatedAt)
             .Select(item => new LeaveReportItemResponse(
                 item.Id,
+                item.RequestNumber,
                 item.User != null ? item.User.FullName : null,
                 item.User != null && item.User.Department != null ? item.User.Department.Name : null,
                 item.LeaveType != null ? item.LeaveType.Name : null,
                 item.StartDate,
                 item.EndDate,
+                item.DurationType,
                 item.TotalDays,
                 item.Status,
                 item.CurrentApprover != null ? item.CurrentApprover.FullName : null
@@ -117,17 +119,19 @@ public class LeaveReportsController(AppDbContext db, IAuditLogService auditLogSe
         var rows = new List<IReadOnlyList<string>>
         {
             new[] { "รายงานการลา" },
-            new[] { "ชื่อ", "หน่วยงาน", "ประเภทลา", "วันที่เริ่ม", "วันที่สิ้นสุด", "จำนวนวัน", "สถานะ" }
+            new[] { "เลขที่คำขอ", "ชื่อ", "หน่วยงาน", "ประเภทลา", "วันที่เริ่ม", "วันที่สิ้นสุด", "ประเภทช่วงเวลา", "จำนวนวัน", "สถานะ" }
         };
 
         foreach (var item in report.LeaveRequests)
         {
             rows.Add([
+                SafeExcelCell(item.RequestNumber),
                 SafeExcelCell(item.Fullname),
                 SafeExcelCell(item.DepartmentName),
                 SafeExcelCell(item.LeaveTypeName),
                 item.StartDate.ToString("dd/MM/yyyy"),
                 item.EndDate.ToString("dd/MM/yyyy"),
+                TranslateDurationType(item.DurationType),
                 item.TotalDays.ToString("0.##"),
                 SafeExcelCell(item.Status)
             ]);
@@ -149,7 +153,7 @@ public class LeaveReportsController(AppDbContext db, IAuditLogService auditLogSe
             ]);
         }
 
-        return SimpleXlsxWriter.CreateWorkbook(rows, [24, 24, 18, 14, 14, 12, 14]);
+        return SimpleXlsxWriter.CreateWorkbook(rows, [18, 24, 24, 18, 14, 14, 18, 12, 14]);
     }
 
     internal static string SafeExcelCell(string? value)
@@ -161,6 +165,17 @@ public class LeaveReportsController(AppDbContext db, IAuditLogService auditLogSe
         }
 
         return normalized;
+    }
+
+    internal static string TranslateDurationType(string? durationType)
+    {
+        return durationType switch
+        {
+            "HALF_DAY_AM" => "ครึ่งวัน (เช้า)",
+            "HALF_DAY_PM" => "ครึ่งวัน (บ่าย)",
+            "FULL_DAY" or null or "" => "เต็มวัน",
+            _ => durationType
+        };
     }
 
     internal static IReadOnlyList<IReadOnlyList<PdfLine>> BuildPdfPages(LeaveReportResponse report)
@@ -179,13 +194,13 @@ public class LeaveReportsController(AppDbContext db, IAuditLogService auditLogSe
                 new($"จำนวนคำขอ: {report.LeaveRequests.Count}", 50, 760, 12),
                 new($"คำขอรออนุมัติ: {report.PendingApprovalCount}", 50, 742, 12),
                 new($"หน้า {pageIndex + 1}/{chunks.Length}", 500, 790, 10),
-                new("ชื่อ | หน่วยงาน | ประเภทลา | วันที่ | สถานะ", 50, 718, 10)
+                new("เลขที่คำขอ | ชื่อ | หน่วยงาน | ประเภทลา | ช่วงเวลา | วันที่ | จำนวนวัน | สถานะ", 50, 718, 10)
             };
 
             var y = 696;
             foreach (var item in chunks[pageIndex])
             {
-                lines.Add(new($"{item.Fullname ?? "-"} | {item.DepartmentName ?? "-"} | {item.LeaveTypeName ?? "-"} | {item.StartDate:dd/MM/yyyy}-{item.EndDate:dd/MM/yyyy} | {item.Status}", 50, y, 9));
+                lines.Add(new($"{item.RequestNumber ?? "-"} | {item.Fullname ?? "-"} | {item.DepartmentName ?? "-"} | {item.LeaveTypeName ?? "-"} | {TranslateDurationType(item.DurationType)} | {item.StartDate:dd/MM/yyyy}-{item.EndDate:dd/MM/yyyy} | {item.TotalDays:0.##} | {item.Status}", 50, y, 9));
                 y -= 18;
             }
 

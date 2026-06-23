@@ -19,6 +19,7 @@ import {
   type SaveDepartmentRequest,
 } from "../api/adminApi";
 import { PageHeader } from "../components/PageHeader";
+import { useNotification } from "../hooks/useNotification";
 
 type DepartmentFormValues = {
   name: string;
@@ -31,6 +32,7 @@ export function DepartmentFormPage() {
   const isEdit = Boolean(id);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { showSuccess } = useNotification();
 
   const {
     control,
@@ -67,6 +69,7 @@ export function DepartmentFormPage() {
       isEdit ? updateDepartment(id!, values) : createDepartment(values),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["departments"] });
+      showSuccess(isEdit ? "บันทึกข้อมูลหน่วยงานเรียบร้อยแล้ว" : "เพิ่มหน่วยงานเรียบร้อยแล้ว");
       navigate("/admin/departments");
     },
   });

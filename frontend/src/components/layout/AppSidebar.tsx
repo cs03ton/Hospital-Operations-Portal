@@ -31,17 +31,23 @@ export function AppSidebar({
 }: AppSidebarProps) {
   const theme = useTheme();
   const isDesktop = useMediaQuery(theme.breakpoints.up("md"));
-  const { hasPermission } = usePermission();
+  const { hasPermission, hasAnyPermission } = usePermission();
   const location = useLocation();
   const visibleModules = navigationModules
     .filter((module) => module.enabled)
     .map((module) => ({
       ...module,
-      children: module.children.filter((item) => !item.permission || hasPermission(item.permission)),
+      children: module.children.filter((item) => {
+        if (item.permissions?.length) {
+          return hasAnyPermission(item.permissions);
+        }
+
+        return !item.permission || hasPermission(item.permission);
+      }),
     }))
     .filter((module) => (!module.permission || hasPermission(module.permission)) && module.children.length > 0);
   const activeModule = visibleModules.find((module) =>
-    module.children.some((item) => isItemActive(location.pathname, item.path)),
+    module.children.some((item) => isItemActive(location.pathname, item)),
   );
   const moduleMenu = useModuleMenuState(
     visibleModules.map((module) => module.moduleId),
@@ -101,7 +107,7 @@ export function AppSidebar({
               key={module.moduleId}
               module={module}
               activePath={location.pathname}
-              isActive={module.children.some((item) => isItemActive(location.pathname, item.path))}
+              isActive={module.children.some((item) => isItemActive(location.pathname, item))}
               isOpen={moduleMenu.isModuleOpen(module.moduleId)}
               isCollapsed={isCollapsed && isDesktop}
               onToggle={() => moduleMenu.toggleModule(module.moduleId)}

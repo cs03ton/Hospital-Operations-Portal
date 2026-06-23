@@ -7,6 +7,7 @@ export type LeaveType = {
   name: string;
   description?: string | null;
   defaultDaysPerYear: number;
+  requiresBalance: boolean;
   requiresAttachment: boolean;
   isPaid: boolean;
   isActive: boolean;
@@ -16,12 +17,14 @@ export type SaveLeaveTypeRequest = Omit<LeaveType, "id">;
 
 export type LeaveRequest = {
   id: string;
+  requestNumber?: string | null;
   userId: string;
   fullname?: string | null;
   leaveTypeId: string;
   leaveTypeName?: string | null;
   startDate: string;
   endDate: string;
+  durationType: string;
   totalDays: number;
   reason: string;
   status: string;
@@ -41,6 +44,7 @@ export type SaveLeaveRequest = {
   leaveTypeId: string;
   startDate: string;
   endDate: string;
+  durationType?: string | null;
   totalDays: number;
   reason: string;
 };
@@ -97,6 +101,7 @@ export type ApprovalChain = {
   isActive: boolean;
   createdAt: string;
   updatedAt?: string | null;
+  userCount: number;
 };
 
 export type SaveApprovalChainRequest = {
@@ -130,6 +135,31 @@ export type SaveApprovalChainStepRequest = {
   approverUserId?: string | null;
   requiredPermissionCode: string;
   isActive: boolean;
+};
+
+export type ApprovalRulePreviewStep = {
+  stepOrder: number;
+  stepName: string;
+  approverId?: string | null;
+  approverName?: string | null;
+  approverRoleName?: string | null;
+  status: string;
+  warnings: string[];
+};
+
+export type ApprovalRulePreview = {
+  userId?: string | null;
+  fullname?: string | null;
+  approvalRuleId?: string | null;
+  approvalRuleName?: string | null;
+  isRuleActive: boolean;
+  steps: ApprovalRulePreviewStep[];
+  warnings: string[];
+};
+
+export type ResolveApprovalRulePreviewRequest = {
+  userId?: string | null;
+  approvalRuleId?: string | null;
 };
 
 export type LeaveBalanceAdjustment = {
@@ -217,6 +247,7 @@ export type LeaveCalendarItem = {
   leaveTypeName?: string | null;
   startDate: string;
   endDate: string;
+  durationType: string;
   totalDays: number;
   status: string;
 };
@@ -231,8 +262,11 @@ export type ApprovalDelegation = {
   endDate: string;
   reason: string;
   isActive: boolean;
+  createdByUserId?: string | null;
+  createdByName?: string | null;
   createdAt: string;
   updatedAt?: string | null;
+  cancelledAt?: string | null;
 };
 
 export type LeaveRequestQuery = {
@@ -282,11 +316,13 @@ export type SaveApprovalEscalationRuleRequest = {
 
 export type LeaveReportItem = {
   id: string;
+  requestNumber?: string | null;
   fullname?: string | null;
   departmentName?: string | null;
   leaveTypeName?: string | null;
   startDate: string;
   endDate: string;
+  durationType?: string | null;
   totalDays: number;
   status: string;
   currentApproverName?: string | null;
@@ -318,6 +354,7 @@ export type LeaveReportQuery = {
 
 export type PendingApprovalNotification = {
   requestId: string;
+  requestNumber?: string | null;
   employeeName?: string | null;
   leaveType?: string | null;
   startDate: string;
@@ -336,6 +373,71 @@ export type LeaveNotificationItem = {
   createdAt: string;
   unread: boolean;
   path: string;
+};
+
+export type LeaveSupportRequest = {
+  id: string;
+  requestNumber: string;
+  userId: string;
+  fullname?: string | null;
+  departmentName?: string | null;
+  leaveTypeName?: string | null;
+  startDate: string;
+  endDate: string;
+  durationType: string;
+  totalDays: number;
+  status: string;
+  currentApproverId?: string | null;
+  currentApproverName?: string | null;
+  createdAt: string;
+  submittedAt?: string | null;
+  updatedAt?: string | null;
+  isOverdue: boolean;
+  blockingReason?: string | null;
+};
+
+export type ApprovalOverrideLog = {
+  id: string;
+  leaveRequestId: string;
+  originalApproverId?: string | null;
+  originalApproverName?: string | null;
+  overrideByUserId: string;
+  overrideByName?: string | null;
+  action: string;
+  reason: string;
+  ipAddress?: string | null;
+  userAgent?: string | null;
+  createdAt: string;
+};
+
+export type SupportAuditLog = {
+  id: string;
+  userId?: string | null;
+  username?: string | null;
+  fullname?: string | null;
+  action: string;
+  resource: string;
+  resourceId?: string | null;
+  detail?: string | null;
+  ipAddress?: string | null;
+  result: string;
+  timestamp: string;
+};
+
+export type LeaveSupportDetail = {
+  request: LeaveSupportRequest;
+  approvals: LeaveApproval[];
+  overrideLogs: ApprovalOverrideLog[];
+  auditLogs: SupportAuditLog[];
+};
+
+export type LeaveSupportQuery = {
+  search?: string;
+  departmentId?: string;
+  status?: string;
+  currentApproverId?: string;
+  fromDate?: string;
+  toDate?: string;
 };
 
 export async function getLeaveTypes() {
@@ -446,6 +548,26 @@ export async function getMyNotifications() {
   return response.data.data;
 }
 
+export async function getLeaveSupportRequests(params?: LeaveSupportQuery) {
+  const response = await httpClient.get<ApiResponse<LeaveSupportRequest[]>>("/api/leave-support/requests", { params });
+  return response.data.data;
+}
+
+export async function getLeaveSupportDetail(id: string) {
+  const response = await httpClient.get<ApiResponse<LeaveSupportDetail>>(`/api/leave-support/requests/${id}`);
+  return response.data.data;
+}
+
+export async function overrideApproveLeaveRequest(id: string, reason: string) {
+  const response = await httpClient.post<ApiResponse<LeaveRequest>>(`/api/leave-requests/${id}/override-approve`, { reason });
+  return response.data.data;
+}
+
+export async function overrideRejectLeaveRequest(id: string, reason: string) {
+  const response = await httpClient.post<ApiResponse<LeaveRequest>>(`/api/leave-requests/${id}/override-reject`, { reason });
+  return response.data.data;
+}
+
 export async function getMyLeaveBalances() {
   const response = await httpClient.get<ApiResponse<LeaveBalance[]>>("/api/leave-balances/me");
   return response.data.data;
@@ -516,6 +638,11 @@ export async function updateApprovalChainStep(id: string, payload: SaveApprovalC
 
 export async function deleteApprovalChainStep(id: string) {
   await httpClient.delete(`/api/approval-chain-steps/${id}`);
+}
+
+export async function resolveApprovalRulePreview(payload: ResolveApprovalRulePreviewRequest) {
+  const response = await httpClient.post<ApiResponse<ApprovalRulePreview>>("/api/approval-chains/resolve-preview", payload);
+  return response.data.data;
 }
 
 export async function getLeaveBalanceAdjustments() {

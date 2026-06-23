@@ -24,6 +24,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<ApprovalChainStep> ApprovalChainSteps => Set<ApprovalChainStep>();
     public DbSet<ApprovalDelegation> ApprovalDelegations => Set<ApprovalDelegation>();
     public DbSet<ApprovalEscalationRule> ApprovalEscalationRules => Set<ApprovalEscalationRule>();
+    public DbSet<ApprovalOverrideLog> ApprovalOverrideLogs => Set<ApprovalOverrideLog>();
     public DbSet<LeaveBalanceAdjustment> LeaveBalanceAdjustments => Set<LeaveBalanceAdjustment>();
     public DbSet<LeaveHoliday> LeaveHolidays => Set<LeaveHoliday>();
     public DbSet<LineDeliveryLog> LineDeliveryLogs => Set<LineDeliveryLog>();
@@ -51,12 +52,17 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             entity.Property(item => item.Username).HasColumnName("username");
             entity.Property(item => item.PasswordHash).HasColumnName("password_hash");
             entity.Property(item => item.DepartmentId).HasColumnName("department_id");
+            entity.Property(item => item.LeaveApprovalRuleId).HasColumnName("leave_approval_rule_id");
             entity.Property(item => item.LineUserId).HasColumnName("line_user_id");
             entity.Property(item => item.IsActive).HasColumnName("is_active");
             entity.Property(item => item.CreatedAt).HasColumnName("created_at");
             entity.Property(item => item.UpdatedAt).HasColumnName("updated_at");
             entity.HasIndex(item => item.Username).IsUnique();
             entity.HasIndex(item => item.EmployeeCode).IsUnique();
+            entity.HasIndex(item => item.LeaveApprovalRuleId);
+            entity.HasOne(item => item.LeaveApprovalRule)
+                .WithMany()
+                .HasForeignKey(item => item.LeaveApprovalRuleId);
         });
 
         modelBuilder.Entity<Role>(entity =>
@@ -186,6 +192,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             entity.Property(item => item.Name).HasColumnName("name");
             entity.Property(item => item.Description).HasColumnName("description");
             entity.Property(item => item.DefaultDaysPerYear).HasColumnName("default_days_per_year");
+            entity.Property(item => item.RequiresBalance).HasColumnName("requires_balance").HasDefaultValue(true);
             entity.Property(item => item.RequiresAttachment).HasColumnName("requires_attachment");
             entity.Property(item => item.IsPaid).HasColumnName("is_paid");
             entity.Property(item => item.IsActive).HasColumnName("is_active");
@@ -219,10 +226,12 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         {
             entity.ToTable("leave_requests");
             entity.Property(item => item.Id).HasColumnName("id");
+            entity.Property(item => item.RequestNumber).HasColumnName("request_number").HasMaxLength(20);
             entity.Property(item => item.UserId).HasColumnName("user_id");
             entity.Property(item => item.LeaveTypeId).HasColumnName("leave_type_id");
             entity.Property(item => item.StartDate).HasColumnName("start_date");
             entity.Property(item => item.EndDate).HasColumnName("end_date");
+            entity.Property(item => item.DurationType).HasColumnName("duration_type").HasMaxLength(20).HasDefaultValue("FULL_DAY");
             entity.Property(item => item.TotalDays).HasColumnName("total_days");
             entity.Property(item => item.Reason).HasColumnName("reason");
             entity.Property(item => item.Status).HasColumnName("status");
@@ -230,6 +239,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             entity.Property(item => item.CreatedAt).HasColumnName("created_at");
             entity.Property(item => item.SubmittedAt).HasColumnName("submitted_at");
             entity.Property(item => item.UpdatedAt).HasColumnName("updated_at");
+            entity.HasIndex(item => item.RequestNumber).IsUnique();
             entity.HasIndex(item => new { item.UserId, item.Status });
             entity.HasOne(item => item.User)
                 .WithMany()
@@ -347,8 +357,10 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             entity.Property(item => item.EndDate).HasColumnName("end_date");
             entity.Property(item => item.Reason).HasColumnName("reason");
             entity.Property(item => item.IsActive).HasColumnName("is_active");
+            entity.Property(item => item.CreatedByUserId).HasColumnName("created_by");
             entity.Property(item => item.CreatedAt).HasColumnName("created_at");
             entity.Property(item => item.UpdatedAt).HasColumnName("updated_at");
+            entity.Property(item => item.CancelledAt).HasColumnName("cancelled_at");
             entity.HasIndex(item => new { item.ApproverUserId, item.StartDate, item.EndDate });
             entity.HasOne(item => item.ApproverUser)
                 .WithMany()
@@ -356,6 +368,34 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             entity.HasOne(item => item.DelegateUser)
                 .WithMany()
                 .HasForeignKey(item => item.DelegateUserId);
+            entity.HasOne(item => item.CreatedByUser)
+                .WithMany()
+                .HasForeignKey(item => item.CreatedByUserId);
+        });
+
+        modelBuilder.Entity<ApprovalOverrideLog>(entity =>
+        {
+            entity.ToTable("approval_override_logs");
+            entity.Property(item => item.Id).HasColumnName("id");
+            entity.Property(item => item.LeaveRequestId).HasColumnName("leave_request_id");
+            entity.Property(item => item.OriginalApproverId).HasColumnName("original_approver_id");
+            entity.Property(item => item.OverrideByUserId).HasColumnName("override_by_user_id");
+            entity.Property(item => item.Action).HasColumnName("action");
+            entity.Property(item => item.Reason).HasColumnName("reason");
+            entity.Property(item => item.IpAddress).HasColumnName("ip_address");
+            entity.Property(item => item.UserAgent).HasColumnName("user_agent");
+            entity.Property(item => item.CreatedAt).HasColumnName("created_at");
+            entity.HasIndex(item => item.LeaveRequestId);
+            entity.HasIndex(item => item.OverrideByUserId);
+            entity.HasOne(item => item.LeaveRequest)
+                .WithMany()
+                .HasForeignKey(item => item.LeaveRequestId);
+            entity.HasOne(item => item.OriginalApprover)
+                .WithMany()
+                .HasForeignKey(item => item.OriginalApproverId);
+            entity.HasOne(item => item.OverrideByUser)
+                .WithMany()
+                .HasForeignKey(item => item.OverrideByUserId);
         });
 
         modelBuilder.Entity<ApprovalEscalationRule>(entity =>

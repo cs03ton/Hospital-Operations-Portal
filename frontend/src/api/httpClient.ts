@@ -1,4 +1,5 @@
 import axios from "axios";
+import { notifyGlobal } from "../contexts/NotificationContext";
 import { authStorageKeys } from "../types/auth";
 
 const apiBaseUrl =
@@ -57,12 +58,14 @@ httpClient.interceptors.response.use(
     const originalRequest = error.config as typeof error.config & { _retry?: boolean };
 
     if (error.response?.status !== 401 || originalRequest?._retry) {
+      notifyHttpError(error);
       return Promise.reject(error);
     }
 
     const refreshToken = cookieTokenMode ? null : localStorage.getItem(authStorageKeys.refreshToken);
     if (!cookieTokenMode && !refreshToken) {
       clearStoredSession();
+      notifyGlobal("warning", "กรุณาเข้าสู่ระบบใหม่");
       return Promise.reject(error);
     }
 
@@ -84,11 +87,37 @@ httpClient.interceptors.response.use(
       return httpClient(originalRequest);
     } catch (refreshError) {
       clearStoredSession();
+      notifyGlobal("warning", "กรุณาเข้าสู่ระบบใหม่");
       window.location.assign("/login");
       return Promise.reject(refreshError);
     }
   },
 );
+
+function notifyHttpError(error: unknown) {
+  if (!axios.isAxiosError(error)) {
+    notifyGlobal("error", "เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง");
+    return;
+  }
+
+  if (!error.response) {
+    notifyGlobal("error", "ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้");
+    return;
+  }
+
+  if (error.response.status === 403) {
+    notifyGlobal("warning", "คุณไม่มีสิทธิ์ดำเนินการรายการนี้");
+    return;
+  }
+
+  if (error.response.status === 401) {
+    notifyGlobal("warning", "กรุณาเข้าสู่ระบบใหม่");
+    return;
+  }
+
+  const message = (error.response.data as { message?: string } | undefined)?.message;
+  notifyGlobal("error", message || "เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง");
+}
 
 function clearStoredSession() {
   localStorage.removeItem(authStorageKeys.accessToken);

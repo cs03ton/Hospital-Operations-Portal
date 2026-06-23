@@ -15,10 +15,11 @@ namespace Hop.Api.Controllers;
 public class LeaveAttachmentsController(
     AppDbContext db,
     IAuditLogService auditLogService,
-    ILeaveAttachmentStorageService attachmentStorage) : ControllerBase
+    ILeaveAttachmentStorageService attachmentStorage,
+    ILeaveRequestAccessService leaveRequestAccessService) : ControllerBase
 {
     [HttpGet("{id:guid}/download")]
-    [RequirePermission("LeaveAttachment.Download")]
+    [RequireAnyPermission(LeavePermissions.ViewOwn, LeavePermissions.ViewPendingApproval, LeavePermissions.ViewDepartment, LeavePermissions.ViewAll)]
     public async Task<IActionResult> DownloadAttachment(Guid id)
     {
         var attachment = await db.LeaveAttachments
@@ -33,7 +34,7 @@ public class LeaveAttachmentsController(
         }
 
         var userId = GetCurrentUserId();
-        if (!CanAccessAttachment(attachment, userId) && !await HasElevatedLeaveAccess(userId))
+        if (!await leaveRequestAccessService.CanAccessLeaveRequestAsync(attachment.LeaveRequest!, userId))
         {
             return Forbid();
         }
@@ -58,7 +59,7 @@ public class LeaveAttachmentsController(
     }
 
     [HttpDelete("{id:guid}")]
-    [RequirePermission("LeaveManagement.Edit")]
+    [RequirePermission(LeavePermissions.EditOwn)]
     public async Task<IActionResult> DeleteAttachment(Guid id)
     {
         var attachment = await db.LeaveAttachments
@@ -71,7 +72,7 @@ public class LeaveAttachmentsController(
         }
 
         var userId = GetCurrentUserId();
-        if (attachment.LeaveRequest?.UserId != userId && !await HasManagePermission(userId))
+        if (attachment.LeaveRequest?.UserId != userId || !await HasPermission(userId, LeavePermissions.EditOwn))
         {
             return Forbid();
         }
@@ -84,26 +85,9 @@ public class LeaveAttachmentsController(
         return NoContent();
     }
 
-    private static bool CanAccessAttachment(LeaveAttachment attachment, Guid? userId)
+    private async Task<bool> HasPermission(Guid? userId, string permissionCode)
     {
-        if (userId is null || attachment.LeaveRequest is null)
-        {
-            return false;
-        }
-
-        return attachment.LeaveRequest.UserId == userId ||
-            attachment.LeaveRequest.CurrentApproverId == userId ||
-            attachment.LeaveRequest.Approvals.Any(item => item.ApproverId == userId);
-    }
-
-    private async Task<bool> HasElevatedLeaveAccess(Guid? userId)
-    {
-        return await HasAnyPermission(userId, "LeaveManagement.Manage", "LeaveManagement.Approve");
-    }
-
-    private async Task<bool> HasManagePermission(Guid? userId)
-    {
-        return await HasAnyPermission(userId, "LeaveManagement.Manage");
+        return await HasAnyPermission(userId, permissionCode);
     }
 
     private async Task<bool> HasAnyPermission(Guid? userId, params string[] permissionCodes)

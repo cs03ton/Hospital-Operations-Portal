@@ -26,7 +26,9 @@ import {
   updateUser,
   type SaveUserRequest,
 } from "../api/adminApi";
+import { getApprovalChains } from "../api/leaveApi";
 import { PageHeader } from "../components/PageHeader";
+import { useNotification } from "../hooks/useNotification";
 import { getRoleLabel } from "../utils/roleLabels";
 
 type UserFormValues = {
@@ -36,6 +38,7 @@ type UserFormValues = {
   password: string;
   roleIds: string[];
   departmentId: string;
+  leaveApprovalRuleId: string;
   lineUserId: string;
   isActive: boolean;
 };
@@ -45,12 +48,14 @@ export function UserFormPage() {
   const isEdit = Boolean(id);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { showSuccess } = useNotification();
 
   const { data: departments = [] } = useQuery({
     queryKey: ["departments"],
     queryFn: getDepartments,
   });
   const { data: roles = [] } = useQuery({ queryKey: ["roles"], queryFn: getRoles });
+  const { data: approvalRules = [] } = useQuery({ queryKey: ["approval-chains"], queryFn: getApprovalChains });
 
   const {
     control,
@@ -66,6 +71,7 @@ export function UserFormPage() {
       password: "",
       roleIds: [],
       departmentId: "",
+      leaveApprovalRuleId: "",
       lineUserId: "",
       isActive: true,
     },
@@ -86,6 +92,7 @@ export function UserFormPage() {
         password: "",
         roleIds: editingUser.roleIds,
         departmentId: editingUser.departmentId ?? "",
+        leaveApprovalRuleId: editingUser.leaveApprovalRuleId ?? "",
         lineUserId: editingUser.lineUserId ?? "",
         isActive: editingUser.isActive,
       });
@@ -96,6 +103,7 @@ export function UserFormPage() {
     mutationFn: (values: SaveUserRequest) => (isEdit ? updateUser(id!, values) : createUser(values)),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["users"] });
+      showSuccess(isEdit ? "บันทึกข้อมูลผู้ใช้งานเรียบร้อยแล้ว" : "เพิ่มผู้ใช้งานเรียบร้อยแล้ว");
       navigate("/admin/users");
     },
   });
@@ -108,6 +116,7 @@ export function UserFormPage() {
       password: values.password || undefined,
       roleIds: values.roleIds,
       departmentId: values.departmentId || null,
+      leaveApprovalRuleId: values.leaveApprovalRuleId || null,
       lineUserId: values.lineUserId || null,
       isActive: values.isActive,
     });
@@ -193,6 +202,28 @@ export function UserFormPage() {
                 </FormControl>
               )}
             />
+            <Controller
+              name="leaveApprovalRuleId"
+              control={control}
+              render={({ field }) => (
+                <FormControl fullWidth>
+                  <InputLabel shrink>กฎการอนุมัติวันลา</InputLabel>
+                  <Select label="กฎการอนุมัติวันลา" {...field}>
+                    <MenuItem value="">ยังไม่กำหนด</MenuItem>
+                    {approvalRules
+                      .filter((rule) => rule.isActive)
+                      .map((rule) => (
+                        <MenuItem key={rule.id} value={rule.id}>
+                          {formatApprovalRuleLabel(rule.name, rule.description)}
+                        </MenuItem>
+                      ))}
+                  </Select>
+                  <Box sx={{ mt: 0.5, color: "text.secondary", fontSize: 12 }}>
+                    ใช้กำหนดเส้นทางอนุมัติเมื่อผู้ใช้งานส่งคำขอลา
+                  </Box>
+                </FormControl>
+              )}
+            />
             <TextField
               fullWidth
               label="LINE User ID"
@@ -227,4 +258,8 @@ export function UserFormPage() {
       </Card>
     </>
   );
+}
+
+function formatApprovalRuleLabel(name: string, description?: string | null) {
+  return description ? `${name} : ${description}` : name;
 }

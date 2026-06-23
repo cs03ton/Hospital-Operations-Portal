@@ -11,6 +11,7 @@ import EventBusyOutlinedIcon from "@mui/icons-material/EventBusyOutlined";
 import FactCheckOutlinedIcon from "@mui/icons-material/FactCheckOutlined";
 import GroupOutlinedIcon from "@mui/icons-material/GroupOutlined";
 import HistoryOutlinedIcon from "@mui/icons-material/HistoryOutlined";
+import ManageSearchOutlinedIcon from "@mui/icons-material/ManageSearchOutlined";
 import Inventory2OutlinedIcon from "@mui/icons-material/Inventory2Outlined";
 import MeetingRoomOutlinedIcon from "@mui/icons-material/MeetingRoomOutlined";
 import RequestQuoteOutlinedIcon from "@mui/icons-material/RequestQuoteOutlined";
@@ -19,6 +20,13 @@ import WarehouseOutlinedIcon from "@mui/icons-material/WarehouseOutlined";
 import TuneOutlinedIcon from "@mui/icons-material/TuneOutlined";
 import type { SvgIconComponent } from "@mui/icons-material";
 import type { NavigationItem } from "../types/navigation";
+
+const leaveViewPermissions = [
+  "LeaveRequest.ViewOwn",
+  "LeaveRequest.ViewPendingApproval",
+  "LeaveRequest.ViewDepartment",
+  "LeaveRequest.ViewAll",
+];
 
 export type NavigationModule = {
   moduleId: string;
@@ -37,15 +45,16 @@ export const navigationModules: NavigationModule[] = [
     enabled: true,
     children: [
       { label: "แดชบอร์ดการลา", path: "/dashboard", icon: DashboardOutlinedIcon, permission: "Dashboard.View" },
-      { label: "งานรออนุมัติของฉัน", path: "/leave/pending-approvals", icon: FactCheckOutlinedIcon, permission: "LeaveManagement.Approve" },
-      { label: "รายการคำขอลา", path: "/leave", icon: EventAvailableOutlinedIcon, permission: "LeaveManagement.View" },
-      { label: "ปฏิทินการลา", path: "/leave/calendar", icon: CalendarMonthOutlinedIcon, permission: "LeaveManagement.View" },
-      { label: "วันลาคงเหลือ", path: "/leave/balances", icon: AccountBalanceWalletOutlinedIcon, permission: "LeaveManagement.View" },
-      { label: "จัดการวันลาคงเหลือ", path: "/admin/leave-balances", icon: AccountBalanceWalletOutlinedIcon, permission: "LeaveBalance.Manage" },
-      { label: "ประเภทการลา", path: "/leave/types", icon: TuneOutlinedIcon, permission: "LeaveManagement.Manage" },
-      { label: "สายอนุมัติวันลา", path: "/admin/approval-chains", icon: AccountTreeOutlinedIcon, permission: "ApprovalChain.View" },
-      { label: "มอบหมายอนุมัติ", path: "/admin/approval-delegations", icon: AccountTreeOutlinedIcon, permission: "ApprovalDelegation.View" },
-      { label: "วันหยุดราชการ", path: "/admin/leave-holidays", icon: EventBusyOutlinedIcon, permission: "LeaveHoliday.Manage" },
+      { label: "งานรออนุมัติของฉัน", path: "/leave/pending-approvals", icon: FactCheckOutlinedIcon, permission: "LeaveRequest.ViewPendingApproval", activePatterns: ["/leave/pending-approvals"] },
+      { label: "รายการคำขอลา", path: "/leave", icon: EventAvailableOutlinedIcon, permissions: leaveViewPermissions, activePatterns: ["/leave", "/leave/:id"] },
+      { label: "ปฏิทินการลา", path: "/leave/calendar", icon: CalendarMonthOutlinedIcon, permissions: leaveViewPermissions, activePatterns: ["/leave/calendar"] },
+      { label: "วันลาคงเหลือ", path: "/leave/balances", icon: AccountBalanceWalletOutlinedIcon, permission: "LeaveRequest.ViewOwn", activePatterns: ["/leave/balances"] },
+      { label: "จัดการวันลาคงเหลือ", path: "/admin/leave-balances", icon: AccountBalanceWalletOutlinedIcon, permission: "LeaveAdmin.ManageBalances" },
+      { label: "ประเภทการลา", path: "/leave/types", icon: TuneOutlinedIcon, permissions: ["LeaveRequest.Create", "LeaveAdmin.ManageTypes"], activePatterns: ["/leave/types"] },
+      { label: "กฎการอนุมัติวันลา", path: "/admin/approval-chains", icon: AccountTreeOutlinedIcon, permission: "LeaveAdmin.ManageApprovalChains" },
+      { label: "มอบหมายอนุมัติ", path: "/admin/approval-delegations", icon: AccountTreeOutlinedIcon, permission: "LeaveApproval.Delegate" },
+      { label: "วันหยุดราชการ", path: "/admin/leave-holidays", icon: EventBusyOutlinedIcon, permission: "LeaveAdmin.ManageHolidays" },
+      { label: "ช่วยเหลือระบบลา", path: "/admin/leave-support", icon: ManageSearchOutlinedIcon, permission: "LeaveSupport.ViewAll" },
       { label: "รายงานการลา", path: "/reports/leaves", icon: BarChartOutlinedIcon, permission: "ReportManagement.View" },
     ],
   },

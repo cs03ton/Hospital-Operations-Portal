@@ -13,6 +13,7 @@ type LeaveCalendarToolbarProps = {
   months: string[];
   departments: DepartmentSummary[];
   leaveTypes: LeaveType[];
+  showDepartmentFilter?: boolean;
   onMonthChange: (value: number) => void;
   onYearChange: (value: number) => void;
   onDepartmentChange: (value: string) => void;
@@ -30,6 +31,7 @@ export function LeaveCalendarToolbar({
   months,
   departments,
   leaveTypes,
+  showDepartmentFilter = true,
   onMonthChange,
   onYearChange,
   onDepartmentChange,
@@ -58,16 +60,18 @@ export function LeaveCalendarToolbar({
               ))}
             </TextField>
           </Grid>
-          <Grid item xs={12} sm={6} md={3}>
-            <TextField select fullWidth size="small" label="หน่วยงาน" value={departmentId} onChange={(event) => onDepartmentChange(event.target.value)}>
-              <MenuItem value="">ทุกหน่วยงาน</MenuItem>
-              {departments.map((item) => (
-                <MenuItem key={item.id} value={item.id}>
-                  {item.name}
-                </MenuItem>
-              ))}
-            </TextField>
-          </Grid>
+          {showDepartmentFilter && (
+            <Grid item xs={12} sm={6} md={3}>
+              <TextField select fullWidth size="small" label="หน่วยงาน" value={departmentId} onChange={(event) => onDepartmentChange(event.target.value)}>
+                <MenuItem value="">ทุกหน่วยงาน</MenuItem>
+                {departments.map((item) => (
+                  <MenuItem key={item.id} value={item.id}>
+                    {item.name}
+                  </MenuItem>
+                ))}
+              </TextField>
+            </Grid>
+          )}
           <Grid item xs={12} sm={6} md={3}>
             <TextField select fullWidth size="small" label="ประเภทการลา" value={leaveTypeId} onChange={(event) => onLeaveTypeChange(event.target.value)}>
               <MenuItem value="">ทุกประเภทลา</MenuItem>

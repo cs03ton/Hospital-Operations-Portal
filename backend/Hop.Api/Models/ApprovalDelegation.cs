@@ -9,9 +9,12 @@ public class ApprovalDelegation
     public DateOnly EndDate { get; set; }
     public string Reason { get; set; } = string.Empty;
     public bool IsActive { get; set; } = true;
+    public Guid? CreatedByUserId { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? UpdatedAt { get; set; }
+    public DateTime? CancelledAt { get; set; }
 
     public User? ApproverUser { get; set; }
     public User? DelegateUser { get; set; }
+    public User? CreatedByUser { get; set; }
 }

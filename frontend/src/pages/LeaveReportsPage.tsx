@@ -10,7 +10,7 @@ import { ActionTooltip } from "../components/common/ActionTooltip";
 import { AppDatePicker } from "../components/common/AppDatePicker";
 import { PermissionGuard } from "../context/PermissionContext";
 import { formatThaiDate } from "../utils/dateFormat";
-import { getLeaveStatusLabel, getLeaveTypeLabel } from "../utils/leaveLabels";
+import { getLeaveStatusLabel, getLeaveTypeLabel, getLeaveTypeWithDurationLabel } from "../utils/leaveLabels";
 
 export function LeaveReportsPage() {
   const [filters, setFilters] = useState<LeaveReportQuery>({});
@@ -82,7 +82,7 @@ export function LeaveReportsPage() {
                 <TableRow key={item.id}>
                   <TableCell>{item.fullname ?? "-"}</TableCell>
                   <TableCell>{item.departmentName ?? "-"}</TableCell>
-                  <TableCell>{getLeaveTypeLabel(item.leaveTypeName)}</TableCell>
+                  <TableCell>{getLeaveTypeWithDurationLabel(item.leaveTypeName, item.durationType)}</TableCell>
                   <TableCell>{formatThaiDate(item.startDate)} - {formatThaiDate(item.endDate)}</TableCell>
                   <TableCell>{item.totalDays}</TableCell>
                   <TableCell>{getLeaveStatusLabel(item.status)}</TableCell>

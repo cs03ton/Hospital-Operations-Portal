@@ -3,14 +3,19 @@ import { Card, CardContent, Chip, IconButton, Table, TableBody, TableCell, Table
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { getSessions, revokeSession } from "../api/securityApi";
 import { PageHeader } from "../components/PageHeader";
+import { useNotification } from "../hooks/useNotification";
 import { formatThaiDateTime } from "../utils/dateFormat";
 
 export function SessionManagementPage() {
   const queryClient = useQueryClient();
+  const { showSuccess } = useNotification();
   const { data = [], isLoading } = useQuery({ queryKey: ["sessions"], queryFn: getSessions });
   const revokeMutation = useMutation({
     mutationFn: revokeSession,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["sessions"] }),
+    onSuccess: () => {
+      showSuccess("ยกเลิกเซสชันเรียบร้อยแล้ว");
+      queryClient.invalidateQueries({ queryKey: ["sessions"] });
+    },
   });
 
   return (
