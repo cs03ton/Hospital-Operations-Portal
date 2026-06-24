@@ -2,6 +2,17 @@
 
 ระบบรองรับการสร้าง PDF แบบฟอร์มใบลาจาก template mapping สำหรับนำข้อมูลคำขอลาไปวางในตำแหน่งที่กำหนด
 
+## Standard Template
+
+ชื่อ template:
+
+```text
+Universal Leave Form
+Version: 1.0
+```
+
+ฟอร์มกลางนี้รองรับการลาทุกประเภทในเอกสารเดียว โดยใช้ checkbox สำหรับประเภทลาและช่วงเวลาลา ระบบเติมข้อมูลจากคำขอลา ข้อมูลส่วนตัวของผู้ใช้ ยอดวันลา ไฟล์แนบ และสายอนุมัติอัตโนมัติ
+
 ## Template Location
 
 วางไฟล์ config ไว้ที่:
@@ -34,7 +45,7 @@ Phase นี้รองรับ JSON field mapping สำหรับสร้
 ```json
 {
   "documentSettings": {
-    "fontFamily": "TH Sarabun New",
+    "fontFamily": "TH SarabunPSK",
     "fontSize": 16,
     "lineHeight": 1.2
   }
@@ -58,16 +69,43 @@ docs/PDF-TEMPLATE-STYLING.md
 | `position` | ตำแหน่ง/บทบาทจาก role ผู้ใช้งาน |
 | `departmentName` | หน่วยงาน |
 | `phoneNumber` | เบอร์โทรศัพท์จากข้อมูลส่วนตัว |
+| `email` | อีเมล ถ้ายังไม่มีข้อมูลจะแสดง `-` |
 | `leaveContactAddress` | ที่อยู่ระหว่างลา / ที่อยู่ติดต่อ |
 | `leaveTypeName` | ประเภทลา |
+| `leaveTypeCheckboxLine1` | checkbox ลาป่วย/ลากิจ/ลาพักผ่อน/ลาคลอด/ลาอุปสมบท |
+| `leaveTypeCheckboxLine2` | checkbox ประเภทลาอื่น ๆ |
 | `startDate` | วันที่เริ่มลา |
 | `endDate` | วันที่สิ้นสุด |
 | `totalDays` | จำนวนวัน |
 | `durationType` | เต็มวัน / ครึ่งวันเช้า / ครึ่งวันบ่าย |
+| `durationCheckboxes` | checkbox เต็มวัน/ครึ่งวันเช้า/ครึ่งวันบ่าย |
+| `workingDays` | จำนวนวันทำการในช่วงลา |
+| `holidayDays` | จำนวนวันหยุดราชการในช่วงลา |
+| `weekendDays` | จำนวนวันเสาร์-อาทิตย์ในช่วงลา |
+| `balanceBefore` | วันลาคงเหลือก่อนลา |
+| `balanceUsedThisRequest` | จำนวนวันที่ใช้ครั้งนี้ |
+| `balancePending` | จำนวนวันที่รออนุมัติ |
+| `balanceAfterApproval` | คงเหลือหลังอนุมัติ |
 | `reason` | เหตุผล |
+| `attachmentCheckboxes` | checkbox เอกสารแนบ |
+| `attachmentCount` | จำนวนไฟล์แนบ |
 | `submittedAt` | วันที่ยื่นคำขอ |
 | `status` | สถานะคำขอ |
 | `currentApproverName` | ผู้อนุมัติปัจจุบัน |
+| `finalApprovalCheckboxes` | ผลการพิจารณา อนุมัติ/ไม่อนุมัติ |
+| `finalApproverName` | ผู้อนุมัติขั้นสุดท้าย |
+| `finalActionAt` | วันที่อนุมัติ/ไม่อนุมัติขั้นสุดท้าย |
+| `finalRemark` | เหตุผลหรือหมายเหตุขั้นสุดท้าย |
+| `headApproverName` | ชื่อหัวหน้าผู้อนุมัติ |
+| `headApprovalStatus` | สถานะการอนุมัติของหัวหน้า |
+| `headApprovalActionAt` | วันที่หัวหน้าดำเนินการ |
+| `headApprovalRemark` | ความเห็นของหัวหน้า |
+| `directorApproverName` | ชื่อผู้อำนวยการผู้อนุมัติ |
+| `directorApprovalStatus` | สถานะการอนุมัติของผู้อำนวยการ |
+| `directorApprovalActionAt` | วันที่ผู้อำนวยการดำเนินการ |
+| `directorApprovalRemark` | ความเห็นของผู้อำนวยการ |
+| `generatedAt` | วันที่สร้างเอกสาร |
+| `applicationVersion` | version ของระบบ |
 
 ## Approval Row Fields
 
@@ -78,6 +116,7 @@ docs/PDF-TEMPLATE-STYLING.md
 | `{{stepOrder}}` | ลำดับขั้น |
 | `{{stepName}}` | ชื่อขั้นอนุมัติ |
 | `{{approverName}}` | ชื่อผู้อนุมัติ |
+| `{{approverPosition}}` | ตำแหน่งหรือบทบาทของผู้อนุมัติ |
 | `{{status}}` | สถานะการอนุมัติ |
 | `{{actionAt}}` | วันที่ดำเนินการ |
 | `{{remark}}` | หมายเหตุ |

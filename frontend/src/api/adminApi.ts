@@ -6,6 +6,7 @@ export type UserSummary = {
   employeeCode?: string | null;
   fullname: string;
   username: string;
+  email?: string | null;
   roleIds: string[];
   roles: string[];
   departmentId?: string | null;
@@ -128,6 +129,11 @@ export type SystemSettings = {
   themePrimaryColor: string;
   themeSecondaryColor: string;
   applicationVersion: string;
+  pdfTemplateConfigPath: string;
+  pdfFontPath: string;
+  pdfFontFamily: string;
+  pdfFontSize: number;
+  pdfLineHeight: number;
   lineEnabled: boolean;
   lineChannelAccessTokenConfigured: boolean;
   lineEndpoint: string;

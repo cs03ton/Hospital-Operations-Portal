@@ -7,6 +7,7 @@ export type UserProfile = {
   fullname: string;
   username: string;
   position?: string | null;
+  email?: string | null;
   phoneNumber?: string | null;
   leaveContactAddress?: string | null;
   profileImageUrl?: string | null;
@@ -23,6 +24,7 @@ export type UserProfile = {
 export type UpdateUserProfileRequest = {
   fullname: string;
   position?: string | null;
+  email?: string | null;
   phoneNumber?: string | null;
   leaveContactAddress?: string | null;
   profileImageUrl?: string | null;

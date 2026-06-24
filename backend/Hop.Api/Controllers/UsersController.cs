@@ -225,6 +225,7 @@ public class UsersController(AppDbContext db, IAuditLogService auditLogService) 
             user.FullName,
             user.Username,
             user.Position,
+            user.Email,
             user.PhoneNumber,
             user.LeaveContactAddress,
             user.ProfileImageUrl,

@@ -8,6 +8,7 @@ public class User
     public string Username { get; set; } = string.Empty;
     public string PasswordHash { get; set; } = string.Empty;
     public string? Position { get; set; }
+    public string? Email { get; set; }
     public string? PhoneNumber { get; set; }
     public string? LeaveContactAddress { get; set; }
     public string? ProfileImageUrl { get; set; }

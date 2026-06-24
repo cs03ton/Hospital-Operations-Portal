@@ -99,9 +99,9 @@ export function LeaveRequestDetailPage() {
       link.click();
       link.remove();
       window.URL.revokeObjectURL(url);
-      showSuccess("ดาวน์โหลดแบบฟอร์มใบลาเรียบร้อยแล้ว");
+      showSuccess("ดาวน์โหลดเอกสารคำขอลาเรียบร้อยแล้ว");
     } catch {
-      showError("ดาวน์โหลดแบบฟอร์มใบลาไม่สำเร็จ");
+      showError("ดาวน์โหลดเอกสารคำขอลาไม่สำเร็จ");
     } finally {
       setIsDownloadingPdf(false);
     }
@@ -143,9 +143,9 @@ export function LeaveRequestDetailPage() {
                 </Button>
               </ActionTooltip>
               <PermissionGuard permissions={["LeaveRequest.ViewOwn", "LeaveRequest.ViewPendingApproval", "LeaveRequest.ViewDepartment", "LeaveRequest.ViewAll"]}>
-                <ActionTooltip title="ดาวน์โหลดแบบฟอร์มใบลา">
+                <ActionTooltip title="ดาวน์โหลดเอกสารคำขอลา">
                   <Button variant="contained" startIcon={<DownloadOutlinedIcon />} disabled={isDownloadingPdf} onClick={handleDownloadPdf}>
-                    {isDownloadingPdf ? "กำลังสร้าง PDF..." : "ดาวน์โหลดแบบฟอร์มใบลา"}
+                    {isDownloadingPdf ? "กำลังสร้าง PDF..." : "ดาวน์โหลดเอกสารคำขอลา"}
                   </Button>
                 </ActionTooltip>
               </PermissionGuard>

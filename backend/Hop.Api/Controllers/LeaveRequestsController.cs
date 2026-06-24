@@ -112,6 +112,7 @@ public class LeaveRequestsController(
                     .ThenInclude(userRole => userRole.Role)
             .Include(item => item.LeaveType)
             .Include(item => item.CurrentApprover)
+            .Include(item => item.Attachments)
             .Include(item => item.Approvals)
                 .ThenInclude(approval => approval.Approver)
             .FirstOrDefaultAsync(item => item.Id == id);
@@ -130,7 +131,23 @@ public class LeaveRequestsController(
             ?? configuration["VITE_HOSPITAL_NAME"]
             ?? configuration["Vite:HospitalName"]
             ?? "Hospital";
-        var pdfBytes = leavePdfService.GenerateLeaveRequestPdf(leaveRequest, hospitalName);
+        var applicationVersion = configuration["Application:Version"] ?? configuration["APP_VERSION"] ?? "0.1.0";
+        var leaveBalance = await db.LeaveBalances
+            .AsNoTracking()
+            .FirstOrDefaultAsync(item =>
+                item.UserId == leaveRequest.UserId &&
+                item.LeaveTypeId == leaveRequest.LeaveTypeId &&
+                item.Year == leaveRequest.StartDate.Year);
+        var holidays = await db.LeaveHolidays
+            .AsNoTracking()
+            .Where(item =>
+                item.IsActive &&
+                item.HolidayDate >= leaveRequest.StartDate &&
+                item.HolidayDate <= leaveRequest.EndDate)
+            .ToListAsync();
+        var pdfBytes = leavePdfService.GenerateLeaveRequestPdf(
+            leaveRequest,
+            new LeavePdfRenderContext(hospitalName, applicationVersion, leaveBalance, holidays));
         await auditLogService.WriteAsync(GetCurrentUserId(), "LeaveRequest.PdfGenerated", "LeaveRequest", leaveRequest.Id.ToString(), "Generated leave request PDF.", "Success", HttpContext);
 
         var fileName = string.IsNullOrWhiteSpace(leaveRequest.RequestNumber)

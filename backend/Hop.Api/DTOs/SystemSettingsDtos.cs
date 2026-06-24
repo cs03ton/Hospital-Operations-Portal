@@ -8,6 +8,11 @@ public record SystemSettingsResponse(
     string ThemePrimaryColor,
     string ThemeSecondaryColor,
     string ApplicationVersion,
+    string PdfTemplateConfigPath,
+    string PdfFontPath,
+    string PdfFontFamily,
+    int PdfFontSize,
+    double PdfLineHeight,
     bool LineEnabled,
     bool LineChannelAccessTokenConfigured,
     string LineEndpoint

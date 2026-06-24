@@ -16,6 +16,7 @@ namespace Hop.Api.Controllers;
 public class MeProfileController(AppDbContext db, IAuditLogService auditLogService) : ControllerBase
 {
     private static readonly Regex PhoneRegex = new(@"^[0-9+\-\s()]{6,30}$", RegexOptions.Compiled);
+    private static readonly Regex EmailRegex = new(@"^[^@\s]+@[^@\s]+\.[^@\s]+$", RegexOptions.Compiled);
 
     [HttpGet]
     public async Task<ActionResult<ApiResponse<UserProfileResponse>>> GetProfile()
@@ -56,6 +57,12 @@ public class MeProfileController(AppDbContext db, IAuditLogService auditLogServi
             return BadRequest(ApiResponse<UserProfileResponse>.Fail("รูปแบบเบอร์โทรศัพท์ไม่ถูกต้อง"));
         }
 
+        var email = NormalizeOptional(request.Email);
+        if (!string.IsNullOrWhiteSpace(email) && !EmailRegex.IsMatch(email))
+        {
+            return BadRequest(ApiResponse<UserProfileResponse>.Fail("รูปแบบอีเมลไม่ถูกต้อง"));
+        }
+
         var updatedFields = new List<string>();
         if (user.FullName != fullname)
         {
@@ -63,6 +70,7 @@ public class MeProfileController(AppDbContext db, IAuditLogService auditLogServi
             updatedFields.Add("fullname");
         }
         UpdateIfChanged(user.Position, NormalizeOptional(request.Position), "position", value => user.Position = value, updatedFields);
+        UpdateIfChanged(user.Email, email, "email", value => user.Email = value, updatedFields);
         UpdateIfChanged(user.PhoneNumber, phoneNumber, "phoneNumber", value => user.PhoneNumber = value, updatedFields);
         UpdateIfChanged(user.LeaveContactAddress, NormalizeOptional(request.LeaveContactAddress), "leaveContactAddress", value => user.LeaveContactAddress = value, updatedFields);
         UpdateIfChanged(user.ProfileImageUrl, NormalizeOptional(request.ProfileImageUrl), "profileImageUrl", value => user.ProfileImageUrl = value, updatedFields);
@@ -128,6 +136,7 @@ public class MeProfileController(AppDbContext db, IAuditLogService auditLogServi
             user.FullName,
             user.Username,
             user.Position,
+            user.Email,
             user.PhoneNumber,
             user.LeaveContactAddress,
             user.ProfileImageUrl,

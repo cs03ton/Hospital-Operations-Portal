@@ -56,6 +56,21 @@ export function SystemSettingsPage() {
 
         <Card>
           <CardContent>
+            <Typography variant="h6" sx={{ mb: 2 }}>
+              ตั้งค่าเอกสาร PDF
+            </Typography>
+            <Grid container spacing={2}>
+              <Setting label="Template Config" value={data.pdfTemplateConfigPath} />
+              <Setting label="Font Path" value={data.pdfFontPath} />
+              <Setting label="Font Family" value={data.pdfFontFamily} />
+              <Setting label="Font Size" value={`${data.pdfFontSize} pt`} />
+              <Setting label="Line Height" value={`${data.pdfLineHeight}`} />
+            </Grid>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent>
             <Stack direction="row" spacing={1.5} alignItems="center" sx={{ mb: 2 }}>
               {data.lineEnabled && data.lineChannelAccessTokenConfigured ? (
                 <CheckCircleOutlineIcon color="success" />

@@ -4,19 +4,63 @@ using System.Text;
 using System.Text.Json;
 using Hop.Api.Interfaces;
 using Hop.Api.Models;
+using QuestPDF.Drawing;
+using QuestPDF.Fluent;
+using QuestPDF.Helpers;
+using QuestPDF.Infrastructure;
 
 namespace Hop.Api.Services;
 
 public sealed class LeavePdfService(IWebHostEnvironment environment, IConfiguration configuration) : ILeavePdfService
 {
-    public byte[] GenerateLeaveRequestPdf(LeaveRequest leaveRequest, string hospitalName)
+    private static readonly object FontRegistrationLock = new();
+    private static readonly HashSet<string> RegisteredFontKeys = [];
+
+    public byte[] GenerateLeaveRequestPdf(LeaveRequest leaveRequest, LeavePdfRenderContext context)
     {
-        var lines = TryBuildTemplateLines(leaveRequest, hospitalName) ?? BuildLines(leaveRequest, hospitalName);
-        var logo = TryLoadLogo();
-        return SimplePdfWriter.CreateA4(lines, logo);
+        return GenerateQuestPdf(leaveRequest, context);
     }
 
-    private IReadOnlyList<PdfLine>? TryBuildTemplateLines(LeaveRequest leaveRequest, string hospitalName)
+    private byte[] GenerateQuestPdf(LeaveRequest leaveRequest, LeavePdfRenderContext context)
+    {
+        QuestPDF.Settings.License = LicenseType.Community;
+        var templateSettings = ResolveDocumentSettings(TryLoadTemplateConfig()?.DocumentSettings);
+        var fontFamily = RegisterThaiFont(templateSettings.FontFamily);
+        var values = BuildFieldValues(leaveRequest, context);
+        var approvals = leaveRequest.Approvals.OrderBy(item => item.StepOrder).ToList();
+        var logoPath = TryResolveLogoPath();
+
+        return Document.Create(container =>
+        {
+            container.Page(page =>
+            {
+                page.Size(PageSizes.A4);
+                page.Margin(20, Unit.Millimetre);
+                page.PageColor(Colors.White);
+                page.DefaultTextStyle(style => style
+                    .FontFamily(fontFamily)
+                    .FontSize(templateSettings.FontSize)
+                    .LineHeight((float)templateSettings.LineHeight));
+
+                page.Header().Element(header => ComposeHeader(header, values, logoPath, fontFamily));
+                page.Content().PaddingTop(8).Column(column =>
+                {
+                    column.Spacing(8);
+                    column.Item().Element(item => ComposeEmployeeSection(item, values));
+                    column.Item().Element(item => ComposeLeaveSection(item, values));
+                    column.Item().Element(item => ComposeBalanceSection(item, values));
+                    column.Item().Element(item => ComposeReasonSection(item, values));
+                    column.Item().Element(item => ComposeAttachmentSection(item, values));
+                    column.Item().Element(item => ComposeApprovalSection(item, approvals));
+                    column.Item().Element(item => ComposeApproverCommentsSection(item, values));
+                    column.Item().Element(item => ComposeFinalApprovalSection(item, values));
+                });
+                page.Footer().Element(footer => ComposeFooter(footer, values));
+            });
+        }).GeneratePdf();
+    }
+
+    private IReadOnlyList<PdfLine>? TryBuildTemplateLines(LeaveRequest leaveRequest, LeavePdfRenderContext context)
     {
         var template = TryLoadTemplateConfig();
         if (template is null)
@@ -24,8 +68,8 @@ public sealed class LeavePdfService(IWebHostEnvironment environment, IConfigurat
             return null;
         }
 
-        var values = BuildFieldValues(leaveRequest, hospitalName);
-        var documentSettings = template.DocumentSettings ?? new DocumentTemplateSettings();
+        var values = BuildFieldValues(leaveRequest, context);
+        var documentSettings = ResolveDocumentSettings(template.DocumentSettings);
         var lines = new List<PdfLine>();
         foreach (var item in template.StaticText)
         {
@@ -112,6 +156,15 @@ public sealed class LeavePdfService(IWebHostEnvironment environment, IConfigurat
         return fontSize is > 0 ? fontSize.Value : settings.FontSize;
     }
 
+    private DocumentTemplateSettings ResolveDocumentSettings(DocumentTemplateSettings? templateSettings)
+    {
+        var settings = templateSettings ?? new DocumentTemplateSettings();
+        settings.FontFamily = configuration["LeavePdf:FontFamily"] ?? configuration["LEAVE_PDF_FONT_FAMILY"] ?? settings.FontFamily;
+        settings.FontSize = configuration.GetValue("LeavePdf:FontSize", configuration.GetValue("LEAVE_PDF_FONT_SIZE", settings.FontSize));
+        settings.LineHeight = configuration.GetValue("LeavePdf:LineHeight", configuration.GetValue("LEAVE_PDF_LINE_HEIGHT", settings.LineHeight));
+        return settings;
+    }
+
     private static double ResolveLineHeight(double? lineHeight, DocumentTemplateSettings settings)
     {
         return lineHeight is > 0 ? lineHeight.Value : settings.LineHeight;
@@ -143,67 +196,399 @@ public sealed class LeavePdfService(IWebHostEnvironment environment, IConfigurat
         return null;
     }
 
-    private static IReadOnlyList<PdfLine> BuildLines(LeaveRequest leaveRequest, string hospitalName)
+    private string? TryResolveLogoPath()
     {
-        var requester = leaveRequest.User?.FullName ?? "-";
-        var department = leaveRequest.User?.Department?.Name ?? "-";
-        var leaveType = leaveRequest.LeaveType?.Name ?? "-";
-        var currentApprover = leaveRequest.CurrentApprover?.FullName ?? "-";
+        var configuredPath = configuration["Branding:LogoPath"];
+        var candidates = new[]
+        {
+            configuredPath,
+            Path.Combine(environment.ContentRootPath, "assets", "logo", "hospital-logo.png"),
+            Path.GetFullPath(Path.Combine(environment.ContentRootPath, "..", "..", "frontend", "src", "assets", "logo", "hospital-logo.png"))
+        };
+
+        return candidates
+            .Where(path => !string.IsNullOrWhiteSpace(path))
+            .FirstOrDefault(File.Exists);
+    }
+
+    private string RegisterThaiFont(string preferredFontFamily)
+    {
+        var configuredPath = configuration["LeavePdf:FontPath"] ?? configuration["LEAVE_PDF_FONT_PATH"];
+        var fontCandidates = new[]
+        {
+            configuredPath,
+            Path.Combine(environment.ContentRootPath, "assets", "fonts", "THSarabunPSK.ttf"),
+            Path.Combine(environment.ContentRootPath, "assets", "fonts", "TH SarabunPSK.ttf"),
+            Path.Combine(environment.ContentRootPath, "assets", "fonts", "THSarabunNew.ttf"),
+            Path.Combine(environment.ContentRootPath, "assets", "fonts", "NotoSansThai-Regular.ttf"),
+            Path.GetFullPath(Path.Combine(environment.ContentRootPath, "..", "..", "assets", "fonts", "THSarabunPSK.ttf")),
+            Path.GetFullPath(Path.Combine(environment.ContentRootPath, "..", "..", "assets", "fonts", "TH SarabunPSK.ttf")),
+            Path.GetFullPath(Path.Combine(environment.ContentRootPath, "..", "..", "assets", "fonts", "THSarabunNew.ttf")),
+            Path.GetFullPath(Path.Combine(environment.ContentRootPath, "..", "..", "assets", "fonts", "NotoSansThai-Regular.ttf")),
+            @"C:\Windows\Fonts\THSarabunPSK.ttf",
+            @"C:\Windows\Fonts\TH SarabunPSK.ttf",
+            @"C:\Windows\Fonts\THSarabunNew.ttf",
+            @"C:\Windows\Fonts\THSarabun.ttf",
+            @"C:\Windows\Fonts\tahoma.ttf",
+            @"C:\Windows\Fonts\LeelawUI.ttf"
+        };
+
+        var fontPath = fontCandidates
+            .Where(path => !string.IsNullOrWhiteSpace(path))
+            .FirstOrDefault(File.Exists);
+
+        if (fontPath is null)
+        {
+            return string.IsNullOrWhiteSpace(preferredFontFamily) ? "Tahoma" : preferredFontFamily;
+        }
+
+        var fontKey = $"HOPThai::{Path.GetFileNameWithoutExtension(fontPath)}";
+        lock (FontRegistrationLock)
+        {
+            if (RegisteredFontKeys.Add(fontKey))
+            {
+                using var stream = File.OpenRead(fontPath);
+                FontManager.RegisterFontWithCustomName(fontKey, stream);
+            }
+        }
+
+        return fontKey;
+    }
+
+    private static void ComposeHeader(IContainer container, IReadOnlyDictionary<string, string> values, string? logoPath, string fontFamily)
+    {
+        container.Column(column =>
+        {
+            column.Item().Row(row =>
+            {
+                row.ConstantItem(62).Height(58).Element(logo =>
+                {
+                    if (!string.IsNullOrWhiteSpace(logoPath) && File.Exists(logoPath))
+                    {
+                        logo.Image(logoPath).FitArea();
+                    }
+                    else
+                    {
+                        logo.Border(1).BorderColor(Colors.Grey.Lighten2).AlignCenter().AlignMiddle().Text("LOGO").FontSize(10);
+                    }
+                });
+                row.RelativeItem().PaddingLeft(12).Column(headerText =>
+                {
+                    headerText.Item().Text(values["hospitalName"]).FontFamily(fontFamily).FontSize(18).Bold();
+                    headerText.Item().Text("Hospital Operations Portal").FontSize(12);
+                    headerText.Item().Text("ใบคำขอลา").FontSize(20).Bold();
+                });
+                row.ConstantItem(170).AlignRight().Column(meta =>
+                {
+                    meta.Item().Text($"เลขที่คำขอ: {values["requestNumber"]}").FontSize(13).SemiBold();
+                    meta.Item().Text($"วันที่ยื่น: {values["submittedAt"]}").FontSize(13);
+                });
+            });
+
+            column.Item().PaddingTop(6).LineHorizontal(1).LineColor(Colors.Grey.Lighten1);
+        });
+    }
+
+    private static void ComposeEmployeeSection(IContainer container, IReadOnlyDictionary<string, string> values)
+    {
+        Section(container, "ข้อมูลผู้ขอลา", body =>
+        {
+            body.Column(column =>
+            {
+                column.Item().Row(row =>
+                {
+                    row.RelativeItem().Element(item => LabelValue(item, "รหัสพนักงาน", values["employeeCode"]));
+                    row.RelativeItem().Element(item => LabelValue(item, "ชื่อ-นามสกุล", values["requesterName"]));
+                });
+                column.Item().Row(row =>
+                {
+                    row.RelativeItem().Element(item => LabelValue(item, "ตำแหน่ง", values["position"]));
+                    row.RelativeItem().Element(item => LabelValue(item, "หน่วยงาน", values["departmentName"]));
+                });
+                column.Item().Row(row =>
+                {
+                    row.RelativeItem().Element(item => LabelValue(item, "เบอร์โทรศัพท์", values["phoneNumber"]));
+                    row.RelativeItem().Element(item => LabelValue(item, "อีเมล", values["email"]));
+                });
+                column.Item().Element(item => LabelValue(item, "ที่อยู่ระหว่างลา", values["leaveContactAddress"]));
+            });
+        });
+    }
+
+    private static void ComposeLeaveSection(IContainer container, IReadOnlyDictionary<string, string> values)
+    {
+        Section(container, "ข้อมูลการลา", body =>
+        {
+            body.Column(column =>
+            {
+                column.Spacing(4);
+                column.Item().Text("ประเภทการลา").FontSize(14).Bold();
+                column.Item().Text(values["leaveTypeCheckboxLine1"]).FontSize(14);
+                column.Item().Text(values["leaveTypeCheckboxLine2"]).FontSize(14);
+                column.Item().Text("รูปแบบการลา").FontSize(14).Bold();
+                column.Item().Text(values["durationCheckboxes"]).FontSize(14);
+                column.Item().Row(row =>
+                {
+                    row.RelativeItem().Element(item => LabelValue(item, "ตั้งแต่วันที่", values["startDate"]));
+                    row.RelativeItem().Element(item => LabelValue(item, "ถึงวันที่", values["endDate"]));
+                    row.RelativeItem().Element(item => LabelValue(item, "จำนวนวันลา", $"{values["totalDays"]} วัน"));
+                });
+                column.Item().Row(row =>
+                {
+                    row.RelativeItem().Element(item => LabelValue(item, "วันทำการ", values["workingDays"]));
+                    row.RelativeItem().Element(item => LabelValue(item, "วันหยุดราชการ", values["holidayDays"]));
+                    row.RelativeItem().Element(item => LabelValue(item, "วันเสาร์-อาทิตย์", values["weekendDays"]));
+                });
+            });
+        });
+    }
+
+    private static void ComposeBalanceSection(IContainer container, IReadOnlyDictionary<string, string> values)
+    {
+        Section(container, "วันลาคงเหลือ", body =>
+        {
+            body.Row(row =>
+            {
+                row.RelativeItem().Element(item => LabelValue(item, "ก่อนลา", values["balanceBefore"]));
+                row.RelativeItem().Element(item => LabelValue(item, "ใช้ครั้งนี้", values["balanceUsedThisRequest"]));
+                row.RelativeItem().Element(item => LabelValue(item, "รออนุมัติ", values["balancePending"]));
+                row.RelativeItem().Element(item => LabelValue(item, "คงเหลือหลังอนุมัติ", values["balanceAfterApproval"]));
+            });
+        });
+    }
+
+    private static void ComposeReasonSection(IContainer container, IReadOnlyDictionary<string, string> values)
+    {
+        Section(container, "เหตุผลการลา", body =>
+        {
+            body.MinHeight(42).Text(values["reason"]).FontSize(14);
+        });
+    }
+
+    private static void ComposeAttachmentSection(IContainer container, IReadOnlyDictionary<string, string> values)
+    {
+        Section(container, "เอกสารแนบ", body =>
+        {
+            body.Column(column =>
+            {
+                column.Item().Text(values["attachmentCheckboxes"]).FontSize(14);
+                column.Item().Text($"จำนวนไฟล์แนบ: {values["attachmentCount"]}").FontSize(14);
+            });
+        });
+    }
+
+    private static void ComposeApprovalSection(IContainer container, IReadOnlyList<LeaveApproval> approvals)
+    {
+        Section(container, "การอนุมัติ", body =>
+        {
+            if (approvals.Count == 0)
+            {
+                body.Text("ยังไม่มีข้อมูลสายการอนุมัติ").FontSize(14);
+                return;
+            }
+
+            body.Table(table =>
+            {
+                table.ColumnsDefinition(columns =>
+                {
+                    columns.ConstantColumn(42);
+                    columns.RelativeColumn(1.2f);
+                    columns.RelativeColumn(1.2f);
+                    columns.RelativeColumn(1f);
+                    columns.RelativeColumn(1f);
+                    columns.RelativeColumn(1.2f);
+                });
+
+                HeaderCell(table, "ขั้น");
+                HeaderCell(table, "ผู้อนุมัติ");
+                HeaderCell(table, "ตำแหน่ง");
+                HeaderCell(table, "สถานะ");
+                HeaderCell(table, "วันที่ดำเนินการ");
+                HeaderCell(table, "หมายเหตุ");
+
+                foreach (var approval in approvals)
+                {
+                    var item = BuildApprovalValues(approval);
+                    BodyCell(table, item["stepOrder"]);
+                    BodyCell(table, item["approverName"]);
+                    BodyCell(table, item["approverPosition"]);
+                    BodyCell(table, item["status"]);
+                    BodyCell(table, item["actionAt"]);
+                    BodyCell(table, item["remark"]);
+                }
+            });
+        });
+    }
+
+    private static void ComposeApproverCommentsSection(IContainer container, IReadOnlyDictionary<string, string> values)
+    {
+        Section(container, "ความเห็นผู้อนุมัติ", body =>
+        {
+            body.Row(row =>
+            {
+                row.RelativeItem().Element(item => ApprovalCommentCard(
+                    item,
+                    "ความเห็นหัวหน้า",
+                    values["headApproverName"],
+                    values["headApprovalStatus"],
+                    values["headApprovalActionAt"],
+                    values["headApprovalRemark"]));
+
+                row.RelativeItem().Element(item => ApprovalCommentCard(
+                    item,
+                    "ความเห็นผู้อำนวยการ",
+                    values["directorApproverName"],
+                    values["directorApprovalStatus"],
+                    values["directorApprovalActionAt"],
+                    values["directorApprovalRemark"]));
+            });
+        });
+    }
+
+    private static void ComposeFinalApprovalSection(IContainer container, IReadOnlyDictionary<string, string> values)
+    {
+        Section(container, "ผลการพิจารณา", body =>
+        {
+            body.Row(row =>
+            {
+                row.RelativeItem().Text(values["finalApprovalCheckboxes"]).FontSize(14);
+                row.RelativeItem().Element(item => LabelValue(item, "ชื่อผู้อนุมัติ", values["finalApproverName"]));
+                row.RelativeItem().Element(item => LabelValue(item, "วันที่อนุมัติ", values["finalActionAt"]));
+            });
+        });
+    }
+
+    private static void ApprovalCommentCard(IContainer container, string title, string approverName, string status, string actionAt, string remark)
+    {
+        container.PaddingRight(6)
+            .Border(1)
+            .BorderColor(Colors.Grey.Lighten2)
+            .Padding(6)
+            .Column(column =>
+            {
+                column.Spacing(3);
+                column.Item().Text(title).FontSize(14).Bold();
+                column.Item().Text($"ผู้อนุมัติ: {approverName}").FontSize(12);
+                column.Item().Text($"สถานะ: {status}").FontSize(12);
+                column.Item().Text($"วันที่ดำเนินการ: {actionAt}").FontSize(12);
+                column.Item().Text($"ความเห็น: {remark}").FontSize(12);
+            });
+    }
+
+    private static void ComposeFooter(IContainer container, IReadOnlyDictionary<string, string> values)
+    {
+        container.AlignCenter().Text(text =>
+        {
+            text.DefaultTextStyle(style => style.FontSize(10).FontColor(Colors.Grey.Darken1));
+            text.Span($"สร้างโดย Hospital Operations Portal | Version {values["applicationVersion"]} | Generated At {values["generatedAt"]} | Copyright © {values["hospitalName"]}");
+        });
+    }
+
+    private static void Section(IContainer container, string title, Action<IContainer> content)
+    {
+        container.Border(1)
+            .BorderColor(Colors.Grey.Lighten2)
+            .Padding(8)
+            .Column(column =>
+            {
+                column.Spacing(6);
+                column.Item().Text(title).FontSize(16).Bold();
+                column.Item().Element(content);
+            });
+    }
+
+    private static void LabelValue(IContainer container, string label, string value)
+    {
+        container.PaddingRight(6).Column(column =>
+        {
+            column.Item().Text(label).FontSize(10).FontColor(Colors.Grey.Darken1);
+            column.Item().Text(string.IsNullOrWhiteSpace(value) ? "-" : value).FontSize(14);
+        });
+    }
+
+    private static void HeaderCell(TableDescriptor table, string text)
+    {
+        table.Cell().Background(Colors.Grey.Lighten3).Border(1).BorderColor(Colors.Grey.Lighten1).Padding(4).Text(text).FontSize(11).Bold();
+    }
+
+    private static void BodyCell(TableDescriptor table, string text)
+    {
+        table.Cell().Border(1).BorderColor(Colors.Grey.Lighten2).Padding(4).Text(string.IsNullOrWhiteSpace(text) ? "-" : text).FontSize(10);
+    }
+
+    private static IReadOnlyList<PdfLine> BuildLines(LeaveRequest leaveRequest, LeavePdfRenderContext context)
+    {
+        var values = BuildFieldValues(leaveRequest, context);
         var approvals = leaveRequest.Approvals.OrderBy(item => item.StepOrder).ToList();
 
         var lines = new List<PdfLine>
         {
-            new("แบบฟอร์มใบลา", 50, 790, 20),
-            new(hospitalName, 50, 766, 15),
-            new("Hospital Operations Portal", 50, 746, 10),
-            new("LOGO", 490, 776, 18),
-            new($"เลขที่คำขอ: {leaveRequest.RequestNumber ?? "-"}", 50, 726, 12),
-            new("ข้อมูลผู้ขอลา", 50, 710, 15),
-            new($"ชื่อผู้ขอลา: {requester}", 70, 686, 12),
-            new($"หน่วยงาน: {department}", 70, 666, 12),
-            new($"ประเภทการลา: {leaveType}", 70, 646, 12),
-            new($"ประเภทช่วงเวลา: {TranslateDurationType(leaveRequest.DurationType)}", 70, 626, 12),
-            new($"วันที่ลา: {FormatDate(leaveRequest.StartDate)} - {FormatDate(leaveRequest.EndDate)}", 70, 606, 12),
-            new($"จำนวนวัน: {leaveRequest.TotalDays:0.##}", 70, 586, 12),
-            new($"เหตุผล: {leaveRequest.Reason}", 70, 566, 12),
-            new($"สถานะ: {TranslateStatus(leaveRequest.Status)}", 70, 546, 12),
-            new($"ผู้อนุมัติปัจจุบัน: {currentApprover}", 70, 526, 12),
-            new("ประวัติการอนุมัติ", 50, 492, 15)
+            new(values["hospitalName"], 50, 790, 18),
+            new("Hospital Operations Portal", 50, 770, 14),
+            new("ใบคำขอลา", 50, 746, 20),
+            new($"เลขที่คำขอ: {values["requestNumber"]}", 50, 724, 14),
+            new($"วันที่ยื่น: {values["submittedAt"]}", 330, 724, 14),
+            new("ข้อมูลผู้ขอลา", 50, 696, 16),
+            new($"รหัสพนักงาน: {values["employeeCode"]}", 70, 674, 14),
+            new($"ชื่อ-นามสกุล: {values["requesterName"]}", 270, 674, 14),
+            new($"ตำแหน่ง: {values["position"]}", 70, 654, 14),
+            new($"หน่วยงาน: {values["departmentName"]}", 270, 654, 14),
+            new($"เบอร์โทรศัพท์: {values["phoneNumber"]}", 70, 634, 14),
+            new($"อีเมล: {values["email"]}", 270, 634, 14),
+            new($"ที่อยู่ระหว่างลา: {values["leaveContactAddress"]}", 70, 614, 14),
+            new("ประเภทการลา", 50, 586, 16),
+            new(values["leaveTypeCheckboxLine1"], 70, 564, 14),
+            new(values["leaveTypeCheckboxLine2"], 70, 544, 14),
+            new("รูปแบบและระยะเวลาการลา", 50, 516, 16),
+            new(values["durationCheckboxes"], 70, 494, 14),
+            new($"ตั้งแต่วันที่: {values["startDate"]}   ถึงวันที่: {values["endDate"]}   จำนวนวันลา: {values["totalDays"]} วัน", 70, 474, 14),
+            new($"วันทำการ: {values["workingDays"]}   วันหยุดราชการ: {values["holidayDays"]}   วันเสาร์-อาทิตย์: {values["weekendDays"]}", 70, 454, 14),
+            new("วันลาคงเหลือ", 50, 426, 16),
+            new($"ก่อนลา: {values["balanceBefore"]}   ใช้ครั้งนี้: {values["balanceUsedThisRequest"]}   รออนุมัติ: {values["balancePending"]}   คงเหลือหลังอนุมัติ: {values["balanceAfterApproval"]}", 70, 404, 14),
+            new("เหตุผลการลา", 50, 376, 16),
+            new(values["reason"], 70, 354, 14),
+            new("เอกสารแนบ", 50, 326, 16),
+            new($"{values["attachmentCheckboxes"]}   จำนวนไฟล์แนบ: {values["attachmentCount"]}", 70, 304, 14),
+            new("สายอนุมัติ", 50, 276, 16)
         };
 
         if (approvals.Count == 0)
         {
-            lines.Add(new("ยังไม่มีประวัติการอนุมัติ", 70, 486, 12));
+            lines.Add(new("ยังไม่มีข้อมูลสายการอนุมัติ", 70, 254, 14));
         }
         else
         {
-            var y = 468;
+            var y = 254;
             foreach (var approval in approvals)
             {
-                var approver = approval.Approver?.FullName ?? "-";
-                var actionAt = approval.ActionAt is null
-                    ? "-"
-                    : approval.ActionAt.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm", CultureInfo.InvariantCulture);
+                var approvalValues = BuildApprovalValues(approval);
                 lines.Add(new(
-                    $"{approval.StepOrder}. {approval.StepName ?? "ขั้นอนุมัติ"} - {approver} - {TranslateStatus(approval.Status)} - {actionAt}",
+                    $"ขั้นที่ {approvalValues["stepOrder"]}: {approvalValues["stepName"]} | {approvalValues["approverName"]} | {approvalValues["approverPosition"]} | {approvalValues["status"]} | {approvalValues["actionAt"]}",
                     70,
                     y,
-                    11));
+                    13));
+                y -= 16;
+                lines.Add(new($"ความเห็น: {approvalValues["remark"]}", 90, y, 12));
                 y -= 18;
-                if (y < 150)
+                if (y < 154)
                 {
                     break;
                 }
             }
         }
 
-        lines.Add(new("ลายเซ็นผู้ขอลา ______________________________", 70, 110, 12));
-        lines.Add(new("ลายเซ็นผู้อนุมัติ ____________________________", 330, 110, 12));
+        lines.Add(new($"ความเห็นหัวหน้า: {values["headApprovalRemark"]}", 70, 140, 13));
+        lines.Add(new($"ผู้อนุมัติ: {values["headApproverName"]} | สถานะ: {values["headApprovalStatus"]} | วันที่: {values["headApprovalActionAt"]}", 90, 124, 12));
+        lines.Add(new($"ความเห็นผู้อำนวยการ: {values["directorApprovalRemark"]}", 70, 108, 13));
+        lines.Add(new($"ผู้อนุมัติ: {values["directorApproverName"]} | สถานะ: {values["directorApprovalStatus"]} | วันที่: {values["directorApprovalActionAt"]}", 90, 92, 12));
+        lines.Add(new("ผลการพิจารณา", 50, 76, 16));
+        lines.Add(new($"{values["finalApprovalCheckboxes"]}   ผู้อนุมัติขั้นสุดท้าย: {values["finalApproverName"]}   วันที่: {values["finalActionAt"]}", 70, 62, 13));
+        lines.Add(new($"สร้างโดย Hospital Operations Portal Version {values["applicationVersion"]} | Generated At {values["generatedAt"]} | Copyright © {values["hospitalName"]}", 50, 42, 10));
 
         return lines;
     }
 
-    private static Dictionary<string, string> BuildFieldValues(LeaveRequest leaveRequest, string hospitalName)
+    private static Dictionary<string, string> BuildFieldValues(LeaveRequest leaveRequest, LeavePdfRenderContext context)
     {
         var requester = leaveRequest.User?.FullName ?? "-";
         var employeeCode = leaveRequest.User?.EmployeeCode ?? "-";
@@ -213,26 +598,64 @@ public sealed class LeavePdfService(IWebHostEnvironment environment, IConfigurat
             : leaveRequest.User?.UserRoles.Select(item => item.Role?.Name).FirstOrDefault(item => !string.IsNullOrWhiteSpace(item)) ?? "-";
         var leaveType = leaveRequest.LeaveType?.Name ?? "-";
         var submittedAt = leaveRequest.SubmittedAt is null ? "-" : FormatDateTime(leaveRequest.SubmittedAt.Value);
+        var businessDays = CountBusinessDays(leaveRequest.StartDate, leaveRequest.EndDate, context.Holidays);
+        var weekendDays = CountWeekendDays(leaveRequest.StartDate, leaveRequest.EndDate);
+        var holidayDays = context.Holidays.Count;
+        var balanceBefore = context.LeaveBalance is null ? (decimal?)null : context.LeaveBalance.EntitledDays - context.LeaveBalance.UsedDays - context.LeaveBalance.PendingDays;
+        decimal? balanceAfterApproval = balanceBefore is null ? null : balanceBefore.Value - leaveRequest.TotalDays;
+        var finalApproval = leaveRequest.Approvals
+            .OrderByDescending(item => item.StepOrder)
+            .FirstOrDefault(item => item.Status is "Approved" or "Rejected");
+        var headApproval = ResolveHeadApproval(leaveRequest.Approvals);
+        var directorApproval = ResolveDirectorApproval(leaveRequest.Approvals);
 
         return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
-            ["hospitalName"] = hospitalName,
+            ["hospitalName"] = context.HospitalName,
+            ["applicationVersion"] = context.ApplicationVersion,
+            ["generatedAt"] = FormatDateTime(DateTime.UtcNow),
             ["requestNumber"] = leaveRequest.RequestNumber ?? "-",
             ["requesterName"] = requester,
             ["employeeCode"] = employeeCode,
             ["position"] = position,
             ["departmentName"] = department,
             ["phoneNumber"] = leaveRequest.User?.PhoneNumber ?? "-",
+            ["email"] = leaveRequest.User?.Email ?? "-",
             ["leaveContactAddress"] = leaveRequest.User?.LeaveContactAddress ?? "-",
             ["leaveTypeName"] = leaveType,
+            ["leaveTypeCheckboxLine1"] = BuildLeaveTypeCheckboxLine(leaveRequest, 1),
+            ["leaveTypeCheckboxLine2"] = BuildLeaveTypeCheckboxLine(leaveRequest, 2),
             ["startDate"] = FormatDate(leaveRequest.StartDate),
             ["endDate"] = FormatDate(leaveRequest.EndDate),
             ["totalDays"] = leaveRequest.TotalDays.ToString("0.##", CultureInfo.InvariantCulture),
             ["durationType"] = TranslateDurationType(leaveRequest.DurationType),
+            ["durationCheckboxes"] = BuildDurationCheckboxes(leaveRequest.DurationType),
+            ["workingDays"] = businessDays.ToString(CultureInfo.InvariantCulture),
+            ["holidayDays"] = holidayDays.ToString(CultureInfo.InvariantCulture),
+            ["weekendDays"] = weekendDays.ToString(CultureInfo.InvariantCulture),
+            ["balanceBefore"] = FormatDecimalOrDash(balanceBefore),
+            ["balanceUsedThisRequest"] = leaveRequest.TotalDays.ToString("0.##", CultureInfo.InvariantCulture),
+            ["balancePending"] = FormatDecimalOrDash(context.LeaveBalance?.PendingDays),
+            ["balanceAfterApproval"] = FormatDecimalOrDash(balanceAfterApproval),
             ["reason"] = leaveRequest.Reason,
+            ["attachmentCount"] = leaveRequest.Attachments.Count.ToString(CultureInfo.InvariantCulture),
+            ["attachmentCheckboxes"] = BuildAttachmentCheckboxes(leaveRequest),
             ["submittedAt"] = submittedAt,
             ["status"] = TranslateStatus(leaveRequest.Status),
-            ["currentApproverName"] = leaveRequest.CurrentApprover?.FullName ?? "-"
+            ["currentApproverName"] = leaveRequest.CurrentApprover?.FullName ?? "-",
+            ["finalApprovalCheckboxes"] = BuildFinalApprovalCheckboxes(leaveRequest.Status),
+            ["finalApproverName"] = finalApproval?.Approver?.FullName ?? "-",
+            ["finalApproverPosition"] = ResolvePosition(finalApproval?.Approver),
+            ["finalActionAt"] = finalApproval?.ActionAt is null ? "-" : FormatDateTime(finalApproval.ActionAt.Value),
+            ["finalRemark"] = string.IsNullOrWhiteSpace(finalApproval?.Remark) ? "-" : finalApproval.Remark,
+            ["headApproverName"] = headApproval?.Approver?.FullName ?? "-",
+            ["headApprovalStatus"] = headApproval is null ? "-" : TranslateStatus(headApproval.Status),
+            ["headApprovalActionAt"] = headApproval?.ActionAt is null ? "-" : FormatDateTime(headApproval.ActionAt.Value),
+            ["headApprovalRemark"] = string.IsNullOrWhiteSpace(headApproval?.Remark) ? "-" : headApproval.Remark,
+            ["directorApproverName"] = directorApproval?.Approver?.FullName ?? "-",
+            ["directorApprovalStatus"] = directorApproval is null ? "-" : TranslateStatus(directorApproval.Status),
+            ["directorApprovalActionAt"] = directorApproval?.ActionAt is null ? "-" : FormatDateTime(directorApproval.ActionAt.Value),
+            ["directorApprovalRemark"] = string.IsNullOrWhiteSpace(directorApproval?.Remark) ? "-" : directorApproval.Remark
         };
     }
 
@@ -243,10 +666,161 @@ public sealed class LeavePdfService(IWebHostEnvironment environment, IConfigurat
             ["stepOrder"] = approval.StepOrder.ToString(CultureInfo.InvariantCulture),
             ["stepName"] = approval.StepName ?? "ขั้นอนุมัติ",
             ["approverName"] = approval.Approver?.FullName ?? "-",
+            ["approverPosition"] = ResolvePosition(approval.Approver),
             ["status"] = TranslateStatus(approval.Status),
             ["actionAt"] = approval.ActionAt is null ? "-" : FormatDateTime(approval.ActionAt.Value),
             ["remark"] = string.IsNullOrWhiteSpace(approval.Remark) ? "-" : approval.Remark
         };
+    }
+
+    private static LeaveApproval? ResolveHeadApproval(IEnumerable<LeaveApproval> approvals)
+    {
+        return approvals
+            .OrderBy(item => item.StepOrder)
+            .FirstOrDefault(item => ContainsAny(item.StepName, "หัวหน้า", "Head"))
+            ?? approvals.OrderBy(item => item.StepOrder).FirstOrDefault();
+    }
+
+    private static LeaveApproval? ResolveDirectorApproval(IEnumerable<LeaveApproval> approvals)
+    {
+        return approvals
+            .OrderByDescending(item => item.StepOrder)
+            .FirstOrDefault(item => ContainsAny(item.StepName, "ผู้อำนวยการ", "Director"))
+            ?? approvals.OrderByDescending(item => item.StepOrder).FirstOrDefault();
+    }
+
+    private static bool ContainsAny(string? value, params string[] candidates)
+    {
+        return !string.IsNullOrWhiteSpace(value)
+            && candidates.Any(candidate => value.Contains(candidate, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static string ResolvePosition(User? user)
+    {
+        if (!string.IsNullOrWhiteSpace(user?.Position))
+        {
+            return user.Position;
+        }
+
+        return user?.UserRoles.Select(item => item.Role?.Name).FirstOrDefault(item => !string.IsNullOrWhiteSpace(item)) ?? "-";
+    }
+
+    private static string BuildLeaveTypeCheckboxLine(LeaveRequest leaveRequest, int lineNumber)
+    {
+        var options = lineNumber == 1
+            ? new[]
+            {
+                ("sick", "ลาป่วย"),
+                ("personal", "ลากิจส่วนตัว"),
+                ("annual", "ลาพักผ่อน"),
+                ("maternity", "ลาคลอดบุตร"),
+                ("ordination", "ลาอุปสมบท")
+            }
+            : new[]
+            {
+                ("paternity", "ลาไปช่วยภริยาคลอดบุตร"),
+                ("study", "ลาศึกษาต่อ / อบรม"),
+                ("official", "ลาไปปฏิบัติราชการ"),
+                ("international", "ลาไปต่างประเทศ"),
+                ("other", "อื่น ๆ")
+            };
+
+        return string.Join("   ", options.Select(item => $"{Checkbox(IsLeaveType(leaveRequest, item.Item1, item.Item2))} {item.Item2}"));
+    }
+
+    private static bool IsLeaveType(LeaveRequest leaveRequest, string code, string thaiName)
+    {
+        var leaveTypeCode = leaveRequest.LeaveType?.Code ?? string.Empty;
+        var leaveTypeName = leaveRequest.LeaveType?.Name ?? string.Empty;
+        if (leaveTypeCode.Equals(code, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        if (leaveTypeName.Contains(thaiName, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return code switch
+        {
+            "sick" => leaveTypeName.Contains("ป่วย", StringComparison.OrdinalIgnoreCase),
+            "personal" => leaveTypeName.Contains("กิจ", StringComparison.OrdinalIgnoreCase),
+            "annual" => leaveTypeName.Contains("พักผ่อน", StringComparison.OrdinalIgnoreCase),
+            "maternity" => leaveTypeName.Contains("คลอด", StringComparison.OrdinalIgnoreCase),
+            "ordination" => leaveTypeName.Contains("อุปสมบท", StringComparison.OrdinalIgnoreCase),
+            "study" => leaveTypeName.Contains("ศึกษา", StringComparison.OrdinalIgnoreCase) || leaveTypeName.Contains("อบรม", StringComparison.OrdinalIgnoreCase),
+            _ => code == "other"
+        };
+    }
+
+    private static string BuildDurationCheckboxes(string? durationType)
+    {
+        var normalized = LeaveDurationTypes.Normalize(durationType);
+        return string.Join("   ", new[]
+        {
+            $"{Checkbox(normalized == "FULL_DAY")} เต็มวัน",
+            $"{Checkbox(normalized == "HALF_DAY_AM")} ครึ่งวัน (เช้า)",
+            $"{Checkbox(normalized == "HALF_DAY_PM")} ครึ่งวัน (บ่าย)"
+        });
+    }
+
+    private static string BuildAttachmentCheckboxes(LeaveRequest leaveRequest)
+    {
+        var hasAttachments = leaveRequest.Attachments.Count > 0;
+        return string.Join("   ", new[]
+        {
+            $"{Checkbox(false)} ใบรับรองแพทย์",
+            $"{Checkbox(false)} หนังสือเชิญ",
+            $"{Checkbox(false)} เอกสารราชการ",
+            $"{Checkbox(hasAttachments)} อื่น ๆ"
+        });
+    }
+
+    private static string BuildFinalApprovalCheckboxes(string status)
+    {
+        return $"{Checkbox(status == "Approved")} อนุมัติ   {Checkbox(status == "Rejected")} ไม่อนุมัติ";
+    }
+
+    private static string Checkbox(bool isChecked)
+    {
+        return isChecked ? "☑" : "☐";
+    }
+
+    private static int CountBusinessDays(DateOnly startDate, DateOnly endDate, IReadOnlyList<LeaveHoliday> holidays)
+    {
+        var holidayDates = holidays.Select(item => item.HolidayDate).ToHashSet();
+        var count = 0;
+        for (var date = startDate; date <= endDate; date = date.AddDays(1))
+        {
+            if (date.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday || holidayDates.Contains(date))
+            {
+                continue;
+            }
+
+            count++;
+        }
+
+        return count;
+    }
+
+    private static int CountWeekendDays(DateOnly startDate, DateOnly endDate)
+    {
+        var count = 0;
+        for (var date = startDate; date <= endDate; date = date.AddDays(1))
+        {
+            if (date.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday)
+            {
+                count++;
+            }
+        }
+
+        return count;
+    }
+
+    private static string FormatDecimalOrDash(decimal? value)
+    {
+        return value is null ? "-" : value.Value.ToString("0.##", CultureInfo.InvariantCulture);
     }
 
     private static string FormatDate(DateOnly date)
@@ -298,7 +872,7 @@ public sealed class LeaveFormTemplateConfig
 
 public sealed class DocumentTemplateSettings
 {
-    public string FontFamily { get; set; } = "TH Sarabun New";
+    public string FontFamily { get; set; } = "TH SarabunPSK";
     public int FontSize { get; set; } = 16;
     public double LineHeight { get; set; } = 1.2;
 }
@@ -358,7 +932,7 @@ public static class SimplePdfWriter
             .SelectMany(page => page)
             .Select(line => line.FontFamily)
             .FirstOrDefault(value => !string.IsNullOrWhiteSpace(value))
-            ?? "TH Sarabun New";
+            ?? "TH SarabunPSK";
         var pdfFontName = ToPdfFontName(fontFamily);
         var hasLogo = logo is not null;
         var pageCount = pages.Count;
@@ -435,7 +1009,7 @@ public static class SimplePdfWriter
     private static string ToPdfFontName(string fontFamily)
     {
         var chars = fontFamily.Where(char.IsLetterOrDigit).ToArray();
-        return chars.Length == 0 ? "THSarabunNew" : new string(chars);
+        return chars.Length == 0 ? "THSarabunPSK" : new string(chars);
     }
 
     private static string ToPdfHexString(string value)

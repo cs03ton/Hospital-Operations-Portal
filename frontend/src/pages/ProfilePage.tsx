@@ -11,6 +11,7 @@ import { useNotification } from "../hooks/useNotification";
 type ProfileFormValues = {
   fullname: string;
   position: string;
+  email: string;
   phoneNumber: string;
   leaveContactAddress: string;
   profileImageUrl: string;
@@ -25,6 +26,7 @@ export function ProfilePage() {
     defaultValues: {
       fullname: "",
       position: "",
+      email: "",
       phoneNumber: "",
       leaveContactAddress: "",
       profileImageUrl: "",
@@ -36,6 +38,7 @@ export function ProfilePage() {
       reset({
         fullname: profile.fullname,
         position: profile.position ?? "",
+        email: profile.email ?? "",
         phoneNumber: profile.phoneNumber ?? "",
         leaveContactAddress: profile.leaveContactAddress ?? "",
         profileImageUrl: profile.profileImageUrl ?? "",
@@ -56,6 +59,7 @@ export function ProfilePage() {
     mutation.mutate({
       fullname: values.fullname.trim(),
       position: normalizeOptional(values.position),
+      email: normalizeOptional(values.email),
       phoneNumber: normalizeOptional(values.phoneNumber),
       leaveContactAddress: normalizeOptional(values.leaveContactAddress),
       profileImageUrl: normalizeOptional(values.profileImageUrl),
@@ -120,6 +124,23 @@ export function ProfilePage() {
                 <Box>
                   <TextField
                     fullWidth
+                    label="อีเมล"
+                    InputLabelProps={{ shrink: true }}
+                    disabled={isLoading}
+                    error={Boolean(errors.email)}
+                    helperText={errors.email?.message}
+                    {...register("email", {
+                      pattern: {
+                        value: /^[^@\s]+@[^@\s]+\.[^@\s]+$/,
+                        message: "รูปแบบอีเมลไม่ถูกต้อง",
+                      },
+                    })}
+                  />
+                </Box>
+
+                <Box>
+                  <TextField
+                    fullWidth
                     label="เบอร์โทรศัพท์"
                     InputLabelProps={{ shrink: true }}
                     disabled={isLoading}
@@ -165,6 +186,7 @@ export function ProfilePage() {
                 <Button type="button" variant="outlined" disabled={isLoading} onClick={() => profile && reset({
                   fullname: profile.fullname,
                   position: profile.position ?? "",
+                  email: profile.email ?? "",
                   phoneNumber: profile.phoneNumber ?? "",
                   leaveContactAddress: profile.leaveContactAddress ?? "",
                   profileImageUrl: profile.profileImageUrl ?? "",

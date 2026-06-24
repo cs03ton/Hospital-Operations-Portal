@@ -6,6 +6,7 @@ public record UserResponse(
     string Fullname,
     string Username,
     string? Position,
+    string? Email,
     string? PhoneNumber,
     string? LeaveContactAddress,
     string? ProfileImageUrl,
@@ -50,6 +51,7 @@ public record UserProfileResponse(
     string Fullname,
     string Username,
     string? Position,
+    string? Email,
     string? PhoneNumber,
     string? LeaveContactAddress,
     string? ProfileImageUrl,
@@ -66,6 +68,7 @@ public record UserProfileResponse(
 public record UpdateUserProfileRequest(
     string Fullname,
     string? Position,
+    string? Email,
     string? PhoneNumber,
     string? LeaveContactAddress,
     string? ProfileImageUrl
