@@ -23,7 +23,11 @@ public class LeaveHolidaysController(AppDbContext db, IAuditLogService auditLogS
 
     [HttpGet]
     [RequireAnyPermission(LeavePermissions.ViewOwn, LeavePermissions.ViewPendingApproval, LeavePermissions.ViewDepartment, LeavePermissions.ViewAll, LeavePermissions.ManageHolidays)]
-    public async Task<ActionResult<ApiResponse<IReadOnlyList<LeaveHolidayResponse>>>> GetHolidays([FromQuery] int? year = null)
+    public async Task<ActionResult<ApiResponse<object>>> GetHolidays(
+        [FromQuery] int? year = null,
+        [FromQuery] int? page = null,
+        [FromQuery] int? pageSize = null,
+        [FromQuery] string? search = null)
     {
         var query = db.LeaveHolidays.AsNoTracking();
         if (year is not null)
@@ -31,12 +35,38 @@ public class LeaveHolidaysController(AppDbContext db, IAuditLogService auditLogS
             query = query.Where(item => item.HolidayDate.Year == year);
         }
 
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var keyword = search.Trim().ToLower();
+            query = query.Where(item => item.Name.ToLower().Contains(keyword));
+        }
+
+        if (page is not null || pageSize is not null || !string.IsNullOrWhiteSpace(search))
+        {
+            var currentPage = Math.Max(page ?? 1, 1);
+            var currentPageSize = Math.Clamp(pageSize ?? 20, 1, 100);
+            var totalItems = await query.CountAsync();
+            var pagedItems = await query
+                .OrderBy(item => item.HolidayDate)
+                .Skip((currentPage - 1) * currentPageSize)
+                .Take(currentPageSize)
+                .Select(item => ToResponse(item))
+                .ToListAsync();
+
+            return ApiResponse<object>.Ok(new PagedResponse<LeaveHolidayResponse>(
+                pagedItems,
+                currentPage,
+                currentPageSize,
+                totalItems,
+                (int)Math.Ceiling(totalItems / (double)currentPageSize)));
+        }
+
         var items = await query
             .OrderBy(item => item.HolidayDate)
             .Select(item => ToResponse(item))
             .ToListAsync();
 
-        return ApiResponse<IReadOnlyList<LeaveHolidayResponse>>.Ok(items);
+        return ApiResponse<object>.Ok(items);
     }
 
     [HttpPost]
@@ -137,7 +167,7 @@ public class LeaveHolidaysController(AppDbContext db, IAuditLogService auditLogS
     [RequirePermission(LeavePermissions.ManageHolidays)]
     public async Task<ActionResult<ApiResponse<LeaveHolidayImportConfirmResponse>>> ConfirmImport(LeaveHolidayImportConfirmRequest request)
     {
-        var parsedRows = request.Rows.Select((row, index) => new ParsedHolidayRow(index + 2, row.HolidayDate.ToString("yyyy-MM-dd"), row.Name, row.HolidayType)).ToList();
+        var parsedRows = request.Rows.Select((row, index) => new ParsedHolidayRow(index + 2, row.HolidayDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture), row.Name, row.HolidayType)).ToList();
         var validation = await ValidateRows(parsedRows);
         var validRows = validation.Rows.Where(row => row.IsValid && row.HolidayDate is not null).ToList();
 

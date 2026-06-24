@@ -465,6 +465,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             entity.Property(item => item.CreatedAt).HasColumnName("created_at");
             entity.Property(item => item.UpdatedAt).HasColumnName("updated_at");
             entity.HasIndex(item => item.HolidayDate).IsUnique();
+            entity.HasIndex(item => item.Name);
         });
 
         modelBuilder.Entity<LineDeliveryLog>(entity =>

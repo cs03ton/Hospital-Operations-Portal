@@ -1,15 +1,18 @@
 import BlockOutlinedIcon from "@mui/icons-material/BlockOutlined";
 import DownloadOutlinedIcon from "@mui/icons-material/DownloadOutlined";
 import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
+import ClearOutlinedIcon from "@mui/icons-material/ClearOutlined";
+import SearchOutlinedIcon from "@mui/icons-material/SearchOutlined";
 import UploadFileOutlinedIcon from "@mui/icons-material/UploadFileOutlined";
-import { Alert, Button, Card, CardContent, Checkbox, Chip, Dialog, DialogContent, DialogTitle, FormControlLabel, Grid, IconButton, Stack, TableBody, TableCell, TableHead, TableRow, TextField, Typography } from "@mui/material";
+import { Alert, Button, Card, CardContent, Checkbox, Chip, Dialog, DialogContent, DialogTitle, FormControlLabel, Grid, IconButton, MenuItem, Stack, TableBody, TableCell, TableHead, TablePagination, TableRow, TextField, Typography } from "@mui/material";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
-import { confirmLeaveHolidayImport, createLeaveHoliday, deactivateLeaveHoliday, downloadLeaveHolidayTemplate, getLeaveHolidays, previewLeaveHolidayImport, updateLeaveHoliday, type LeaveHoliday, type LeaveHolidayImportPreview, type SaveLeaveHolidayRequest } from "../api/leaveApi";
+import { confirmLeaveHolidayImport, createLeaveHoliday, deactivateLeaveHoliday, downloadLeaveHolidayTemplate, getLeaveHolidaysPaged, previewLeaveHolidayImport, updateLeaveHoliday, type LeaveHoliday, type LeaveHolidayImportPreview, type SaveLeaveHolidayRequest } from "../api/leaveApi";
 import { ActionTooltip } from "../components/common/ActionTooltip";
 import { AppDatePicker } from "../components/common/AppDatePicker";
 import { DataTableCard } from "../components/common/DataTableCard";
+import { FilterToolbar } from "../components/common/FilterToolbar";
 import { PageToolbar } from "../components/common/PageToolbar";
 import { PageHeader } from "../components/PageHeader";
 import { useNotification } from "../hooks/useNotification";
@@ -24,11 +27,27 @@ const emptyHoliday: SaveLeaveHolidayRequest = {
 export function LeaveHolidayManagementPage() {
   const queryClient = useQueryClient();
   const { showSuccess } = useNotification();
+  const currentYear = new Date().getFullYear();
+  const [year, setYear] = useState(currentYear);
+  const [searchInput, setSearchInput] = useState("");
+  const [search, setSearch] = useState("");
+  const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState(20);
   const [editing, setEditing] = useState<LeaveHoliday | null>(null);
   const [importOpen, setImportOpen] = useState(false);
   const [importFile, setImportFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<LeaveHolidayImportPreview | null>(null);
-  const { data = [], isLoading } = useQuery({ queryKey: ["leave-holidays"], queryFn: () => getLeaveHolidays() });
+  const yearOptions = useMemo(() => [currentYear - 1, currentYear, currentYear + 1, currentYear + 2], [currentYear]);
+  const queryParams = useMemo(() => ({
+    year,
+    page: page + 1,
+    pageSize,
+    search: search || undefined,
+  }), [page, pageSize, search, year]);
+  const { data, isLoading } = useQuery({
+    queryKey: ["leave-holidays", "paged", queryParams],
+    queryFn: () => getLeaveHolidaysPaged(queryParams),
+  });
   const { control, register, handleSubmit, reset, formState: { errors } } = useForm<SaveLeaveHolidayRequest>({ defaultValues: emptyHoliday });
 
   const saveMutation = useMutation({
@@ -70,6 +89,18 @@ export function LeaveHolidayManagementPage() {
     reset({ holidayDate: formatDateForApi(item.holidayDate), name: item.name, isActive: item.isActive });
   }
 
+  function applyFilters() {
+    setSearch(searchInput.trim());
+    setPage(0);
+  }
+
+  function clearFilters() {
+    setYear(currentYear);
+    setSearchInput("");
+    setSearch("");
+    setPage(0);
+  }
+
   async function handleDownloadTemplate() {
     const blob = await downloadLeaveHolidayTemplate();
     downloadBlob(blob, "leave-holiday-import-template.csv");
@@ -99,6 +130,54 @@ export function LeaveHolidayManagementPage() {
         </Stack>
       </PageToolbar>
       <Stack spacing={2}>
+        <FilterToolbar>
+          <Grid item xs={12} md={2}>
+            <TextField
+              select
+              fullWidth
+              size="small"
+              label="ปี"
+              value={year}
+              onChange={(event) => {
+                setYear(Number(event.target.value));
+                setPage(0);
+              }}
+            >
+              {yearOptions.map((item) => (
+                <MenuItem key={item} value={item}>
+                  {item + 543}
+                </MenuItem>
+              ))}
+            </TextField>
+          </Grid>
+          <Grid item xs={12} md={6}>
+            <TextField
+              fullWidth
+              size="small"
+              label="ค้นหาวันหยุด"
+              value={searchInput}
+              onChange={(event) => setSearchInput(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  applyFilters();
+                }
+              }}
+              InputProps={{ startAdornment: <SearchOutlinedIcon color="action" sx={{ mr: 1 }} /> }}
+            />
+          </Grid>
+          <Grid item xs={12} md={4}>
+            <Stack direction="row" spacing={1} justifyContent="flex-end" flexWrap="wrap" useFlexGap>
+              <Button variant="contained" startIcon={<SearchOutlinedIcon />} onClick={applyFilters}>
+                ค้นหา
+              </Button>
+              <Button variant="outlined" startIcon={<ClearOutlinedIcon />} onClick={clearFilters}>
+                ล้างตัวกรอง
+              </Button>
+            </Stack>
+          </Grid>
+        </FilterToolbar>
+
         <Card>
           <CardContent>
             <Typography variant="h6" sx={{ mb: 2 }}>{editing ? "แก้ไขวันหยุด" : "เพิ่มวันหยุด"}</Typography>
@@ -139,7 +218,10 @@ export function LeaveHolidayManagementPage() {
           </CardContent>
         </Card>
 
-        <DataTableCard>
+        <DataTableCard
+          title="รายการวันหยุดราชการ"
+          subtitle={`แสดงวันหยุดปี ${year + 543}${search ? ` ที่ค้นหา "${search}"` : ""}`}
+        >
               <TableHead>
                 <TableRow>
                   <TableCell>วันที่</TableCell>
@@ -151,7 +233,7 @@ export function LeaveHolidayManagementPage() {
               <TableBody>
                 {isLoading ? (
                   <TableRow><TableCell colSpan={4}>กำลังโหลดวันหยุด...</TableCell></TableRow>
-                ) : data.length ? data.map((item) => (
+                ) : data?.items.length ? data.items.map((item) => (
                   <TableRow key={item.id}>
                     <TableCell>{formatThaiDate(item.holidayDate)}</TableCell>
                     <TableCell>{item.name}</TableCell>
@@ -166,10 +248,34 @@ export function LeaveHolidayManagementPage() {
                     </TableCell>
                   </TableRow>
                 )) : (
-                  <TableRow><TableCell colSpan={4}>ยังไม่มีวันหยุด</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={4}>ไม่พบวันหยุดราชการในปีนี้</TableCell></TableRow>
                 )}
               </TableBody>
         </DataTableCard>
+        <Card>
+          <TablePagination
+            component="div"
+            count={data?.totalItems ?? 0}
+            page={page}
+            onPageChange={(_, nextPage) => setPage(nextPage)}
+            rowsPerPage={pageSize}
+            onRowsPerPageChange={(event) => {
+              setPageSize(Number(event.target.value));
+              setPage(0);
+            }}
+            rowsPerPageOptions={[10, 20, 50]}
+            labelRowsPerPage="จำนวนรายการต่อหน้า"
+            labelDisplayedRows={({ from, to, count }) =>
+              `${from}-${to} จาก ${count !== -1 ? count : `มากกว่า ${to}`}`
+            }
+            getItemAriaLabel={(type) => {
+              if (type === "first") return "ไปหน้าแรก";
+              if (type === "last") return "ไปหน้าสุดท้าย";
+              if (type === "next") return "ไปหน้าถัดไป";
+              return "ไปหน้าก่อนหน้า";
+            }}
+          />
+        </Card>
       </Stack>
 
       <Dialog open={importOpen} onClose={handleCloseImport} fullWidth maxWidth="md">

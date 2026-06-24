@@ -193,6 +193,21 @@ export type LeaveHoliday = {
   updatedAt?: string | null;
 };
 
+export type PagedResponse<T> = {
+  items: T[];
+  page: number;
+  pageSize: number;
+  totalItems: number;
+  totalPages: number;
+};
+
+export type LeaveHolidayQuery = {
+  year?: number;
+  page?: number;
+  pageSize?: number;
+  search?: string;
+};
+
 export type SaveLeaveBalanceRequest = {
   userId: string;
   leaveTypeId: string;
@@ -656,7 +671,13 @@ export async function createLeaveBalanceAdjustment(payload: CreateLeaveBalanceAd
 }
 
 export async function getLeaveHolidays(params?: { year?: number }) {
-  const response = await httpClient.get<ApiResponse<LeaveHoliday[]>>("/api/leave-holidays", { params });
+  const response = await httpClient.get<ApiResponse<LeaveHoliday[] | PagedResponse<LeaveHoliday>>>("/api/leave-holidays", { params });
+  const data = response.data.data;
+  return Array.isArray(data) ? data : data.items;
+}
+
+export async function getLeaveHolidaysPaged(params: LeaveHolidayQuery) {
+  const response = await httpClient.get<ApiResponse<PagedResponse<LeaveHoliday>>>("/api/leave-holidays", { params });
   return response.data.data;
 }
 

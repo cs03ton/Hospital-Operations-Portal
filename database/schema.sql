@@ -297,6 +297,7 @@ CREATE INDEX IF NOT EXISTS idx_leave_approvals_request_step ON leave_approvals(l
 CREATE INDEX IF NOT EXISTS idx_leave_approvals_approver_status ON leave_approvals(approver_id, status);
 CREATE INDEX IF NOT EXISTS idx_leave_balance_adjustments_user_type_year ON leave_balance_adjustments(user_id, leave_type_id, year);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_leave_holidays_date ON leave_holidays(holiday_date);
+CREATE INDEX IF NOT EXISTS idx_leave_holidays_name ON leave_holidays(name);
 CREATE INDEX IF NOT EXISTS idx_line_delivery_logs_status_retry ON line_delivery_logs(status, next_retry_at);
 
 DO $$

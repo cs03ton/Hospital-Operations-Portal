@@ -668,6 +668,8 @@ namespace Hop.Api.Migrations
                     b.HasIndex("HolidayDate")
                         .IsUnique();
 
+                    b.HasIndex("Name");
+
                     b.ToTable("leave_holidays", (string)null);
                 });
 
