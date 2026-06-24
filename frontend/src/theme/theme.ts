@@ -33,6 +33,7 @@ export const theme = createTheme({
     },
     warning: {
       main: brandColors.warning,
+      contrastText: brandColors.primaryDark,
     },
     error: {
       main: brandColors.error,

@@ -1,5 +1,6 @@
 import { Box, Stack, Typography } from "@mui/material";
 import { appDeveloper, appName, appVersion, hospitalName } from "../../config/appConfig";
+import { brandColors } from "../../theme/theme";
 
 export function AppFooter() {
   const currentYear = new Date().getFullYear();
@@ -10,8 +11,8 @@ export function AppFooter() {
       sx={{
         mt: { xs: 3, md: 4 },
         pt: 2,
-        borderTop: "1px solid",
-        borderColor: "divider",
+        borderTop: "3px solid",
+        borderColor: brandColors.accent,
         color: "text.secondary",
       }}
     >

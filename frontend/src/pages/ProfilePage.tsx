@@ -7,6 +7,7 @@ import { getMyProfile, updateMyProfile, type UpdateUserProfileRequest } from "..
 import { PageHeader } from "../components/PageHeader";
 import { useAuth } from "../context/AuthContext";
 import { useNotification } from "../hooks/useNotification";
+import { brandColors } from "../theme/theme";
 
 type ProfileFormValues = {
   fullname: string;
@@ -74,7 +75,10 @@ export function ProfilePage() {
         <Card>
           <CardContent>
             <Stack direction={{ xs: "column", md: "row" }} spacing={2.5} alignItems={{ xs: "flex-start", md: "center" }}>
-              <Avatar src={profile?.profileImageUrl ?? undefined} sx={{ width: 80, height: 80, bgcolor: "secondary.main", fontSize: 28 }}>
+              <Avatar
+                src={profile?.profileImageUrl ?? undefined}
+                sx={{ width: 80, height: 80, bgcolor: brandColors.accent, color: brandColors.primaryDark, fontSize: 28 }}
+              >
                 {(profile?.fullname ?? "U").slice(0, 1)}
               </Avatar>
               <Stack spacing={0.5}>

@@ -26,6 +26,7 @@ import { LeaveCalendarToolbar } from "../components/leave/LeaveCalendarToolbar";
 import { LeaveStatusLegend } from "../components/leave/LeaveStatusLegend";
 import { PageHeader } from "../components/PageHeader";
 import { usePermission } from "../context/PermissionContext";
+import { brandColors } from "../theme/theme";
 import { formatThaiDate } from "../utils/dateFormat";
 import { getLeaveDurationTypeLabel, getLeaveTypeColor, getLeaveTypeLabel, getLeaveTypeWithDurationLabel } from "../utils/leaveLabels";
 
@@ -213,18 +214,18 @@ export function LeaveCalendarPage() {
                       boxShadow: "none",
                       cursor: "pointer",
                       bgcolor: hasHoliday
-                        ? alpha(theme.palette.info.main, 0.1)
+                        ? brandColors.holidayBackground
                         : isWeekend
-                          ? alpha(theme.palette.warning.main, 0.12)
+                          ? brandColors.weekendBackground
                           : isToday
                             ? alpha(theme.palette.primary.main, 0.05)
                             : "background.paper",
                       borderColor: isToday
                         ? "primary.main"
                         : hasHoliday
-                          ? alpha(theme.palette.info.main, 0.45)
+                          ? alpha(theme.palette.info.main, 0.5)
                           : isWeekend
-                            ? alpha(theme.palette.warning.main, 0.45)
+                            ? alpha(brandColors.accent, 0.55)
                             : "divider",
                       borderWidth: isToday ? 2 : 1,
                       transition: theme.transitions.create(["border-color", "box-shadow", "transform"], {
@@ -279,9 +280,7 @@ export function LeaveCalendarPage() {
                           วันหยุด
                         </Typography>
                       ) : (
-                        <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                          ไม่มีรายการลา
-                        </Typography>
+                        <Box sx={{ mt: 1, minHeight: 24 }} />
                       )}
                     </CardContent>
                   </Card>

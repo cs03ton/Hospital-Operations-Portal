@@ -21,18 +21,19 @@ export const healthcareComponents: Components<Omit<Theme, "components">> = {
   MuiButton: {
     styleOverrides: {
       root: {
-        borderRadius: 10,
+        borderRadius: 12,
         boxShadow: "none",
         textTransform: "none",
       },
       containedPrimary: {
-        boxShadow: `0 8px 18px ${alpha(healthcarePalette.primary, 0.18)}`,
+        boxShadow: `0 10px 22px ${alpha(healthcarePalette.primary, 0.18)}`,
         "&:hover": {
           backgroundColor: healthcarePalette.primaryDark,
-          boxShadow: `0 10px 24px ${alpha(healthcarePalette.primary, 0.22)}`,
+          boxShadow: `0 12px 28px ${alpha(healthcarePalette.primary, 0.22)}`,
         },
       },
       containedSecondary: {
+        backgroundColor: healthcarePalette.secondary,
         "&:hover": {
           backgroundColor: healthcarePalette.secondaryDark,
         },
@@ -46,8 +47,8 @@ export const healthcareComponents: Components<Omit<Theme, "components">> = {
     styleOverrides: {
       root: {
         border: `1px solid ${healthcarePalette.border}`,
-        borderRadius: 14,
-        boxShadow: `0 14px 36px ${alpha(healthcarePalette.primary, 0.08)}`,
+        borderRadius: 16,
+        boxShadow: `0 16px 36px ${alpha(healthcarePalette.primaryDark, 0.08)}`,
         backgroundImage: "none",
       },
     },
@@ -65,7 +66,26 @@ export const healthcareComponents: Components<Omit<Theme, "components">> = {
       paper: {
         borderRadius: 16,
         border: `1px solid ${healthcarePalette.border}`,
+        borderTop: `4px solid ${healthcarePalette.accent}`,
         boxShadow: `0 24px 64px ${alpha(healthcarePalette.textPrimary, 0.18)}`,
+      },
+    },
+  },
+  MuiAvatar: {
+    styleOverrides: {
+      root: {
+        backgroundColor: healthcarePalette.accent,
+        color: healthcarePalette.primaryDark,
+        fontWeight: 800,
+      },
+    },
+  },
+  MuiBadge: {
+    styleOverrides: {
+      colorWarning: {
+        backgroundColor: healthcarePalette.accent,
+        color: healthcarePalette.primaryDark,
+        fontWeight: 800,
       },
     },
   },
@@ -133,4 +153,3 @@ export const healthcareComponents: Components<Omit<Theme, "components">> = {
     },
   },
 };
-

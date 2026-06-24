@@ -55,11 +55,12 @@ export function ModuleMenuGroup({
           color: "inherit",
         },
         "&.Mui-selected": {
-          bgcolor: alpha(brandColors.accent, 0.2),
-          borderColor: alpha(brandColors.accent, 0.38),
+          bgcolor: alpha(brandColors.accent, 0.14),
+          borderColor: alpha(brandColors.accent, 0.34),
+          boxShadow: `inset 4px 0 0 ${brandColors.accent}`,
         },
         "&.Mui-selected:hover": {
-          bgcolor: alpha(brandColors.accent, 0.26),
+          bgcolor: alpha(brandColors.accent, 0.2),
         },
         "&:hover": {
           bgcolor: alpha(theme.palette.common.white, 0.1),
@@ -67,7 +68,7 @@ export function ModuleMenuGroup({
         },
       })}
     >
-      <ListItemIcon sx={{ minWidth: isCollapsed ? 0 : 36, justifyContent: "center" }}>
+      <ListItemIcon sx={{ minWidth: isCollapsed ? 0 : 36, justifyContent: "center", color: isActive ? brandColors.accent : "inherit" }}>
         <ModuleIcon fontSize="small" />
       </ListItemIcon>
       {!isCollapsed && (

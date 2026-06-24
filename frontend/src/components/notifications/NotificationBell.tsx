@@ -17,6 +17,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { usePermission } from "../../context/PermissionContext";
 import { getNotificationItems } from "../../services/notificationService";
+import { brandColors } from "../../theme/theme";
 
 export function NotificationBell() {
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
@@ -93,7 +94,7 @@ export function NotificationBell() {
                       {item.title}
                     </Typography>
                     {item.unread && (
-                      <Box sx={{ width: 8, height: 8, borderRadius: "50%", bgcolor: "warning.main", flexShrink: 0 }} />
+                      <Box sx={{ width: 8, height: 8, borderRadius: "50%", bgcolor: brandColors.accent, flexShrink: 0 }} />
                     )}
                   </Stack>
                 }

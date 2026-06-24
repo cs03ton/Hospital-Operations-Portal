@@ -7,7 +7,14 @@ type PageHeaderProps = {
 
 export function PageHeader({ title, subtitle }: PageHeaderProps) {
   return (
-    <Box sx={{ mb: 3 }}>
+    <Box
+      sx={(theme) => ({
+        mb: 3,
+        pb: 1.25,
+        borderBottom: "2px solid",
+        borderColor: theme.palette.warning.main,
+      })}
+    >
       <Typography variant="h4" color="primary" sx={{ mb: 0.75, fontSize: { xs: "1.55rem", md: "2rem" } }}>
         {title}
       </Typography>

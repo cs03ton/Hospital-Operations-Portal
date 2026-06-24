@@ -2,6 +2,7 @@ import AssignmentOutlinedIcon from "@mui/icons-material/AssignmentOutlined";
 import { Box, Button, Card, CardContent, Grid, Stack, Typography } from "@mui/material";
 import { alpha } from "@mui/material/styles";
 import { Link as RouterLink } from "react-router-dom";
+import { brandColors } from "../../theme/theme";
 
 type MyLeaveSummaryCardProps = {
   total: number;
@@ -22,7 +23,7 @@ export function MyLeaveSummaryCard({ total, pending, approved, rejected, cancell
   ];
 
   return (
-    <Card sx={(theme) => ({ borderTop: "4px solid", borderTopColor: "primary.main", bgcolor: alpha(theme.palette.background.paper, 0.98) })}>
+    <Card sx={(theme) => ({ borderTop: "4px solid", borderTopColor: brandColors.accent, bgcolor: alpha(theme.palette.background.paper, 0.98) })}>
       <CardContent>
         <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5} justifyContent="space-between" alignItems={{ xs: "stretch", sm: "flex-start" }}>
           <Stack direction="row" spacing={1.25} alignItems="flex-start">

@@ -32,13 +32,13 @@ export function ModuleMenuItem({ item, isActive, isCollapsed, onClick }: ModuleM
           color: "inherit",
         },
         "&.Mui-selected": {
-          bgcolor: alpha(brandColors.accent, 0.18),
+          bgcolor: alpha(brandColors.accent, 0.13),
           borderColor: alpha(brandColors.accent, 0.32),
           color: theme.palette.common.white,
-          boxShadow: `inset 3px 0 0 ${brandColors.accent}`,
+          boxShadow: `inset 4px 0 0 ${brandColors.accent}`,
         },
         "&.Mui-selected:hover": {
-          bgcolor: alpha(brandColors.accent, 0.24),
+          bgcolor: alpha(brandColors.accent, 0.2),
         },
         "&:hover": {
           bgcolor: alpha(theme.palette.common.white, 0.1),
@@ -46,7 +46,7 @@ export function ModuleMenuItem({ item, isActive, isCollapsed, onClick }: ModuleM
         },
       })}
     >
-      <ListItemIcon sx={{ minWidth: isCollapsed ? 0 : 34, justifyContent: "center" }}>
+      <ListItemIcon sx={{ minWidth: isCollapsed ? 0 : 34, justifyContent: "center", color: isActive ? brandColors.accent : "inherit" }}>
         <Icon fontSize="small" />
       </ListItemIcon>
       {!isCollapsed && (

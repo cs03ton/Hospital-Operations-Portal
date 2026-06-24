@@ -7,6 +7,7 @@ import { MyLeaveSummaryCard } from "../components/leave/MyLeaveSummaryCard";
 import { PageHeader } from "../components/PageHeader";
 import { hospitalName } from "../config/appConfig";
 import { useAuth } from "../context/AuthContext";
+import { brandColors } from "../theme/theme";
 
 export function DashboardPage() {
   const { user } = useAuth();
@@ -50,8 +51,9 @@ export function DashboardPage() {
             <Card
               sx={(theme) => ({
                 borderTop: "4px solid",
-                borderTopColor: card.color,
+                borderTopColor: brandColors.accent,
                 bgcolor: alpha(theme.palette.background.paper, 0.98),
+                boxShadow: `0 16px 34px ${alpha(theme.palette.primary.dark, 0.08)}`,
               })}
             >
               <CardContent>

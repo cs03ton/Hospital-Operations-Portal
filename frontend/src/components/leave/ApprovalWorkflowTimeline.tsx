@@ -16,6 +16,7 @@ import {
   normalizeApprovalStatus,
   type ApprovalStatusIcon,
 } from "../../utils/approvalLabels";
+import { brandColors } from "../../theme/theme";
 
 type ApprovalWorkflowTimelineProps = {
   approvals: LeaveApproval[];
@@ -61,6 +62,8 @@ function ApprovalStepCard({ approval, isCurrent }: { approval: LeaveApproval; is
         width: { xs: "100%", md: 260 },
         border: 1,
         borderColor: isCurrent ? tone.main : "divider",
+        borderLeft: "5px solid",
+        borderLeftColor: tone.main,
         borderRadius: 3,
         bgcolor: isCurrent ? alpha(tone.main, 0.08) : "background.paper",
         p: 2,
@@ -163,7 +166,7 @@ function getApprovalTone(status: string | null | undefined, theme: Theme) {
     case "approve":
       return { main: theme.palette.success.main, contrastText: theme.palette.success.contrastText };
     case "pending":
-      return { main: theme.palette.warning.main, contrastText: theme.palette.warning.contrastText };
+      return { main: brandColors.accent, contrastText: brandColors.primaryDark };
     case "rejected":
     case "reject":
       return { main: theme.palette.error.main, contrastText: theme.palette.error.contrastText };

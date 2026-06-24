@@ -8,6 +8,7 @@ import { useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { getPageTitle } from "../../config/pageTitleConfig";
 import { useAuth } from "../../context/AuthContext";
+import { brandColors } from "../../theme/theme";
 import { NotificationBell } from "../notifications/NotificationBell";
 import { PageBreadcrumbs } from "./PageBreadcrumbs";
 import { PageTitle } from "./PageTitle";
@@ -75,7 +76,7 @@ export function AppHeader({ drawerWidth, isSidebarCollapsed, onMobileMenuClick, 
           onClick={(event) => setUserMenuAnchor(event.currentTarget)}
           sx={{ minWidth: 0, display: { xs: "none", md: "flex" }, cursor: "pointer" }}
         >
-          <Avatar sx={{ width: 36, height: 36, bgcolor: "secondary.main", fontSize: 14 }}>
+          <Avatar sx={{ width: 36, height: 36, bgcolor: brandColors.accent, color: brandColors.primaryDark, fontSize: 14 }}>
             {(user?.fullname ?? "U").slice(0, 1)}
           </Avatar>
           <Box sx={{ minWidth: 0, maxWidth: 180 }}>
