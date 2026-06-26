@@ -198,6 +198,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             entity.Property(item => item.Description).HasColumnName("description");
             entity.Property(item => item.DefaultDaysPerYear).HasColumnName("default_days_per_year");
             entity.Property(item => item.RequiresBalance).HasColumnName("requires_balance").HasDefaultValue(true);
+            entity.Property(item => item.AllowCarryOver).HasColumnName("allow_carry_over").HasDefaultValue(false);
+            entity.Property(item => item.CarryOverMaxDays).HasColumnName("carry_over_max_days").HasDefaultValue(30);
+            entity.Property(item => item.UseFiscalYear).HasColumnName("use_fiscal_year").HasDefaultValue(true);
             entity.Property(item => item.RequiresAttachment).HasColumnName("requires_attachment");
             entity.Property(item => item.IsPaid).HasColumnName("is_paid");
             entity.Property(item => item.IsActive).HasColumnName("is_active");
@@ -214,8 +217,11 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             entity.Property(item => item.LeaveTypeId).HasColumnName("leave_type_id");
             entity.Property(item => item.Year).HasColumnName("year");
             entity.Property(item => item.EntitledDays).HasColumnName("entitled_days");
+            entity.Property(item => item.CarriedOverDays).HasColumnName("carried_over_days");
+            entity.Property(item => item.AdjustedDays).HasColumnName("adjusted_days").HasDefaultValue(0);
             entity.Property(item => item.UsedDays).HasColumnName("used_days");
             entity.Property(item => item.PendingDays).HasColumnName("pending_days");
+            entity.Property(item => item.Notes).HasColumnName("notes").HasMaxLength(1000);
             entity.Property(item => item.CreatedAt).HasColumnName("created_at");
             entity.Property(item => item.UpdatedAt).HasColumnName("updated_at");
             entity.HasIndex(item => new { item.UserId, item.LeaveTypeId, item.Year }).IsUnique();

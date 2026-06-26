@@ -1,14 +1,14 @@
-import BlockOutlinedIcon from "@mui/icons-material/BlockOutlined";
+import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import DownloadOutlinedIcon from "@mui/icons-material/DownloadOutlined";
 import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 import ClearOutlinedIcon from "@mui/icons-material/ClearOutlined";
 import SearchOutlinedIcon from "@mui/icons-material/SearchOutlined";
 import UploadFileOutlinedIcon from "@mui/icons-material/UploadFileOutlined";
-import { Alert, Button, Card, CardContent, Checkbox, Chip, Dialog, DialogContent, DialogTitle, FormControlLabel, Grid, IconButton, MenuItem, Stack, TableBody, TableCell, TableHead, TablePagination, TableRow, TextField, Typography } from "@mui/material";
+import { Alert, Button, Card, CardContent, Checkbox, Chip, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel, Grid, IconButton, MenuItem, Stack, TableBody, TableCell, TableHead, TablePagination, TableRow, TextField, Typography } from "@mui/material";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
-import { confirmLeaveHolidayImport, createLeaveHoliday, deactivateLeaveHoliday, downloadLeaveHolidayTemplate, getLeaveHolidaysPaged, previewLeaveHolidayImport, updateLeaveHoliday, type LeaveHoliday, type LeaveHolidayImportPreview, type SaveLeaveHolidayRequest } from "../api/leaveApi";
+import { confirmLeaveHolidayImport, createLeaveHoliday, deleteLeaveHoliday, downloadLeaveHolidayTemplate, getLeaveHolidaysPaged, previewLeaveHolidayImport, updateLeaveHoliday, type LeaveHoliday, type LeaveHolidayImportPreview, type SaveLeaveHolidayRequest } from "../api/leaveApi";
 import { ActionTooltip } from "../components/common/ActionTooltip";
 import { AppDatePicker } from "../components/common/AppDatePicker";
 import { DataTableCard } from "../components/common/DataTableCard";
@@ -34,6 +34,7 @@ export function LeaveHolidayManagementPage() {
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(20);
   const [editing, setEditing] = useState<LeaveHoliday | null>(null);
+  const [deletingHoliday, setDeletingHoliday] = useState<LeaveHoliday | null>(null);
   const [importOpen, setImportOpen] = useState(false);
   const [importFile, setImportFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<LeaveHolidayImportPreview | null>(null);
@@ -60,9 +61,10 @@ export function LeaveHolidayManagementPage() {
     },
   });
   const deleteMutation = useMutation({
-    mutationFn: deactivateLeaveHoliday,
+    mutationFn: deleteLeaveHoliday,
     onSuccess: () => {
-      showSuccess("ปิดใช้งานวันหยุดราชการเรียบร้อยแล้ว");
+      showSuccess("ลบวันหยุดราชการเรียบร้อยแล้ว");
+      setDeletingHoliday(null);
       queryClient.invalidateQueries({ queryKey: ["leave-holidays"] });
     },
   });
@@ -242,8 +244,8 @@ export function LeaveHolidayManagementPage() {
                       <ActionTooltip title="แก้ไขวันหยุดราชการ">
                         <IconButton aria-label="แก้ไขวันหยุดราชการ" onClick={() => onEdit(item)}><EditOutlinedIcon /></IconButton>
                       </ActionTooltip>
-                      <ActionTooltip title="ปิดใช้งานวันหยุดราชการ">
-                        <IconButton aria-label="ปิดใช้งานวันหยุดราชการ" disabled={!item.isActive || deleteMutation.isPending} onClick={() => deleteMutation.mutate(item.id)}><BlockOutlinedIcon /></IconButton>
+                      <ActionTooltip title="ลบวันหยุดราชการ">
+                        <IconButton aria-label="ลบวันหยุดราชการ" color="error" disabled={deleteMutation.isPending} onClick={() => setDeletingHoliday(item)}><DeleteOutlineIcon /></IconButton>
                       </ActionTooltip>
                     </TableCell>
                   </TableRow>
@@ -345,6 +347,23 @@ export function LeaveHolidayManagementPage() {
             )}
           </Stack>
         </DialogContent>
+      </Dialog>
+      <Dialog open={Boolean(deletingHoliday)} onClose={() => setDeletingHoliday(null)} fullWidth maxWidth="sm">
+        <DialogTitle>ยืนยันการลบวันหยุดราชการ</DialogTitle>
+        <DialogContent>
+          ต้องการลบวันหยุด “{deletingHoliday?.name}” วันที่ {formatThaiDate(deletingHoliday?.holidayDate)} ใช่หรือไม่?
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeletingHoliday(null)}>ยกเลิก</Button>
+          <Button
+            color="error"
+            variant="contained"
+            disabled={!deletingHoliday || deleteMutation.isPending}
+            onClick={() => deletingHoliday && deleteMutation.mutate(deletingHoliday.id)}
+          >
+            ลบวันหยุด
+          </Button>
+        </DialogActions>
       </Dialog>
     </>
   );

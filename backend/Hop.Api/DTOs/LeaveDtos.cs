@@ -7,6 +7,9 @@ public record LeaveTypeResponse(
     string? Description,
     decimal DefaultDaysPerYear,
     bool RequiresBalance,
+    bool AllowCarryOver,
+    decimal CarryOverMaxDays,
+    bool UseFiscalYear,
     bool RequiresAttachment,
     bool IsPaid,
     bool IsActive
@@ -18,6 +21,9 @@ public record SaveLeaveTypeRequest(
     string? Description,
     decimal DefaultDaysPerYear,
     bool RequiresBalance,
+    bool AllowCarryOver,
+    decimal CarryOverMaxDays,
+    bool UseFiscalYear,
     bool RequiresAttachment,
     bool IsPaid,
     bool IsActive
@@ -92,13 +98,19 @@ public record LeaveBalanceResponse(
     Guid? Id,
     Guid UserId,
     string? Fullname,
+    Guid? DepartmentId,
+    string? DepartmentName,
     Guid LeaveTypeId,
     string LeaveTypeName,
     int Year,
     decimal EntitledDays,
+    decimal CarriedOverDays,
+    decimal AdjustedDays,
     decimal UsedDays,
     decimal PendingDays,
-    decimal RemainingDays
+    decimal AvailableDays,
+    decimal RemainingDays,
+    string? Notes
 );
 
 public record SaveLeaveBalanceRequest(
@@ -106,9 +118,52 @@ public record SaveLeaveBalanceRequest(
     Guid LeaveTypeId,
     int Year,
     decimal EntitledDays,
+    decimal CarriedOverDays,
+    decimal AdjustedDays,
     decimal UsedDays,
-    decimal PendingDays
+    decimal PendingDays,
+    string? Notes
 );
+
+public record LeaveBalanceRolloverRequest(int TargetFiscalYear);
+
+public record LeaveBalanceRolloverResponse(
+    int TargetFiscalYear,
+    int PreviousFiscalYear,
+    int CreatedCount,
+    int SkippedCount
+);
+
+public record LeaveBalanceRolloverPreviewResponse(
+    Guid UserId,
+    string? UserName,
+    Guid LeaveTypeId,
+    string LeaveTypeName,
+    int FromFiscalYear,
+    int ToFiscalYear,
+    decimal EntitlementDays,
+    decimal CarriedOverDays,
+    decimal AdjustedDays,
+    decimal UsedDays,
+    decimal PendingDays,
+    decimal EndYearRemaining,
+    decimal CarryOverMaxDays,
+    decimal CarryOverDays,
+    decimal ForfeitedDays,
+    decimal NewEntitlementDays,
+    decimal NewAvailableDays,
+    bool TargetBalanceExists,
+    IReadOnlyList<string> Warnings
+);
+
+public record LeaveBalanceRolloverConfirmRequest(
+    int ToFiscalYear,
+    decimal NewEntitlementDays,
+    string Reason,
+    bool UpdateExistingCarriedOverOnly = false
+);
+
+public record LeaveBalanceAdjustmentRequest(decimal AdjustmentDays, string Reason);
 
 public record ApprovalChainResponse(
     Guid Id,

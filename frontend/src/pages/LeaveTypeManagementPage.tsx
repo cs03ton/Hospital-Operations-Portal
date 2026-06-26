@@ -45,7 +45,7 @@ export function LeaveTypeManagementPage() {
   const { data = [], isLoading } = useQuery({ queryKey: ["leave-types"], queryFn: getLeaveTypes });
   const activeLeaveTypes = data.filter((item) => item.isActive);
   const { control, register, handleSubmit, reset, formState: { errors } } = useForm<SaveLeaveTypeRequest>({
-    defaultValues: { code: "", name: "", description: "", defaultDaysPerYear: 0, requiresBalance: true, requiresAttachment: false, isPaid: true, isActive: true },
+    defaultValues: getEmptyLeaveTypeForm(),
   });
 
   const saveMutation = useMutation({
@@ -53,7 +53,7 @@ export function LeaveTypeManagementPage() {
     onSuccess: async () => {
       showSuccess(editing ? "บันทึกประเภทการลาเรียบร้อยแล้ว" : "เพิ่มประเภทการลาเรียบร้อยแล้ว");
       setEditing(null);
-      reset({ code: "", name: "", description: "", defaultDaysPerYear: 0, requiresBalance: true, requiresAttachment: false, isPaid: true, isActive: true });
+      reset(getEmptyLeaveTypeForm());
       await queryClient.invalidateQueries({ queryKey: ["leave-types"] });
     },
   });
@@ -79,7 +79,7 @@ export function LeaveTypeManagementPage() {
           <Card>
             <CardContent>
               <Typography variant="h6" sx={{ mb: 2 }}>{editing ? "แก้ไขประเภทการลา" : "เพิ่มประเภทการลา"}</Typography>
-              <Stack component="form" spacing={2} onSubmit={handleSubmit((values) => saveMutation.mutate({ ...values, defaultDaysPerYear: Number(values.defaultDaysPerYear) }))}>
+              <Stack component="form" spacing={2} onSubmit={handleSubmit((values) => saveMutation.mutate({ ...values, defaultDaysPerYear: Number(values.defaultDaysPerYear), carryOverMaxDays: Number(values.carryOverMaxDays) }))}>
                 {saveMutation.isError && <Alert severity="error">บันทึกประเภทการลาไม่สำเร็จ</Alert>}
                 <Grid container spacing={1.5}>
                   <Grid item xs={12} md={3}>
@@ -96,12 +96,19 @@ export function LeaveTypeManagementPage() {
                   </Grid>
                 </Grid>
                 <Controller name="requiresBalance" control={control} render={({ field }) => <FormControlLabel control={<Checkbox checked={field.value} onChange={(e) => field.onChange(e.target.checked)} />} label="ใช้โควตาวันลา" />} />
+                <Controller name="useFiscalYear" control={control} render={({ field }) => <FormControlLabel control={<Checkbox checked={field.value} onChange={(e) => field.onChange(e.target.checked)} />} label="ใช้ปีงบประมาณ (1 ต.ค. - 30 ก.ย.)" />} />
+                <Controller name="allowCarryOver" control={control} render={({ field }) => <FormControlLabel control={<Checkbox checked={field.value} onChange={(e) => field.onChange(e.target.checked)} />} label="อนุญาตให้ยกยอดจากปีก่อน" />} />
+                <Grid container spacing={1.5}>
+                  <Grid item xs={12} md={3}>
+                    <TextField fullWidth size="small" type="number" label="ยกยอดสูงสุด (วัน)" InputLabelProps={{ shrink: true }} {...register("carryOverMaxDays")} />
+                  </Grid>
+                </Grid>
                 <Controller name="requiresAttachment" control={control} render={({ field }) => <FormControlLabel control={<Checkbox checked={field.value} onChange={(e) => field.onChange(e.target.checked)} />} label="ต้องแนบไฟล์" />} />
                 <Controller name="isPaid" control={control} render={({ field }) => <FormControlLabel control={<Checkbox checked={field.value} onChange={(e) => field.onChange(e.target.checked)} />} label="ได้รับค่าจ้าง" />} />
                 <Controller name="isActive" control={control} render={({ field }) => <FormControlLabel control={<Checkbox checked={field.value} onChange={(e) => field.onChange(e.target.checked)} />} label="เปิดใช้งาน" />} />
                 <Stack direction="row" spacing={1.5}>
                   <Button type="submit" variant="contained" startIcon={<AddOutlinedIcon />} disabled={saveMutation.isPending}>บันทึกข้อมูล</Button>
-                  {editing && <Button variant="outlined" onClick={() => { setEditing(null); reset({ code: "", name: "", description: "", defaultDaysPerYear: 0, requiresBalance: true, requiresAttachment: false, isPaid: true, isActive: true }); }}>ยกเลิก</Button>}
+                  {editing && <Button variant="outlined" onClick={() => { setEditing(null); reset(getEmptyLeaveTypeForm()); }}>ยกเลิก</Button>}
                 </Stack>
               </Stack>
             </CardContent>
@@ -115,6 +122,8 @@ export function LeaveTypeManagementPage() {
                   <TableCell>ชื่อ</TableCell>
                   <TableCell>สิทธิ์ต่อปี</TableCell>
                   <TableCell>โควตา</TableCell>
+                  <TableCell>ปีงบประมาณ</TableCell>
+                  <TableCell>ยกยอด</TableCell>
                   <TableCell>ไฟล์แนบ</TableCell>
                   <TableCell>สถานะ</TableCell>
                   {canSeeManageColumn && <TableCell align="right">จัดการ</TableCell>}
@@ -122,13 +131,15 @@ export function LeaveTypeManagementPage() {
               </TableHead>
               <TableBody>
                 {isLoading ? (
-                  <TableRow><TableCell colSpan={canSeeManageColumn ? 7 : 6}>กำลังโหลดประเภทการลา...</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={canSeeManageColumn ? 9 : 8}>กำลังโหลดประเภทการลา...</TableCell></TableRow>
                 ) : activeLeaveTypes.length ? activeLeaveTypes.map((item) => (
                   <TableRow key={item.id}>
                     <TableCell>{item.code}</TableCell>
                     <TableCell>{getLeaveTypeLabel(item.name || item.code)}</TableCell>
                     <TableCell>{item.defaultDaysPerYear}</TableCell>
                     <TableCell><Chip size="small" label={item.requiresBalance ? "ใช้โควตา" : "ไม่ใช้โควตา"} color={item.requiresBalance ? "success" : "default"} /></TableCell>
+                    <TableCell><Chip size="small" label={item.useFiscalYear ? "ใช้ปีงบ" : "ใช้ปีปฏิทิน"} color={item.useFiscalYear ? "success" : "default"} /></TableCell>
+                    <TableCell><Chip size="small" label={item.allowCarryOver ? `ได้ไม่เกิน ${item.carryOverMaxDays} วัน` : "ไม่ยกยอด"} color={item.allowCarryOver ? "warning" : "default"} /></TableCell>
                     <TableCell><Chip size="small" label={item.requiresAttachment ? "ต้องแนบ" : "ไม่บังคับ"} color={item.requiresAttachment ? "warning" : "default"} /></TableCell>
                     <TableCell><Chip size="small" label={item.isActive ? "ใช้งาน" : "ปิดใช้งาน"} color={item.isActive ? "success" : "default"} /></TableCell>
                     {canSeeManageColumn && (
@@ -152,7 +163,7 @@ export function LeaveTypeManagementPage() {
                     )}
                   </TableRow>
                 )) : (
-                  <TableRow><TableCell colSpan={canSeeManageColumn ? 7 : 6}>ยังไม่มีประเภทการลา</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={canSeeManageColumn ? 9 : 8}>ยังไม่มีประเภทการลา</TableCell></TableRow>
                 )}
               </TableBody>
         </DataTableCard>
@@ -183,4 +194,20 @@ export function LeaveTypeManagementPage() {
       </Dialog>
     </>
   );
+}
+
+function getEmptyLeaveTypeForm(): SaveLeaveTypeRequest {
+  return {
+    code: "",
+    name: "",
+    description: "",
+    defaultDaysPerYear: 0,
+    requiresBalance: true,
+    allowCarryOver: false,
+    carryOverMaxDays: 30,
+    useFiscalYear: true,
+    requiresAttachment: false,
+    isPaid: true,
+    isActive: true,
+  };
 }

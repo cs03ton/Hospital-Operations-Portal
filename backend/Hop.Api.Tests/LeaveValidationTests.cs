@@ -8,6 +8,42 @@ namespace Hop.Api.Tests;
 
 public class LeaveValidationTests
 {
+    [Theory]
+    [InlineData(2026, 9, 30, 2026)]
+    [InlineData(2026, 10, 1, 2027)]
+    public void FiscalYearHelper_ReturnsExpectedFiscalYear(int year, int month, int day, int expectedFiscalYear)
+    {
+        var fiscalYear = FiscalYearHelper.GetFiscalYear(new DateOnly(year, month, day));
+
+        Assert.Equal(expectedFiscalYear, fiscalYear);
+    }
+
+    [Fact]
+    public void FiscalYearHelper_CapsCarryOverAtLeaveTypeMaximum()
+    {
+        var leaveType = new LeaveType
+        {
+            AllowCarryOver = true,
+            CarryOverMaxDays = 30
+        };
+
+        var carriedOver = FiscalYearHelper.CalculateCarryOver(42, leaveType);
+
+        Assert.Equal(30, carriedOver);
+    }
+
+    [Fact]
+    public void FiscalYearHelper_DeductsUsedAndPendingDaysFromAvailableDays()
+    {
+        var available = FiscalYearHelper.CalculateAvailableDays(
+            entitledDays: 10,
+            carriedOverDays: 5,
+            usedDays: 3,
+            pendingDays: 2);
+
+        Assert.Equal(10, available);
+    }
+
     [Fact]
     public async Task ValidateDraftAsync_CalculatesFullDayBusinessDays()
     {
@@ -268,6 +304,45 @@ public class LeaveValidationTests
         Assert.Contains("รออนุมัติ 3", result.Message);
         Assert.Contains("เหลือใช้ได้ 2", result.Message);
     }
+
+    [Fact]
+    public async Task ValidateSubmitAsync_UsesFiscalYearBalanceForOctoberLeave()
+    {
+        await using var db = CreateDbContext();
+        var userId = Guid.NewGuid();
+        var leaveType = await AddLeaveType(db, defaultDays: 10);
+        db.LeaveBalances.Add(new LeaveBalance
+        {
+            UserId = userId,
+            LeaveTypeId = leaveType.Id,
+            Year = 2027,
+            EntitledDays = 10,
+            CarriedOverDays = 2,
+            UsedDays = 8,
+            PendingDays = 3
+        });
+        await db.SaveChangesAsync();
+        var service = CreateService(db);
+
+        var result = await service.ValidateSubmitAsync(new LeaveRequest
+        {
+            Id = Guid.NewGuid(),
+            UserId = userId,
+            LeaveTypeId = leaveType.Id,
+            LeaveType = leaveType,
+            StartDate = new DateOnly(2026, 10, 1),
+            EndDate = new DateOnly(2026, 10, 2),
+            DurationType = LeaveDurationTypes.FullDay,
+            TotalDays = 2,
+            Reason = "Fiscal year leave",
+            Status = "Draft"
+        });
+
+        Assert.False(result.IsValid);
+        Assert.Contains("รออนุมัติ 3", result.Message);
+        Assert.Contains("เหลือใช้ได้ 1", result.Message);
+    }
+
 
     [Fact]
     public async Task ValidateDraftAsync_IgnoresRejectedAndCancelledRequestsForOverlap()

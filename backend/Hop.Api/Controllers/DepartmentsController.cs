@@ -99,11 +99,18 @@ public class DepartmentsController(AppDbContext db, IAuditLogService auditLogSer
             return NotFound(ApiResponse<string>.Fail("Department not found."));
         }
 
-        department.IsActive = false;
-        department.UpdatedAt = DateTime.UtcNow;
+        var userCount = await db.Users.CountAsync(item => item.DepartmentId == id);
+        var approvalChainCount = await db.ApprovalChains.CountAsync(item => item.DepartmentId == id);
+        var escalationRuleCount = await db.ApprovalEscalationRules.CountAsync(item => item.DepartmentId == id);
+        if (userCount > 0 || approvalChainCount > 0 || escalationRuleCount > 0)
+        {
+            return Conflict(ApiResponse<string>.Fail(
+                $"ไม่สามารถลบหน่วยงานนี้ได้ เนื่องจากมีข้อมูลที่ผูกอยู่ ผู้ใช้งาน {userCount} รายการ, กฎการอนุมัติ {approvalChainCount} รายการ, กฎ escalation {escalationRuleCount} รายการ"));
+        }
 
+        db.Departments.Remove(department);
         await db.SaveChangesAsync();
-        await auditLogService.WriteAsync(GetCurrentUserId(), "Department.Delete", "Department", department.Id.ToString(), $"Deactivated department {department.Name}.", "Success", HttpContext);
+        await auditLogService.WriteAsync(GetCurrentUserId(), "Department.Delete", "Department", department.Id.ToString(), $"Deleted department {department.Name}.", "Success", HttpContext);
 
         return NoContent();
     }

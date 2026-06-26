@@ -9,31 +9,33 @@ export function LeaveBalancePage() {
 
   return (
     <>
-      <PageHeader title="วันลาคงเหลือของฉัน" subtitle="ตรวจสอบสิทธิ์วันลา ใช้ไป รออนุมัติ และคงเหลือ" />
+      <PageHeader title="วันลาคงเหลือของฉัน" subtitle="ตรวจสอบสิทธิ์วันลาตามปีงบประมาณ ยอดยกมา ใช้ไป รออนุมัติ และคงเหลือใช้ได้" />
       <Card>
         <CardContent>
           <Table size="small">
             <TableHead>
               <TableRow>
                 <TableCell>ประเภทลา</TableCell>
-                <TableCell>ปี</TableCell>
-                <TableCell>สิทธิ์ทั้งหมด</TableCell>
+                <TableCell>ปีงบประมาณ</TableCell>
+                <TableCell>สิทธิ์ประจำปี</TableCell>
+                <TableCell>ยกมาจากปีก่อน</TableCell>
                 <TableCell>ใช้ไป</TableCell>
                 <TableCell>รออนุมัติ</TableCell>
-                <TableCell>คงเหลือ</TableCell>
+                <TableCell>คงเหลือใช้ได้</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
               {isLoading ? (
-                <TableRow><TableCell colSpan={6}>กำลังโหลดข้อมูลวันลา...</TableCell></TableRow>
+                <TableRow><TableCell colSpan={7}>กำลังโหลดข้อมูลวันลา...</TableCell></TableRow>
               ) : data.map((item) => (
                 <TableRow key={item.leaveTypeId}>
                   <TableCell>{getLeaveTypeLabel(item.leaveTypeName)}</TableCell>
                   <TableCell>{item.year}</TableCell>
                   <TableCell>{item.entitledDays}</TableCell>
+                  <TableCell>{item.carriedOverDays}</TableCell>
                   <TableCell>{item.usedDays}</TableCell>
                   <TableCell>{item.pendingDays}</TableCell>
-                  <TableCell>{item.remainingDays}</TableCell>
+                  <TableCell>{item.availableDays}</TableCell>
                 </TableRow>
               ))}
             </TableBody>

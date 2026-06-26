@@ -75,6 +75,7 @@ export type DashboardSummary = {
   totalUsers: number;
   totalDepartments: number;
   pendingApprovals: number;
+  totalPendingLeaveRequests: number;
   openRepairRequests: number;
   activeBorrowRequests: number;
   inventoryItems: number;
@@ -87,6 +88,19 @@ export type DashboardSummary = {
   myLeaveRequestsApproved: number;
   myLeaveRequestsRejected: number;
   myLeaveRequestsCancelled: number;
+  totalLeaveTypes: number;
+  totalApprovalRules: number;
+  totalHolidaysThisYear: number;
+  totalAuditLogsToday: number;
+  loginEventsToday: number;
+  failedLoginEventsToday: number;
+  permissionDeniedEventsToday: number;
+  unreadNotifications: number;
+  lineQueued: number;
+  lineFailed: number;
+  apiHealth: string;
+  databaseStatus: string;
+  applicationVersion: string;
 };
 
 export type PagedResponse<T> = {
@@ -183,7 +197,7 @@ export async function updateDepartment(id: string, payload: SaveDepartmentReques
   return response.data.data;
 }
 
-export async function deactivateDepartment(id: string) {
+export async function deleteDepartment(id: string) {
   await httpClient.delete(`/api/departments/${id}`);
 }
 

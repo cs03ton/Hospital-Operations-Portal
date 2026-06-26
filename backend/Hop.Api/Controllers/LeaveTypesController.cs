@@ -44,6 +44,9 @@ public class LeaveTypesController(AppDbContext db, IAuditLogService auditLogServ
             Description = request.Description,
             DefaultDaysPerYear = request.DefaultDaysPerYear,
             RequiresBalance = request.RequiresBalance,
+            AllowCarryOver = request.AllowCarryOver,
+            CarryOverMaxDays = request.CarryOverMaxDays,
+            UseFiscalYear = request.UseFiscalYear,
             RequiresAttachment = request.RequiresAttachment,
             IsPaid = request.IsPaid,
             IsActive = request.IsActive
@@ -77,6 +80,9 @@ public class LeaveTypesController(AppDbContext db, IAuditLogService auditLogServ
         leaveType.Description = request.Description;
         leaveType.DefaultDaysPerYear = request.DefaultDaysPerYear;
         leaveType.RequiresBalance = request.RequiresBalance;
+        leaveType.AllowCarryOver = request.AllowCarryOver;
+        leaveType.CarryOverMaxDays = request.CarryOverMaxDays;
+        leaveType.UseFiscalYear = request.UseFiscalYear;
         leaveType.RequiresAttachment = request.RequiresAttachment;
         leaveType.IsPaid = request.IsPaid;
         leaveType.IsActive = request.IsActive;
@@ -115,6 +121,9 @@ public class LeaveTypesController(AppDbContext db, IAuditLogService auditLogServ
             item.Description,
             item.DefaultDaysPerYear,
             item.RequiresBalance,
+            item.AllowCarryOver,
+            item.CarryOverMaxDays,
+            item.UseFiscalYear,
             item.RequiresAttachment,
             item.IsPaid,
             item.IsActive

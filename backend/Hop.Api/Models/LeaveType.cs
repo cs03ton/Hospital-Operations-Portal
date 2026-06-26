@@ -8,6 +8,9 @@ public class LeaveType
     public string? Description { get; set; }
     public decimal DefaultDaysPerYear { get; set; }
     public bool RequiresBalance { get; set; } = true;
+    public bool AllowCarryOver { get; set; }
+    public decimal CarryOverMaxDays { get; set; } = 30;
+    public bool UseFiscalYear { get; set; } = true;
     public bool RequiresAttachment { get; set; }
     public bool IsPaid { get; set; } = true;
     public bool IsActive { get; set; } = true;

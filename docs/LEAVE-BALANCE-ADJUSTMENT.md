@@ -27,14 +27,20 @@ Stores:
 
 ## Behavior
 
-Creating an adjustment updates `leave_balances.entitled_days`.
+Creating an adjustment updates `leave_balances.adjusted_days`.
 
 Positive values increase entitlement.
 Negative values decrease entitlement.
 
+The displayed available balance uses:
+
+```text
+entitledDays + carriedOverDays + adjustedDays - usedDays - pendingDays
+```
+
 ## Permission
 
-- `LeaveBalance.Adjust`
+- `LeaveBalance.Adjusted`
 
 ## Audit Event
 

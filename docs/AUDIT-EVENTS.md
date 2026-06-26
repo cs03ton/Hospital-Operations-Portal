@@ -14,5 +14,10 @@
 | `LeaveApproval.EscalationNotified` | แจ้งเตือนหรือส่งต่อ escalation |
 | `LeaveApproval.OverrideApproved` | อนุมัติแทนผ่าน override flow |
 | `LeaveApproval.OverrideRejected` | ไม่อนุมัติแทนผ่าน override flow |
+| `LeaveBalance.Adjusted` | ปรับยอดวันลารายคนพร้อมเหตุผล |
+| `LeaveBalance.RolloverPreviewed` | เปิด preview การยกยอดวันลารายคน |
+| `LeaveBalance.RolloverConfirmed` | ยืนยันการยกยอดและสร้าง balance ปีงบประมาณใหม่ |
+| `LeaveBalance.RolloverUpdatedExistingBalance` | ยืนยันการยกยอดโดยอัปเดตเฉพาะยอดยกมาของ balance ที่มีอยู่ |
+| `LeaveBalance.RolloverBlocked` | บล็อกการยกยอดเพราะไม่ผ่านเงื่อนไข เช่น ประเภทลาไม่รองรับการยกยอด |
 
 ทุก event ต้องมี actor ถ้ามี, target resource, result และ detail เพียงพอสำหรับ audit ย้อนหลัง

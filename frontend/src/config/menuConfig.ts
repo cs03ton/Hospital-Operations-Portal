@@ -45,10 +45,10 @@ export const navigationModules: NavigationModule[] = [
     enabled: true,
     children: [
       { label: "แดชบอร์ดการลา", path: "/dashboard", icon: DashboardOutlinedIcon, permission: "Dashboard.View" },
-      { label: "งานรออนุมัติของฉัน", path: "/leave/pending-approvals", icon: FactCheckOutlinedIcon, permission: "LeaveRequest.ViewPendingApproval", activePatterns: ["/leave/pending-approvals"] },
+      { label: "งานรออนุมัติของฉัน", path: "/leave/pending-approvals", icon: FactCheckOutlinedIcon, permission: "LeaveRequest.ViewPendingApproval", activePatterns: ["/leave/pending-approvals"], hiddenForRoles: ["Admin", "SuperAdmin"] },
       { label: "รายการคำขอลา", path: "/leave", icon: EventAvailableOutlinedIcon, permissions: leaveViewPermissions, activePatterns: ["/leave", "/leave/:id"] },
       { label: "ปฏิทินการลา", path: "/leave/calendar", icon: CalendarMonthOutlinedIcon, permissions: leaveViewPermissions, activePatterns: ["/leave/calendar"] },
-      { label: "วันลาคงเหลือ", path: "/leave/balances", icon: AccountBalanceWalletOutlinedIcon, permission: "LeaveRequest.ViewOwn", activePatterns: ["/leave/balances"] },
+      { label: "วันลาคงเหลือ", path: "/leave/balances", icon: AccountBalanceWalletOutlinedIcon, permission: "LeaveRequest.ViewOwn", activePatterns: ["/leave/balances"], hiddenForRoles: ["Admin", "SuperAdmin"] },
       { label: "จัดการวันลาคงเหลือ", path: "/admin/leave-balances", icon: AccountBalanceWalletOutlinedIcon, permission: "LeaveAdmin.ManageBalances" },
       { label: "ประเภทการลา", path: "/leave/types", icon: TuneOutlinedIcon, permission: "LeaveAdmin.ManageTypes", activePatterns: ["/leave/types"] },
       { label: "กฎการอนุมัติวันลา", path: "/admin/approval-chains", icon: AccountTreeOutlinedIcon, permission: "LeaveAdmin.ManageApprovalChains" },

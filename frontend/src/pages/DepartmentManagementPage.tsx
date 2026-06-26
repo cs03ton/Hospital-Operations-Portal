@@ -1,11 +1,15 @@
 import AddOutlinedIcon from "@mui/icons-material/AddOutlined";
-import BlockOutlinedIcon from "@mui/icons-material/BlockOutlined";
+import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 import {
   Button,
   Card,
   CardContent,
   Chip,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
   IconButton,
   Stack,
   Table,
@@ -15,8 +19,9 @@ import {
   TableRow,
 } from "@mui/material";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import { Link as RouterLink } from "react-router-dom";
-import { deactivateDepartment, getDepartments } from "../api/adminApi";
+import { deleteDepartment, getDepartments, type DepartmentSummary } from "../api/adminApi";
 import { ActionTooltip } from "../components/common/ActionTooltip";
 import { PageHeader } from "../components/PageHeader";
 import { PermissionGuard } from "../context/PermissionContext";
@@ -25,23 +30,25 @@ import { useNotification } from "../hooks/useNotification";
 export function DepartmentManagementPage() {
   const queryClient = useQueryClient();
   const { showSuccess } = useNotification();
+  const [deletingDepartment, setDeletingDepartment] = useState<DepartmentSummary | null>(null);
   const { data = [], isLoading } = useQuery({
     queryKey: ["departments"],
     queryFn: getDepartments,
   });
 
-  const deactivateMutation = useMutation({
-    mutationFn: deactivateDepartment,
+  const deleteMutation = useMutation({
+    mutationFn: deleteDepartment,
     onSuccess: () => {
-      showSuccess("ปิดใช้งานหน่วยงานเรียบร้อยแล้ว");
+      showSuccess("ลบหน่วยงานเรียบร้อยแล้ว");
       queryClient.invalidateQueries({ queryKey: ["departments"] });
+      setDeletingDepartment(null);
     },
   });
 
   return (
     <>
       <Stack direction={{ xs: "column", sm: "row" }} justifyContent="space-between" spacing={2}>
-        <PageHeader title="จัดการหน่วยงาน" subtitle="เพิ่ม แก้ไข และปิดใช้งานหน่วยงาน" />
+        <PageHeader title="จัดการหน่วยงาน" subtitle="เพิ่ม แก้ไข และลบหน่วยงานที่ไม่จำเป็น" />
         <PermissionGuard permission="DepartmentManagement.Create">
           <Button
             component={RouterLink}
@@ -95,13 +102,14 @@ export function DepartmentManagementPage() {
                         </ActionTooltip>
                       </PermissionGuard>
                       <PermissionGuard permission="DepartmentManagement.Delete">
-                        <ActionTooltip title="ปิดใช้งานหน่วยงาน">
+                        <ActionTooltip title="ลบหน่วยงาน">
                           <IconButton
-                            aria-label="ปิดใช้งานหน่วยงาน"
-                            disabled={!department.isActive || deactivateMutation.isPending}
-                            onClick={() => deactivateMutation.mutate(department.id)}
+                            aria-label="ลบหน่วยงาน"
+                            color="error"
+                            disabled={deleteMutation.isPending}
+                            onClick={() => setDeletingDepartment(department)}
                           >
-                            <BlockOutlinedIcon />
+                            <DeleteOutlineIcon />
                           </IconButton>
                         </ActionTooltip>
                       </PermissionGuard>
@@ -113,6 +121,25 @@ export function DepartmentManagementPage() {
           </Table>
         </CardContent>
       </Card>
+      <Dialog open={Boolean(deletingDepartment)} onClose={() => setDeletingDepartment(null)} fullWidth maxWidth="sm">
+        <DialogTitle>ยืนยันการลบหน่วยงาน</DialogTitle>
+        <DialogContent>
+          ต้องการลบหน่วยงาน “{deletingDepartment?.name}” ใช่หรือไม่?
+          <br />
+          หากหน่วยงานนี้มีผู้ใช้งานหรือกฎอนุมัติผูกอยู่ ระบบจะไม่อนุญาตให้ลบ
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeletingDepartment(null)}>ยกเลิก</Button>
+          <Button
+            color="error"
+            variant="contained"
+            disabled={!deletingDepartment || deleteMutation.isPending}
+            onClick={() => deletingDepartment && deleteMutation.mutate(deletingDepartment.id)}
+          >
+            ลบหน่วยงาน
+          </Button>
+        </DialogActions>
+      </Dialog>
     </>
   );
 }

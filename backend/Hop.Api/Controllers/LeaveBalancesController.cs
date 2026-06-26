@@ -20,11 +20,13 @@ public class LeaveBalancesController(AppDbContext db, IAuditLogService auditLogS
     public async Task<ActionResult<ApiResponse<IReadOnlyList<LeaveBalanceResponse>>>> GetBalances(
         [FromQuery] int? year = null,
         [FromQuery] Guid? userId = null,
+        [FromQuery] Guid? departmentId = null,
         [FromQuery] Guid? leaveTypeId = null)
     {
         var query = db.LeaveBalances
             .AsNoTracking()
             .Include(item => item.User)
+                .ThenInclude(user => user!.Department)
             .Include(item => item.LeaveType)
             .AsQueryable();
 
@@ -36,6 +38,11 @@ public class LeaveBalancesController(AppDbContext db, IAuditLogService auditLogS
         if (userId is not null)
         {
             query = query.Where(item => item.UserId == userId.Value);
+        }
+
+        if (departmentId is not null)
+        {
+            query = query.Where(item => item.User != null && item.User.DepartmentId == departmentId.Value);
         }
 
         if (leaveTypeId is not null)
@@ -63,7 +70,7 @@ public class LeaveBalancesController(AppDbContext db, IAuditLogService auditLogS
             return Unauthorized(ApiResponse<IReadOnlyList<LeaveBalanceResponse>>.Fail("Invalid access token."));
         }
 
-        return ApiResponse<IReadOnlyList<LeaveBalanceResponse>>.Ok(await LoadBalances(userId.Value, year ?? DateTime.UtcNow.Year));
+        return ApiResponse<IReadOnlyList<LeaveBalanceResponse>>.Ok(await LoadBalances(userId.Value, year ?? FiscalYearHelper.GetFiscalYear(DateOnly.FromDateTime(DateTime.UtcNow))));
     }
 
     [HttpGet("user/{userId:guid}")]
@@ -75,7 +82,7 @@ public class LeaveBalancesController(AppDbContext db, IAuditLogService auditLogS
             return NotFound(ApiResponse<IReadOnlyList<LeaveBalanceResponse>>.Fail("User not found."));
         }
 
-        return ApiResponse<IReadOnlyList<LeaveBalanceResponse>>.Ok(await LoadBalances(userId, year ?? DateTime.UtcNow.Year));
+        return ApiResponse<IReadOnlyList<LeaveBalanceResponse>>.Ok(await LoadBalances(userId, year ?? FiscalYearHelper.GetFiscalYear(DateOnly.FromDateTime(DateTime.UtcNow))));
     }
 
     [HttpGet("import-template")]
@@ -85,14 +92,14 @@ public class LeaveBalancesController(AppDbContext db, IAuditLogService auditLogS
         var rows = new List<IReadOnlyList<string>>
         {
             new[] { "ตัวอย่างนำเข้ายอดวันลา" },
-            new[] { "username", "leaveTypeCode", "year", "entitledDays", "usedDays", "pendingDays" },
-            new[] { "staff.it01", "AnnualLeave", DateTime.UtcNow.Year.ToString(), "10", "0", "0" },
-            new[] { "staff.it01", "SickLeave", DateTime.UtcNow.Year.ToString(), "30", "0", "0" },
+            new[] { "username", "leaveTypeCode", "fiscalYear", "entitledDays", "carriedOverDays", "usedDays", "pendingDays" },
+            new[] { "staff.it01", "AnnualLeave", FiscalYearHelper.GetFiscalYear(DateOnly.FromDateTime(DateTime.UtcNow)).ToString(), "10", "0", "0", "0" },
+            new[] { "staff.it01", "SickLeave", FiscalYearHelper.GetFiscalYear(DateOnly.FromDateTime(DateTime.UtcNow)).ToString(), "30", "0", "0", "0" },
             Array.Empty<string>(),
             new[] { "หมายเหตุ: username และ leaveTypeCode ต้องตรงกับข้อมูลในระบบ" }
         };
 
-        var bytes = SimpleXlsxWriter.CreateWorkbook(rows, [22, 22, 12, 18, 14, 16]);
+        var bytes = SimpleXlsxWriter.CreateWorkbook(rows, [22, 22, 14, 18, 18, 14, 16]);
         return File(bytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "leave-balance-import-template.xlsx");
     }
 
@@ -120,8 +127,11 @@ public class LeaveBalancesController(AppDbContext db, IAuditLogService auditLogS
             LeaveTypeId = request.LeaveTypeId,
             Year = request.Year,
             EntitledDays = request.EntitledDays,
+            CarriedOverDays = request.CarriedOverDays,
+            AdjustedDays = request.AdjustedDays,
             UsedDays = request.UsedDays,
-            PendingDays = request.PendingDays
+            PendingDays = request.PendingDays,
+            Notes = request.Notes
         };
 
         db.LeaveBalances.Add(balance);
@@ -162,8 +172,11 @@ public class LeaveBalancesController(AppDbContext db, IAuditLogService auditLogS
         balance.LeaveTypeId = request.LeaveTypeId;
         balance.Year = request.Year;
         balance.EntitledDays = request.EntitledDays;
+        balance.CarriedOverDays = request.CarriedOverDays;
+        balance.AdjustedDays = request.AdjustedDays;
         balance.UsedDays = request.UsedDays;
         balance.PendingDays = request.PendingDays;
+        balance.Notes = request.Notes;
         balance.UpdatedAt = DateTime.UtcNow;
 
         await db.SaveChangesAsync();
@@ -188,6 +201,210 @@ public class LeaveBalancesController(AppDbContext db, IAuditLogService auditLogS
         return NoContent();
     }
 
+    [HttpPost("{id:guid}/adjust")]
+    [RequirePermission(LeavePermissions.ManageBalances)]
+    public async Task<ActionResult<ApiResponse<LeaveBalanceResponse>>> AdjustBalance(Guid id, LeaveBalanceAdjustmentRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.Reason))
+        {
+            return BadRequest(ApiResponse<LeaveBalanceResponse>.Fail("กรุณาระบุเหตุผลการปรับยอด"));
+        }
+
+        var actorUserId = GetCurrentUserId();
+        if (actorUserId is null)
+        {
+            return Unauthorized(ApiResponse<LeaveBalanceResponse>.Fail("Invalid access token."));
+        }
+
+        var balance = await db.LeaveBalances.FirstOrDefaultAsync(item => item.Id == id);
+        if (balance is null)
+        {
+            return NotFound(ApiResponse<LeaveBalanceResponse>.Fail("Leave balance not found."));
+        }
+
+        balance.AdjustedDays += request.AdjustmentDays;
+        balance.Notes = request.Reason;
+        balance.UpdatedAt = DateTime.UtcNow;
+        db.LeaveBalanceAdjustments.Add(new LeaveBalanceAdjustment
+        {
+            UserId = balance.UserId,
+            LeaveTypeId = balance.LeaveTypeId,
+            Year = balance.Year,
+            AdjustmentDays = request.AdjustmentDays,
+            Reason = request.Reason,
+            AdjustedByUserId = actorUserId.Value
+        });
+
+        await db.SaveChangesAsync();
+        await auditLogService.WriteAsync(actorUserId, "LeaveBalance.Adjusted", "LeaveBalance", id.ToString(), $"Adjusted leave balance. targetUserId={balance.UserId}, leaveTypeId={balance.LeaveTypeId}, fiscalYear={balance.Year}, adjustmentDays={request.AdjustmentDays:0.##}, reason={request.Reason}.", "Success", HttpContext);
+
+        return ApiResponse<LeaveBalanceResponse>.Ok((await LoadBalance(balance.Id))!);
+    }
+
+    [HttpPost("rollover")]
+    [RequirePermission(LeavePermissions.ManageBalances)]
+    public async Task<ActionResult<ApiResponse<LeaveBalanceRolloverResponse>>> RolloverBalances(LeaveBalanceRolloverRequest request)
+    {
+        if (request.TargetFiscalYear < 2000 || request.TargetFiscalYear > 2200)
+        {
+            return BadRequest(ApiResponse<LeaveBalanceRolloverResponse>.Fail("Target fiscal year is invalid."));
+        }
+
+        var previousFiscalYear = request.TargetFiscalYear - 1;
+        var users = await db.Users.AsNoTracking().Where(item => item.IsActive).Select(item => item.Id).ToListAsync();
+        var leaveTypes = await db.LeaveTypes.AsNoTracking().Where(item => item.IsActive && item.RequiresBalance).ToListAsync();
+        var existing = await db.LeaveBalances
+            .Where(item => item.Year == request.TargetFiscalYear)
+            .Select(item => new { item.UserId, item.LeaveTypeId })
+            .ToListAsync();
+        var previousBalances = await db.LeaveBalances
+            .AsNoTracking()
+            .Where(item => item.Year == previousFiscalYear)
+            .ToListAsync();
+
+        var existingKeys = existing.Select(item => (item.UserId, item.LeaveTypeId)).ToHashSet();
+        var createdCount = 0;
+        var skippedCount = 0;
+
+        foreach (var userId in users)
+        {
+            foreach (var leaveType in leaveTypes)
+            {
+                if (existingKeys.Contains((userId, leaveType.Id)))
+                {
+                    skippedCount++;
+                    continue;
+                }
+
+                var previous = previousBalances.FirstOrDefault(item => item.UserId == userId && item.LeaveTypeId == leaveType.Id);
+                var previousAvailable = previous is null
+                    ? 0
+                    : FiscalYearHelper.CalculateAvailableDays(previous.EntitledDays, previous.CarriedOverDays, previous.UsedDays, previous.PendingDays, previous.AdjustedDays);
+
+                db.LeaveBalances.Add(new LeaveBalance
+                {
+                    UserId = userId,
+                    LeaveTypeId = leaveType.Id,
+                    Year = request.TargetFiscalYear,
+                    EntitledDays = leaveType.DefaultDaysPerYear,
+                    CarriedOverDays = FiscalYearHelper.CalculateCarryOver(previousAvailable, leaveType),
+                    AdjustedDays = 0,
+                    UsedDays = 0,
+                    PendingDays = 0
+                });
+                createdCount++;
+            }
+        }
+
+        await db.SaveChangesAsync();
+        await auditLogService.WriteAsync(GetCurrentUserId(), "LeaveBalance.Rollover", "LeaveBalance", null, $"Rolled over balances to fiscal year {request.TargetFiscalYear}. Created={createdCount}, Skipped={skippedCount}.", "Success", HttpContext);
+
+        return ApiResponse<LeaveBalanceRolloverResponse>.Ok(new LeaveBalanceRolloverResponse(request.TargetFiscalYear, previousFiscalYear, createdCount, skippedCount));
+    }
+
+    [HttpPost("{id:guid}/rollover-preview")]
+    [RequirePermission(LeavePermissions.ManageBalances)]
+    public async Task<ActionResult<ApiResponse<LeaveBalanceRolloverPreviewResponse>>> PreviewIndividualRollover(Guid id)
+    {
+        var balance = await LoadBalanceEntity(id, asTracking: false);
+        if (balance is null)
+        {
+            return NotFound(ApiResponse<LeaveBalanceRolloverPreviewResponse>.Fail("Leave balance not found."));
+        }
+
+        if (balance.LeaveType is null || !balance.LeaveType.AllowCarryOver)
+        {
+            await auditLogService.WriteAsync(GetCurrentUserId(), "LeaveBalance.RolloverBlocked", "LeaveBalance", id.ToString(), $"Rollover blocked because leave type does not allow carry over. userId={balance.UserId}, leaveTypeId={balance.LeaveTypeId}, fromFiscalYear={balance.Year}.", "Failed", HttpContext);
+            return BadRequest(ApiResponse<LeaveBalanceRolloverPreviewResponse>.Fail("ประเภทลานี้ไม่รองรับการยกยอด"));
+        }
+
+        var preview = await BuildRolloverPreview(balance, balance.Year + 1, balance.LeaveType.DefaultDaysPerYear);
+        await auditLogService.WriteAsync(GetCurrentUserId(), "LeaveBalance.RolloverPreviewed", "LeaveBalance", id.ToString(), $"Previewed rollover. targetUserId={balance.UserId}, leaveTypeId={balance.LeaveTypeId}, fromFiscalYear={preview.FromFiscalYear}, toFiscalYear={preview.ToFiscalYear}, carriedOverDays={preview.CarryOverDays:0.##}, forfeitedDays={preview.ForfeitedDays:0.##}.", "Success", HttpContext);
+
+        return ApiResponse<LeaveBalanceRolloverPreviewResponse>.Ok(preview);
+    }
+
+    [HttpPost("{id:guid}/rollover-confirm")]
+    [RequirePermission(LeavePermissions.ManageBalances)]
+    public async Task<ActionResult<ApiResponse<LeaveBalanceResponse>>> ConfirmIndividualRollover(Guid id, LeaveBalanceRolloverConfirmRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.Reason))
+        {
+            return BadRequest(ApiResponse<LeaveBalanceResponse>.Fail("กรุณาระบุเหตุผลการยกยอด"));
+        }
+
+        if (request.ToFiscalYear < 2000 || request.ToFiscalYear > 2200)
+        {
+            return BadRequest(ApiResponse<LeaveBalanceResponse>.Fail("Target fiscal year is invalid."));
+        }
+
+        if (request.NewEntitlementDays < 0)
+        {
+            return BadRequest(ApiResponse<LeaveBalanceResponse>.Fail("New entitlement days cannot be negative."));
+        }
+
+        var sourceBalance = await LoadBalanceEntity(id, asTracking: false);
+        if (sourceBalance is null)
+        {
+            return NotFound(ApiResponse<LeaveBalanceResponse>.Fail("Leave balance not found."));
+        }
+
+        if (sourceBalance.LeaveType is null || !sourceBalance.LeaveType.AllowCarryOver)
+        {
+            await auditLogService.WriteAsync(GetCurrentUserId(), "LeaveBalance.RolloverBlocked", "LeaveBalance", id.ToString(), $"Rollover blocked because leave type does not allow carry over. userId={sourceBalance.UserId}, leaveTypeId={sourceBalance.LeaveTypeId}, fromFiscalYear={sourceBalance.Year}, toFiscalYear={request.ToFiscalYear}.", "Failed", HttpContext);
+            return BadRequest(ApiResponse<LeaveBalanceResponse>.Fail("ประเภทลานี้ไม่รองรับการยกยอด"));
+        }
+
+        if (request.ToFiscalYear <= sourceBalance.Year)
+        {
+            return BadRequest(ApiResponse<LeaveBalanceResponse>.Fail("ปีงบประมาณปลายทางต้องมากกว่าปีงบประมาณต้นทาง"));
+        }
+
+        var preview = await BuildRolloverPreview(sourceBalance, request.ToFiscalYear, request.NewEntitlementDays);
+        var existingTarget = await db.LeaveBalances
+            .FirstOrDefaultAsync(item =>
+                item.UserId == sourceBalance.UserId &&
+                item.LeaveTypeId == sourceBalance.LeaveTypeId &&
+                item.Year == request.ToFiscalYear);
+
+        if (existingTarget is not null && !request.UpdateExistingCarriedOverOnly)
+        {
+            return Conflict(ApiResponse<LeaveBalanceResponse>.Fail("พบยอดวันลาของปีงบประมาณปลายทางอยู่แล้ว กรุณาเลือกอัปเดตเฉพาะยอดยกมา"));
+        }
+
+        LeaveBalance targetBalance;
+        var auditAction = "LeaveBalance.RolloverConfirmed";
+        if (existingTarget is not null)
+        {
+            existingTarget.CarriedOverDays = preview.CarryOverDays;
+            existingTarget.Notes = request.Reason;
+            existingTarget.UpdatedAt = DateTime.UtcNow;
+            targetBalance = existingTarget;
+            auditAction = "LeaveBalance.RolloverUpdatedExistingBalance";
+        }
+        else
+        {
+            targetBalance = new LeaveBalance
+            {
+                UserId = sourceBalance.UserId,
+                LeaveTypeId = sourceBalance.LeaveTypeId,
+                Year = request.ToFiscalYear,
+                EntitledDays = request.NewEntitlementDays,
+                CarriedOverDays = preview.CarryOverDays,
+                AdjustedDays = 0,
+                UsedDays = 0,
+                PendingDays = 0,
+                Notes = request.Reason
+            };
+            db.LeaveBalances.Add(targetBalance);
+        }
+
+        await db.SaveChangesAsync();
+        await auditLogService.WriteAsync(GetCurrentUserId(), auditAction, "LeaveBalance", targetBalance.Id.ToString(), $"Confirmed individual rollover. targetUserId={sourceBalance.UserId}, leaveTypeId={sourceBalance.LeaveTypeId}, fromFiscalYear={preview.FromFiscalYear}, toFiscalYear={preview.ToFiscalYear}, carriedOverDays={preview.CarryOverDays:0.##}, forfeitedDays={preview.ForfeitedDays:0.##}, newEntitlementDays={request.NewEntitlementDays:0.##}, reason={request.Reason}.", "Success", HttpContext);
+
+        return ApiResponse<LeaveBalanceResponse>.Ok((await LoadBalance(targetBalance.Id))!);
+    }
+
     private async Task<IReadOnlyList<LeaveBalanceResponse>> LoadBalances(Guid userId, int year)
     {
         var leaveTypes = await db.LeaveTypes
@@ -205,20 +422,29 @@ public class LeaveBalancesController(AppDbContext db, IAuditLogService auditLogS
         {
             var balance = balances.FirstOrDefault(item => item.LeaveTypeId == leaveType.Id);
             var entitled = balance?.EntitledDays ?? leaveType.DefaultDaysPerYear;
+            var carriedOver = balance?.CarriedOverDays ?? 0;
             var used = balance?.UsedDays ?? 0;
             var pending = balance?.PendingDays ?? 0;
+            var adjusted = balance?.AdjustedDays ?? 0;
+            var available = FiscalYearHelper.CalculateAvailableDays(entitled, carriedOver, used, pending, adjusted);
 
             return new LeaveBalanceResponse(
                 balance?.Id,
                 userId,
                 null,
+                null,
+                null,
                 leaveType.Id,
                 leaveType.Name,
                 year,
                 entitled,
+                carriedOver,
+                adjusted,
                 used,
                 pending,
-                entitled - used - pending
+                available,
+                available,
+                balance?.Notes
             );
         }).ToList();
     }
@@ -228,6 +454,7 @@ public class LeaveBalancesController(AppDbContext db, IAuditLogService auditLogS
         return await db.LeaveBalances
             .AsNoTracking()
             .Include(item => item.User)
+                .ThenInclude(user => user!.Department)
             .Include(item => item.LeaveType)
             .Where(item => item.Id == id)
             .Select(item => ToResponse(item))
@@ -241,7 +468,7 @@ public class LeaveBalancesController(AppDbContext db, IAuditLogService auditLogS
             return BadRequest(ApiResponse<LeaveBalanceResponse>.Fail("Year is invalid."));
         }
 
-        if (request.EntitledDays < 0 || request.UsedDays < 0 || request.PendingDays < 0)
+        if (request.EntitledDays < 0 || request.CarriedOverDays < 0 || request.UsedDays < 0 || request.PendingDays < 0)
         {
             return BadRequest(ApiResponse<LeaveBalanceResponse>.Fail("Leave balance values cannot be negative."));
         }
@@ -265,14 +492,87 @@ public class LeaveBalancesController(AppDbContext db, IAuditLogService auditLogS
             balance.Id,
             balance.UserId,
             balance.User?.FullName,
+            balance.User?.DepartmentId,
+            balance.User?.Department?.Name,
             balance.LeaveTypeId,
             balance.LeaveType?.Name ?? "-",
             balance.Year,
             balance.EntitledDays,
+            balance.CarriedOverDays,
+            balance.AdjustedDays,
             balance.UsedDays,
             balance.PendingDays,
-            balance.EntitledDays - balance.UsedDays - balance.PendingDays
+            FiscalYearHelper.CalculateAvailableDays(balance.EntitledDays, balance.CarriedOverDays, balance.UsedDays, balance.PendingDays, balance.AdjustedDays),
+            FiscalYearHelper.CalculateAvailableDays(balance.EntitledDays, balance.CarriedOverDays, balance.UsedDays, balance.PendingDays, balance.AdjustedDays),
+            balance.Notes
         );
+    }
+
+    private async Task<LeaveBalance?> LoadBalanceEntity(Guid id, bool asTracking)
+    {
+        var query = db.LeaveBalances
+            .Include(item => item.User)
+                .ThenInclude(user => user!.Department)
+            .Include(item => item.LeaveType)
+            .Where(item => item.Id == id);
+
+        if (!asTracking)
+        {
+            query = query.AsNoTracking();
+        }
+
+        return await query.FirstOrDefaultAsync();
+    }
+
+    private async Task<LeaveBalanceRolloverPreviewResponse> BuildRolloverPreview(
+        LeaveBalance balance,
+        int toFiscalYear,
+        decimal newEntitlementDays)
+    {
+        var leaveType = balance.LeaveType!;
+        var targetExists = await db.LeaveBalances
+            .AsNoTracking()
+            .AnyAsync(item =>
+                item.UserId == balance.UserId &&
+                item.LeaveTypeId == balance.LeaveTypeId &&
+                item.Year == toFiscalYear);
+        var endYearRemaining = FiscalYearHelper.CalculateAvailableDays(balance.EntitledDays, balance.CarriedOverDays, balance.UsedDays, balance.PendingDays, balance.AdjustedDays);
+        var carryOverMaxDays = leaveType.CarryOverMaxDays > 0 ? leaveType.CarryOverMaxDays : FiscalYearHelper.CarryOverDefaultMaxDays;
+        var carryOverDays = FiscalYearHelper.CalculateCarryOver(endYearRemaining, leaveType);
+        var forfeitedDays = Math.Max(endYearRemaining - carryOverMaxDays, 0);
+        var newAvailableDays = FiscalYearHelper.CalculateAvailableDays(newEntitlementDays, carryOverDays, 0, 0, 0);
+        var warnings = new List<string>();
+
+        if (targetExists)
+        {
+            warnings.Add("พบยอดวันลาของปีงบประมาณปลายทางอยู่แล้ว ระบบจะไม่ overwrite โดยอัตโนมัติ");
+        }
+
+        if (forfeitedDays > 0)
+        {
+            warnings.Add($"มียอดคงเหลือเกินสิทธิ์ยกยอด ระบบจะตัดออก {forfeitedDays:0.##} วัน");
+        }
+
+        return new LeaveBalanceRolloverPreviewResponse(
+            balance.UserId,
+            balance.User?.FullName,
+            balance.LeaveTypeId,
+            leaveType.Name,
+            balance.Year,
+            toFiscalYear,
+            balance.EntitledDays,
+            balance.CarriedOverDays,
+            balance.AdjustedDays,
+            balance.UsedDays,
+            balance.PendingDays,
+            endYearRemaining,
+            carryOverMaxDays,
+            carryOverDays,
+            forfeitedDays,
+            newEntitlementDays,
+            newAvailableDays,
+            targetExists,
+            warnings);
     }
 
     private Guid? GetCurrentUserId()

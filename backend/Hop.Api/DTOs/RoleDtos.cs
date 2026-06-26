@@ -29,6 +29,7 @@ public record DashboardSummaryResponse(
     int TotalUsers,
     int TotalDepartments,
     int PendingApprovals,
+    int TotalPendingLeaveRequests,
     int OpenRepairRequests,
     int ActiveBorrowRequests,
     int InventoryItems,
@@ -40,5 +41,18 @@ public record DashboardSummaryResponse(
     int MyLeaveRequestsPending,
     int MyLeaveRequestsApproved,
     int MyLeaveRequestsRejected,
-    int MyLeaveRequestsCancelled
+    int MyLeaveRequestsCancelled,
+    int TotalLeaveTypes,
+    int TotalApprovalRules,
+    int TotalHolidaysThisYear,
+    int TotalAuditLogsToday,
+    int LoginEventsToday,
+    int FailedLoginEventsToday,
+    int PermissionDeniedEventsToday,
+    int UnreadNotifications,
+    int LineQueued,
+    int LineFailed,
+    string ApiHealth,
+    string DatabaseStatus,
+    string ApplicationVersion
 );

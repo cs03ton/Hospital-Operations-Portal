@@ -8,6 +8,9 @@ export type LeaveType = {
   description?: string | null;
   defaultDaysPerYear: number;
   requiresBalance: boolean;
+  allowCarryOver: boolean;
+  carryOverMaxDays: number;
+  useFiscalYear: boolean;
   requiresAttachment: boolean;
   isPaid: boolean;
   isActive: boolean;
@@ -80,13 +83,19 @@ export type LeaveBalance = {
   id?: string | null;
   userId: string;
   fullname?: string | null;
+  departmentId?: string | null;
+  departmentName?: string | null;
   leaveTypeId: string;
   leaveTypeName: string;
   year: number;
   entitledDays: number;
+  carriedOverDays: number;
+  adjustedDays: number;
   usedDays: number;
   pendingDays: number;
+  availableDays: number;
   remainingDays: number;
+  notes?: string | null;
 };
 
 export type ApprovalChain = {
@@ -213,8 +222,40 @@ export type SaveLeaveBalanceRequest = {
   leaveTypeId: string;
   year: number;
   entitledDays: number;
+  carriedOverDays: number;
+  adjustedDays: number;
   usedDays: number;
   pendingDays: number;
+  notes?: string | null;
+};
+
+export type LeaveBalanceRolloverPreview = {
+  userId: string;
+  userName?: string | null;
+  leaveTypeId: string;
+  leaveTypeName: string;
+  fromFiscalYear: number;
+  toFiscalYear: number;
+  entitlementDays: number;
+  carriedOverDays: number;
+  adjustedDays: number;
+  usedDays: number;
+  pendingDays: number;
+  endYearRemaining: number;
+  carryOverMaxDays: number;
+  carryOverDays: number;
+  forfeitedDays: number;
+  newEntitlementDays: number;
+  newAvailableDays: number;
+  targetBalanceExists: boolean;
+  warnings: string[];
+};
+
+export type ConfirmLeaveBalanceRolloverRequest = {
+  toFiscalYear: number;
+  newEntitlementDays: number;
+  reason: string;
+  updateExistingCarriedOverOnly?: boolean;
 };
 
 export type LeaveHolidayImportPreviewRow = {
@@ -349,8 +390,10 @@ export type LeaveBalanceReportItem = {
   leaveTypeName: string;
   year: number;
   entitledDays: number;
+  carriedOverDays: number;
   usedDays: number;
   pendingDays: number;
+  availableDays: number;
   remainingDays: number;
 };
 
@@ -588,7 +631,7 @@ export async function getMyLeaveBalances() {
   return response.data.data;
 }
 
-export async function getLeaveBalances(params?: { year?: number; userId?: string; leaveTypeId?: string }) {
+export async function getLeaveBalances(params?: { year?: number; userId?: string; departmentId?: string; leaveTypeId?: string }) {
   const response = await httpClient.get<ApiResponse<LeaveBalance[]>>("/api/leave-balances", { params });
   return response.data.data;
 }
@@ -603,8 +646,31 @@ export async function updateLeaveBalance(id: string, payload: SaveLeaveBalanceRe
   return response.data.data;
 }
 
+export async function adjustLeaveBalance(id: string, payload: { adjustmentDays: number; reason: string }) {
+  const response = await httpClient.post<ApiResponse<LeaveBalance>>(`/api/leave-balances/${id}/adjust`, payload);
+  return response.data.data;
+}
+
 export async function deleteLeaveBalance(id: string) {
   await httpClient.delete(`/api/leave-balances/${id}`);
+}
+
+export async function rolloverLeaveBalances(targetFiscalYear: number) {
+  const response = await httpClient.post<ApiResponse<{ targetFiscalYear: number; previousFiscalYear: number; createdCount: number; skippedCount: number }>>(
+    "/api/leave-balances/rollover",
+    { targetFiscalYear },
+  );
+  return response.data.data;
+}
+
+export async function previewLeaveBalanceRollover(id: string) {
+  const response = await httpClient.post<ApiResponse<LeaveBalanceRolloverPreview>>(`/api/leave-balances/${id}/rollover-preview`);
+  return response.data.data;
+}
+
+export async function confirmLeaveBalanceRollover(id: string, payload: ConfirmLeaveBalanceRolloverRequest) {
+  const response = await httpClient.post<ApiResponse<LeaveBalance>>(`/api/leave-balances/${id}/rollover-confirm`, payload);
+  return response.data.data;
 }
 
 export async function downloadLeaveBalanceTemplate() {
@@ -691,7 +757,7 @@ export async function updateLeaveHoliday(id: string, payload: SaveLeaveHolidayRe
   return response.data.data;
 }
 
-export async function deactivateLeaveHoliday(id: string) {
+export async function deleteLeaveHoliday(id: string) {
   await httpClient.delete(`/api/leave-holidays/${id}`);
 }
 

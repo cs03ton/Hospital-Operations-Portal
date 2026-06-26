@@ -128,10 +128,9 @@ public class LeaveHolidaysController(AppDbContext db, IAuditLogService auditLogS
             return NotFound(ApiResponse<string>.Fail("Holiday not found."));
         }
 
-        item.IsActive = false;
-        item.UpdatedAt = DateTime.UtcNow;
+        db.LeaveHolidays.Remove(item);
         await db.SaveChangesAsync();
-        await auditLogService.WriteAsync(GetCurrentUserId(), "LeaveHoliday.Delete", "LeaveHoliday", item.Id.ToString(), $"Deactivated holiday {item.Name}.", "Success", HttpContext);
+        await auditLogService.WriteAsync(GetCurrentUserId(), "LeaveHoliday.Delete", "LeaveHoliday", item.Id.ToString(), $"Deleted holiday {item.Name}.", "Success", HttpContext);
 
         return NoContent();
     }

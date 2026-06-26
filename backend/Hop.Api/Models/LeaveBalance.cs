@@ -7,8 +7,11 @@ public class LeaveBalance
     public Guid LeaveTypeId { get; set; }
     public int Year { get; set; }
     public decimal EntitledDays { get; set; }
+    public decimal CarriedOverDays { get; set; }
+    public decimal AdjustedDays { get; set; }
     public decimal UsedDays { get; set; }
     public decimal PendingDays { get; set; }
+    public string? Notes { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? UpdatedAt { get; set; }
 

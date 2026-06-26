@@ -6,6 +6,7 @@ import { useLocation } from "react-router-dom";
 import hospitalLogo from "../../assets/logo/hospital-logo.png";
 import { appName, hospitalName } from "../../config/appConfig";
 import { navigationModules } from "../../config/menuConfig";
+import { useAuth } from "../../context/AuthContext";
 import { usePermission } from "../../context/PermissionContext";
 import { useModuleMenuState } from "../../hooks/useModuleMenuState";
 import { isItemActive, ModuleMenuGroup } from "./ModuleMenuGroup";
@@ -31,6 +32,7 @@ export function AppSidebar({
 }: AppSidebarProps) {
   const theme = useTheme();
   const isDesktop = useMediaQuery(theme.breakpoints.up("md"));
+  const { user } = useAuth();
   const { hasPermission, hasAnyPermission } = usePermission();
   const location = useLocation();
   const visibleModules = navigationModules
@@ -38,6 +40,10 @@ export function AppSidebar({
     .map((module) => ({
       ...module,
       children: module.children.filter((item) => {
+        if (item.hiddenForRoles?.includes(user?.role ?? "")) {
+          return false;
+        }
+
         if (item.permissions?.length) {
           return hasAnyPermission(item.permissions);
         }
