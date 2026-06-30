@@ -67,6 +67,8 @@ public record LeaveDecisionRequest(string? Remark);
 
 public record LeaveOverrideDecisionRequest(string Reason);
 
+public record LineApprovalActionOpenedRequest(string Action);
+
 public record LeaveAttachmentResponse(
     Guid Id,
     Guid LeaveRequestId,
@@ -420,12 +422,33 @@ public record PendingApprovalNotificationResponse(
 public record LeaveNotificationItemResponse(
     string Id,
     string Type,
-    Guid RequestId,
+    Guid? RequestId,
     string Title,
     string Message,
     DateTime CreatedAt,
     bool Unread,
-    string Path
+    string Path,
+    string Category = "Leave",
+    string Priority = "Information",
+    string NotificationType = "Information",
+    string? TargetRole = null,
+    string? ReferenceEntity = null,
+    string? ReferenceId = null,
+    DateTime? ExpiresAt = null
+);
+
+public record NotificationCenterQuery(
+    int Page = 1,
+    int PageSize = 20,
+    string? Filter = null,
+    string? Category = null,
+    string? Search = null
+);
+
+public record NotificationReadResponse(
+    Guid Id,
+    bool IsRead,
+    DateTime? ReadAt
 );
 
 public record LeaveSupportRequestResponse(

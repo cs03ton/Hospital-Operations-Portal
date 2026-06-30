@@ -56,6 +56,10 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             entity.Property(item => item.PhoneNumber).HasColumnName("phone_number");
             entity.Property(item => item.LeaveContactAddress).HasColumnName("leave_contact_address");
             entity.Property(item => item.ProfileImageUrl).HasColumnName("profile_image_url");
+            entity.Property(item => item.ProfileImagePath).HasColumnName("profile_image_path");
+            entity.Property(item => item.ProfileImageFileName).HasColumnName("profile_image_file_name");
+            entity.Property(item => item.ProfileImageContentType).HasColumnName("profile_image_content_type");
+            entity.Property(item => item.ProfileImageUpdatedAt).HasColumnName("profile_image_updated_at");
             entity.Property(item => item.DepartmentId).HasColumnName("department_id");
             entity.Property(item => item.LeaveApprovalRuleId).HasColumnName("leave_approval_rule_id");
             entity.Property(item => item.LineUserId).HasColumnName("line_user_id");
@@ -165,10 +169,23 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             entity.Property(item => item.Id).HasColumnName("id");
             entity.Property(item => item.UserId).HasColumnName("user_id");
             entity.Property(item => item.Channel).HasColumnName("channel");
+            entity.Property(item => item.Category).HasColumnName("category").HasMaxLength(80).HasDefaultValue("Leave");
+            entity.Property(item => item.NotificationType).HasColumnName("notification_type").HasMaxLength(40).HasDefaultValue("Information");
+            entity.Property(item => item.Priority).HasColumnName("priority").HasMaxLength(40).HasDefaultValue("Information");
+            entity.Property(item => item.TargetRole).HasColumnName("target_role").HasMaxLength(80);
             entity.Property(item => item.Title).HasColumnName("title");
             entity.Property(item => item.Message).HasColumnName("message");
+            entity.Property(item => item.ActionUrl).HasColumnName("action_url");
+            entity.Property(item => item.ReferenceEntity).HasColumnName("reference_entity").HasMaxLength(120);
+            entity.Property(item => item.ReferenceId).HasColumnName("reference_id").HasMaxLength(120);
+            entity.Property(item => item.ExpiresAt).HasColumnName("expires_at");
+            entity.Property(item => item.ArchivedAt).HasColumnName("archived_at");
             entity.Property(item => item.IsRead).HasColumnName("is_read");
+            entity.Property(item => item.ReadAt).HasColumnName("read_at");
             entity.Property(item => item.CreatedAt).HasColumnName("created_at");
+            entity.HasIndex(item => new { item.UserId, item.IsRead, item.NotificationType });
+            entity.HasIndex(item => new { item.TargetRole, item.Category });
+            entity.HasIndex(item => item.ExpiresAt);
         });
 
         modelBuilder.Entity<AuditLog>(entity =>

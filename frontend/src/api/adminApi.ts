@@ -153,6 +153,108 @@ export type SystemSettings = {
   lineEndpoint: string;
 };
 
+export type LineSettings = {
+  enabled: boolean;
+  channelId?: string | null;
+  hasChannelSecret: boolean;
+  hasAccessToken: boolean;
+  channelSecretConfigured: boolean;
+  channelAccessTokenConfigured: boolean;
+  testUserId?: string | null;
+  endpoint: string;
+};
+
+export type LineTestSendRequest = {
+  toUserId?: string | null;
+  message: string;
+};
+
+export type LineTestSendResponse = {
+  success: boolean;
+  message: string;
+  deliveryStatus?: string | null;
+  deliveryLogId?: string | null;
+  httpStatusCode?: number | null;
+  responseTimeMs?: number | null;
+  error?: string | null;
+};
+
+export type LineChecklistItem = {
+  label: string;
+  passed: boolean;
+  recommendation: string;
+};
+
+export type LineOperationsStatus = {
+  enabled: boolean;
+  connectionStatus: string;
+  channelIdMasked?: string | null;
+  hasChannelSecret: boolean;
+  hasAccessToken: boolean;
+  hasTestUserId: boolean;
+  testUserIdMasked?: string | null;
+  endpoint: string;
+  environment: string;
+  webhookActive: boolean;
+  botName?: string | null;
+  lastSuccessfulDelivery?: string | null;
+  lastFailedDelivery?: string | null;
+  queueLength: number;
+  pendingRetry: number;
+  averageResponseTimeMs?: number | null;
+  checklist: LineChecklistItem[];
+};
+
+export type LineConnectionValidation = {
+  success: boolean;
+  message: string;
+  httpStatusCode?: number | null;
+  responseTimeMs: number;
+  botName?: string | null;
+  checklist: LineChecklistItem[];
+};
+
+export type LineDeliveryLog = {
+  id: string;
+  date: string;
+  recipient: string;
+  module: string;
+  event: string;
+  status: string;
+  retry: number;
+  durationMs?: number | null;
+  error?: string | null;
+};
+
+export type LineNotificationSimulatorRequest = {
+  userId: string;
+  eventType: string;
+  message?: string | null;
+};
+
+export type LineFlexPreview = {
+  payload: string;
+  validation: LineChecklistItem[];
+};
+
+export type LineFlexValidateRequest = {
+  payload: string;
+};
+
+export type LineFlexValidateResponse = {
+  isValid: boolean;
+  message: string;
+  checks: LineChecklistItem[];
+};
+
+export type LineFlexTestSendRequest = {
+  toUserId?: string | null;
+  leaveRequestId?: string | null;
+  payload?: string | null;
+  variant?: string | null;
+  avatarMode?: string | null;
+};
+
 export async function getUsers() {
   const response = await httpClient.get<ApiResponse<UserSummary[]>>("/api/users");
   return response.data.data;
@@ -275,5 +377,55 @@ export async function downloadAuditLogPdf(params: AuditLogQuery = {}) {
 
 export async function getSystemSettings() {
   const response = await httpClient.get<ApiResponse<SystemSettings>>("/api/system-settings");
+  return response.data.data;
+}
+
+export async function getLineSettings() {
+  const response = await httpClient.get<ApiResponse<LineSettings>>("/api/admin/line/settings");
+  return response.data.data;
+}
+
+export async function getLineOperationsStatus() {
+  const response = await httpClient.get<ApiResponse<LineOperationsStatus>>("/api/admin/line/operations-status");
+  return response.data.data;
+}
+
+export async function validateLineConnection() {
+  const response = await httpClient.post<ApiResponse<LineConnectionValidation>>("/api/admin/line/validate");
+  return response.data.data;
+}
+
+export async function sendLineTestMessage(payload: LineTestSendRequest) {
+  const response = await httpClient.post<ApiResponse<LineTestSendResponse>>("/api/admin/line/test-send", payload);
+  return response.data.data;
+}
+
+export async function getLineTestHistory(params: { page?: number; pageSize?: number; search?: string } = {}) {
+  const response = await httpClient.get<ApiResponse<PagedResponse<LineDeliveryLog>>>("/api/admin/line/test-history", { params });
+  return response.data.data;
+}
+
+export async function getLineDeliveryLogs(params: { page?: number; pageSize?: number; status?: string; search?: string } = {}) {
+  const response = await httpClient.get<ApiResponse<PagedResponse<LineDeliveryLog>>>("/api/admin/line/delivery-logs", { params });
+  return response.data.data;
+}
+
+export async function simulateLineNotification(payload: LineNotificationSimulatorRequest) {
+  const response = await httpClient.post<ApiResponse<LineTestSendResponse>>("/api/admin/line/simulate", payload);
+  return response.data.data;
+}
+
+export async function getLineFlexPreview(params: { leaveRequestId?: string | null; variant?: string | null; avatarMode?: string | null } = {}) {
+  const response = await httpClient.get<ApiResponse<LineFlexPreview>>("/api/admin/line/flex-preview", { params });
+  return response.data.data;
+}
+
+export async function validateLineFlexPayload(payload: LineFlexValidateRequest) {
+  const response = await httpClient.post<ApiResponse<LineFlexValidateResponse>>("/api/admin/line/validate-flex", payload);
+  return response.data.data;
+}
+
+export async function sendLineTestFlex(payload: LineFlexTestSendRequest) {
+  const response = await httpClient.post<ApiResponse<LineTestSendResponse>>("/api/admin/line/test-flex", payload);
   return response.data.data;
 }

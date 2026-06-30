@@ -20,6 +20,10 @@ CREATE TABLE IF NOT EXISTS users (
     phone_number TEXT,
     leave_contact_address TEXT,
     profile_image_url TEXT,
+    profile_image_path TEXT,
+    profile_image_file_name TEXT,
+    profile_image_content_type TEXT,
+    profile_image_updated_at TIMESTAMPTZ,
     department_id UUID REFERENCES departments(id),
     leave_approval_rule_id UUID,
     line_user_id VARCHAR(255),
@@ -89,11 +93,25 @@ CREATE TABLE IF NOT EXISTS notifications (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID REFERENCES users(id),
     channel VARCHAR(50) NOT NULL DEFAULT 'InApp',
+    category VARCHAR(80) NOT NULL DEFAULT 'Leave',
+    notification_type VARCHAR(40) NOT NULL DEFAULT 'Information',
+    priority VARCHAR(40) NOT NULL DEFAULT 'Information',
+    target_role VARCHAR(80),
     title VARCHAR(255) NOT NULL,
     message TEXT NOT NULL,
+    action_url TEXT,
+    reference_entity VARCHAR(120),
+    reference_id VARCHAR(120),
+    expires_at TIMESTAMPTZ,
+    archived_at TIMESTAMPTZ,
     is_read BOOLEAN DEFAULT FALSE,
+    read_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE INDEX IF NOT EXISTS idx_notifications_user_read_type ON notifications(user_id, is_read, notification_type);
+CREATE INDEX IF NOT EXISTS idx_notifications_target_role_category ON notifications(target_role, category);
+CREATE INDEX IF NOT EXISTS idx_notifications_expires_at ON notifications(expires_at);
 
 CREATE TABLE IF NOT EXISTS audit_logs (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

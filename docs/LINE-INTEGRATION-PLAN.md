@@ -10,6 +10,8 @@ Phase 2.1 adds delivery audit structure and retry design for the real sender wor
 - `LineMessagingService`
 - `LeaveNotificationMessage`
 - `line_delivery_logs`
+- `POST /api/admin/line/test-send`
+- `Admin > ตั้งค่า LINE`
 
 ## Current Behavior
 
@@ -19,6 +21,8 @@ If `Line:Enabled` is false, records are saved with status `Disabled`.
 If enabled, the service calls LINE Messaging API push endpoint immediately.
 Successful delivery is saved as `Sent`.
 Missing configuration, missing user `line_user_id`, API failure, or network failure is saved as `Failed` with `next_retry_at`.
+
+Admins can verify configuration without exposing secrets through `Admin > ตั้งค่า LINE`. The UI displays masked configuration status and can send a test message to `LINE_TEST_USER_ID` or a provided LINE User ID.
 
 ## Retry Policy Design
 
@@ -45,8 +49,6 @@ Each delivery attempt should record:
 
 ## Future Work
 
-1. Add secure LINE channel configuration.
-2. Add richer message templates.
-3. Map all hospital users to LINE user IDs.
-4. Add background retry worker.
-5. Add retry management UI.
+1. Add richer message templates.
+2. Map all hospital users to LINE user IDs.
+3. Add retry management UI.

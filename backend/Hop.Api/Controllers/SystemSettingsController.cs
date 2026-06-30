@@ -1,4 +1,5 @@
 using Hop.Api.Authorization;
+using Hop.Api.Configuration;
 using Hop.Api.DTOs;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -8,7 +9,7 @@ namespace Hop.Api.Controllers;
 [ApiController]
 [Route("api/system-settings")]
 [Authorize]
-public class SystemSettingsController(IConfiguration configuration) : ControllerBase
+public class SystemSettingsController(IConfiguration configuration, LineConfigurationResolver lineConfiguration) : ControllerBase
 {
     [HttpGet]
     [RequirePermission("SystemSettings.View")]
@@ -27,9 +28,9 @@ public class SystemSettingsController(IConfiguration configuration) : Controller
             configuration["LeavePdf:FontFamily"] ?? configuration["LEAVE_PDF_FONT_FAMILY"] ?? "TH SarabunPSK",
             configuration.GetValue("LeavePdf:FontSize", configuration.GetValue("LEAVE_PDF_FONT_SIZE", 16)),
             configuration.GetValue("LeavePdf:LineHeight", configuration.GetValue("LEAVE_PDF_LINE_HEIGHT", 1.2)),
-            configuration.GetValue("LINE:Enabled", configuration.GetValue("LINE_ENABLED", false)),
-            !string.IsNullOrWhiteSpace(configuration["LINE:ChannelAccessToken"] ?? configuration["LINE_CHANNEL_ACCESS_TOKEN"]),
-            configuration["LINE:Endpoint"] ?? configuration["LINE_ENDPOINT"] ?? "https://api.line.me/v2/bot/message/push"
+            lineConfiguration.Enabled,
+            lineConfiguration.HasAccessToken,
+            lineConfiguration.Endpoint
         );
 
         return ApiResponse<SystemSettingsResponse>.Ok(response);

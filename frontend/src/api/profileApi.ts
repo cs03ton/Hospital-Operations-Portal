@@ -11,6 +11,8 @@ export type UserProfile = {
   phoneNumber?: string | null;
   leaveContactAddress?: string | null;
   profileImageUrl?: string | null;
+  hasProfileImage: boolean;
+  profileImageUpdatedAt?: string | null;
   roles: string[];
   departmentId?: string | null;
   departmentName?: string | null;
@@ -27,7 +29,11 @@ export type UpdateUserProfileRequest = {
   email?: string | null;
   phoneNumber?: string | null;
   leaveContactAddress?: string | null;
-  profileImageUrl?: string | null;
+};
+
+export type ProfileImageUploadResponse = {
+  profileImageUrl: string;
+  message: string;
 };
 
 export async function getMyProfile() {
@@ -38,4 +44,17 @@ export async function getMyProfile() {
 export async function updateMyProfile(payload: UpdateUserProfileRequest) {
   const response = await httpClient.put<ApiResponse<UserProfile>>("/api/me/profile", payload);
   return response.data.data;
+}
+
+export async function uploadMyProfileImage(file: File) {
+  const formData = new FormData();
+  formData.append("file", file);
+  const response = await httpClient.post<ApiResponse<ProfileImageUploadResponse>>("/api/me/profile/image", formData, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+  return response.data.data;
+}
+
+export async function deleteMyProfileImage() {
+  await httpClient.delete("/api/me/profile/image");
 }

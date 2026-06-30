@@ -4,6 +4,7 @@ export type AuthUser = {
   username: string;
   role: string;
   department?: string | null;
+  profileImageUrl?: string | null;
   permissions: string[];
 };
 

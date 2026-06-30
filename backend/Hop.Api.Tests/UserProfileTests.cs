@@ -17,8 +17,8 @@ public class UserProfileTests
         Assert.Contains("Position", propertyNames);
         Assert.Contains("PhoneNumber", propertyNames);
         Assert.Contains("LeaveContactAddress", propertyNames);
-        Assert.Contains("ProfileImageUrl", propertyNames);
 
+        Assert.DoesNotContain("ProfileImageUrl", propertyNames);
         Assert.DoesNotContain("RoleIds", propertyNames);
         Assert.DoesNotContain("DepartmentId", propertyNames);
         Assert.DoesNotContain("LeaveApprovalRuleId", propertyNames);

@@ -37,7 +37,7 @@ docker compose --env-file .env.production -f docker-compose.prod.yml exec -T pos
 
 ## Uploaded File Storage
 
-Production uploads are stored in the `hop_prod_storage` Docker volume at `/app/storage` inside the backend container.
+Production uploads are stored in the `hop_prod_storage` Docker volume at `/app/storage` inside the backend container. This includes leave attachments and profile images under `profile-images/`.
 
 Back up uploaded files before migrations and before application updates.
 

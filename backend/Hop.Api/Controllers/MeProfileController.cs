@@ -13,10 +13,23 @@ namespace Hop.Api.Controllers;
 [ApiController]
 [Route("api/me/profile")]
 [Authorize]
-public class MeProfileController(AppDbContext db, IAuditLogService auditLogService) : ControllerBase
+public class MeProfileController(AppDbContext db, IAuditLogService auditLogService, IHostEnvironment environment) : ControllerBase
 {
     private static readonly Regex PhoneRegex = new(@"^[0-9+\-\s()]{6,30}$", RegexOptions.Compiled);
     private static readonly Regex EmailRegex = new(@"^[^@\s]+@[^@\s]+\.[^@\s]+$", RegexOptions.Compiled);
+    private static readonly HashSet<string> AllowedProfileImageTypes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "image/jpeg",
+        "image/png",
+        "image/webp"
+    };
+    private static readonly Dictionary<string, string> ProfileImageExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["image/jpeg"] = ".jpg",
+        ["image/png"] = ".png",
+        ["image/webp"] = ".webp"
+    };
+    private const long MaxProfileImageBytes = 2 * 1024 * 1024;
 
     [HttpGet]
     public async Task<ActionResult<ApiResponse<UserProfileResponse>>> GetProfile()
@@ -73,7 +86,6 @@ public class MeProfileController(AppDbContext db, IAuditLogService auditLogServi
         UpdateIfChanged(user.Email, email, "email", value => user.Email = value, updatedFields);
         UpdateIfChanged(user.PhoneNumber, phoneNumber, "phoneNumber", value => user.PhoneNumber = value, updatedFields);
         UpdateIfChanged(user.LeaveContactAddress, NormalizeOptional(request.LeaveContactAddress), "leaveContactAddress", value => user.LeaveContactAddress = value, updatedFields);
-        UpdateIfChanged(user.ProfileImageUrl, NormalizeOptional(request.ProfileImageUrl), "profileImageUrl", value => user.ProfileImageUrl = value, updatedFields);
 
         user.UpdatedAt = DateTime.UtcNow;
         await db.SaveChangesAsync();
@@ -92,6 +104,115 @@ public class MeProfileController(AppDbContext db, IAuditLogService auditLogServi
 
         var updated = await LoadCurrentUser();
         return ApiResponse<UserProfileResponse>.Ok(ToResponse(updated!));
+    }
+
+    [HttpPost("image")]
+    [RequestSizeLimit(MaxProfileImageBytes + 1024)]
+    public async Task<ActionResult<ApiResponse<ProfileImageUploadResponse>>> UploadProfileImage(IFormFile? file)
+    {
+        var userId = GetCurrentUserId();
+        if (userId is null)
+        {
+            return Unauthorized(ApiResponse<ProfileImageUploadResponse>.Fail("Invalid access token."));
+        }
+
+        var user = await db.Users.FirstOrDefaultAsync(item => item.Id == userId && item.IsActive);
+        if (user is null)
+        {
+            return Unauthorized(ApiResponse<ProfileImageUploadResponse>.Fail("User not found."));
+        }
+
+        if (file is null || file.Length == 0)
+        {
+            return BadRequest(ApiResponse<ProfileImageUploadResponse>.Fail("กรุณาเลือกไฟล์รูปโปรไฟล์"));
+        }
+
+        if (file.Length > MaxProfileImageBytes)
+        {
+            return BadRequest(ApiResponse<ProfileImageUploadResponse>.Fail("ไฟล์รูปโปรไฟล์ต้องมีขนาดไม่เกิน 2 MB"));
+        }
+
+        if (!AllowedProfileImageTypes.Contains(file.ContentType))
+        {
+            return BadRequest(ApiResponse<ProfileImageUploadResponse>.Fail("รองรับเฉพาะไฟล์ JPG, PNG หรือ WEBP เท่านั้น"));
+        }
+
+        var extension = ProfileImageExtensions[file.ContentType];
+        var storageDirectory = GetProfileImageDirectory(user.Id);
+        Directory.CreateDirectory(storageDirectory);
+        DeleteExistingProfileImageFiles(storageDirectory);
+
+        var fileName = $"avatar{extension}";
+        var absolutePath = Path.Combine(storageDirectory, fileName);
+        await using (var stream = System.IO.File.Create(absolutePath))
+        {
+            await file.CopyToAsync(stream);
+        }
+
+        user.ProfileImagePath = ToStorageRelativePath(absolutePath);
+        user.ProfileImageFileName = fileName;
+        user.ProfileImageContentType = file.ContentType;
+        user.ProfileImageUpdatedAt = DateTime.UtcNow;
+        user.ProfileImageUrl = null;
+        user.UpdatedAt = DateTime.UtcNow;
+        await db.SaveChangesAsync();
+
+        await auditLogService.WriteAsync(
+            userId,
+            "UserProfile.ImageUploaded",
+            "User",
+            userId.Value.ToString(),
+            $"Uploaded profile image {fileName}, {file.ContentType}, {file.Length} bytes.",
+            "Success",
+            HttpContext);
+
+        return ApiResponse<ProfileImageUploadResponse>.Ok(new ProfileImageUploadResponse(
+            BuildProfileImageUrl(user)!,
+            "อัปโหลดรูปโปรไฟล์เรียบร้อยแล้ว"));
+    }
+
+    [HttpDelete("image")]
+    public async Task<IActionResult> DeleteProfileImage()
+    {
+        var userId = GetCurrentUserId();
+        if (userId is null)
+        {
+            return Unauthorized(ApiResponse<string>.Fail("Invalid access token."));
+        }
+
+        var user = await db.Users.FirstOrDefaultAsync(item => item.Id == userId && item.IsActive);
+        if (user is null)
+        {
+            return Unauthorized(ApiResponse<string>.Fail("User not found."));
+        }
+
+        if (!string.IsNullOrWhiteSpace(user.ProfileImagePath))
+        {
+            var absolutePath = ResolveStoragePath(user.ProfileImagePath);
+            if (absolutePath is not null && System.IO.File.Exists(absolutePath))
+            {
+                System.IO.File.Delete(absolutePath);
+            }
+        }
+
+        user.ProfileImagePath = null;
+        user.ProfileImageFileName = null;
+        user.ProfileImageContentType = null;
+        user.ProfileImageUpdatedAt = null;
+        user.ProfileImageUrl = null;
+        user.UpdatedAt = DateTime.UtcNow;
+        await db.SaveChangesAsync();
+
+        await auditLogService.WriteAsync(
+            userId,
+            "UserProfile.ImageDeleted",
+            "User",
+            userId.Value.ToString(),
+            "Deleted profile image.",
+            "Success",
+            HttpContext);
+
+        return NoContent();
     }
 
     private async Task<User?> LoadCurrentUser()
@@ -139,7 +260,9 @@ public class MeProfileController(AppDbContext db, IAuditLogService auditLogServi
             user.Email,
             user.PhoneNumber,
             user.LeaveContactAddress,
-            user.ProfileImageUrl,
+            BuildProfileImageUrl(user),
+            !string.IsNullOrWhiteSpace(user.ProfileImagePath),
+            user.ProfileImageUpdatedAt,
             roles,
             user.DepartmentId,
             user.Department?.Name,
@@ -164,6 +287,59 @@ public class MeProfileController(AppDbContext db, IAuditLogService auditLogServi
     private static string? NormalizeOptional(string? value)
     {
         return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+    }
+
+    private string GetProfileImageDirectory(Guid userId)
+    {
+        return Path.Combine(environment.ContentRootPath, "storage", "profile-images", userId.ToString("N"));
+    }
+
+    private string ToStorageRelativePath(string absolutePath)
+    {
+        var storageRoot = Path.GetFullPath(Path.Combine(environment.ContentRootPath, "storage"));
+        var fullPath = Path.GetFullPath(absolutePath);
+        if (!fullPath.StartsWith(storageRoot, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException("Invalid profile image storage path.");
+        }
+
+        return Path.GetRelativePath(environment.ContentRootPath, fullPath).Replace('\\', '/');
+    }
+
+    private string? ResolveStoragePath(string relativePath)
+    {
+        if (string.IsNullOrWhiteSpace(relativePath))
+        {
+            return null;
+        }
+
+        var storageRoot = Path.GetFullPath(Path.Combine(environment.ContentRootPath, "storage"));
+        var absolutePath = Path.GetFullPath(Path.Combine(environment.ContentRootPath, relativePath));
+        return absolutePath.StartsWith(storageRoot, StringComparison.OrdinalIgnoreCase) ? absolutePath : null;
+    }
+
+    private static void DeleteExistingProfileImageFiles(string storageDirectory)
+    {
+        if (!Directory.Exists(storageDirectory))
+        {
+            return;
+        }
+
+        foreach (var file in Directory.GetFiles(storageDirectory, "avatar.*"))
+        {
+            System.IO.File.Delete(file);
+        }
+    }
+
+    private static string? BuildProfileImageUrl(User user)
+    {
+        if (string.IsNullOrWhiteSpace(user.ProfileImagePath))
+        {
+            return user.ProfileImageUrl;
+        }
+
+        var version = user.ProfileImageUpdatedAt?.Ticks ?? user.UpdatedAt?.Ticks ?? DateTime.UtcNow.Ticks;
+        return $"/api/users/{user.Id}/profile-image?v={version}";
     }
 
     private Guid? GetCurrentUserId()

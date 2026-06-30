@@ -24,6 +24,7 @@ type LoginForm = {
 type LocationState = {
   from?: {
     pathname?: string;
+    search?: string;
   };
 };
 
@@ -54,7 +55,7 @@ export function LoginPage() {
 
     try {
       await login(values.username, values.password);
-      navigate(state?.from?.pathname ?? "/dashboard", { replace: true });
+      navigate(`${state?.from?.pathname ?? "/dashboard"}${state?.from?.search ?? ""}`, { replace: true });
     } catch {
       setError("เข้าสู่ระบบไม่สำเร็จ กรุณาตรวจสอบชื่อผู้ใช้และรหัสผ่าน");
     }

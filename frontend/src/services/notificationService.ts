@@ -1,4 +1,11 @@
-import { getMyNotifications, type LeaveNotificationItem } from "../api/leaveApi";
+import {
+  getMyNotifications,
+  getNotificationBadgeCount,
+  getNotificationCenter,
+  markNotificationAsRead,
+  type LeaveNotificationItem,
+  type NotificationCenterQuery,
+} from "../api/leaveApi";
 
 export type NotificationItem = {
   id: string;
@@ -7,6 +14,9 @@ export type NotificationItem = {
   message: string;
   createdAt: string;
   unread: boolean;
+  category: string;
+  priority: string;
+  notificationType: string;
   path?: string;
 };
 
@@ -23,9 +33,24 @@ export async function getNotificationItems(): Promise<NotificationItem[]> {
         message: "ยังไม่สามารถโหลดงานรออนุมัติได้",
         createdAt: new Date().toISOString(),
         unread: false,
+        category: "Notification",
+        priority: "Information",
+        notificationType: "Information",
       },
     ];
   }
+}
+
+export async function getNotificationCenterItems(params: NotificationCenterQuery = {}) {
+  return getNotificationCenter(params);
+}
+
+export async function getNotificationBadge() {
+  return getNotificationBadgeCount();
+}
+
+export async function markNotificationRead(id: string) {
+  return markNotificationAsRead(id);
 }
 
 function toNotificationItem(item: LeaveNotificationItem): NotificationItem {
@@ -36,6 +61,9 @@ function toNotificationItem(item: LeaveNotificationItem): NotificationItem {
     message: item.message,
     createdAt: item.createdAt,
     unread: item.unread,
+    category: item.category,
+    priority: item.priority,
+    notificationType: item.notificationType,
     path: item.path,
   };
 }

@@ -425,12 +425,33 @@ export type PendingApprovalNotification = {
 export type LeaveNotificationItem = {
   id: string;
   type: string;
-  requestId: string;
+  requestId?: string | null;
   title: string;
   message: string;
   createdAt: string;
   unread: boolean;
   path: string;
+  category: string;
+  priority: "Critical" | "High" | "Normal" | "Information" | "Success" | string;
+  notificationType: "ActionRequired" | "Information" | string;
+  targetRole?: string | null;
+  referenceEntity?: string | null;
+  referenceId?: string | null;
+  expiresAt?: string | null;
+};
+
+export type NotificationCenterQuery = {
+  page?: number;
+  pageSize?: number;
+  filter?: string;
+  category?: string;
+  search?: string;
+};
+
+export type NotificationReadResponse = {
+  id: string;
+  isRead: boolean;
+  readAt?: string | null;
 };
 
 export type LeaveSupportRequest = {
@@ -557,6 +578,11 @@ export async function rejectLeaveRequest(id: string, remark?: string) {
   return response.data.data;
 }
 
+export async function recordLineApprovalActionOpened(id: string, action: string) {
+  const response = await httpClient.post<ApiResponse<boolean>>(`/api/leave-requests/${id}/line-action-opened`, { action });
+  return response.data.data;
+}
+
 export async function getLeaveAttachments(id: string) {
   const response = await httpClient.get<ApiResponse<LeaveAttachment[]>>(`/api/leave-requests/${id}/attachments`);
   return response.data.data;
@@ -603,6 +629,21 @@ export async function getMyPendingApprovals() {
 
 export async function getMyNotifications() {
   const response = await httpClient.get<ApiResponse<LeaveNotificationItem[]>>("/api/notifications/me");
+  return response.data.data;
+}
+
+export async function getNotificationCenter(params?: NotificationCenterQuery) {
+  const response = await httpClient.get<ApiResponse<PagedResponse<LeaveNotificationItem>>>("/api/notifications", { params });
+  return response.data.data;
+}
+
+export async function getNotificationBadgeCount() {
+  const response = await httpClient.get<ApiResponse<number>>("/api/notifications/badge");
+  return response.data.data;
+}
+
+export async function markNotificationAsRead(id: string) {
+  const response = await httpClient.post<ApiResponse<NotificationReadResponse>>(`/api/notifications/${id}/read`);
   return response.data.data;
 }
 

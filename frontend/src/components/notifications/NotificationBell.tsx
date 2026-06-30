@@ -8,6 +8,7 @@ import {
   ListItemText,
   Menu,
   Button,
+  Chip,
   Stack,
   Typography,
 } from "@mui/material";
@@ -15,27 +16,22 @@ import { alpha } from "@mui/material/styles";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { usePermission } from "../../context/PermissionContext";
-import { getNotificationItems } from "../../services/notificationService";
+import { getNotificationBadge, getNotificationItems } from "../../services/notificationService";
 import { brandColors } from "../../theme/theme";
 
 export function NotificationBell() {
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const navigate = useNavigate();
-  const { hasAnyPermission } = usePermission();
-  const canViewLeave = hasAnyPermission([
-    "LeaveRequest.ViewOwn",
-    "LeaveRequest.ViewPendingApproval",
-    "LeaveRequest.ViewDepartment",
-    "LeaveRequest.ViewAll",
-  ]);
   const { data: notifications = [] } = useQuery({
-    queryKey: ["notifications", "me", canViewLeave],
+    queryKey: ["notifications", "me"],
     queryFn: () => getNotificationItems(),
-    enabled: canViewLeave,
     refetchInterval: 60000,
   });
-  const unreadCount = notifications.filter((item) => item.type === "ApprovalPending" && item.unread).length;
+  const { data: badgeCount = 0 } = useQuery({
+    queryKey: ["notifications", "badge"],
+    queryFn: () => getNotificationBadge(),
+    refetchInterval: 60000,
+  });
   const isOpen = Boolean(anchorEl);
 
   function handleSelect(path?: string) {
@@ -48,7 +44,7 @@ export function NotificationBell() {
   return (
     <>
       <IconButton color="inherit" aria-label="เปิดรายการแจ้งเตือน" onClick={(event) => setAnchorEl(event.currentTarget)}>
-        <Badge color="warning" badgeContent={unreadCount} max={99}>
+        <Badge color="warning" badgeContent={badgeCount} max={99}>
           <NotificationsNoneOutlinedIcon />
         </Badge>
       </IconButton>
@@ -75,10 +71,10 @@ export function NotificationBell() {
                 การแจ้งเตือน
               </Typography>
               <Typography variant="caption" color="text.secondary">
-                งานรออนุมัติและสถานะคำขอลาของฉัน
+                รายการแจ้งเตือนตามบทบาทและหน้าที่ของคุณ
               </Typography>
             </Box>
-            <Button size="small" variant="text" onClick={() => handleSelect("/leave/pending-approvals")}>
+            <Button size="small" variant="text" onClick={() => handleSelect("/notifications")}>
               ดูทั้งหมด
             </Button>
           </Stack>
@@ -96,6 +92,7 @@ export function NotificationBell() {
                     {item.unread && (
                       <Box sx={{ width: 8, height: 8, borderRadius: "50%", bgcolor: brandColors.accent, flexShrink: 0 }} />
                     )}
+                    <Chip size="small" label={priorityLabels[item.priority] ?? item.priority} color={getPriorityColor(item.priority)} />
                   </Stack>
                 }
                 secondary={item.message}
@@ -106,11 +103,27 @@ export function NotificationBell() {
         ) : (
           <Box sx={{ px: 2, py: 3 }}>
             <Typography variant="body2" color="text.secondary">
-              ไม่มีรายการรออนุมัติ
+              ไม่มีรายการแจ้งเตือน
             </Typography>
           </Box>
         )}
       </Menu>
     </>
   );
+}
+
+const priorityLabels: Record<string, string> = {
+  Critical: "วิกฤต",
+  High: "สูง",
+  Normal: "ปกติ",
+  Information: "ข้อมูล",
+  Success: "สำเร็จ",
+};
+
+function getPriorityColor(priority: string): "default" | "warning" | "error" | "info" | "success" {
+  if (priority === "Critical") return "error";
+  if (priority === "High") return "warning";
+  if (priority === "Success") return "success";
+  if (priority === "Information") return "info";
+  return "default";
 }

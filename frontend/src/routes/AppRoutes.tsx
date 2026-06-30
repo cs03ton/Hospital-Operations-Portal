@@ -19,6 +19,9 @@ import { LeaveTypeManagementPage } from "../pages/LeaveTypeManagementPage";
 import { LoginPage } from "../pages/LoginPage";
 import { LeaveReportsPage } from "../pages/LeaveReportsPage";
 import { LeaveSupportPage } from "../pages/LeaveSupportPage";
+import { LineSettingsPage } from "../pages/LineSettingsPage";
+import { LineLeaveApprovalPage } from "../pages/LineLeaveApprovalPage";
+import { NotificationCenterPage } from "../pages/NotificationCenterPage";
 import { PendingApprovalsPage } from "../pages/PendingApprovalsPage";
 import { ProfilePage } from "../pages/ProfilePage";
 import { ApprovalDelegationPage } from "../pages/ApprovalDelegationPage";
@@ -82,6 +85,7 @@ export function AppRoutes() {
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="/unauthorized" element={<UnauthorizedPage />} />
           <Route path="/dashboard" element={withPermission(<DashboardPage />, "Dashboard.View")} />
+          <Route path="/notifications" element={withPermission(<NotificationCenterPage />, "Dashboard.View")} />
           <Route path="/profile" element={<ProfilePage />} />
           <Route path="/admin/users" element={withPermission(<UserManagementPage />, "UserManagement.View")} />
           <Route path="/admin/users/create" element={withPermission(<UserFormPage />, "UserManagement.Create")} />
@@ -94,6 +98,7 @@ export function AppRoutes() {
           <Route path="/admin/audit-logs" element={withPermission(<AuditLogPage />, "SystemSettings.View")} />
           <Route path="/admin/audit-logs/export" element={withPermission(<AuditLogExportPage />, "SystemSettings.Export")} />
           <Route path="/admin/system-settings" element={withPermission(<SystemSettingsPage />, "SystemSettings.View")} />
+          <Route path="/admin/line-settings" element={withAnyPermission(<LineSettingsPage />, ["System.Line.TestSend", "SystemSettings.View"])} />
           <Route path="/admin/leave-support" element={withPermission(<LeaveSupportPage />, "LeaveSupport.ViewAll")} />
           <Route path="/admin/approval-chains" element={withPermission(<ApprovalChainManagementPage />, "LeaveAdmin.ManageApprovalChains")} />
           <Route path="/admin/approval-chains/create" element={withPermission(<ApprovalChainFormPage />, "LeaveAdmin.ManageApprovalChains")} />
@@ -106,6 +111,7 @@ export function AppRoutes() {
           <Route path="/leave/create" element={<LeaveCreateGuard />} />
           <Route path="/leave/pending-approvals" element={withPermission(<PendingApprovalsPage />, "LeaveRequest.ViewPendingApproval")} />
           <Route path="/leave/calendar" element={withAnyPermission(<LeaveCalendarPage />, leaveViewPermissions)} />
+          <Route path="/line/leave-approval/:id" element={withPermission(<LineLeaveApprovalPage />, "LeaveApproval.ApproveCurrentStep")} />
           <Route path="/leave/types" element={<LeaveTypeGuard />} />
           <Route path="/leave/balances" element={withPermission(<LeaveBalancePage />, "LeaveRequest.ViewOwn")} />
           <Route path="/leave/:id" element={withAnyPermission(<LeaveRequestDetailPage />, leaveViewPermissions)} />

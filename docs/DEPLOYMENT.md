@@ -264,7 +264,15 @@ Minimum production routine:
 .\scripts\backup-postgres.ps1 -EnvFile .env.production -ComposeFile docker-compose.prod.yml
 ```
 
-Keep PostgreSQL dumps and uploaded-file backups together for each release.
+Keep PostgreSQL dumps and uploaded-file backups together for each release. Uploaded-file storage includes leave attachments and `storage/profile-images`.
+
+For LINE Flex avatar images, configure a public file URL reachable by LINE:
+
+```text
+PUBLIC_FILE_BASE_URL=https://your-hop-public-domain
+```
+
+If this is not configured, HOP falls back to initials avatar in LINE Flex messages.
 
 ## Production Notes
 

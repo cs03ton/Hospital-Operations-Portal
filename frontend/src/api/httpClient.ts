@@ -36,6 +36,10 @@ export function isCookieTokenMode() {
   return cookieTokenMode;
 }
 
+export function getApiBaseUrl() {
+  return apiBaseUrl;
+}
+
 httpClient.interceptors.request.use((config) => {
   const token = memoryAccessToken ?? (cookieTokenMode ? null : localStorage.getItem(authStorageKeys.accessToken));
   if (token) {

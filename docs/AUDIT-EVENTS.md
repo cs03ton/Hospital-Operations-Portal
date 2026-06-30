@@ -19,5 +19,7 @@
 | `LeaveBalance.RolloverConfirmed` | ยืนยันการยกยอดและสร้าง balance ปีงบประมาณใหม่ |
 | `LeaveBalance.RolloverUpdatedExistingBalance` | ยืนยันการยกยอดโดยอัปเดตเฉพาะยอดยกมาของ balance ที่มีอยู่ |
 | `LeaveBalance.RolloverBlocked` | บล็อกการยกยอดเพราะไม่ผ่านเงื่อนไข เช่น ประเภทลาไม่รองรับการยกยอด |
+| `Line.TestMessageSent` | ส่งข้อความทดสอบ LINE สำเร็จ |
+| `Line.TestMessageFailed` | ส่งข้อความทดสอบ LINE ไม่สำเร็จ หรือ config ไม่ครบ |
 
 ทุก event ต้องมี actor ถ้ามี, target resource, result และ detail เพียงพอสำหรับ audit ย้อนหลัง

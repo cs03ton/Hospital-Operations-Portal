@@ -12,6 +12,7 @@ public record AuthUserDto(
     string Username,
     string Role,
     string? Department,
+    string? ProfileImageUrl,
     IReadOnlyList<string> Permissions
 );
 

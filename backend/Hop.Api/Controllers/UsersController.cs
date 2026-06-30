@@ -12,8 +12,39 @@ namespace Hop.Api.Controllers;
 [ApiController]
 [Route("api/[controller]")]
 [Authorize]
-public class UsersController(AppDbContext db, IAuditLogService auditLogService) : ControllerBase
+public class UsersController(AppDbContext db, IAuditLogService auditLogService, IHostEnvironment environment) : ControllerBase
 {
+    [HttpGet("{id:guid}/profile-image")]
+    [AllowAnonymous]
+    public async Task<IActionResult> GetProfileImage(Guid id)
+    {
+        var user = await db.Users
+            .AsNoTracking()
+            .Where(item => item.Id == id && item.IsActive)
+            .Select(item => new
+            {
+                item.ProfileImagePath,
+                item.ProfileImageContentType,
+                item.ProfileImageUpdatedAt
+            })
+            .FirstOrDefaultAsync();
+
+        if (user is null || string.IsNullOrWhiteSpace(user.ProfileImagePath))
+        {
+            return NotFound();
+        }
+
+        var absolutePath = ResolveStoragePath(user.ProfileImagePath);
+        if (absolutePath is null || !System.IO.File.Exists(absolutePath))
+        {
+            return NotFound();
+        }
+
+        Response.Headers.CacheControl = "public, max-age=86400";
+        Response.Headers.ETag = $"\"{user.ProfileImageUpdatedAt?.Ticks ?? 0}\"";
+        return PhysicalFile(absolutePath, user.ProfileImageContentType ?? "application/octet-stream");
+    }
+
     [HttpGet]
     [RequirePermission("UserManagement.View")]
     public async Task<ActionResult<ApiResponse<IReadOnlyList<UserResponse>>>> GetUsers()
@@ -228,7 +259,9 @@ public class UsersController(AppDbContext db, IAuditLogService auditLogService) 
             user.Email,
             user.PhoneNumber,
             user.LeaveContactAddress,
-            user.ProfileImageUrl,
+            BuildProfileImageUrl(user),
+            !string.IsNullOrWhiteSpace(user.ProfileImagePath),
+            user.ProfileImageUpdatedAt,
             roleIds,
             roles,
             user.DepartmentId,
@@ -240,6 +273,29 @@ public class UsersController(AppDbContext db, IAuditLogService auditLogService) 
             user.CreatedAt,
             user.UpdatedAt
         );
+    }
+
+    private static string? BuildProfileImageUrl(User user)
+    {
+        if (string.IsNullOrWhiteSpace(user.ProfileImagePath))
+        {
+            return user.ProfileImageUrl;
+        }
+
+        var version = user.ProfileImageUpdatedAt?.Ticks ?? user.UpdatedAt?.Ticks ?? DateTime.UtcNow.Ticks;
+        return $"/api/users/{user.Id}/profile-image?v={version}";
+    }
+
+    private string? ResolveStoragePath(string relativePath)
+    {
+        if (string.IsNullOrWhiteSpace(relativePath))
+        {
+            return null;
+        }
+
+        var storageRoot = Path.GetFullPath(Path.Combine(environment.ContentRootPath, "storage"));
+        var absolutePath = Path.GetFullPath(Path.Combine(environment.ContentRootPath, relativePath));
+        return absolutePath.StartsWith(storageRoot, StringComparison.OrdinalIgnoreCase) ? absolutePath : null;
     }
 
     private Guid? GetCurrentUserId()

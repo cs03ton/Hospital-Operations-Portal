@@ -10,6 +10,8 @@ public record UserResponse(
     string? PhoneNumber,
     string? LeaveContactAddress,
     string? ProfileImageUrl,
+    bool HasProfileImage,
+    DateTime? ProfileImageUpdatedAt,
     IReadOnlyList<Guid> RoleIds,
     IReadOnlyList<string> Roles,
     Guid? DepartmentId,
@@ -55,6 +57,8 @@ public record UserProfileResponse(
     string? PhoneNumber,
     string? LeaveContactAddress,
     string? ProfileImageUrl,
+    bool HasProfileImage,
+    DateTime? ProfileImageUpdatedAt,
     IReadOnlyList<string> Roles,
     Guid? DepartmentId,
     string? DepartmentName,
@@ -70,6 +74,10 @@ public record UpdateUserProfileRequest(
     string? Position,
     string? Email,
     string? PhoneNumber,
-    string? LeaveContactAddress,
-    string? ProfileImageUrl
+    string? LeaveContactAddress
+);
+
+public record ProfileImageUploadResponse(
+    string ProfileImageUrl,
+    string Message
 );

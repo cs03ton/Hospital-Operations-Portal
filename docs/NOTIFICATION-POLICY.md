@@ -1,0 +1,57 @@
+# Notification Policy
+
+## Priority
+
+| Priority | Use Case |
+|---|---|
+| Critical | Security, database, backup, or workflow blocker |
+| High | Action needed soon, failed delivery, SLA risk |
+| Normal | Standard work item |
+| Information | Informational update |
+| Success | Completed action |
+
+## Notification Type
+
+| Type | Meaning |
+|---|---|
+| ActionRequired | User should act or resolve an issue |
+| Information | User only needs to know |
+
+Action required notifications are shown before information notifications.
+
+## Categories
+
+| Category | Thai Label |
+|---|---|
+| Leave | ระบบลา |
+| User | ระบบผู้ใช้ |
+| Notification | ระบบแจ้งเตือน |
+| Backup | ระบบสำรองข้อมูล |
+| System | ระบบ |
+
+## Expiration
+
+Recommended defaults:
+
+- ส่งคำขอลาสำเร็จ: 7 วัน
+- อนุมัติแล้ว: 30 วัน
+- ไม่อนุมัติ: 30 วัน
+- ยกเลิกแล้ว: 30 วัน
+
+Action required notifications disappear when:
+
+- the underlying action is completed
+- the user marks a persisted notification as read
+- the notification is archived
+- the notification expires
+
+## Audit Events
+
+Important notification lifecycle events:
+
+- `Notification.Created`
+- `Notification.Read`
+- `Notification.Archived`
+- `Notification.Expired`
+
+The current API writes audit events for read/archive actions. Created/expired events should be written by future notification producer and expiration worker implementations.

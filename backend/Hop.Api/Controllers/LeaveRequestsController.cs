@@ -19,7 +19,6 @@ public class LeaveRequestsController(
     ILeaveValidationService leaveValidationService,
     IApprovalChainService approvalChainService,
     ILeaveAttachmentStorageService attachmentStorage,
-    ILineMessagingService lineMessagingService,
     ILeavePdfService leavePdfService,
     IFileScanningService fileScanningService,
     ILeaveNotificationEventPublisher leaveNotificationEventPublisher,
@@ -328,8 +327,6 @@ public class LeaveRequestsController(
         await db.SaveChangesAsync();
         await auditLogService.WriteAsync(GetCurrentUserId(), "LeaveRequest.Submit", "LeaveRequest", leaveRequest.Id.ToString(), "Submitted leave request.", "Success", HttpContext);
         await leaveNotificationEventPublisher.PublishAsync("LeaveSubmitted", leaveRequest.Id, leaveRequest.CurrentApproverId, HttpContext.RequestAborted);
-        await leaveNotificationEventPublisher.PublishAsync("ApprovalStepActivated", leaveRequest.Id, leaveRequest.CurrentApproverId, HttpContext.RequestAborted);
-        await NotifyPlaceholder(leaveRequest, "Pending", null);
 
         var updated = await LoadLeaveRequests().SingleAsync(item => item.Id == id);
         return ApiResponse<LeaveRequestResponse>.Ok(ToResponse(updated));
@@ -355,6 +352,7 @@ public class LeaveRequestsController(
             return BadRequest(ApiResponse<LeaveRequestResponse>.Fail("คำขอนี้ไม่สามารถยกเลิกได้"));
         }
 
+        var pendingApproverId = leaveRequest.CurrentApproverId;
         if (leaveRequest.Status == "Pending")
         {
             await UpdatePendingBalance(leaveRequest, -leaveRequest.TotalDays);
@@ -365,8 +363,8 @@ public class LeaveRequestsController(
         leaveRequest.UpdatedAt = DateTime.UtcNow;
         await db.SaveChangesAsync();
         await auditLogService.WriteAsync(GetCurrentUserId(), "LeaveRequest.Cancel", "LeaveRequest", leaveRequest.Id.ToString(), "Cancelled leave request.", "Success", HttpContext);
+        await leaveNotificationEventPublisher.PublishAsync("LeaveCancelled", leaveRequest.Id, pendingApproverId, HttpContext.RequestAborted);
         var cancelled = await LoadLeaveRequests().SingleAsync(item => item.Id == id);
-        await NotifyPlaceholder(cancelled, "Cancelled", null);
 
         return ApiResponse<LeaveRequestResponse>.Ok(ToResponse(cancelled));
     }
@@ -383,6 +381,47 @@ public class LeaveRequestsController(
     public async Task<ActionResult<ApiResponse<LeaveRequestResponse>>> RejectLeaveRequest(Guid id, LeaveDecisionRequest request)
     {
         return await Decide(id, "Rejected", request.Remark);
+    }
+
+    [HttpPost("{id:guid}/line-action-opened")]
+    [RequireAnyPermission(LeavePermissions.ViewOwn, LeavePermissions.ViewPendingApproval, LeavePermissions.ViewDepartment, LeavePermissions.ViewAll)]
+    public async Task<ActionResult<ApiResponse<bool>>> RecordLineActionOpened(Guid id, LineApprovalActionOpenedRequest request)
+    {
+        var leaveRequest = await db.LeaveRequests.FirstOrDefaultAsync(item => item.Id == id);
+        if (leaveRequest is null)
+        {
+            return NotFound(ApiResponse<bool>.Fail("Leave request not found."));
+        }
+
+        if (!await CanAccessLeaveRequest(leaveRequest))
+        {
+            return Forbid();
+        }
+
+        var normalizedAction = (request.Action ?? string.Empty).Trim();
+        var eventName = normalizedAction switch
+        {
+            "approve-completed" => "LeaveApprovedFromLineUi",
+            "reject-completed" => "LeaveRejectedFromLineUi",
+            _ => "LeaveApprovalActionOpened"
+        };
+        db.LineDeliveryLogs.Add(new LineDeliveryLog
+        {
+            LeaveRequestId = id,
+            RecipientUserId = GetCurrentUserId(),
+            EventName = eventName,
+            Status = "Opened",
+            Payload = "{}",
+            ResponseDetail = $"Action={normalizedAction}; Url=/line/leave-approval/{id}?action={normalizedAction}",
+            AttemptCount = 0,
+            SentAt = DateTime.UtcNow,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        });
+        await db.SaveChangesAsync();
+        await auditLogService.WriteAsync(GetCurrentUserId(), eventName, "LeaveRequest", id.ToString(), $"LINE approval UI action {normalizedAction}.", "Success", HttpContext);
+
+        return ApiResponse<bool>.Ok(true);
     }
 
     [HttpPost("{id:guid}/override-approve")]
@@ -517,6 +556,9 @@ public class LeaveRequestsController(
         approval.ActionAt = DateTime.UtcNow;
         leaveRequest.UpdatedAt = DateTime.UtcNow;
 
+        string? notificationEvent = null;
+        Guid? notificationRecipientId = null;
+
         if (decision == "Rejected")
         {
             leaveRequest.Status = "Rejected";
@@ -537,7 +579,8 @@ public class LeaveRequestsController(
             {
                 nextApproval.Status = "Pending";
                 leaveRequest.CurrentApproverId = nextApproval.ApproverId;
-                await leaveNotificationEventPublisher.PublishAsync("ApprovalStepActivated", leaveRequest.Id, nextApproval.ApproverId, HttpContext.RequestAborted);
+                notificationEvent = "ApprovalStepActivated";
+                notificationRecipientId = nextApproval.ApproverId;
             }
             else
             {
@@ -545,7 +588,8 @@ public class LeaveRequestsController(
                 leaveRequest.CurrentApproverId = null;
                 await UpdatePendingBalance(leaveRequest, -leaveRequest.TotalDays);
                 await UpdateUsedBalance(leaveRequest, leaveRequest.TotalDays);
-                await leaveNotificationEventPublisher.PublishAsync("LeaveApproved", leaveRequest.Id, leaveRequest.UserId, HttpContext.RequestAborted);
+                notificationEvent = "LeaveApproved";
+                notificationRecipientId = leaveRequest.UserId;
             }
         }
 
@@ -553,9 +597,13 @@ public class LeaveRequestsController(
         await auditLogService.WriteAsync(approverId, $"LeaveRequest.{decision}", "LeaveRequest", leaveRequest.Id.ToString(), $"{decision} leave request step {approval.StepOrder}.", "Success", HttpContext);
         if (decision == "Rejected")
         {
-            await leaveNotificationEventPublisher.PublishAsync("LeaveRejected", leaveRequest.Id, leaveRequest.UserId, HttpContext.RequestAborted);
+            notificationEvent = "LeaveRejected";
+            notificationRecipientId = leaveRequest.UserId;
         }
-        await NotifyPlaceholder(leaveRequest, decision, remark);
+        if (notificationEvent is not null)
+        {
+            await leaveNotificationEventPublisher.PublishAsync(notificationEvent, leaveRequest.Id, notificationRecipientId, HttpContext.RequestAborted);
+        }
 
         var updated = await LoadLeaveRequests().SingleAsync(item => item.Id == id);
         return ApiResponse<LeaveRequestResponse>.Ok(ToResponse(updated));
@@ -623,14 +671,12 @@ public class LeaveRequestsController(
         {
             leaveRequest.Status = "Rejected";
             await UpdatePendingBalance(leaveRequest, -leaveRequest.TotalDays);
-            await leaveNotificationEventPublisher.PublishAsync("LeaveRejected", leaveRequest.Id, leaveRequest.UserId, HttpContext.RequestAborted);
         }
         else
         {
             leaveRequest.Status = "Approved";
             await UpdatePendingBalance(leaveRequest, -leaveRequest.TotalDays);
             await UpdateUsedBalance(leaveRequest, leaveRequest.TotalDays);
-            await leaveNotificationEventPublisher.PublishAsync("LeaveApproved", leaveRequest.Id, leaveRequest.UserId, HttpContext.RequestAborted);
         }
 
         leaveRequest.CurrentApproverId = null;
@@ -659,7 +705,11 @@ public class LeaveRequestsController(
         {
             await leaveNotificationEventPublisher.PublishAsync("LeaveOverride", leaveRequest.Id, originalApproverId, HttpContext.RequestAborted);
         }
-        await NotifyPlaceholder(leaveRequest, decision, reason);
+        await leaveNotificationEventPublisher.PublishAsync(
+            decision == "Approved" ? "LeaveApproved" : "LeaveRejected",
+            leaveRequest.Id,
+            leaveRequest.UserId,
+            HttpContext.RequestAborted);
 
         var updated = await LoadLeaveRequests().SingleAsync(item => item.Id == id);
         return ApiResponse<LeaveRequestResponse>.Ok(ToResponse(updated));
@@ -766,25 +816,6 @@ public class LeaveRequestsController(
                 item.Role != null &&
                 item.Role.IsActive &&
                 roleNames.Contains(item.Role.Name));
-    }
-
-    private async Task NotifyPlaceholder(LeaveRequest leaveRequest, string status, string? remark)
-    {
-        if (leaveRequest.User is null || leaveRequest.LeaveType is null)
-        {
-            return;
-        }
-
-        await lineMessagingService.NotifyLeaveRequestAsync(new LeaveNotificationMessage(
-            leaveRequest.Id,
-            leaveRequest.UserId,
-            leaveRequest.User.FullName,
-            leaveRequest.LeaveType.Name,
-            status,
-            leaveRequest.StartDate,
-            leaveRequest.EndDate,
-            remark
-        ));
     }
 
     private static LeaveRequestResponse ToResponse(LeaveRequest item)

@@ -1,13 +1,14 @@
 import { Alert, Avatar, Box, Button, Card, CardContent, Stack, TextField, Typography } from "@mui/material";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { isAxiosError } from "axios";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useForm } from "react-hook-form";
-import { getMyProfile, updateMyProfile, type UpdateUserProfileRequest } from "../api/profileApi";
+import { deleteMyProfileImage, getMyProfile, updateMyProfile, uploadMyProfileImage, type UpdateUserProfileRequest } from "../api/profileApi";
 import { PageHeader } from "../components/PageHeader";
 import { useAuth } from "../context/AuthContext";
 import { useNotification } from "../hooks/useNotification";
 import { brandColors } from "../theme/theme";
+import { toAbsoluteMediaUrl } from "../utils/mediaUrl";
 
 type ProfileFormValues = {
   fullname: string;
@@ -15,13 +16,13 @@ type ProfileFormValues = {
   email: string;
   phoneNumber: string;
   leaveContactAddress: string;
-  profileImageUrl: string;
 };
 
 export function ProfilePage() {
   const queryClient = useQueryClient();
-  const { showSuccess } = useNotification();
+  const { showError, showSuccess } = useNotification();
   const { refreshUser } = useAuth();
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const { data: profile, isLoading } = useQuery({ queryKey: ["me", "profile"], queryFn: getMyProfile });
   const { register, handleSubmit, reset, formState: { errors } } = useForm<ProfileFormValues>({
     defaultValues: {
@@ -30,7 +31,6 @@ export function ProfilePage() {
       email: "",
       phoneNumber: "",
       leaveContactAddress: "",
-      profileImageUrl: "",
     },
   });
 
@@ -42,7 +42,6 @@ export function ProfilePage() {
         email: profile.email ?? "",
         phoneNumber: profile.phoneNumber ?? "",
         leaveContactAddress: profile.leaveContactAddress ?? "",
-        profileImageUrl: profile.profileImageUrl ?? "",
       });
     }
   }, [profile, reset]);
@@ -63,8 +62,48 @@ export function ProfilePage() {
       email: normalizeOptional(values.email),
       phoneNumber: normalizeOptional(values.phoneNumber),
       leaveContactAddress: normalizeOptional(values.leaveContactAddress),
-      profileImageUrl: normalizeOptional(values.profileImageUrl),
     });
+  }
+
+  const uploadImageMutation = useMutation({
+    mutationFn: uploadMyProfileImage,
+    onSuccess: async () => {
+      showSuccess("อัปโหลดรูปโปรไฟล์เรียบร้อยแล้ว");
+      await queryClient.invalidateQueries({ queryKey: ["me", "profile"] });
+      await refreshUser();
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    },
+    onError: (error) => showError(getImageApiErrorMessage(error, "อัปโหลดรูปโปรไฟล์ไม่สำเร็จ")),
+  });
+
+  const deleteImageMutation = useMutation({
+    mutationFn: deleteMyProfileImage,
+    onSuccess: async () => {
+      showSuccess("ลบรูปโปรไฟล์เรียบร้อยแล้ว");
+      await queryClient.invalidateQueries({ queryKey: ["me", "profile"] });
+      await refreshUser();
+    },
+    onError: (error) => showError(getImageApiErrorMessage(error, "ลบรูปโปรไฟล์ไม่สำเร็จ")),
+  });
+
+  function handleProfileImageChange(file?: File) {
+    if (!file) {
+      return;
+    }
+
+    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+      showError("รองรับเฉพาะไฟล์ JPG, PNG หรือ WEBP เท่านั้น");
+      return;
+    }
+
+    if (file.size > 2 * 1024 * 1024) {
+      showError("ไฟล์รูปโปรไฟล์ต้องมีขนาดไม่เกิน 2 MB");
+      return;
+    }
+
+    uploadImageMutation.mutate(file);
   }
 
   return (
@@ -76,15 +115,44 @@ export function ProfilePage() {
           <CardContent>
             <Stack direction={{ xs: "column", md: "row" }} spacing={2.5} alignItems={{ xs: "flex-start", md: "center" }}>
               <Avatar
-                src={profile?.profileImageUrl ?? undefined}
+                src={toAbsoluteMediaUrl(profile?.profileImageUrl)}
                 sx={{ width: 80, height: 80, bgcolor: brandColors.accent, color: brandColors.primaryDark, fontSize: 28 }}
               >
                 {(profile?.fullname ?? "U").slice(0, 1)}
               </Avatar>
-              <Stack spacing={0.5}>
+              <Stack spacing={1}>
                 <Typography variant="h6">{profile?.fullname ?? "กำลังโหลด..."}</Typography>
                 <Typography variant="body2" color="text.secondary">
                   ข้อมูลส่วนตัวสำหรับระบบลาและแบบฟอร์มใบลา
+                </Typography>
+                <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    hidden
+                    onChange={(event) => handleProfileImageChange(event.target.files?.[0])}
+                  />
+                  <Button
+                    type="button"
+                    variant="outlined"
+                    disabled={uploadImageMutation.isPending || isLoading}
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    {profile?.hasProfileImage ? "เปลี่ยนรูป" : "อัปโหลดรูปโปรไฟล์"}
+                  </Button>
+                  <Button
+                    type="button"
+                    color="error"
+                    variant="outlined"
+                    disabled={!profile?.hasProfileImage || deleteImageMutation.isPending || isLoading}
+                    onClick={() => deleteImageMutation.mutate()}
+                  >
+                    ลบรูป
+                  </Button>
+                </Stack>
+                <Typography variant="caption" color="text.secondary">
+                  รองรับ JPG, PNG, WEBP ขนาดไม่เกิน 2 MB
                 </Typography>
               </Stack>
             </Stack>
@@ -159,17 +227,6 @@ export function ProfilePage() {
                   />
                 </Box>
 
-                <Box>
-                  <TextField
-                    fullWidth
-                    label="รูปโปรไฟล์ (URL)"
-                    InputLabelProps={{ shrink: true }}
-                    disabled={isLoading}
-                    helperText="ใส่ URL รูปโปรไฟล์ หากยังไม่มีสามารถเว้นว่างไว้ได้"
-                    {...register("profileImageUrl")}
-                  />
-                </Box>
-
                 <Box sx={{ gridColumn: "1 / -1" }}>
                   <TextField
                     fullWidth
@@ -193,7 +250,6 @@ export function ProfilePage() {
                   email: profile.email ?? "",
                   phoneNumber: profile.phoneNumber ?? "",
                   leaveContactAddress: profile.leaveContactAddress ?? "",
-                  profileImageUrl: profile.profileImageUrl ?? "",
                 })}>
                   ยกเลิก
                 </Button>
@@ -204,6 +260,14 @@ export function ProfilePage() {
       </Stack>
     </>
   );
+}
+
+function getImageApiErrorMessage(error: unknown, fallback: string) {
+  if (isAxiosError<{ message?: string }>(error)) {
+    return error.response?.data?.message ?? fallback;
+  }
+
+  return fallback;
 }
 
 function normalizeOptional(value?: string | null) {

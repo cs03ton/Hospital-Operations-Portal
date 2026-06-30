@@ -12,6 +12,10 @@ public class User
     public string? PhoneNumber { get; set; }
     public string? LeaveContactAddress { get; set; }
     public string? ProfileImageUrl { get; set; }
+    public string? ProfileImagePath { get; set; }
+    public string? ProfileImageFileName { get; set; }
+    public string? ProfileImageContentType { get; set; }
+    public DateTime? ProfileImageUpdatedAt { get; set; }
     public Guid? DepartmentId { get; set; }
     public Guid? LeaveApprovalRuleId { get; set; }
     public string? LineUserId { get; set; }

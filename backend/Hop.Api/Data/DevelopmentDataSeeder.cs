@@ -97,7 +97,8 @@ public static class DevelopmentDataSeeder
         ("LeaveAdmin.ManageTypes", "จัดการประเภทการลา", "LeaveAdmin", "ManageTypes"),
         ("LeaveAdmin.ManageBalances", "จัดการยอดวันลา", "LeaveAdmin", "ManageBalances"),
         ("LeaveAdmin.ManageHolidays", "จัดการวันหยุดราชการ", "LeaveAdmin", "ManageHolidays"),
-        ("LeaveAdmin.ManageApprovalChains", "จัดการกฎการอนุมัติวันลา", "LeaveAdmin", "ManageApprovalChains")
+        ("LeaveAdmin.ManageApprovalChains", "จัดการกฎการอนุมัติวันลา", "LeaveAdmin", "ManageApprovalChains"),
+        ("System.Line.TestSend", "ทดสอบส่งข้อความ LINE", "System", "LineTestSend")
     ];
 
     private static readonly (string Code, string Name, string Description, decimal DefaultDays, bool RequiresAttachment)[] LeaveTypeSeeds =
@@ -356,7 +357,8 @@ public static class DevelopmentDataSeeder
                 "LeaveAdmin.ManageTypes",
                 "LeaveAdmin.ManageBalances",
                 "LeaveAdmin.ManageHolidays",
-                "LeaveAdmin.ManageApprovalChains");
+                "LeaveAdmin.ManageApprovalChains",
+                "System.Line.TestSend");
 
             var shouldCreateStandardItUsers = configuration.GetValue<bool?>("Seed:CreateStandardItUsers")
                 ?? configuration.GetValue<bool?>("SEED_CREATE_STANDARD_IT_USERS")

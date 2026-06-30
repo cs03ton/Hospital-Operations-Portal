@@ -204,6 +204,7 @@ public class AuthController(AppDbContext db, IJwtTokenService jwtTokenService, I
             user.Username,
             roleName,
             user.Department?.Name,
+            BuildProfileImageUrl(user),
             user.UserRoles
                 .Where(userRole => userRole.Role?.IsActive == true)
                 .SelectMany(userRole => userRole.Role!.RolePermissions)
@@ -213,6 +214,17 @@ public class AuthController(AppDbContext db, IJwtTokenService jwtTokenService, I
                 .OrderBy(code => code)
                 .ToList()
         );
+    }
+
+    private static string? BuildProfileImageUrl(User user)
+    {
+        if (string.IsNullOrWhiteSpace(user.ProfileImagePath))
+        {
+            return user.ProfileImageUrl;
+        }
+
+        var version = user.ProfileImageUpdatedAt?.Ticks ?? user.UpdatedAt?.Ticks ?? DateTime.UtcNow.Ticks;
+        return $"/api/users/{user.Id}/profile-image?v={version}";
     }
 
     private Guid? GetCurrentUserId()

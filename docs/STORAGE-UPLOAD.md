@@ -14,10 +14,13 @@ LEAVE_ATTACHMENT_ALLOWED_EXTENSIONS=.pdf,.jpg,.jpeg,.png
 
 ```text
 storage/
-└── leave-attachments/
-    └── yyyy/
-        └── mm/
-            └── leave-request-id/
+├── leave-attachments/
+│   └── yyyy/
+│       └── mm/
+│           └── leave-request-id/
+└── profile-images/
+    └── user-id/
+        └── avatar.{jpg|png|webp}
 ```
 
 ## Rules
@@ -44,3 +47,14 @@ curl.exe -L "http://localhost:5000/api/leave-attachments/<attachment-id>/downloa
 ```
 
 Download access requires `LeaveAttachment.Download` and is limited to the request owner, assigned approver, approval history approver, or leave manager.
+
+## Profile Images
+
+Profile images are uploaded from `ข้อมูลส่วนตัวของฉัน`.
+
+- Path: `storage/profile-images/{userId}/avatar.{ext}`
+- Allowed types: JPG, PNG, WEBP
+- Max size: 2 MB
+- New uploads replace the previous avatar file
+
+The backend returns `profileImageUrl` with cache busting so Header/avatar UI refreshes immediately after upload.
