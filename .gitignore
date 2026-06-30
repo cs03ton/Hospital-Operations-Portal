@@ -111,6 +111,7 @@ uploads/
 *.tar
 *.tar.gz
 *.zip
+backups/
 database/backup/*
 !database/backup/.gitkeep
 postgres-data/

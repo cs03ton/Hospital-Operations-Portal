@@ -28,7 +28,7 @@ public class LeaveRequestsController(
     ILogger<LeaveRequestsController> logger) : ControllerBase
 {
     [HttpGet]
-    [RequireAnyPermission(LeavePermissions.ViewOwn, LeavePermissions.ViewPendingApproval, LeavePermissions.ViewDepartment, LeavePermissions.ViewAll)]
+    [RequireAnyPermission(LeavePermissions.ViewOwn, LeavePermissions.ViewPendingApproval, LeavePermissions.ViewDepartment, LeavePermissions.ViewAll, LeavePermissions.SupportViewAll)]
     public async Task<ActionResult<ApiResponse<IReadOnlyList<LeaveRequestResponse>>>> GetLeaveRequests(
         [FromQuery] Guid? leaveTypeId,
         [FromQuery] string? status,
@@ -81,7 +81,7 @@ public class LeaveRequestsController(
     }
 
     [HttpGet("{id:guid}")]
-    [RequireAnyPermission(LeavePermissions.ViewOwn, LeavePermissions.ViewPendingApproval, LeavePermissions.ViewDepartment, LeavePermissions.ViewAll)]
+    [RequireAnyPermission(LeavePermissions.ViewOwn, LeavePermissions.ViewPendingApproval, LeavePermissions.ViewDepartment, LeavePermissions.ViewAll, LeavePermissions.SupportViewAll)]
     public async Task<ActionResult<ApiResponse<LeaveRequestResponse>>> GetLeaveRequest(Guid id)
     {
         var leaveRequest = await LoadLeaveRequests().FirstOrDefaultAsync(item => item.Id == id);
@@ -99,7 +99,7 @@ public class LeaveRequestsController(
     }
 
     [HttpGet("{id:guid}/pdf")]
-    [RequireAnyPermission(LeavePermissions.ViewOwn, LeavePermissions.ViewPendingApproval, LeavePermissions.ViewDepartment, LeavePermissions.ViewAll)]
+    [RequireAnyPermission(LeavePermissions.ViewOwn, LeavePermissions.ViewPendingApproval, LeavePermissions.ViewDepartment, LeavePermissions.ViewAll, LeavePermissions.SupportViewAll)]
     public async Task<IActionResult> DownloadLeaveRequestPdf(Guid id)
     {
         var leaveRequest = await db.LeaveRequests
@@ -384,7 +384,7 @@ public class LeaveRequestsController(
     }
 
     [HttpPost("{id:guid}/line-action-opened")]
-    [RequireAnyPermission(LeavePermissions.ViewOwn, LeavePermissions.ViewPendingApproval, LeavePermissions.ViewDepartment, LeavePermissions.ViewAll)]
+    [RequireAnyPermission(LeavePermissions.ViewOwn, LeavePermissions.ViewPendingApproval, LeavePermissions.ViewDepartment, LeavePermissions.ViewAll, LeavePermissions.SupportViewAll)]
     public async Task<ActionResult<ApiResponse<bool>>> RecordLineActionOpened(Guid id, LineApprovalActionOpenedRequest request)
     {
         var leaveRequest = await db.LeaveRequests.FirstOrDefaultAsync(item => item.Id == id);
@@ -439,7 +439,7 @@ public class LeaveRequestsController(
     }
 
     [HttpGet("{id:guid}/attachments")]
-    [RequireAnyPermission(LeavePermissions.ViewOwn, LeavePermissions.ViewPendingApproval, LeavePermissions.ViewDepartment, LeavePermissions.ViewAll)]
+    [RequireAnyPermission(LeavePermissions.ViewOwn, LeavePermissions.ViewPendingApproval, LeavePermissions.ViewDepartment, LeavePermissions.ViewAll, LeavePermissions.SupportViewAll)]
     public async Task<ActionResult<ApiResponse<IReadOnlyList<LeaveAttachmentResponse>>>> GetAttachments(Guid id)
     {
         var leaveRequest = await db.LeaveRequests.FirstOrDefaultAsync(item => item.Id == id);

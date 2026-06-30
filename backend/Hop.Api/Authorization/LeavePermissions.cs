@@ -25,6 +25,7 @@ public static class LeavePermissions
         ViewOwn,
         ViewPendingApproval,
         ViewDepartment,
-        ViewAll
+        ViewAll,
+        SupportViewAll
     ];
 }

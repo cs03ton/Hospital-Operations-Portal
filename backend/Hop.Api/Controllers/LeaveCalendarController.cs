@@ -14,7 +14,7 @@ namespace Hop.Api.Controllers;
 public class LeaveCalendarController(AppDbContext db, ILeaveRequestAccessService leaveRequestAccessService) : ControllerBase
 {
     [HttpGet]
-    [RequireAnyPermission(LeavePermissions.ViewOwn, LeavePermissions.ViewPendingApproval, LeavePermissions.ViewDepartment, LeavePermissions.ViewAll)]
+    [RequireAnyPermission(LeavePermissions.ViewOwn, LeavePermissions.ViewPendingApproval, LeavePermissions.ViewDepartment, LeavePermissions.ViewAll, LeavePermissions.SupportViewAll)]
     public async Task<ActionResult<ApiResponse<IReadOnlyList<LeaveCalendarItemResponse>>>> GetCalendar(
         [FromQuery] int? year,
         [FromQuery] int? month,

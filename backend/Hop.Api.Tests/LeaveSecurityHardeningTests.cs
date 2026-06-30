@@ -113,6 +113,8 @@ public class LeaveSecurityHardeningTests
         var departmentViewerId = Guid.NewGuid();
         var otherDepartmentStaffId = Guid.NewGuid();
         var directorId = Guid.NewGuid();
+        var supportViewerId = Guid.NewGuid();
+        var adminRoleOnlyId = Guid.NewGuid();
         var departmentId = Guid.NewGuid();
         var otherDepartmentId = Guid.NewGuid();
         var leaveRequest = CreateLeaveRequest(ownerId);
@@ -125,8 +127,13 @@ public class LeaveSecurityHardeningTests
             Status = "Approved"
         });
         var otherDepartmentLeaveRequest = CreateLeaveRequest(otherDepartmentStaffId);
+        var directorOwnRequest = CreateLeaveRequest(directorId);
+        var directorCurrentApprovalRequest = CreateLeaveRequest(otherDepartmentStaffId);
+        directorCurrentApprovalRequest.CurrentApproverId = directorId;
         db.LeaveRequests.Add(leaveRequest);
         db.LeaveRequests.Add(otherDepartmentLeaveRequest);
+        db.LeaveRequests.Add(directorOwnRequest);
+        db.LeaveRequests.Add(directorCurrentApprovalRequest);
         db.Departments.AddRange(
             new Department { Id = departmentId, Name = "IT" },
             new Department { Id = otherDepartmentId, Name = "Other" });
@@ -137,7 +144,9 @@ public class LeaveSecurityHardeningTests
         SeedPermissionUser(db, approveOnlyUserId, "Approver", "LeaveManagement.Approve");
         SeedPermissionUser(db, manageUserId, "SuperAdmin", "LeaveRequest.ViewAll");
         SeedPermissionUser(db, departmentViewerId, "DepartmentHead", "LeaveRequest.ViewPendingApproval", departmentId);
-        SeedPermissionUser(db, directorId, "Director", "LeaveRequest.ViewPendingApproval");
+        SeedPermissionUserWithPermissions(db, directorId, "Director", ["LeaveRequest.ViewOwn", "LeaveRequest.ViewPendingApproval"]);
+        SeedPermissionUser(db, supportViewerId, "LeaveSupport", "LeaveSupport.ViewAll");
+        SeedPermissionUser(db, adminRoleOnlyId, "Admin", "LeaveRequest.ViewOwn");
         await db.SaveChangesAsync();
         var service = new LeaveRequestAccessService(db);
 
@@ -147,8 +156,12 @@ public class LeaveSecurityHardeningTests
         Assert.False(await service.CanAccessLeaveRequestAsync(leaveRequest, approveOnlyUserId));
         Assert.True(await service.CanAccessLeaveRequestAsync(leaveRequest, departmentViewerId));
         Assert.False(await service.CanAccessLeaveRequestAsync(otherDepartmentLeaveRequest, departmentViewerId));
-        Assert.True(await service.CanAccessLeaveRequestAsync(leaveRequest, directorId));
+        Assert.True(await service.CanAccessLeaveRequestAsync(directorOwnRequest, directorId));
+        Assert.True(await service.CanAccessLeaveRequestAsync(directorCurrentApprovalRequest, directorId));
+        Assert.False(await service.CanAccessLeaveRequestAsync(leaveRequest, directorId));
         Assert.True(await service.CanAccessLeaveRequestAsync(leaveRequest, manageUserId));
+        Assert.True(await service.CanAccessLeaveRequestAsync(leaveRequest, supportViewerId));
+        Assert.False(await service.CanAccessLeaveRequestAsync(leaveRequest, adminRoleOnlyId));
 
         db.ChangeTracker.Clear();
         var requestLoadedWithoutUserRoles = await db.LeaveRequests
@@ -252,6 +265,11 @@ public class LeaveSecurityHardeningTests
 
     private static void SeedPermissionUser(AppDbContext db, Guid userId, string roleName, string permissionCode, Guid? departmentId = null, string? persistedRoleName = null)
     {
+        SeedPermissionUserWithPermissions(db, userId, roleName, [permissionCode], departmentId, persistedRoleName);
+    }
+
+    private static void SeedPermissionUserWithPermissions(AppDbContext db, Guid userId, string roleName, IReadOnlyList<string> permissionCodes, Guid? departmentId = null, string? persistedRoleName = null)
+    {
         var user = new User
         {
             Id = userId,
@@ -262,12 +280,15 @@ public class LeaveSecurityHardeningTests
             IsActive = true
         };
         var role = CreateRole(persistedRoleName ?? roleName);
-        var permission = CreatePermission(permissionCode);
         db.Users.Add(user);
         db.Roles.Add(role);
-        db.Permissions.Add(permission);
         db.UserRoles.Add(new UserRole { UserId = userId, RoleId = role.Id, User = user, Role = role });
-        db.RolePermissions.Add(new RolePermission { RoleId = role.Id, PermissionId = permission.Id, Role = role, Permission = permission });
+        foreach (var permissionCode in permissionCodes)
+        {
+            var permission = CreatePermission(permissionCode);
+            db.Permissions.Add(permission);
+            db.RolePermissions.Add(new RolePermission { RoleId = role.Id, PermissionId = permission.Id, Role = role, Permission = permission });
+        }
     }
 
     private sealed class CaptureAuditLogService : IAuditLogService

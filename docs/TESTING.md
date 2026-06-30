@@ -19,6 +19,9 @@ Current coverage includes:
 - JWT access token generation
 - Permission policy attribute
 - Login rate limit lockout behavior
+- Phase 1 critical leave approval flow: Head approval moves to Director, final approval clears current approver and deducts used balance
+- Phase 1 reject/cancel flow: pending balance is returned and approval notification target is cleared
+- Phase 1 approval authorization: non-current approver cannot approve before their step
 - Leave overlap validation
 - Leave remaining balance validation
 - PDF byte generation
@@ -152,6 +155,59 @@ dotnet test backend/Hop.Api.Tests/Hop.Api.Tests.csproj --filter FullyQualifiedNa
 ```
 
 The E2E fixture resets the configured database with EF Core migrations and development seed data before running. If `HOP_E2E_CONNECTION_STRING` is not set, the E2E test exits without touching any database.
+
+## Phase 1 Pilot Critical Test Suite
+
+Automated backend gate:
+
+```powershell
+dotnet test backend/Hop.Api.Tests/Hop.Api.Tests.csproj
+```
+
+If local backend/frontend dev servers lock normal `bin` or `obj` outputs, use an isolated output folder:
+
+```powershell
+dotnet build backend/Hop.Api.Tests/Hop.Api.Tests.csproj -o tmp/hopapi-tests-phase1
+dotnet vstest tmp/hopapi-tests-phase1/Hop.Api.Tests.dll
+```
+
+Frontend production gate:
+
+```powershell
+cd frontend
+npm run build
+```
+
+Optional browser E2E gate:
+
+```powershell
+cd frontend
+npm run e2e:phase1
+```
+
+Manual pilot flow to verify with screenshots:
+
+1. Login as `staff01`.
+2. Create a leave request with enough balance.
+3. Submit the request.
+4. Login as `head01` and verify Notification Bell, Dashboard pending widget, `/leave/pending-approvals`, and LINE delivery log.
+5. Approve as `head01`.
+6. Login as `director01` and verify the pending item moved to Director only.
+7. Approve as `director01`.
+8. Verify request status is `อนุมัติแล้ว`, `CurrentApproverId` is empty, leave balance `usedDays` increased, and PDF download works.
+9. Repeat a separate request for reject flow and confirm pending notification disappears and balance is not deducted.
+10. Repeat a separate request for cancel flow and confirm current approver notification disappears and balance is not deducted.
+11. Verify Staff cannot see other users' leave requests.
+12. Verify Head cannot approve before the current approval step or approve another department's request.
+13. Verify Admin/SuperAdmin cannot create leave through UI or API.
+14. Verify LINE disabled or LINE API failure does not break leave workflow and writes delivery log status.
+
+Record pilot evidence in:
+
+```text
+docs/qa/PHASE1-PILOT-TEST-REPORT.md
+docs/qa/screenshots/phase1/
+```
 
 ## Fresh DB Smoke Test Result
 

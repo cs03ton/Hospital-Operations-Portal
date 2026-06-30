@@ -14,7 +14,7 @@ namespace Hop.Api.Controllers;
 public class LeaveApprovalsController(AppDbContext db, ILeaveRequestAccessService leaveRequestAccessService) : ControllerBase
 {
     [HttpGet("request/{leaveRequestId:guid}")]
-    [RequireAnyPermission(LeavePermissions.ViewOwn, LeavePermissions.ViewPendingApproval, LeavePermissions.ViewDepartment, LeavePermissions.ViewAll)]
+    [RequireAnyPermission(LeavePermissions.ViewOwn, LeavePermissions.ViewPendingApproval, LeavePermissions.ViewDepartment, LeavePermissions.ViewAll, LeavePermissions.SupportViewAll)]
     public async Task<ActionResult<ApiResponse<IReadOnlyList<LeaveApprovalResponse>>>> GetApprovals(Guid leaveRequestId)
     {
         var leaveRequest = await db.LeaveRequests

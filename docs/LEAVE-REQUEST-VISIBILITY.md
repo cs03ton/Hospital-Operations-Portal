@@ -8,9 +8,9 @@
 | --- | --- |
 | Staff | เฉพาะคำขอของตัวเอง |
 | DepartmentHead | คำขอของตัวเอง และคำขอของ Staff ในหน่วยงานเดียวกัน |
-| Director | คำขอของทุกคน |
-| Admin | คำขอของทุกคน |
-| SuperAdmin | คำขอของทุกคน |
+| Director | คำขอของตัวเอง และคำขอที่ตนเองเป็นผู้อนุมัติปัจจุบัน |
+| Admin | ตาม permission ที่ได้รับมอบหมาย เช่น `LeaveSupport.ViewAll` หรือ `LeaveRequest.ViewAll` |
+| SuperAdmin | ตาม permission ที่ได้รับมอบหมาย เช่น `LeaveSupport.ViewAll` หรือ `LeaveRequest.ViewAll` |
 
 ## API Enforcement
 
@@ -32,11 +32,24 @@ API ต่อไปนี้ใช้ rule เดียวกัน:
 - `LeaveRequest.ViewPendingApproval`
 - `LeaveRequest.ViewDepartment`
 - `LeaveRequest.ViewAll`
+- `LeaveSupport.ViewAll`
 
-Role สำคัญถูก map เพิ่มใน backend:
+Rule สำคัญ:
 
-- `Director`, `Admin`, `SuperAdmin` เทียบเท่า view all สำหรับคำขอลา
+- `Director` ไม่ได้ `ViewAll` อัตโนมัติ
+- `Admin` และ `SuperAdmin` ไม่ได้ `ViewAll` จากชื่อ role เพียงอย่างเดียว ต้องมี permission explicit
+- `LeaveRequest.ViewAll` และ `LeaveSupport.ViewAll` เป็น permission ที่อนุญาตให้เห็นคำขอลาทั้งหมด
 - `DepartmentHead` เห็น Staff ในหน่วยงานเดียวกันและคำขอของตัวเอง
+
+## BUG-001 Fix
+
+แก้ไขแล้ว: Director no longer has implicit `ViewAll`.
+
+สาเหตุเดิมคือ backend visibility ผูก `Director`, `Admin`, และ `SuperAdmin` กับ `ViewAll` โดยตรง ทำให้ Director เห็นรายการคำขอลาทุกใบโดยไม่ต้องมี granular permission
+หลังแก้ไข `ViewAll` จะมาจาก explicit permission เท่านั้น:
+
+- `LeaveRequest.ViewAll`
+- `LeaveSupport.ViewAll`
 
 ## Deployment Note
 

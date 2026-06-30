@@ -19,7 +19,7 @@ public class LeaveAttachmentsController(
     ILeaveRequestAccessService leaveRequestAccessService) : ControllerBase
 {
     [HttpGet("{id:guid}/download")]
-    [RequireAnyPermission(LeavePermissions.ViewOwn, LeavePermissions.ViewPendingApproval, LeavePermissions.ViewDepartment, LeavePermissions.ViewAll)]
+    [RequireAnyPermission(LeavePermissions.ViewOwn, LeavePermissions.ViewPendingApproval, LeavePermissions.ViewDepartment, LeavePermissions.ViewAll, LeavePermissions.SupportViewAll)]
     public async Task<IActionResult> DownloadAttachment(Guid id)
     {
         var attachment = await db.LeaveAttachments

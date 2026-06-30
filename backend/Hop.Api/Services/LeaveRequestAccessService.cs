@@ -24,9 +24,7 @@ public sealed class LeaveRequestAccessService(AppDbContext db) : ILeaveRequestAc
             .FirstOrDefaultAsync();
 
         var canViewAll = permissions.Contains(LeavePermissions.ViewAll) ||
-            roles.Contains("SuperAdmin") ||
-            roles.Contains("Admin") ||
-            roles.Contains("Director");
+            permissions.Contains(LeavePermissions.SupportViewAll);
         var isDepartmentHead = roles.Contains("DepartmentHead");
 
         return new LeaveRequestVisibility(

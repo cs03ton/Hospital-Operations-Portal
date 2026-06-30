@@ -178,6 +178,56 @@ Verify health:
 curl http://localhost/healthz
 ```
 
+## Phase 1 Deployment Scripts
+
+Ubuntu deployment scripts live in `deploy/`:
+
+```text
+deploy/00-check-env.sh
+deploy/01-deploy-db.sh
+deploy/02-deploy-backend.sh
+deploy/03-deploy-frontend.sh
+deploy/04-crosscheck.sh
+deploy/deploy-all.sh
+deploy/rollback.sh
+```
+
+Make scripts executable on the server:
+
+```bash
+chmod +x deploy/*.sh scripts/backup/*.sh
+```
+
+Run the full sequence:
+
+```bash
+ENV_FILE=.env.production COMPOSE_FILE=docker-compose.prod.yml bash deploy/deploy-all.sh
+```
+
+Run step-by-step:
+
+```bash
+bash deploy/00-check-env.sh
+bash deploy/01-deploy-db.sh
+bash deploy/02-deploy-backend.sh
+bash deploy/03-deploy-frontend.sh
+bash deploy/04-crosscheck.sh
+```
+
+`01-deploy-db.sh` starts PostgreSQL, waits for readiness, runs EF Core migrations, and checks critical tables. If the backend container uses `DB_HOST=postgres`, set host migration connection explicitly when needed:
+
+```bash
+MIGRATION_DB_HOST=127.0.0.1 MIGRATION_DB_PORT=5432 deploy/01-deploy-db.sh
+```
+
+Before deploying, run backup:
+
+```bash
+BACKUP_MODE=docker BACKUP_ROOT=/opt/hop/backups scripts/backup/backup-hop.sh
+```
+
+See `docs/DEPLOYMENT-CHECKLIST.md` for the release checklist and `docs/ROLLBACK.md` for rollback commands.
+
 ## Production Database Migration
 
 Run EF Core migrations before opening traffic to users:

@@ -144,9 +144,11 @@ Users without the required backend permission receive HTTP `403`, and denied att
 | --- | --- |
 | Staff | เห็นเฉพาะคำขอลาของตัวเอง |
 | DepartmentHead | เห็นคำขอของตัวเอง และคำขอของ Staff ในหน่วยงานเดียวกัน |
-| Director | เห็นคำขอของทุกคน |
-| Admin | เห็นคำขอของทุกคน |
-| SuperAdmin | เห็นคำขอของทุกคน |
+| Director | เห็นคำขอของตัวเอง และคำขอที่ตนเองเป็นผู้อนุมัติปัจจุบัน |
+| Admin | เห็นตาม granular permission ที่ได้รับ เช่น `LeaveRequest.ViewDepartment`, `LeaveRequest.ViewAll`, หรือ `LeaveSupport.ViewAll` |
+| SuperAdmin | เห็นทุกคำขอเมื่อได้รับ explicit permission เช่น `LeaveRequest.ViewAll` หรือ `LeaveSupport.ViewAll` |
+
+Note: BUG-001 fixed. Director no longer receives implicit `ViewAll` from role name alone.
 
 Backend enforces this through `LeaveRequestAccessService` for leave list, detail, PDF, attachment list, and attachment download.
 
