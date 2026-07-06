@@ -122,6 +122,27 @@ public sealed class LineMessagingService(
             return new LineTestSendResponse(false, "กรุณาระบุ LINE User ID สำหรับทดสอบ", "Failed", null);
         }
 
+        if (!IsPlausibleLineUserId(toUserId))
+        {
+            return new LineTestSendResponse(false, "LINE User ID ต้องขึ้นต้นด้วย U และเป็น User ID ของ LINE OA นี้", "Failed", null);
+        }
+
+        var recipientValidation = await ValidateRecipientAsync(toUserId.Trim(), cancellationToken);
+        if (!recipientValidation.Success)
+        {
+            var failedLog = CreateFailedValidationLog(eventName, toUserId.Trim(), recipientValidation);
+            db.LineDeliveryLogs.Add(failedLog);
+            await db.SaveChangesAsync(cancellationToken);
+            return new LineTestSendResponse(
+                false,
+                recipientValidation.Message,
+                "Failed",
+                failedLog.Id,
+                recipientValidation.HttpStatusCode,
+                null,
+                failedLog.ResponseDetail);
+        }
+
         var payload = JsonSerializer.Serialize(new
         {
             to = toUserId.Trim(),
@@ -183,6 +204,27 @@ public sealed class LineMessagingService(
         if (string.IsNullOrWhiteSpace(toUserId))
         {
             return new LineTestSendResponse(false, "กรุณาระบุ LINE User ID สำหรับทดสอบ", "Failed", null);
+        }
+
+        if (!IsPlausibleLineUserId(toUserId))
+        {
+            return new LineTestSendResponse(false, "LINE User ID ต้องขึ้นต้นด้วย U และเป็น User ID ของ LINE OA นี้", "Failed", null);
+        }
+
+        var recipientValidation = await ValidateRecipientAsync(toUserId.Trim(), cancellationToken);
+        if (!recipientValidation.Success)
+        {
+            var failedLog = CreateFailedValidationLog(eventName, toUserId.Trim(), recipientValidation, leaveRequestId);
+            db.LineDeliveryLogs.Add(failedLog);
+            await db.SaveChangesAsync(cancellationToken);
+            return new LineTestSendResponse(
+                false,
+                recipientValidation.Message,
+                "Failed",
+                failedLog.Id,
+                recipientValidation.HttpStatusCode,
+                null,
+                failedLog.ResponseDetail);
         }
 
         var requestPayload = TrySetRecipient(payload, toUserId.Trim(), out var normalizedPayload, out var error)
@@ -484,6 +526,86 @@ public sealed class LineMessagingService(
             error = $"Flex JSON ไม่ถูกต้อง: {ex.Message}";
             return false;
         }
+    }
+
+    private static bool IsPlausibleLineUserId(string value)
+    {
+        var trimmed = value.Trim();
+        return trimmed.StartsWith('U') && trimmed.Length >= 20 && trimmed.All(ch => char.IsLetterOrDigit(ch) || ch is '-' or '_');
+    }
+
+    private async Task<(bool Success, string Message, int? HttpStatusCode, string ResponseBody)> ValidateRecipientAsync(string lineUserId, CancellationToken cancellationToken)
+    {
+        var accessToken = GetAccessToken();
+        if (string.IsNullOrWhiteSpace(accessToken))
+        {
+            return (false, "ยังไม่ได้ตั้งค่า LINE Channel Access Token", null, "Missing access token.");
+        }
+
+        try
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Get, $"https://api.line.me/v2/bot/profile/{Uri.EscapeDataString(lineUserId)}");
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+            using var response = await httpClient.SendAsync(request, cancellationToken);
+            var responseText = await response.Content.ReadAsStringAsync(cancellationToken);
+            if (response.IsSuccessStatusCode)
+            {
+                return (true, "LINE recipient verified.", (int)response.StatusCode, responseText);
+            }
+
+            var message = response.StatusCode == System.Net.HttpStatusCode.NotFound
+                ? "ไม่พบ LINE User ID นี้ใน OA ปัจจุบัน กรุณาให้ผู้ใช้เพิ่มเพื่อน OA นี้ใหม่ หรือเชื่อม LINE ผ่าน QR/short code ของ HOP"
+                : $"ตรวจสอบ LINE recipient ไม่สำเร็จ: HTTP {(int)response.StatusCode}";
+            return (false, message, (int)response.StatusCode, responseText);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "LINE recipient validation failed for masked recipient {LineUserId}.", MaskLineUserId(lineUserId));
+            return (false, "ตรวจสอบ LINE recipient ไม่สำเร็จ กรุณาลองใหม่อีกครั้ง", null, ex.Message);
+        }
+    }
+
+    private static LineDeliveryLog CreateFailedValidationLog(
+        string eventName,
+        string lineUserId,
+        (bool Success, string Message, int? HttpStatusCode, string ResponseBody) validation,
+        Guid? leaveRequestId = null)
+    {
+        var payload = JsonSerializer.Serialize(new
+        {
+            to = lineUserId,
+            messages = new[]
+            {
+                new
+                {
+                    type = "text",
+                    text = "Recipient validation failed before sending."
+                }
+            }
+        });
+        return new LineDeliveryLog
+        {
+            LeaveRequestId = leaveRequestId,
+            EventName = string.IsNullOrWhiteSpace(eventName) ? "Line.TestSend" : eventName.Trim(),
+            Status = "Failed",
+            Payload = payload,
+            ResponseDetail = validation.HttpStatusCode is null
+                ? validation.Message
+                : $"Recipient validation HTTP {validation.HttpStatusCode}: {validation.ResponseBody}",
+            AttemptCount = 0,
+            NextRetryAt = null,
+            UpdatedAt = DateTime.UtcNow
+        };
+    }
+
+    private static string? MaskLineUserId(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        return value.Length <= 10 ? "U********" : $"{value[..5]}...{value[^4..]}";
     }
 
     private static string BuildPayload(LeaveNotificationMessage message)

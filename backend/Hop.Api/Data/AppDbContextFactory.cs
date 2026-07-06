@@ -7,7 +7,7 @@ public class AppDbContextFactory : IDesignTimeDbContextFactory<AppDbContext>
 {
     public AppDbContext CreateDbContext(string[] args)
     {
-        Configuration.EnvFileLoader.LoadFromParentDirectories(".env");
+        Configuration.EnvFileLoader.LoadForEnvironment();
 
         var connectionString = Environment.GetEnvironmentVariable("ConnectionStrings__DefaultConnection");
         if (string.IsNullOrWhiteSpace(connectionString))

@@ -1,5 +1,54 @@
 # Deployment
 
+## Production Environment Files
+
+Production ต้องใช้ไฟล์ `.env.production` หรือ Secret Manager ของเครื่องแม่ข่ายเท่านั้น
+
+```bash
+cp .env.production.example .env.production
+nano .env.production
+./deploy/00-check-env.sh
+```
+
+ห้ามใส่ค่าลับลงใน `backend/Hop.Api/appsettings.json` หรือ `backend/Hop.Api/appsettings.Development.json`
+
+ค่าที่ต้องตั้งอย่างน้อย:
+
+| Key | Purpose |
+|---|---|
+| `ConnectionStrings__DefaultConnection` | PostgreSQL connection string |
+| `Jwt__Key` | JWT signing key |
+| `Line__AccessToken` | LINE Messaging API access token |
+| `Line__ChannelSecret` | LINE webhook signature verification |
+| `Storage__RootPath` | Runtime storage folder |
+| `Storage__PublicBaseUrl` | Public base URL for profile images/files |
+
+## Production Startup
+
+```bash
+docker compose --env-file .env.production -f docker-compose.prod.yml pull
+docker compose --env-file .env.production -f docker-compose.prod.yml up -d --build
+docker compose --env-file .env.production -f docker-compose.prod.yml ps
+```
+
+## Update Deployment
+
+```bash
+git pull
+./deploy/00-check-env.sh
+docker compose --env-file .env.production -f docker-compose.prod.yml up -d --build
+```
+
+## Rollback
+
+```bash
+git checkout <previous-release-tag>
+./deploy/00-check-env.sh
+docker compose --env-file .env.production -f docker-compose.prod.yml up -d --build
+```
+
+> Warning: ก่อน rollback production ให้สำรอง PostgreSQL และ `storage/` ทุกครั้ง
+
 ## Docker Compose Services
 
 Current deployment stack:

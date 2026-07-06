@@ -26,13 +26,13 @@ public static class DevelopmentDataSeeder
         "head.it01"
     ];
 
-    private static readonly (string Username, string EmployeeCode, string FullName, string RoleName)[] StandardItUsers =
+    private static readonly (string Username, string EmployeeCode, string FullName, string RoleName, string? EmploymentType, string Gender)[] StandardItUsers =
     [
-        ("admin_support", "IT-ADMIN", "ผู้ดูแลระบบ", "Admin"),
-        ("staff01", "IT-001", "เจ้าหน้าที่ 01", "Staff"),
-        ("staff02", "IT-002", "เจ้าหน้าที่ 02", "Staff"),
-        ("head01", "IT-HEAD", "หัวหน้าหน่วยงาน", "DepartmentHead"),
-        ("director01", "IT-DIR", "ผู้อำนวยการ", "Director")
+        ("admin_support", "IT-ADMIN", "ผู้ดูแลระบบ", "Admin", null, GenderTypes.Unknown),
+        ("staff01", "IT-001", "เจ้าหน้าที่ 01", "Staff", EmploymentTypes.MophEmployee, GenderTypes.Female),
+        ("staff02", "IT-002", "เจ้าหน้าที่ 02", "Staff", EmploymentTypes.MophEmployee, GenderTypes.Male),
+        ("head01", "IT-HEAD", "หัวหน้าหน่วยงาน", "DepartmentHead", EmploymentTypes.CivilServant, GenderTypes.Male),
+        ("director01", "IT-DIR", "ผู้อำนวยการ", "Director", EmploymentTypes.CivilServant, GenderTypes.Male)
     ];
 
     private static readonly (string Name, string Description)[] RoleSeeds =
@@ -96,20 +96,74 @@ public static class DevelopmentDataSeeder
         ("LeaveSupport.ViewAll", "มุมมองช่วยเหลือระบบลา", "LeaveSupport", "ViewAll"),
         ("LeaveAdmin.ManageTypes", "จัดการประเภทการลา", "LeaveAdmin", "ManageTypes"),
         ("LeaveAdmin.ManageBalances", "จัดการยอดวันลา", "LeaveAdmin", "ManageBalances"),
+        ("LeaveBalance.Rollover", "ยกยอดวันลา", "LeaveBalance", "Rollover"),
         ("LeaveAdmin.ManageHolidays", "จัดการวันหยุดราชการ", "LeaveAdmin", "ManageHolidays"),
         ("LeaveAdmin.ManageApprovalChains", "จัดการกฎการอนุมัติวันลา", "LeaveAdmin", "ManageApprovalChains"),
         ("System.Line.TestSend", "ทดสอบส่งข้อความ LINE", "System", "LineTestSend")
     ];
 
-    private static readonly (string Code, string Name, string Description, decimal DefaultDays, bool RequiresAttachment)[] LeaveTypeSeeds =
+    private sealed record LeaveTypeSeed(string Code, string Name, string Description, decimal DefaultDays, bool RequiresAttachment, bool RequiresBalance, bool AllowCarryOver, decimal CarryOverMaxDays, bool UseFiscalYear, bool IsPaid, string[] LegacyCodes);
+
+    private sealed record LeavePolicyRuleSeed(
+        string EmploymentType,
+        string LeaveTypeCode,
+        decimal EntitlementDays,
+        decimal? MaxPaidDays = null,
+        bool AllowCarryOver = false,
+        decimal? CarryOverMaxDays = null,
+        decimal? MaxAccumulatedDays = null,
+        int? MinServiceMonths = null,
+        int? MinServiceYears = null,
+        bool ProrateIfServiceLessThanYear = false,
+        decimal? FirstYearEntitlementDays = null,
+        decimal? FirstYearPaidDays = null,
+        bool IsPaid = true,
+        decimal? MaxExtendedDays = null,
+        decimal? SocialSecurityMaxDays = null,
+        string? Notes = null);
+
+    private static readonly LeaveTypeSeed[] LeaveTypeSeeds =
     [
-        ("AnnualLeave", "ลาพักผ่อน", "Annual vacation leave", 10, false),
-        ("SickLeave", "ลาป่วย", "Medical sick leave", 30, true),
-        ("PersonalLeave", "ลากิจ", "Personal business leave", 3, false),
-        ("MaternityLeave", "ลาคลอด", "Maternity leave", 98, true),
-        ("OrdinationLeave", "ลาอุปสมบท", "Ordination leave", 15, false),
-        ("StudyLeave", "ลาศึกษาต่อ", "Study leave", 0, false),
-        ("OtherLeave", "อื่น ๆ", "Other leave", 0, false)
+        new("SICK_LEAVE", "ลาป่วย", "Medical sick leave", 30, true, true, false, 0, true, true, ["SickLeave"]),
+        new("PERSONAL_LEAVE", "ลากิจส่วนตัว", "Personal business leave", 45, false, true, false, 0, true, true, ["PersonalLeave"]),
+        new("VACATION_LEAVE", "ลาพักผ่อน", "Annual vacation leave", 10, false, true, true, 30, true, true, ["AnnualLeave"]),
+        new("MATERNITY_LEAVE", "ลาคลอดบุตร", "Maternity leave", 90, true, false, false, 0, true, true, ["MaternityLeave"]),
+        new("ORDINATION_LEAVE", "ลาบวช", "Ordination leave", 120, false, false, false, 0, false, true, ["OrdinationLeave"]),
+        new("STUDY_LEAVE", "ลาศึกษาต่อ", "Study leave", 0, false, false, false, 0, false, false, ["StudyLeave"]),
+        new("OTHER_LEAVE", "อื่น ๆ", "Other leave", 0, false, false, false, 0, false, false, ["OtherLeave"])
+    ];
+
+    private static readonly LeavePolicyRuleSeed[] LeavePolicyRuleSeeds =
+    [
+        new(EmploymentTypes.CivilServant, "SICK_LEAVE", 60, MaxPaidDays: 60, MaxExtendedDays: 120, Notes: "กรณีเกิน 60 วัน ผู้อำนวยการอาจพิจารณาได้รวมไม่เกิน 120 วัน"),
+        new(EmploymentTypes.CivilServant, "PERSONAL_LEAVE", 45, MaxPaidDays: 45, FirstYearEntitlementDays: 15),
+        new(EmploymentTypes.CivilServant, "VACATION_LEAVE", 10, MaxPaidDays: 10, AllowCarryOver: true, CarryOverMaxDays: 30, MaxAccumulatedDays: 30, MinServiceMonths: 6),
+        new(EmploymentTypes.CivilServant, "MATERNITY_LEAVE", 90, MaxPaidDays: 90),
+        new(EmploymentTypes.CivilServant, "ORDINATION_LEAVE", 120, MaxPaidDays: 120, MinServiceMonths: 12, Notes: "ใช้ตามระเบียบราชการและเงื่อนไขหน่วยงาน"),
+
+        new(EmploymentTypes.GovernmentEmployee, "SICK_LEAVE", 30, MaxPaidDays: 30),
+        new(EmploymentTypes.GovernmentEmployee, "PERSONAL_LEAVE", 10, MaxPaidDays: 10),
+        new(EmploymentTypes.GovernmentEmployee, "VACATION_LEAVE", 10, MaxPaidDays: 10, AllowCarryOver: true, CarryOverMaxDays: 15, MaxAccumulatedDays: 15, MinServiceMonths: 6, FirstYearEntitlementDays: 0),
+        new(EmploymentTypes.GovernmentEmployee, "MATERNITY_LEAVE", 90, MaxPaidDays: 45, Notes: "ได้รับค่าจ้างไม่เกิน 45 วันตาม policy"),
+        new(EmploymentTypes.GovernmentEmployee, "ORDINATION_LEAVE", 120, MaxPaidDays: 120, MinServiceYears: 4, Notes: "ต้องทำงานไม่น้อยกว่า 4 ปี"),
+
+        new(EmploymentTypes.MophEmployee, "SICK_LEAVE", 45, MaxPaidDays: 45),
+        new(EmploymentTypes.MophEmployee, "PERSONAL_LEAVE", 15, MaxPaidDays: 15, FirstYearPaidDays: 6, Notes: "ปีแรกได้รับค่าจ้างไม่เกิน 6 วัน"),
+        new(EmploymentTypes.MophEmployee, "VACATION_LEAVE", 10, MaxPaidDays: 10, AllowCarryOver: true, CarryOverMaxDays: 15, MaxAccumulatedDays: 15, MinServiceMonths: 6, FirstYearEntitlementDays: 0),
+        new(EmploymentTypes.MophEmployee, "MATERNITY_LEAVE", 90, MaxPaidDays: 45),
+        new(EmploymentTypes.MophEmployee, "ORDINATION_LEAVE", 120, MaxPaidDays: 120, MinServiceYears: 4, Notes: "ต้องทำงานไม่น้อยกว่า 4 ปี"),
+
+        new(EmploymentTypes.TemporaryEmployeeMonthly, "SICK_LEAVE", 15, MaxPaidDays: 15, MinServiceMonths: 6, FirstYearEntitlementDays: 8, FirstYearPaidDays: 8),
+        new(EmploymentTypes.TemporaryEmployeeMonthly, "PERSONAL_LEAVE", 10, IsPaid: false, Notes: "ลาได้แต่ไม่ได้รับค่าจ้าง"),
+        new(EmploymentTypes.TemporaryEmployeeMonthly, "VACATION_LEAVE", 10, MaxPaidDays: 10, MinServiceMonths: 6, FirstYearEntitlementDays: 0),
+        new(EmploymentTypes.TemporaryEmployeeMonthly, "MATERNITY_LEAVE", 90, MaxPaidDays: 45),
+        new(EmploymentTypes.TemporaryEmployeeMonthly, "ORDINATION_LEAVE", 120, IsPaid: false, Notes: "ไม่มีสิทธิได้รับค่าจ้างระหว่างลา"),
+
+        new(EmploymentTypes.TemporaryEmployeeDaily, "SICK_LEAVE", 15, IsPaid: false, FirstYearEntitlementDays: 8, MaxExtendedDays: 30, SocialSecurityMaxDays: 90, Notes: "รายวันไม่มีสิทธิได้รับค่าจ้างจากหน่วยงาน อาจใช้สิทธิประกันสังคมตามเงื่อนไข"),
+        new(EmploymentTypes.TemporaryEmployeeDaily, "PERSONAL_LEAVE", 10, IsPaid: false, Notes: "ลาได้แต่ไม่ได้รับค่าจ้าง"),
+        new(EmploymentTypes.TemporaryEmployeeDaily, "VACATION_LEAVE", 10, IsPaid: false, MinServiceMonths: 6, FirstYearEntitlementDays: 0, Notes: "ไม่สะสมวันลาพักผ่อน"),
+        new(EmploymentTypes.TemporaryEmployeeDaily, "MATERNITY_LEAVE", 0, IsPaid: false, SocialSecurityMaxDays: 90, Notes: "ใช้สิทธิประกันสังคมตามเงื่อนไข"),
+        new(EmploymentTypes.TemporaryEmployeeDaily, "ORDINATION_LEAVE", 120, IsPaid: false, Notes: "ไม่มีสิทธิได้รับค่าจ้างระหว่างลา")
     ];
 
     public static async Task SeedAsync(IServiceProvider services, ILogger logger)
@@ -327,6 +381,7 @@ public static class DevelopmentDataSeeder
                 "LeaveRequest.ViewDepartment",
                 "LeaveAdmin.ManageTypes",
                 "LeaveAdmin.ManageBalances",
+                "LeaveBalance.Rollover",
                 "LeaveAdmin.ManageHolidays",
                 "LeaveAdmin.ManageApprovalChains");
             await GrantPermissions(db, adminRole.Id,
@@ -356,6 +411,7 @@ public static class DevelopmentDataSeeder
                 "LeaveSupport.ViewAll",
                 "LeaveAdmin.ManageTypes",
                 "LeaveAdmin.ManageBalances",
+                "LeaveBalance.Rollover",
                 "LeaveAdmin.ManageHolidays",
                 "LeaveAdmin.ManageApprovalChains",
                 "System.Line.TestSend");
@@ -379,33 +435,7 @@ public static class DevelopmentDataSeeder
                     logger);
             }
 
-            foreach (var leaveTypeSeed in LeaveTypeSeeds)
-            {
-                var leaveType = await db.LeaveTypes.FirstOrDefaultAsync(item => item.Code == leaveTypeSeed.Code);
-                if (leaveType is null)
-                {
-                    db.LeaveTypes.Add(new LeaveType
-                    {
-                        Code = leaveTypeSeed.Code,
-                        Name = leaveTypeSeed.Name,
-                        Description = leaveTypeSeed.Description,
-                        DefaultDaysPerYear = leaveTypeSeed.DefaultDays,
-                        RequiresAttachment = leaveTypeSeed.RequiresAttachment,
-                        IsPaid = true,
-                        IsActive = true
-                    });
-                }
-                else
-                {
-                    leaveType.Name = leaveTypeSeed.Name;
-                    leaveType.Description = leaveTypeSeed.Description;
-                    leaveType.DefaultDaysPerYear = leaveTypeSeed.DefaultDays;
-                    leaveType.RequiresAttachment = leaveTypeSeed.RequiresAttachment;
-                    leaveType.IsPaid = true;
-                    leaveType.IsActive = true;
-                }
-            }
-
+            await EnsureLeaveTypesAndPolicyRules(db);
             await db.SaveChangesAsync();
         }
         catch (Exception ex)
@@ -417,6 +447,93 @@ public static class DevelopmentDataSeeder
             }
 
             logger.LogWarning(ex, "Database seed skipped. Start PostgreSQL and run the app again to seed defaults.");
+        }
+    }
+
+    private static async Task EnsureLeaveTypesAndPolicyRules(AppDbContext db)
+    {
+        foreach (var leaveTypeSeed in LeaveTypeSeeds)
+        {
+            var candidateCodes = leaveTypeSeed.LegacyCodes.Append(leaveTypeSeed.Code).ToArray();
+            var matches = await db.LeaveTypes
+                .Where(item => candidateCodes.Contains(item.Code))
+                .OrderByDescending(item => item.Code == leaveTypeSeed.Code)
+                .ThenBy(item => item.CreatedAt)
+                .ToListAsync();
+
+            var leaveType = matches.FirstOrDefault();
+            if (leaveType is null)
+            {
+                leaveType = new LeaveType
+                {
+                    Code = leaveTypeSeed.Code,
+                    CreatedAt = DateTime.UtcNow
+                };
+                db.LeaveTypes.Add(leaveType);
+            }
+
+            leaveType.Code = leaveTypeSeed.Code;
+            leaveType.Name = leaveTypeSeed.Name;
+            leaveType.Description = leaveTypeSeed.Description;
+            leaveType.DefaultDaysPerYear = leaveTypeSeed.DefaultDays;
+            leaveType.RequiresBalance = leaveTypeSeed.RequiresBalance;
+            leaveType.AllowCarryOver = leaveTypeSeed.AllowCarryOver;
+            leaveType.CarryOverMaxDays = leaveTypeSeed.CarryOverMaxDays;
+            leaveType.UseFiscalYear = leaveTypeSeed.UseFiscalYear;
+            leaveType.RequiresAttachment = leaveTypeSeed.RequiresAttachment;
+            leaveType.IsPaid = leaveTypeSeed.IsPaid;
+            leaveType.IsActive = true;
+            leaveType.UpdatedAt = DateTime.UtcNow;
+
+            foreach (var duplicate in matches.Skip(1))
+            {
+                duplicate.IsActive = false;
+                duplicate.UpdatedAt = DateTime.UtcNow;
+            }
+        }
+
+        await db.SaveChangesAsync();
+
+        var leaveTypesByCode = await db.LeaveTypes.ToDictionaryAsync(item => item.Code, item => item);
+        foreach (var seed in LeavePolicyRuleSeeds)
+        {
+            if (!leaveTypesByCode.TryGetValue(seed.LeaveTypeCode, out var leaveType))
+            {
+                continue;
+            }
+
+            var rule = await db.LeavePolicyRules.FirstOrDefaultAsync(item =>
+                item.EmploymentType == seed.EmploymentType &&
+                item.LeaveTypeId == leaveType.Id &&
+                item.FiscalYear == null);
+
+            if (rule is null)
+            {
+                rule = new LeavePolicyRule
+                {
+                    EmploymentType = seed.EmploymentType,
+                    LeaveTypeId = leaveType.Id,
+                    CreatedAt = DateTime.UtcNow
+                };
+                db.LeavePolicyRules.Add(rule);
+            }
+
+            rule.EntitlementDays = seed.EntitlementDays;
+            rule.MaxPaidDays = seed.MaxPaidDays;
+            rule.AllowCarryOver = seed.AllowCarryOver;
+            rule.CarryOverMaxDays = seed.CarryOverMaxDays;
+            rule.MaxAccumulatedDays = seed.MaxAccumulatedDays;
+            rule.MinServiceMonths = seed.MinServiceMonths;
+            rule.MinServiceYears = seed.MinServiceYears;
+            rule.ProrateIfServiceLessThanYear = seed.ProrateIfServiceLessThanYear;
+            rule.FirstYearEntitlementDays = seed.FirstYearEntitlementDays;
+            rule.FirstYearPaidDays = seed.FirstYearPaidDays;
+            rule.IsPaid = seed.IsPaid;
+            rule.MaxExtendedDays = seed.MaxExtendedDays;
+            rule.SocialSecurityMaxDays = seed.SocialSecurityMaxDays;
+            rule.Notes = seed.Notes;
+            rule.IsActive = true;
+            rule.UpdatedAt = DateTime.UtcNow;
         }
     }
 
@@ -512,6 +629,9 @@ public static class DevelopmentDataSeeder
             user.FullName = userSeed.FullName;
             user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(StandardItPassword);
             user.DepartmentId = department.Id;
+            user.Gender = userSeed.Gender;
+            user.EmploymentType = userSeed.EmploymentType;
+            user.EmploymentStartDate = userSeed.EmploymentType is null ? null : new DateOnly(2024, 10, 1);
             user.IsActive = true;
             user.UpdatedAt = DateTime.UtcNow;
 

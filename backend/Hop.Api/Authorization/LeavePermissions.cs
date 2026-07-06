@@ -17,6 +17,7 @@ public static class LeavePermissions
     public const string SupportViewAll = "LeaveSupport.ViewAll";
     public const string ManageTypes = "LeaveAdmin.ManageTypes";
     public const string ManageBalances = "LeaveAdmin.ManageBalances";
+    public const string RolloverBalances = "LeaveBalance.Rollover";
     public const string ManageHolidays = "LeaveAdmin.ManageHolidays";
     public const string ManageApprovalChains = "LeaveAdmin.ManageApprovalChains";
 

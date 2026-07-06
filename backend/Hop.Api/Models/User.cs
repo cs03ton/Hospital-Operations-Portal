@@ -11,6 +11,9 @@ public class User
     public string? Email { get; set; }
     public string? PhoneNumber { get; set; }
     public string? LeaveContactAddress { get; set; }
+    public string Gender { get; set; } = GenderTypes.Unknown;
+    public string? EmploymentType { get; set; }
+    public DateOnly? EmploymentStartDate { get; set; }
     public string? ProfileImageUrl { get; set; }
     public string? ProfileImagePath { get; set; }
     public string? ProfileImageFileName { get; set; }

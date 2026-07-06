@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="500" height="180" viewBox="0 0 500 180">
+      <rect width="500" height="180" rx="32" fill="#0F766E"/>
+      <circle cx="86" cy="90" r="48" fill="#FFFFFF" opacity=".95"/>
+      <text x="86" y="106" text-anchor="middle" font-family="Arial" font-size="42" font-weight="700" fill="#0F766E">H</text>
+      <text x="160" y="78" font-family="Arial" font-size="34" font-weight="700" fill="#FFFFFF">HOP</text>
+      <text x="160" y="116" font-family="Arial" font-size="22" fill="#CCFBF1">Hospital Operations Portal</text>
+    </svg>

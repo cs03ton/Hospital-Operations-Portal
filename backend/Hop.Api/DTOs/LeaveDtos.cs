@@ -63,6 +63,28 @@ public record SaveLeaveRequestRequest(
     string Reason
 );
 
+public record LeavePolicyPreviewRequest(
+    Guid LeaveTypeId,
+    DateOnly StartDate,
+    DateOnly EndDate,
+    string? DurationType
+);
+
+public record LeavePolicyPreviewResponse(
+    string? EmploymentType,
+    string EmploymentTypeName,
+    int FiscalYear,
+    decimal EntitlementDays,
+    decimal UsedDays,
+    decimal PendingDays,
+    decimal AvailableDays,
+    decimal RequestedDays,
+    bool CanSubmit,
+    IReadOnlyList<string> Warnings,
+    IReadOnlyList<string> Errors,
+    IReadOnlyList<string> PolicyNotes
+);
+
 public record LeaveDecisionRequest(string? Remark);
 
 public record LeaveOverrideDecisionRequest(string Reason);
@@ -134,6 +156,63 @@ public record LeaveBalanceRolloverResponse(
     int PreviousFiscalYear,
     int CreatedCount,
     int SkippedCount
+);
+
+public record LeaveBalanceRolloverFilterRequest(
+    int FromFiscalYear,
+    int ToFiscalYear,
+    Guid? DepartmentId = null,
+    string? EmploymentType = null,
+    Guid? LeaveTypeId = null,
+    Guid? UserId = null
+);
+
+public record LeaveBalanceRolloverConfirmBatchRequest(
+    int FromFiscalYear,
+    int ToFiscalYear,
+    Guid? DepartmentId,
+    string? EmploymentType,
+    Guid? LeaveTypeId,
+    Guid? UserId,
+    string Reason
+);
+
+public record LeaveBalanceRolloverBatchResponse(
+    Guid? RolloverRunId,
+    int FromFiscalYear,
+    int ToFiscalYear,
+    int TotalUsers,
+    int Created,
+    int Updated,
+    int Skipped,
+    int Blocked,
+    IReadOnlyList<LeaveBalanceRolloverItemResponse> Items
+);
+
+public record LeaveBalanceRolloverItemResponse(
+    Guid UserId,
+    string EmployeeName,
+    string? DepartmentName,
+    string? EmploymentType,
+    string EmploymentTypeName,
+    Guid LeaveTypeId,
+    string LeaveTypeName,
+    int FromFiscalYear,
+    int ToFiscalYear,
+    decimal EntitlementDays,
+    decimal CarriedOverDays,
+    decimal AdjustedDays,
+    decimal UsedDays,
+    decimal PendingDays,
+    decimal EndYearRemaining,
+    decimal CarryOverCap,
+    decimal CarryOverDays,
+    decimal ForfeitedDays,
+    decimal NewEntitlementDays,
+    decimal NewAvailableDays,
+    string Action,
+    string Reason,
+    IReadOnlyList<string> Warnings
 );
 
 public record LeaveBalanceRolloverPreviewResponse(

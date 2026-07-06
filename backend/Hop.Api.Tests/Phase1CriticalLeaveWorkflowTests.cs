@@ -230,6 +230,8 @@ public class Phase1CriticalLeaveWorkflowTests
             db,
             new NoopAuditLogService(),
             new ValidLeaveValidationService(),
+            new LeavePolicyService(db),
+            new LeaveCalendarService(db),
             new EmptyApprovalChainService(),
             new FakeAttachmentStorageService(),
             new FakeLeavePdfService(),

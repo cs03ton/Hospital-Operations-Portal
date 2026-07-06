@@ -5,15 +5,16 @@ import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import RestartAltOutlinedIcon from "@mui/icons-material/RestartAltOutlined";
 import TuneOutlinedIcon from "@mui/icons-material/TuneOutlined";
-import { Alert, Button, Card, CardContent, Checkbox, Dialog, DialogActions, DialogContent, DialogTitle, Divider, FormControlLabel, Grid, IconButton, MenuItem, Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField, Tooltip, Typography } from "@mui/material";
+import { Alert, Button, Card, CardContent, Chip, Dialog, DialogActions, DialogContent, DialogTitle, Grid, IconButton, MenuItem, Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField, Tooltip, Typography } from "@mui/material";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { getDepartments, getUsers } from "../api/adminApi";
-import { adjustLeaveBalance, confirmLeaveBalanceRollover, createLeaveBalance, deleteLeaveBalance, downloadLeaveBalanceTemplate, getLeaveBalances, getLeaveTypes, previewLeaveBalanceRollover, rolloverLeaveBalances, updateLeaveBalance, type LeaveBalance, type LeaveBalanceRolloverPreview, type SaveLeaveBalanceRequest } from "../api/leaveApi";
+import { adjustLeaveBalance, confirmLeaveBalanceRolloverBatch, createLeaveBalance, deleteLeaveBalance, downloadLeaveBalanceTemplate, exportLeaveBalanceRolloverPreview, getLeaveBalances, getLeaveTypes, previewLeaveBalanceRolloverBatch, updateLeaveBalance, type LeaveBalance, type LeaveBalanceRolloverBatch, type LeaveBalanceRolloverFilterRequest, type SaveLeaveBalanceRequest } from "../api/leaveApi";
 import { EmptyState } from "../components/common/EmptyState";
 import { FilterToolbar } from "../components/common/FilterToolbar";
 import { PageHeader } from "../components/PageHeader";
 import { useNotification } from "../hooks/useNotification";
+import { employmentTypeOptions } from "../utils/employmentLabels";
 import { getLeaveTypeLabel } from "../utils/leaveLabels";
 
 const currentYear = getCurrentFiscalYear();
@@ -38,11 +39,14 @@ export function LeaveBalanceManagementPage() {
   const [leaveTypeId, setLeaveTypeId] = useState("");
   const [editing, setEditing] = useState<LeaveBalance | null>(null);
   const [form, setForm] = useState<SaveLeaveBalanceRequest>(emptyForm);
-  const [rolloverBalance, setRolloverBalance] = useState<LeaveBalance | null>(null);
-  const [rolloverPreview, setRolloverPreview] = useState<LeaveBalanceRolloverPreview | null>(null);
+  const [rolloverFromYear, setRolloverFromYear] = useState(formatFiscalYear(currentYear).toString());
+  const [rolloverToYear, setRolloverToYear] = useState(formatFiscalYear(currentYear + 1).toString());
+  const [rolloverUserId, setRolloverUserId] = useState("");
+  const [rolloverDepartmentId, setRolloverDepartmentId] = useState("");
+  const [rolloverEmploymentType, setRolloverEmploymentType] = useState("");
+  const [rolloverLeaveTypeId, setRolloverLeaveTypeId] = useState("");
+  const [rolloverPreview, setRolloverPreview] = useState<LeaveBalanceRolloverBatch | null>(null);
   const [rolloverReason, setRolloverReason] = useState("");
-  const [rolloverEntitlement, setRolloverEntitlement] = useState(0);
-  const [updateExistingCarriedOverOnly, setUpdateExistingCarriedOverOnly] = useState(false);
   const [adjustingBalance, setAdjustingBalance] = useState<LeaveBalance | null>(null);
   const [adjustmentDays, setAdjustmentDays] = useState(0);
   const [adjustmentReason, setAdjustmentReason] = useState("");
@@ -82,40 +86,28 @@ export function LeaveBalanceManagementPage() {
     },
   });
 
-  const rolloverMutation = useMutation({
-    mutationFn: () => rolloverLeaveBalances(year ? parseFiscalYear(year) : currentYear),
-    onSuccess: (result) => {
-      showSuccess(`ยกยอดวันลาเรียบร้อยแล้ว สร้าง ${result.createdCount} รายการ ข้าม ${result.skippedCount} รายการ`);
-      queryClient.invalidateQueries({ queryKey: ["leave-balances"] });
-    },
-  });
-
   const rolloverPreviewMutation = useMutation({
-    mutationFn: previewLeaveBalanceRollover,
+    mutationFn: previewLeaveBalanceRolloverBatch,
     onSuccess: (preview) => {
       setRolloverPreview(preview);
-      setRolloverEntitlement(preview.newEntitlementDays);
-      setRolloverReason(`ยกยอดวันลาปีงบประมาณ ${formatFiscalYear(preview.toFiscalYear)}`);
-      setUpdateExistingCarriedOverOnly(false);
+      setRolloverReason((current) => current || `ยกยอดวันลาปีงบประมาณ ${formatFiscalYear(preview.fromFiscalYear)} ไป ${formatFiscalYear(preview.toFiscalYear)}`);
     },
   });
 
   const rolloverConfirmMutation = useMutation({
     mutationFn: () => {
-      if (!rolloverBalance || !rolloverPreview) {
+      if (!rolloverPreview) {
         throw new Error("Missing rollover preview.");
       }
-      return confirmLeaveBalanceRollover(rolloverBalance.id!, {
-        toFiscalYear: rolloverPreview.toFiscalYear,
-        newEntitlementDays: rolloverEntitlement,
+      return confirmLeaveBalanceRolloverBatch({
+        ...buildRolloverPayload(),
         reason: rolloverReason,
-        updateExistingCarriedOverOnly,
       });
     },
-    onSuccess: () => {
-      showSuccess("ยืนยันการยกยอดวันลาเรียบร้อยแล้ว");
+    onSuccess: (result) => {
+      showSuccess(`ยืนยันการยกยอดวันลาเรียบร้อยแล้ว สร้าง ${result.created} อัปเดต ${result.updated} ข้าม ${result.skipped} รายการ`);
+      setRolloverPreview(result);
       queryClient.invalidateQueries({ queryKey: ["leave-balances"] });
-      closeRolloverDialog();
     },
   });
 
@@ -159,13 +151,23 @@ export function LeaveBalanceManagementPage() {
   }
 
   function openRollover(row: LeaveBalance) {
-    if (!row.id) {
-      return;
-    }
-    setRolloverBalance(row);
+    setRolloverFromYear(formatFiscalYear(row.year).toString());
+    setRolloverToYear(formatFiscalYear(row.year + 1).toString());
+    setRolloverUserId(row.userId);
+    setRolloverDepartmentId("");
+    setRolloverEmploymentType("");
+    setRolloverLeaveTypeId(row.leaveTypeId);
     setRolloverPreview(null);
-    rolloverPreviewMutation.mutate(row.id, {
-      onError: () => showWarning("ไม่สามารถยกยอดประเภทลานี้ได้"),
+    const payload = buildRolloverPayload({
+      fromFiscalYear: row.year,
+      toFiscalYear: row.year + 1,
+      userId: row.userId,
+      departmentId: "",
+      employmentType: "",
+      leaveTypeId: row.leaveTypeId,
+    });
+    rolloverPreviewMutation.mutate(payload, {
+      onError: () => showWarning("ไม่สามารถคำนวณตัวอย่างการยกยอดได้"),
     });
   }
 
@@ -173,12 +175,36 @@ export function LeaveBalanceManagementPage() {
     return Boolean(leaveTypes.find((leaveType) => leaveType.id === row.leaveTypeId)?.allowCarryOver);
   }
 
-  function closeRolloverDialog() {
-    setRolloverBalance(null);
+  function buildRolloverPayload(overrides?: Partial<LeaveBalanceRolloverFilterRequest>): LeaveBalanceRolloverFilterRequest {
+    const userOverride = overrides && "userId" in overrides ? overrides.userId : rolloverUserId;
+    const departmentOverride = overrides && "departmentId" in overrides ? overrides.departmentId : rolloverDepartmentId;
+    const employmentOverride = overrides && "employmentType" in overrides ? overrides.employmentType : rolloverEmploymentType;
+    const leaveTypeOverride = overrides && "leaveTypeId" in overrides ? overrides.leaveTypeId : rolloverLeaveTypeId;
+
+    return {
+      fromFiscalYear: overrides?.fromFiscalYear ?? parseFiscalYear(rolloverFromYear),
+      toFiscalYear: overrides?.toFiscalYear ?? parseFiscalYear(rolloverToYear),
+      userId: userOverride || undefined,
+      departmentId: departmentOverride || undefined,
+      employmentType: employmentOverride || undefined,
+      leaveTypeId: leaveTypeOverride || undefined,
+    };
+  }
+
+  function previewRollover() {
     setRolloverPreview(null);
-    setRolloverReason("");
-    setRolloverEntitlement(0);
-    setUpdateExistingCarriedOverOnly(false);
+    rolloverPreviewMutation.mutate(buildRolloverPayload());
+  }
+
+  async function exportRolloverPreview() {
+    const blob = await exportLeaveBalanceRolloverPreview(buildRolloverPayload());
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `leave-rollover-preview-${parseFiscalYear(rolloverFromYear)}-${parseFiscalYear(rolloverToYear)}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+    showSuccess("ส่งออก Preview การยกยอดเรียบร้อยแล้ว");
   }
 
   function openAdjust(row: LeaveBalance) {
@@ -239,13 +265,152 @@ export function LeaveBalanceManagementPage() {
           <Grid item xs={12} md={12}>
             <Stack direction="row" spacing={1} justifyContent="flex-end" flexWrap="wrap" useFlexGap>
               <Button variant="outlined" startIcon={<DownloadOutlinedIcon />} onClick={downloadTemplate}>ดาวน์โหลด Template</Button>
-              <Button variant="outlined" onClick={() => rolloverMutation.mutate()} disabled={rolloverMutation.isPending}>
-                ยกยอดปีงบประมาณ
-              </Button>
               <Button variant="contained" startIcon={<AddOutlinedIcon />} onClick={openCreate}>เพิ่มยอดวันลา</Button>
             </Stack>
           </Grid>
         </FilterToolbar>
+
+        <Card>
+          <CardContent>
+            <Stack spacing={2}>
+              <Stack direction={{ xs: "column", md: "row" }} justifyContent="space-between" alignItems={{ xs: "stretch", md: "center" }} spacing={1}>
+                <Stack spacing={0.5}>
+                  <Typography variant="h6" fontWeight={800}>ยกยอดวันลา</Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    ตรวจสอบ Preview ก่อนยืนยัน ระบบใช้กฎสิทธิ์วันลาตามประเภทบุคลากรและปีงบประมาณจาก Leave Policy
+                  </Typography>
+                </Stack>
+                <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                  <Button variant="outlined" startIcon={<RestartAltOutlinedIcon />} onClick={previewRollover} disabled={rolloverPreviewMutation.isPending}>
+                    คำนวณ Preview
+                  </Button>
+                  <Button variant="outlined" startIcon={<DownloadOutlinedIcon />} onClick={exportRolloverPreview}>
+                    Export Preview
+                  </Button>
+                  <Button variant="contained" onClick={() => rolloverConfirmMutation.mutate()} disabled={!rolloverPreview || !rolloverReason.trim() || rolloverConfirmMutation.isPending}>
+                    ยืนยันการยกยอด
+                  </Button>
+                </Stack>
+              </Stack>
+
+              <Grid container spacing={2}>
+                <Grid item xs={12} md={2}>
+                  <TextField size="small" label="จากปีงบประมาณ (พ.ศ.)" type="number" value={rolloverFromYear} onChange={(event) => setRolloverFromYear(event.target.value)} fullWidth />
+                </Grid>
+                <Grid item xs={12} md={2}>
+                  <TextField size="small" label="ไปปีงบประมาณ (พ.ศ.)" type="number" value={rolloverToYear} onChange={(event) => setRolloverToYear(event.target.value)} fullWidth />
+                </Grid>
+                <Grid item xs={12} md={3}>
+                  <TextField select size="small" label="ผู้ใช้งาน" value={rolloverUserId} onChange={(event) => setRolloverUserId(event.target.value)} fullWidth>
+                    <MenuItem value="">ทั้งหมด</MenuItem>
+                    {users.map((user) => (
+                      <MenuItem key={user.id} value={user.id}>{user.fullname}</MenuItem>
+                    ))}
+                  </TextField>
+                </Grid>
+                <Grid item xs={12} md={3}>
+                  <TextField select size="small" label="หน่วยงาน" value={rolloverDepartmentId} onChange={(event) => setRolloverDepartmentId(event.target.value)} fullWidth disabled={Boolean(rolloverUserId)}>
+                    <MenuItem value="">ทั้งหมด</MenuItem>
+                    {departments.map((department) => (
+                      <MenuItem key={department.id} value={department.id}>{department.name}</MenuItem>
+                    ))}
+                  </TextField>
+                </Grid>
+                <Grid item xs={12} md={2}>
+                  <TextField select size="small" label="ประเภทบุคลากร" value={rolloverEmploymentType} onChange={(event) => setRolloverEmploymentType(event.target.value)} fullWidth disabled={Boolean(rolloverUserId)}>
+                    <MenuItem value="">ทั้งหมด</MenuItem>
+                    {employmentTypeOptions.map((option) => (
+                      <MenuItem key={option.value} value={option.value}>{option.label}</MenuItem>
+                    ))}
+                  </TextField>
+                </Grid>
+                <Grid item xs={12} md={4}>
+                  <TextField select size="small" label="ประเภทลา" value={rolloverLeaveTypeId} onChange={(event) => setRolloverLeaveTypeId(event.target.value)} fullWidth>
+                    <MenuItem value="">ทั้งหมด</MenuItem>
+                    {leaveTypes.filter((leaveType) => leaveType.requiresBalance).map((leaveType) => (
+                      <MenuItem key={leaveType.id} value={leaveType.id}>{getLeaveTypeLabel(leaveType.name)}</MenuItem>
+                    ))}
+                  </TextField>
+                </Grid>
+                <Grid item xs={12} md={8}>
+                  <TextField
+                    size="small"
+                    label="เหตุผลการยกยอด"
+                    value={rolloverReason}
+                    onChange={(event) => setRolloverReason(event.target.value)}
+                    fullWidth
+                    required
+                    helperText="จำเป็นสำหรับการยืนยัน ระบบจะบันทึกใน Audit Log"
+                  />
+                </Grid>
+              </Grid>
+
+              {rolloverPreviewMutation.isPending && <Alert severity="info">กำลังคำนวณตัวอย่างการยกยอด...</Alert>}
+              {rolloverPreview && (
+                <Stack spacing={2}>
+                  <Grid container spacing={2}>
+                    <RolloverSummaryCard label="ทั้งหมด" value={rolloverPreview.items.length} />
+                    <RolloverSummaryCard label="สร้างใหม่" value={rolloverPreview.created} color="success.main" />
+                    <RolloverSummaryCard label="อัปเดต" value={rolloverPreview.updated} color="primary.main" />
+                    <RolloverSummaryCard label="ข้าม/ไม่เปลี่ยน" value={rolloverPreview.skipped} color="text.secondary" />
+                    <RolloverSummaryCard label="ถูกบล็อก" value={rolloverPreview.blocked} color="error.main" />
+                  </Grid>
+                  <Table size="small">
+                    <TableHead>
+                      <TableRow>
+                        <TableCell>ผู้ใช้งาน</TableCell>
+                        <TableCell>หน่วยงาน</TableCell>
+                        <TableCell>ประเภทลา</TableCell>
+                        <TableCell>คงเหลือปลายปี</TableCell>
+                        <TableCell>เพดานยกยอด</TableCell>
+                        <TableCell>ยกยอด</TableCell>
+                        <TableCell>ถูกตัด</TableCell>
+                        <TableCell>การดำเนินการ</TableCell>
+                        <TableCell>หมายเหตุ</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {rolloverPreview.items.length ? rolloverPreview.items.slice(0, 20).map((item) => (
+                        <TableRow key={`${item.userId}-${item.leaveTypeId}`}>
+                          <TableCell>
+                            <Stack spacing={0.25}>
+                              <Typography fontWeight={700}>{item.employeeName}</Typography>
+                              <Typography variant="caption" color="text.secondary">{item.employmentTypeName}</Typography>
+                            </Stack>
+                          </TableCell>
+                          <TableCell>{item.departmentName ?? "-"}</TableCell>
+                          <TableCell>{getLeaveTypeLabel(item.leaveTypeName)}</TableCell>
+                          <TableCell>{item.endYearRemaining}</TableCell>
+                          <TableCell>{item.carryOverCap}</TableCell>
+                          <TableCell>{item.carryOverDays}</TableCell>
+                          <TableCell>{item.forfeitedDays}</TableCell>
+                          <TableCell><Chip size="small" label={getRolloverActionLabel(item.action)} color={getRolloverActionColor(item.action)} /></TableCell>
+                          <TableCell>
+                            <Stack spacing={0.5}>
+                              <Typography variant="body2">{item.reason}</Typography>
+                              {item.warnings.map((warning) => (
+                                <Typography key={warning} variant="caption" color="warning.main">{warning}</Typography>
+                              ))}
+                            </Stack>
+                          </TableCell>
+                        </TableRow>
+                      )) : (
+                        <TableRow>
+                          <TableCell colSpan={9}>
+                            <EmptyState message="ไม่พบรายการสำหรับยกยอดตามตัวกรองที่เลือก" />
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                  {rolloverPreview.items.length > 20 && (
+                    <Typography variant="caption" color="text.secondary">แสดง 20 รายการแรกจากทั้งหมด {rolloverPreview.items.length} รายการ ใช้ Export Preview เพื่อดูทั้งหมด</Typography>
+                  )}
+                </Stack>
+              )}
+            </Stack>
+          </CardContent>
+        </Card>
 
         <Card>
           <CardContent>
@@ -342,66 +507,6 @@ export function LeaveBalanceManagementPage() {
         </DialogActions>
       </Dialog>
 
-      <Dialog open={Boolean(rolloverBalance)} onClose={closeRolloverDialog} fullWidth maxWidth="md">
-        <DialogTitle>ตรวจสอบการยกยอดวันลา</DialogTitle>
-        <DialogContent>
-          <Stack spacing={2} sx={{ pt: 1 }}>
-            <Alert severity="info">กรุณาตรวจสอบข้อมูลก่อนยืนยัน การยกยอดจะสร้างยอดวันลาของปีงบประมาณใหม่</Alert>
-            {!rolloverPreview ? (
-              <Typography color="text.secondary">กำลังคำนวณตัวอย่างการยกยอด...</Typography>
-            ) : (
-              <>
-                {rolloverPreview.warnings.map((warning) => (
-                  <Alert key={warning} severity="warning">{warning}</Alert>
-                ))}
-                <Grid container spacing={2}>
-                  <PreviewField label="ผู้ใช้งาน" value={rolloverPreview.userName ?? "-"} />
-                  <PreviewField label="ประเภทลา" value={getLeaveTypeLabel(rolloverPreview.leaveTypeName)} />
-                  <PreviewField label="ปีงบประมาณต้นทาง" value={formatFiscalYear(rolloverPreview.fromFiscalYear)} />
-                  <PreviewField label="ปีงบประมาณปลายทาง" value={formatFiscalYear(rolloverPreview.toFiscalYear)} />
-                  <PreviewField label="สิทธิ์ประจำปีเดิม" value={rolloverPreview.entitlementDays} />
-                  <PreviewField label="ยอดยกมาปีเดิม" value={rolloverPreview.carriedOverDays} />
-                  <PreviewField label="ปรับปรุง" value={rolloverPreview.adjustedDays} />
-                  <PreviewField label="ใช้ไปแล้ว" value={rolloverPreview.usedDays} />
-                  <PreviewField label="รออนุมัติ" value={rolloverPreview.pendingDays} />
-                  <PreviewField label="คงเหลือปลายปี" value={rolloverPreview.endYearRemaining} />
-                  <PreviewField label="ยกยอดได้" value={rolloverPreview.carryOverDays} />
-                  <PreviewField label="ยอดถูกตัดออก" value={rolloverPreview.forfeitedDays} />
-                </Grid>
-                <Divider />
-                <Grid container spacing={2}>
-                  <Grid item xs={12} sm={6}>
-                    <TextField label="สิทธิ์ประจำปีใหม่" type="number" value={rolloverEntitlement} onChange={(event) => setRolloverEntitlement(Number(event.target.value))} fullWidth />
-                  </Grid>
-                  <PreviewField label="ยอดรวมปีใหม่หลังยกยอด" value={rolloverEntitlement + rolloverPreview.carryOverDays} />
-                  {rolloverPreview.targetBalanceExists && (
-                    <Grid item xs={12}>
-                      <FormControlLabel
-                        control={<Checkbox checked={updateExistingCarriedOverOnly} onChange={(event) => setUpdateExistingCarriedOverOnly(event.target.checked)} />}
-                        label="อัปเดตเฉพาะยอดยกมาในปีงบประมาณปลายทาง"
-                      />
-                    </Grid>
-                  )}
-                  <Grid item xs={12}>
-                    <TextField label="เหตุผล/หมายเหตุ" value={rolloverReason} onChange={(event) => setRolloverReason(event.target.value)} multiline minRows={2} fullWidth required />
-                  </Grid>
-                </Grid>
-              </>
-            )}
-          </Stack>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={closeRolloverDialog}>ยกเลิก</Button>
-          <Button
-            variant="contained"
-            onClick={() => rolloverConfirmMutation.mutate()}
-            disabled={!rolloverPreview || !rolloverReason.trim() || rolloverConfirmMutation.isPending || (rolloverPreview.targetBalanceExists && !updateExistingCarriedOverOnly)}
-          >
-            ยืนยันการยกยอด
-          </Button>
-        </DialogActions>
-      </Dialog>
-
       <Dialog open={Boolean(adjustingBalance)} onClose={closeAdjustDialog} fullWidth maxWidth="sm">
         <DialogTitle>ปรับยอดวันลา</DialogTitle>
         <DialogContent>
@@ -440,13 +545,45 @@ function parseFiscalYear(value: string) {
   return year > 2400 ? year - 543 : year;
 }
 
-function PreviewField({ label, value }: { label: string; value: string | number }) {
+function RolloverSummaryCard({ label, value, color = "text.primary" }: { label: string; value: number; color?: string }) {
   return (
-    <Grid item xs={12} sm={6} md={4}>
-      <Stack spacing={0.5}>
-        <Typography variant="caption" color="text.secondary">{label}</Typography>
-        <Typography fontWeight={700}>{value}</Typography>
-      </Stack>
+    <Grid item xs={6} sm={4} md={2.4}>
+      <Card variant="outlined" sx={{ height: "100%" }}>
+        <CardContent sx={{ py: 1.5, "&:last-child": { pb: 1.5 } }}>
+          <Typography variant="caption" color="text.secondary">{label}</Typography>
+          <Typography variant="h6" fontWeight={800} color={color}>{value}</Typography>
+        </CardContent>
+      </Card>
     </Grid>
   );
+}
+
+function getRolloverActionLabel(action: string) {
+  switch (action) {
+    case "Created":
+      return "สร้างใหม่";
+    case "Updated":
+      return "อัปเดต";
+    case "Blocked":
+      return "บล็อก";
+    case "NoChange":
+      return "ไม่เปลี่ยน";
+    default:
+      return "ข้าม";
+  }
+}
+
+function getRolloverActionColor(action: string): "default" | "primary" | "success" | "warning" | "error" {
+  switch (action) {
+    case "Created":
+      return "success";
+    case "Updated":
+      return "primary";
+    case "Blocked":
+      return "error";
+    case "NoChange":
+      return "default";
+    default:
+      return "warning";
+  }
 }

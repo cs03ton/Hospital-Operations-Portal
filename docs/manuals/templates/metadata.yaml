@@ -1,0 +1,31 @@
+---
+title: "Hospital Operations Portal (HOP)"
+subtitle: "คู่มือการใช้งานระบบ Phase 1"
+document-title: "Hospital Operations Portal"
+organization: "โรงพยาบาลนาหมื่น"
+version: "1.0"
+fiscal-year: "2570"
+phase: "Phase 1"
+lang: "th-TH"
+papersize: "a4"
+fontsize: "16pt"
+mainfont: "TH Sarabun New"
+fallbackfont: "TH SarabunPSK"
+titlepage: true
+toc: true
+toc-depth: 3
+numbersections: false
+colorlinks: true
+linkcolor: "0F766E"
+urlcolor: "0F766E"
+geometry:
+  - top=25mm
+  - bottom=25mm
+  - left=22mm
+  - right=22mm
+primary-color: "0F766E"
+secondary-color: "14B8A6"
+accent-color: "DCFCE7"
+text-color: "374151"
+background-color: "FFFFFF"
+---

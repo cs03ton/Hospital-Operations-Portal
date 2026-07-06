@@ -13,6 +13,8 @@ namespace Hop.Api.Controllers;
 [Authorize]
 public class DashboardController(AppDbContext db) : ControllerBase
 {
+    private static readonly string[] CoreLeaveTypeCodes = ["VACATION_LEAVE", "PERSONAL_LEAVE", "SICK_LEAVE"];
+
     [HttpGet("summary")]
     [RequirePermission("Dashboard.View")]
     public async Task<ActionResult<ApiResponse<DashboardSummaryResponse>>> GetSummary()
@@ -67,11 +69,9 @@ public class DashboardController(AppDbContext db) : ControllerBase
         var staffOnLeaveThisWeek = canViewLeaveOverview ? await CountDistinctApprovedLeaveUsers(weekStart, weekEnd) : 0;
         var staffOnLeaveThisMonth = canViewLeaveOverview ? await CountDistinctApprovedLeaveUsers(monthStart, monthEnd) : 0;
 
-        var myRemainingLeaveDays = userId is null
-            ? 0
-            : await db.LeaveBalances
-                .Where(item => item.UserId == userId && item.Year == fiscalYear)
-                .SumAsync(item => item.EntitledDays + item.CarriedOverDays + item.AdjustedDays - item.UsedDays - item.PendingDays);
+        var myCoreLeaveBalances = userId is null
+            ? Array.Empty<DashboardLeaveBalanceResponse>()
+            : await LoadMyCoreLeaveBalances(userId.Value, fiscalYear);
 
         var myLeaveQuery = userId is null
             ? db.LeaveRequests.Where(item => false)
@@ -107,7 +107,7 @@ public class DashboardController(AppDbContext db) : ControllerBase
             staffOnLeaveToday,
             staffOnLeaveThisWeek,
             staffOnLeaveThisMonth,
-            myRemainingLeaveDays,
+            MyRemainingLeaveDays: 0,
             myLeaveRequestsTotal,
             myLeaveRequestsPending,
             myLeaveRequestsApproved,
@@ -125,7 +125,8 @@ public class DashboardController(AppDbContext db) : ControllerBase
             lineFailed,
             "Healthy",
             databaseStatus,
-            applicationVersion
+            applicationVersion,
+            myCoreLeaveBalances
         ));
     }
 
@@ -161,6 +162,32 @@ public class DashboardController(AppDbContext db) : ControllerBase
             .Select(item => item.UserId)
             .Distinct()
             .CountAsync();
+    }
+
+    private async Task<IReadOnlyList<DashboardLeaveBalanceResponse>> LoadMyCoreLeaveBalances(Guid userId, int fiscalYear)
+    {
+        var balances = await db.LeaveBalances
+            .AsNoTracking()
+            .Include(item => item.LeaveType)
+            .Where(item => item.UserId == userId && item.Year == fiscalYear)
+            .Where(item => item.LeaveType != null && CoreLeaveTypeCodes.Contains(item.LeaveType.Code))
+            .ToListAsync();
+
+        return balances
+            .OrderBy(item => Array.IndexOf(CoreLeaveTypeCodes, item.LeaveType!.Code))
+            .Select(item => new DashboardLeaveBalanceResponse(
+                item.LeaveType!.Code,
+                item.LeaveType.Name,
+                item.EntitledDays + item.CarriedOverDays + item.AdjustedDays,
+                item.UsedDays,
+                item.PendingDays,
+                FiscalYearHelper.CalculateAvailableDays(
+                    item.EntitledDays,
+                    item.CarriedOverDays,
+                    item.UsedDays,
+                    item.PendingDays,
+                    item.AdjustedDays)))
+            .ToList();
     }
 
     private Guid? GetCurrentUserId()

@@ -17,7 +17,12 @@ export type PageBreadcrumb = {
 };
 
 const pageTitleEntries: PageTitleEntry[] = [
-  { path: "/dashboard", title: "แดชบอร์ด", subtitle: "ภาพรวมระบบลาและงานที่ต้องติดตาม", exact: true, breadcrumbs: [{ label: "แดชบอร์ด" }] },
+  { path: "/dashboard/leave", title: "แดชบอร์ดระบบลา", subtitle: "ภาพรวมคำขอลา งานอนุมัติ และปฏิทินการลา", exact: true, breadcrumbs: [{ label: "Dashboard", path: "/dashboard" }, { label: "ระบบลา" }] },
+  { path: "/dashboard/vehicle", title: "แดชบอร์ดระบบจองรถ/ยืมรถ", subtitle: "ระบบอยู่ระหว่างเตรียมเปิดใช้งาน", exact: true, breadcrumbs: [{ label: "Dashboard", path: "/dashboard" }, { label: "ระบบจองรถ/ยืมรถ" }] },
+  { path: "/dashboard/repair", title: "แดชบอร์ดระบบแจ้งซ่อม", subtitle: "ระบบอยู่ระหว่างเตรียมเปิดใช้งาน", exact: true, breadcrumbs: [{ label: "Dashboard", path: "/dashboard" }, { label: "ระบบแจ้งซ่อม" }] },
+  { path: "/dashboard/inventory", title: "แดชบอร์ด Inventory", subtitle: "ระบบอยู่ระหว่างเตรียมเปิดใช้งาน", exact: true, breadcrumbs: [{ label: "Dashboard", path: "/dashboard" }, { label: "Inventory" }] },
+  { path: "/dashboard/executive", title: "Executive Dashboard", subtitle: "ภาพรวมเชิงบริหารและ KPI สำคัญ", exact: true, breadcrumbs: [{ label: "Dashboard", path: "/dashboard" }, { label: "Executive Dashboard" }] },
+  { path: "/dashboard", title: "Dashboard Hub", subtitle: "ศูนย์กลางแดชบอร์ดของระบบงานโรงพยาบาล", exact: true, breadcrumbs: [{ label: "Dashboard" }] },
   { path: "/notifications", title: "ศูนย์แจ้งเตือน", subtitle: "รายการแจ้งเตือนตามบทบาทและหน้าที่ของคุณ", exact: true, breadcrumbs: [{ label: "ศูนย์แจ้งเตือน" }] },
   { path: "/profile", title: "ข้อมูลส่วนตัวของฉัน", subtitle: "ข้อมูลสำหรับระบบลาและเอกสารใบลา", exact: true, breadcrumbs: [{ label: "ข้อมูลส่วนตัวของฉัน" }] },
   { path: "/admin/users/create", title: "เพิ่มผู้ใช้", subtitle: "สร้างบัญชีผู้ใช้งานระบบ", exact: true, breadcrumbs: [{ label: "จัดการผู้ใช้", path: "/admin/users" }, { label: "เพิ่มผู้ใช้" }] },
@@ -27,6 +32,7 @@ const pageTitleEntries: PageTitleEntry[] = [
   { path: "/admin/roles", title: "บทบาทและสิทธิ์", subtitle: "กำหนดบทบาทและ permission ของผู้ใช้งาน", breadcrumbs: [{ label: "บทบาทและสิทธิ์" }] },
   { path: "/admin/audit-logs/export", title: "ส่งออกบันทึกการใช้งาน", subtitle: "ส่งออกบันทึกเหตุการณ์สำคัญ", exact: true, breadcrumbs: [{ label: "บันทึกการใช้งาน", path: "/admin/audit-logs" }, { label: "ส่งออก" }] },
   { path: "/admin/audit-logs", title: "บันทึกการใช้งาน", subtitle: "ตรวจสอบบันทึกการใช้งานและเหตุการณ์ความปลอดภัย", breadcrumbs: [{ label: "บันทึกการใช้งาน" }] },
+  { path: "/admin/health", title: "สถานะระบบ", subtitle: "ตรวจสอบความพร้อมของ API, Database, Storage, LINE และ Backup", exact: true, breadcrumbs: [{ label: "สถานะระบบ" }] },
   { path: "/admin/line-settings", title: "ตั้งค่า LINE", subtitle: "ตรวจสอบและทดสอบ LINE Messaging API", breadcrumbs: [{ label: "ตั้งค่า LINE" }] },
   { path: "/admin/approval-chains/create", title: "เพิ่มกฎการอนุมัติวันลา", subtitle: "กำหนด rule และลำดับผู้อนุมัติใหม่", exact: true, breadcrumbs: [{ label: "กฎการอนุมัติวันลา", path: "/admin/approval-chains" }, { label: "เพิ่มกฎการอนุมัติ" }] },
   { path: "/admin/approval-chains", title: "กฎการอนุมัติวันลา", subtitle: "จัดการ rule ผู้อนุมัติและขั้นตอนการอนุมัติ", breadcrumbs: [{ label: "กฎการอนุมัติวันลา" }] },

@@ -4,6 +4,7 @@ import { CssBaseline, ThemeProvider } from "@mui/material";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter } from "react-router-dom";
 import App from "./App";
+import { ErrorBoundary } from "./components/common/ErrorBoundary";
 import { appName, hospitalName } from "./config/appConfig";
 import { AuthProvider } from "./context/AuthContext";
 import { PermissionProvider } from "./context/PermissionContext";
@@ -23,7 +24,9 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
           <NotificationProvider>
             <AuthProvider>
               <PermissionProvider>
-                <App />
+                <ErrorBoundary>
+                  <App />
+                </ErrorBoundary>
               </PermissionProvider>
             </AuthProvider>
           </NotificationProvider>

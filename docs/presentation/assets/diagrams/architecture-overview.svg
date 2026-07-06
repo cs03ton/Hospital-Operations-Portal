@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="420" viewBox="0 0 900 420">
+      <rect width="900" height="420" rx="28" fill="#FFFFFF"/>
+      <rect x="70" y="120" width="160" height="70" rx="18" fill="#CCFBF1" stroke="#DDE7E5"/><text x="150" y="162" text-anchor="middle" font-family="Arial" font-size="20" font-weight="700" fill="#0F766E">Frontend</text><rect x="275" y="200" width="160" height="70" rx="18" fill="#0F766E" stroke="#DDE7E5"/><text x="355" y="242" text-anchor="middle" font-family="Arial" font-size="20" font-weight="700" fill="#FFFFFF">Backend API</text><rect x="480" y="120" width="160" height="70" rx="18" fill="#CCFBF1" stroke="#DDE7E5"/><text x="560" y="162" text-anchor="middle" font-family="Arial" font-size="20" font-weight="700" fill="#0F766E">PostgreSQL</text><rect x="685" y="200" width="160" height="70" rx="18" fill="#CCFBF1" stroke="#DDE7E5"/><text x="765" y="242" text-anchor="middle" font-family="Arial" font-size="20" font-weight="700" fill="#0F766E">LINE OA</text>
+      <path d="M230 155h45M435 235h45M640 155h45" stroke="#14B8A6" stroke-width="5" stroke-linecap="round"/>
+    </svg>

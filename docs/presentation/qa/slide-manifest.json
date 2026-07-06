@@ -1,0 +1,212 @@
+[
+  {
+    "slide": 1,
+    "title": "Hospital Operations Portal (HOP)",
+    "subtitle": "ระบบศูนย์กลางสำหรับบริหารงานภายในโรงพยาบาลนาหมื่น",
+    "bodyItems": 3,
+    "speakerNotes": true
+  },
+  {
+    "slide": 2,
+    "title": "Executive Summary",
+    "subtitle": "HOP คือฐานรากดิจิทัลสำหรับงานปฏิบัติการโรงพยาบาล",
+    "bodyItems": 4,
+    "speakerNotes": true
+  },
+  {
+    "slide": 3,
+    "title": "Current Pain Points",
+    "subtitle": "ปัญหาที่พบในงานบริหารภายในรูปแบบเดิม",
+    "bodyItems": 4,
+    "speakerNotes": true
+  },
+  {
+    "slide": 4,
+    "title": "Current Workflow",
+    "subtitle": "กระบวนการเดิมมีหลายจุดส่งต่อและตรวจสอบย้อนหลังยาก",
+    "bodyItems": 4,
+    "speakerNotes": true
+  },
+  {
+    "slide": 5,
+    "title": "Future Workflow",
+    "subtitle": "ขั้นตอนใหม่เชื่อมต่อผ่านระบบกลางและแจ้งเตือนอัตโนมัติ",
+    "bodyItems": 4,
+    "speakerNotes": true
+  },
+  {
+    "slide": 6,
+    "title": "Vision",
+    "subtitle": "ศูนย์กลางงานปฏิบัติการที่พร้อมต่อยอดสู่ Digital Hospital",
+    "bodyItems": 3,
+    "speakerNotes": true
+  },
+  {
+    "slide": 7,
+    "title": "Project Objectives",
+    "subtitle": "วัตถุประสงค์เชิงบริหารและเชิงปฏิบัติการ",
+    "bodyItems": 4,
+    "speakerNotes": true
+  },
+  {
+    "slide": 8,
+    "title": "Project Scope",
+    "subtitle": "Phase 1 เริ่มจากโมดูลที่กระทบงานประจำและพร้อมใช้งานจริง",
+    "bodyItems": 4,
+    "speakerNotes": true
+  },
+  {
+    "slide": 9,
+    "title": "System Architecture",
+    "subtitle": "สถาปัตยกรรมแยก Frontend, Backend และ Database พร้อม deploy ด้วย Docker",
+    "bodyItems": 4,
+    "speakerNotes": true
+  },
+  {
+    "slide": 10,
+    "title": "Technology Stack",
+    "subtitle": "เลือกเทคโนโลยีมาตรฐาน เปิดกว้าง และพร้อมดูแลระยะยาว",
+    "bodyItems": 5,
+    "speakerNotes": true
+  },
+  {
+    "slide": 11,
+    "title": "Security & Access Control",
+    "subtitle": "ควบคุมข้อมูลตามบทบาท ตรวจสอบย้อนหลังได้ทุก action สำคัญ",
+    "bodyItems": 4,
+    "speakerNotes": true
+  },
+  {
+    "slide": 12,
+    "title": "Dashboard Module",
+    "subtitle": "หน้าแรกที่สรุปสถานะงานตามบทบาทของผู้ใช้งาน",
+    "bodyItems": 3,
+    "speakerNotes": true
+  },
+  {
+    "slide": 13,
+    "title": "User Management Module",
+    "subtitle": "จัดการผู้ใช้งาน หน่วยงาน บทบาท และสิทธิ์อย่างเป็นระบบ",
+    "bodyItems": 4,
+    "speakerNotes": true
+  },
+  {
+    "slide": 14,
+    "title": "Leave Management Module",
+    "subtitle": "ระบบลาครบวงจร ตั้งแต่สร้างคำขอถึงออกเอกสาร PDF",
+    "bodyItems": 4,
+    "speakerNotes": true
+  },
+  {
+    "slide": 15,
+    "title": "Inventory Module",
+    "subtitle": "แผนต่อยอดสำหรับติดตามครุภัณฑ์และวัสดุภายในโรงพยาบาล",
+    "bodyItems": 3,
+    "speakerNotes": true
+  },
+  {
+    "slide": 16,
+    "title": "Repair Request Module",
+    "subtitle": "ระบบแจ้งซ่อมที่ติดตามสถานะและผู้รับผิดชอบได้ชัดเจน",
+    "bodyItems": 3,
+    "speakerNotes": true
+  },
+  {
+    "slide": 17,
+    "title": "Executive Report Module",
+    "subtitle": "รายงานเชิงบริหารสำหรับการตัดสินใจและติดตามผล",
+    "bodyItems": 3,
+    "speakerNotes": true
+  },
+  {
+    "slide": 18,
+    "title": "LINE Notification Integration",
+    "subtitle": "แจ้งเตือนถูกคน ถูกเวลา ลดงานค้างและการติดตามด้วยมือ",
+    "bodyItems": 4,
+    "speakerNotes": true
+  },
+  {
+    "slide": 19,
+    "title": "Data Flow",
+    "subtitle": "ข้อมูลไหลผ่านระบบอย่างเป็นขั้นตอนและตรวจสอบย้อนหลังได้",
+    "bodyItems": 4,
+    "speakerNotes": true
+  },
+  {
+    "slide": 20,
+    "title": "Database Overview",
+    "subtitle": "ฐานข้อมูลออกแบบรองรับข้อมูลบุคลากร งานลา และ audit ระยะยาว",
+    "bodyItems": 4,
+    "speakerNotes": true
+  },
+  {
+    "slide": 21,
+    "title": "Roadmap 2569–2570",
+    "subtitle": "เริ่มใช้งานจากแกนหลัก แล้วขยายโมดูลตามความพร้อมของหน่วยงาน",
+    "bodyItems": 3,
+    "speakerNotes": true
+  },
+  {
+    "slide": 22,
+    "title": "Implementation Plan",
+    "subtitle": "แผนดำเนินงานเป็นระยะเพื่อลดความเสี่ยงและสร้าง adoption",
+    "bodyItems": 5,
+    "speakerNotes": true
+  },
+  {
+    "slide": 23,
+    "title": "Success KPI",
+    "subtitle": "ตัวชี้วัดเพื่อประเมินผลหลังเริ่มใช้งาน",
+    "bodyItems": 4,
+    "speakerNotes": true
+  },
+  {
+    "slide": 24,
+    "title": "Expected Benefits",
+    "subtitle": "ผลลัพธ์ที่คาดหวังต่อเจ้าหน้าที่ หัวหน้างาน HR และผู้บริหาร",
+    "bodyItems": 4,
+    "speakerNotes": true
+  },
+  {
+    "slide": 25,
+    "title": "Risk & Mitigation",
+    "subtitle": "ความเสี่ยงหลักและแนวทางลดผลกระทบ",
+    "bodyItems": 4,
+    "speakerNotes": true
+  },
+  {
+    "slide": 26,
+    "title": "ROI & Resource Consideration",
+    "subtitle": "มูลค่าที่ได้รับจากการลดงานซ้ำและเพิ่มความโปร่งใสของข้อมูล",
+    "bodyItems": 4,
+    "speakerNotes": true
+  },
+  {
+    "slide": 27,
+    "title": "Future Development",
+    "subtitle": "ต่อยอดสู่ระบบข้อมูลและบริการดิจิทัลของโรงพยาบาล",
+    "bodyItems": 4,
+    "speakerNotes": true
+  },
+  {
+    "slide": 28,
+    "title": "Conclusion",
+    "subtitle": "HOP คือก้าวสำคัญสู่การบริหารงานภายในแบบ Digital Hospital",
+    "bodyItems": 4,
+    "speakerNotes": true
+  },
+  {
+    "slide": 29,
+    "title": "Q&A",
+    "subtitle": "เปิดรับข้อเสนอแนะเพื่อปรับระบบให้เหมาะกับบริบทโรงพยาบาลนาหมื่น",
+    "bodyItems": 3,
+    "speakerNotes": true
+  },
+  {
+    "slide": 30,
+    "title": "Thank You",
+    "subtitle": "Hospital Operations Portal (HOP)",
+    "bodyItems": 3,
+    "speakerNotes": true
+  }
+]

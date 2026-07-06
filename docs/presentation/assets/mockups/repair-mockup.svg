@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="520" viewBox="0 0 900 520">
+    <rect width="900" height="520" rx="34" fill="#FFFFFF"/>
+    <rect x="0" width="900" height="74" rx="34" fill="#0F766E"/>
+    <text x="44" y="48" font-family="Arial" font-size="28" font-weight="700" fill="#FFFFFF">Repair Request</text>
+    <rect x="52" y="112" width="360" height="84" rx="22" fill="#CCFBF1"/><text x="84" y="162" font-family="Arial" font-size="24" font-weight="700" fill="#0F766E">แจ้งซ่อมใหม่</text><rect x="462" y="112" width="360" height="84" rx="22" fill="#E0F2FE"/><text x="494" y="162" font-family="Arial" font-size="24" font-weight="700" fill="#0F766E">กำลังดำเนินการ</text><rect x="52" y="230" width="360" height="84" rx="22" fill="#DCFCE7"/><text x="84" y="280" font-family="Arial" font-size="24" font-weight="700" fill="#0F766E">เสร็จสิ้น</text><rect x="462" y="230" width="360" height="84" rx="22" fill="#FEF3C7"/><text x="494" y="280" font-family="Arial" font-size="24" font-weight="700" fill="#0F766E">SLA</text>
+    <path d="M70 395h730" stroke="#DDE7E5" stroke-width="2"/>
+    <path d="M80 430c75-55 138-25 195-58 65-38 98 36 170 6 73-31 118-62 195-18 38 22 78 28 122 11" fill="none" stroke="#14B8A6" stroke-width="9" stroke-linecap="round"/>
+  </svg>

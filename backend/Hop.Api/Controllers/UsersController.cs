@@ -117,6 +117,19 @@ public class UsersController(AppDbContext db, IAuditLogService auditLogService, 
             return BadRequest(ApiResponse<UserResponse>.Fail("Approval rule not found."));
         }
 
+        var lineUserIdResult = await ValidateAndNormalizeLineUserIdAsync(request.LineUserId, null);
+        if (lineUserIdResult.Error is not null)
+        {
+            return BadRequest(ApiResponse<UserResponse>.Fail(lineUserIdResult.Error));
+        }
+
+        var employmentType = NormalizeEmploymentType(request.EmploymentType);
+        if (employmentType is not null && !EmploymentTypes.All.Contains(employmentType))
+        {
+            return BadRequest(ApiResponse<UserResponse>.Fail("ประเภทพนักงานไม่ถูกต้อง"));
+        }
+        var gender = GenderTypes.Normalize(request.Gender);
+
         var user = new User
         {
             EmployeeCode = request.EmployeeCode,
@@ -125,12 +138,16 @@ public class UsersController(AppDbContext db, IAuditLogService auditLogService, 
             PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password),
             DepartmentId = request.DepartmentId,
             LeaveApprovalRuleId = request.LeaveApprovalRuleId,
-            LineUserId = request.LineUserId,
+            Gender = gender,
+            EmploymentType = employmentType,
+            EmploymentStartDate = request.EmploymentStartDate,
+            LineUserId = lineUserIdResult.LineUserId,
             IsActive = request.IsActive
         };
 
         db.Users.Add(user);
         await db.SaveChangesAsync();
+        await SyncLineUserBindingAsync(user, null);
 
         foreach (var role in roles)
         {
@@ -185,11 +202,28 @@ public class UsersController(AppDbContext db, IAuditLogService auditLogService, 
             return BadRequest(ApiResponse<UserResponse>.Fail("Approval rule not found."));
         }
 
+        var lineUserIdResult = await ValidateAndNormalizeLineUserIdAsync(request.LineUserId, id);
+        if (lineUserIdResult.Error is not null)
+        {
+            return BadRequest(ApiResponse<UserResponse>.Fail(lineUserIdResult.Error));
+        }
+
+        var employmentType = NormalizeEmploymentType(request.EmploymentType);
+        if (employmentType is not null && !EmploymentTypes.All.Contains(employmentType))
+        {
+            return BadRequest(ApiResponse<UserResponse>.Fail("ประเภทพนักงานไม่ถูกต้อง"));
+        }
+        var gender = GenderTypes.Normalize(request.Gender);
+        var previousLineUserId = user.LineUserId;
+
         user.EmployeeCode = request.EmployeeCode;
         user.FullName = request.Fullname;
         user.DepartmentId = request.DepartmentId;
         user.LeaveApprovalRuleId = request.LeaveApprovalRuleId;
-        user.LineUserId = request.LineUserId;
+        user.Gender = gender;
+        user.EmploymentType = employmentType;
+        user.EmploymentStartDate = request.EmploymentStartDate;
+        user.LineUserId = lineUserIdResult.LineUserId;
         user.IsActive = request.IsActive;
         user.UpdatedAt = DateTime.UtcNow;
 
@@ -204,6 +238,7 @@ public class UsersController(AppDbContext db, IAuditLogService auditLogService, 
             db.UserRoles.Add(new UserRole { UserId = user.Id, RoleId = role.Id });
         }
 
+        await SyncLineUserBindingAsync(user, previousLineUserId);
         await db.SaveChangesAsync();
         await auditLogService.WriteAsync(GetCurrentUserId(), "User.Edit", "User", user.Id.ToString(), $"Updated user {user.Username}.", "Success", HttpContext);
 
@@ -259,6 +294,9 @@ public class UsersController(AppDbContext db, IAuditLogService auditLogService, 
             user.Email,
             user.PhoneNumber,
             user.LeaveContactAddress,
+            GenderTypes.Normalize(user.Gender),
+            user.EmploymentType,
+            user.EmploymentStartDate,
             BuildProfileImageUrl(user),
             !string.IsNullOrWhiteSpace(user.ProfileImagePath),
             user.ProfileImageUpdatedAt,
@@ -273,6 +311,87 @@ public class UsersController(AppDbContext db, IAuditLogService auditLogService, 
             user.CreatedAt,
             user.UpdatedAt
         );
+    }
+
+    private static string? NormalizeEmploymentType(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value) ? null : value.Trim().ToUpperInvariant();
+    }
+
+    private async Task<(string? LineUserId, string? Error)> ValidateAndNormalizeLineUserIdAsync(string? value, Guid? currentUserId)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return (null, null);
+        }
+
+        var lineUserId = value.Trim();
+        var duplicateUser = await db.Users
+            .AsNoTracking()
+            .Where(item => item.LineUserId == lineUserId && (currentUserId == null || item.Id != currentUserId))
+            .Select(item => item.Username)
+            .FirstOrDefaultAsync();
+        if (!string.IsNullOrWhiteSpace(duplicateUser))
+        {
+            return (null, $"LINE User ID นี้ถูกใช้กับบัญชี {duplicateUser} แล้ว");
+        }
+
+        var duplicateBinding = await db.LineUserBindings
+            .AsNoTracking()
+            .Where(item =>
+                item.LineUserId == lineUserId &&
+                item.Status == "Bound" &&
+                item.UserId != null &&
+                (currentUserId == null || item.UserId != currentUserId))
+            .Select(item => item.User != null ? item.User.Username : null)
+            .FirstOrDefaultAsync();
+        if (!string.IsNullOrWhiteSpace(duplicateBinding))
+        {
+            return (null, $"LINE User ID นี้เชื่อมต่อกับบัญชี {duplicateBinding} แล้ว");
+        }
+
+        return (lineUserId, null);
+    }
+
+    private async Task SyncLineUserBindingAsync(User user, string? previousLineUserId)
+    {
+        if (!string.IsNullOrWhiteSpace(previousLineUserId) && previousLineUserId != user.LineUserId)
+        {
+            var previousBinding = await db.LineUserBindings
+                .FirstOrDefaultAsync(item => item.LineUserId == previousLineUserId && item.UserId == user.Id && item.Status == "Bound");
+            if (previousBinding is not null)
+            {
+                previousBinding.Status = "Unbound";
+                previousBinding.UnboundAt = DateTime.UtcNow;
+                previousBinding.UpdatedAt = DateTime.UtcNow;
+            }
+        }
+
+        if (string.IsNullOrWhiteSpace(user.LineUserId))
+        {
+            return;
+        }
+
+        var binding = await db.LineUserBindings.FirstOrDefaultAsync(item => item.LineUserId == user.LineUserId);
+        if (binding is null)
+        {
+            db.LineUserBindings.Add(new LineUserBinding
+            {
+                LineUserId = user.LineUserId,
+                UserId = user.Id,
+                Status = "Bound",
+                BoundAt = DateTime.UtcNow,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            });
+            return;
+        }
+
+        binding.UserId = user.Id;
+        binding.Status = "Bound";
+        binding.BoundAt ??= DateTime.UtcNow;
+        binding.UnboundAt = null;
+        binding.UpdatedAt = DateTime.UtcNow;
     }
 
     private static string? BuildProfileImageUrl(User user)

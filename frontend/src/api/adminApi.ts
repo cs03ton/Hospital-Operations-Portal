@@ -13,6 +13,9 @@ export type UserSummary = {
   department?: string | null;
   leaveApprovalRuleId?: string | null;
   leaveApprovalRuleName?: string | null;
+  gender: string;
+  employmentType?: string | null;
+  employmentStartDate?: string | null;
   lineUserId?: string | null;
   isActive: boolean;
   createdAt: string;
@@ -27,6 +30,9 @@ export type SaveUserRequest = {
   roleIds: string[];
   departmentId?: string | null;
   leaveApprovalRuleId?: string | null;
+  gender?: string | null;
+  employmentType?: string | null;
+  employmentStartDate?: string | null;
   lineUserId?: string | null;
   isActive: boolean;
 };
@@ -83,6 +89,7 @@ export type DashboardSummary = {
   staffOnLeaveThisWeek: number;
   staffOnLeaveThisMonth: number;
   myRemainingLeaveDays: number;
+  myCoreLeaveBalances: DashboardLeaveBalance[];
   myLeaveRequestsTotal: number;
   myLeaveRequestsPending: number;
   myLeaveRequestsApproved: number;
@@ -101,6 +108,59 @@ export type DashboardSummary = {
   apiHealth: string;
   databaseStatus: string;
   applicationVersion: string;
+};
+
+export type DashboardLeaveBalance = {
+  leaveTypeCode: string;
+  leaveTypeName: string;
+  entitledDays: number;
+  usedDays: number;
+  pendingDays: number;
+  availableDays: number;
+};
+
+export type HealthComponent = {
+  status: string;
+  message?: string | null;
+  latencyMs?: number | null;
+};
+
+export type StorageHealth = {
+  status: string;
+  writable: boolean;
+  message?: string | null;
+};
+
+export type LineHealth = {
+  status: string;
+  enabled: boolean;
+  lastSuccessAt?: string | null;
+  lastFailureAt?: string | null;
+  message?: string | null;
+};
+
+export type DiskHealth = {
+  status: string;
+  usedPercent?: number | null;
+  message?: string | null;
+};
+
+export type BackupHealth = {
+  status: string;
+  lastBackupAt?: string | null;
+  message?: string | null;
+};
+
+export type AdminHealth = {
+  api: HealthComponent;
+  database: HealthComponent;
+  storage: StorageHealth;
+  line: LineHealth;
+  disk: DiskHealth;
+  backup: BackupHealth;
+  version: string;
+  environment: string;
+  currentTimeServer: string;
 };
 
 export type PagedResponse<T> = {
@@ -224,6 +284,11 @@ export type LineDeliveryLog = {
   retry: number;
   durationMs?: number | null;
   error?: string | null;
+  requestType?: string | null;
+  sanitizedRecipient?: string | null;
+  payloadPreview?: string | null;
+  httpStatusCode?: number | null;
+  responseBody?: string | null;
 };
 
 export type LineNotificationSimulatorRequest = {
@@ -253,6 +318,28 @@ export type LineFlexTestSendRequest = {
   payload?: string | null;
   variant?: string | null;
   avatarMode?: string | null;
+};
+
+export type LineUserBinding = {
+  id: string;
+  lineUserIdMasked: string;
+  displayName?: string | null;
+  pictureUrl?: string | null;
+  userId?: string | null;
+  fullname?: string | null;
+  username?: string | null;
+  status: string;
+  lastEventType?: string | null;
+  lastEventAt?: string | null;
+  boundAt?: string | null;
+  unboundAt?: string | null;
+  createdAt: string;
+};
+
+export type LineUserBindingStats = {
+  pendingConnectTokenCount: number;
+  expiredConnectTokenCount: number;
+  recentlyBoundUserCount: number;
 };
 
 export async function getUsers() {
@@ -352,6 +439,11 @@ export async function getDashboardSummary() {
   return response.data.data;
 }
 
+export async function getAdminHealth() {
+  const response = await httpClient.get<ApiResponse<AdminHealth>>("/api/admin/health");
+  return response.data.data;
+}
+
 export async function getAuditLogs(params: AuditLogQuery = {}) {
   const response = await httpClient.get<ApiResponse<PagedResponse<AuditLogSummary>>>(
     "/api/audit-logs",
@@ -427,5 +519,20 @@ export async function validateLineFlexPayload(payload: LineFlexValidateRequest) 
 
 export async function sendLineTestFlex(payload: LineFlexTestSendRequest) {
   const response = await httpClient.post<ApiResponse<LineTestSendResponse>>("/api/admin/line/test-flex", payload);
+  return response.data.data;
+}
+
+export async function getLineUsers(params: { page?: number; pageSize?: number; status?: string; search?: string } = {}) {
+  const response = await httpClient.get<ApiResponse<PagedResponse<LineUserBinding>>>("/api/admin/line/line-users", { params });
+  return response.data.data;
+}
+
+export async function getLineUserStats() {
+  const response = await httpClient.get<ApiResponse<LineUserBindingStats>>("/api/admin/line/line-users/stats");
+  return response.data.data;
+}
+
+export async function sendLineUserTestMessage(id: string, message = "ทดสอบการแจ้งเตือนจาก HOP") {
+  const response = await httpClient.post<ApiResponse<LineTestSendResponse>>(`/api/admin/line/line-users/${id}/test-send`, { message });
   return response.data.data;
 }

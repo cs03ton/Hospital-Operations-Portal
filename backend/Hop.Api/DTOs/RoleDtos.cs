@@ -54,5 +54,15 @@ public record DashboardSummaryResponse(
     int LineFailed,
     string ApiHealth,
     string DatabaseStatus,
-    string ApplicationVersion
+    string ApplicationVersion,
+    IReadOnlyList<DashboardLeaveBalanceResponse>? MyCoreLeaveBalances = null
+);
+
+public record DashboardLeaveBalanceResponse(
+    string LeaveTypeCode,
+    string LeaveTypeName,
+    decimal EntitledDays,
+    decimal UsedDays,
+    decimal PendingDays,
+    decimal AvailableDays
 );

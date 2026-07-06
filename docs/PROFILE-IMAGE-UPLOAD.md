@@ -30,6 +30,21 @@ GET    /api/users/{id}/profile-image
 
 `POST /api/me/profile/image` ใช้ `multipart/form-data` field ชื่อ `file`
 
+## LINE Binding
+
+หน้า `ข้อมูลส่วนตัวของฉัน` มีส่วน `การเชื่อมต่อ LINE` สำหรับให้ผู้ใช้ผูก LINE OA กับบัญชี HOP ของตัวเอง
+
+API ที่ใช้:
+
+```http
+GET  /api/me/profile/line
+POST /api/me/profile/line/pairing-code
+POST /api/me/profile/line/unbind
+POST /api/me/profile/line/test-send
+```
+
+รายละเอียด flow อยู่ที่ [LINE-USER-BINDING.md](LINE-USER-BINDING.md)
+
 ## Cache Busting
 
 `profileImageUrl` ที่ส่งกลับ frontend จะมี query string `?v={ticks}` จาก `profile_image_updated_at` เพื่อให้ Header และหน้า profile refresh รูปใหม่ทันที

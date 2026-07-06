@@ -13,7 +13,12 @@ namespace Hop.Api.Controllers;
 [ApiController]
 [Route("api/me/profile")]
 [Authorize]
-public class MeProfileController(AppDbContext db, IAuditLogService auditLogService, IHostEnvironment environment) : ControllerBase
+public class MeProfileController(
+    AppDbContext db,
+    IAuditLogService auditLogService,
+    ILineUserBindingService lineUserBindingService,
+    ILineMessagingService lineMessagingService,
+    IHostEnvironment environment) : ControllerBase
 {
     private static readonly Regex PhoneRegex = new(@"^[0-9+\-\s()]{6,30}$", RegexOptions.Compiled);
     private static readonly Regex EmailRegex = new(@"^[^@\s]+@[^@\s]+\.[^@\s]+$", RegexOptions.Compiled);
@@ -215,6 +220,83 @@ public class MeProfileController(AppDbContext db, IAuditLogService auditLogServi
         return NoContent();
     }
 
+    [HttpGet("line")]
+    public async Task<ActionResult<ApiResponse<LineBindingStatusResponse>>> GetLineBinding(CancellationToken cancellationToken)
+    {
+        var userId = GetCurrentUserId();
+        if (userId is null)
+        {
+            return Unauthorized(ApiResponse<LineBindingStatusResponse>.Fail("Invalid access token."));
+        }
+
+        return ApiResponse<LineBindingStatusResponse>.Ok(await lineUserBindingService.GetMyBindingStatusAsync(userId.Value, cancellationToken));
+    }
+
+    [HttpPost("line/pairing-code")]
+    public async Task<ActionResult<ApiResponse<LinePairingCodeResponse>>> CreateLinePairingCode(CancellationToken cancellationToken)
+    {
+        var userId = GetCurrentUserId();
+        if (userId is null)
+        {
+            return Unauthorized(ApiResponse<LinePairingCodeResponse>.Fail("Invalid access token."));
+        }
+
+        try
+        {
+            return ApiResponse<LinePairingCodeResponse>.Ok(await lineUserBindingService.CreatePairingCodeAsync(userId.Value, cancellationToken));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(ApiResponse<LinePairingCodeResponse>.Fail(ex.Message));
+        }
+    }
+
+    [HttpPost("line/unbind")]
+    public async Task<ActionResult<ApiResponse<LineBindingStatusResponse>>> UnbindLine(CancellationToken cancellationToken)
+    {
+        var userId = GetCurrentUserId();
+        if (userId is null)
+        {
+            return Unauthorized(ApiResponse<LineBindingStatusResponse>.Fail("Invalid access token."));
+        }
+
+        return ApiResponse<LineBindingStatusResponse>.Ok(await lineUserBindingService.UnbindAsync(userId.Value, cancellationToken));
+    }
+
+    [HttpPost("line/test-send")]
+    public async Task<ActionResult<ApiResponse<LineTestSendResponse>>> SendLineTestToMe(CancellationToken cancellationToken)
+    {
+        var userId = GetCurrentUserId();
+        if (userId is null)
+        {
+            return Unauthorized(ApiResponse<LineTestSendResponse>.Fail("Invalid access token."));
+        }
+
+        var lineUserId = await db.Users
+            .AsNoTracking()
+            .Where(item => item.Id == userId && item.IsActive)
+            .Select(item => item.LineUserId)
+            .FirstOrDefaultAsync(cancellationToken);
+        if (string.IsNullOrWhiteSpace(lineUserId))
+        {
+            return BadRequest(ApiResponse<LineTestSendResponse>.Fail("บัญชีนี้ยังไม่ได้เชื่อมต่อ LINE"));
+        }
+
+        var result = await lineMessagingService.SendTestMessageAsync(lineUserId, "ทดสอบการแจ้งเตือนจาก HOP", "Line.UserSelfTest", cancellationToken);
+        await auditLogService.WriteAsync(
+            userId,
+            result.Success ? "Line.UserSelfTestSent" : "Line.UserSelfTestFailed",
+            "LineDeliveryLog",
+            result.DeliveryLogId?.ToString(),
+            result.Message,
+            result.Success ? "Success" : "Failed",
+            HttpContext);
+
+        return result.Success
+            ? ApiResponse<LineTestSendResponse>.Ok(result)
+            : BadRequest(ApiResponse<LineTestSendResponse>.Fail(result.Message));
+    }
+
     private async Task<User?> LoadCurrentUser()
     {
         var userId = GetCurrentUserId();
@@ -260,6 +342,9 @@ public class MeProfileController(AppDbContext db, IAuditLogService auditLogServi
             user.Email,
             user.PhoneNumber,
             user.LeaveContactAddress,
+            GenderTypes.Normalize(user.Gender),
+            user.EmploymentType,
+            user.EmploymentStartDate,
             BuildProfileImageUrl(user),
             !string.IsNullOrWhiteSpace(user.ProfileImagePath),
             user.ProfileImageUpdatedAt,

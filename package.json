@@ -1,0 +1,8 @@
+{
+  "name": "hop-documentation-automation",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "docs:screenshot": "npm --prefix frontend run docs:screenshot --"
+  }
+}

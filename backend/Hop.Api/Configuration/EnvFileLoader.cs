@@ -1,17 +1,44 @@
+using Microsoft.Extensions.Hosting;
+
 namespace Hop.Api.Configuration;
 
 public static class EnvFileLoader
 {
-    public static void LoadFromParentDirectories(string fileName)
+    public static void LoadForEnvironment(string? environmentName = null)
+    {
+        var normalizedEnvironment = environmentName
+            ?? Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT")
+            ?? Environments.Production;
+
+        var fileNames = new List<string> { ".env" };
+        if (!string.IsNullOrWhiteSpace(normalizedEnvironment))
+        {
+            fileNames.Add($".env.{normalizedEnvironment}");
+            fileNames.Add($".env.{normalizedEnvironment.ToLowerInvariant()}");
+        }
+
+        LoadFromParentDirectories(fileNames.Distinct(StringComparer.OrdinalIgnoreCase).ToArray());
+    }
+
+    public static void LoadFromParentDirectories(params string[] fileNames)
     {
         var directory = new DirectoryInfo(Directory.GetCurrentDirectory());
+        var paths = new List<string>();
 
         while (directory is not null)
         {
-            var path = Path.Combine(directory.FullName, fileName);
-            if (File.Exists(path))
+            foreach (var fileName in fileNames)
             {
-                Load(path);
+                var path = Path.Combine(directory.FullName, fileName);
+                if (File.Exists(path))
+                {
+                    paths.Add(path);
+                }
+            }
+
+            if (paths.Count > 0)
+            {
+                Load(paths);
                 return;
             }
 
@@ -19,25 +46,25 @@ public static class EnvFileLoader
         }
     }
 
-    private static void Load(string path)
+    private static void Load(IEnumerable<string> paths)
     {
-        foreach (var rawLine in File.ReadAllLines(path))
+        var values = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var path in paths)
         {
-            var line = rawLine.Trim();
-            if (string.IsNullOrWhiteSpace(line) || line.StartsWith('#'))
+            foreach (var entry in DotNetEnv.Env.NoEnvVars().Load(path))
             {
-                continue;
+                if (string.IsNullOrWhiteSpace(entry.Value))
+                {
+                    continue;
+                }
+
+                values[entry.Key] = entry.Value;
             }
+        }
 
-            var separatorIndex = line.IndexOf('=');
-            if (separatorIndex <= 0)
-            {
-                continue;
-            }
-
-            var key = line[..separatorIndex].Trim();
-            var value = line[(separatorIndex + 1)..].Trim().Trim('"');
-
+        foreach (var (key, value) in values)
+        {
             if (string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable(key)))
             {
                 Environment.SetEnvironmentVariable(key, value);

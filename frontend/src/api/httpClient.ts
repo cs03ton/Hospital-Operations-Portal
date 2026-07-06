@@ -119,8 +119,9 @@ function notifyHttpError(error: unknown) {
     return;
   }
 
-  const message = (error.response.data as { message?: string } | undefined)?.message;
-  notifyGlobal("error", message || "เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง");
+  const payload = error.response.data as { message?: string; referenceId?: string } | undefined;
+  const message = payload?.message || "เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง";
+  notifyGlobal("error", payload?.referenceId ? `${message} (Reference ID: ${payload.referenceId})` : message);
 }
 
 function clearStoredSession() {

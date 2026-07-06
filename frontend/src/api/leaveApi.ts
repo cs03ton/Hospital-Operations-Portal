@@ -52,6 +52,28 @@ export type SaveLeaveRequest = {
   reason: string;
 };
 
+export type LeavePolicyPreviewRequest = {
+  leaveTypeId: string;
+  startDate: string;
+  endDate: string;
+  durationType?: string | null;
+};
+
+export type LeavePolicyPreview = {
+  employmentType?: string | null;
+  employmentTypeName: string;
+  fiscalYear: number;
+  entitlementDays: number;
+  usedDays: number;
+  pendingDays: number;
+  availableDays: number;
+  requestedDays: number;
+  canSubmit: boolean;
+  warnings: string[];
+  errors: string[];
+  policyNotes: string[];
+};
+
 export type LeaveAttachment = {
   id: string;
   leaveRequestId: string;
@@ -249,6 +271,57 @@ export type LeaveBalanceRolloverPreview = {
   newAvailableDays: number;
   targetBalanceExists: boolean;
   warnings: string[];
+};
+
+export type LeaveBalanceRolloverItem = {
+  userId: string;
+  employeeName: string;
+  departmentName?: string | null;
+  employmentType?: string | null;
+  employmentTypeName: string;
+  leaveTypeId: string;
+  leaveTypeName: string;
+  fromFiscalYear: number;
+  toFiscalYear: number;
+  entitlementDays: number;
+  carriedOverDays: number;
+  adjustedDays: number;
+  usedDays: number;
+  pendingDays: number;
+  endYearRemaining: number;
+  carryOverCap: number;
+  carryOverDays: number;
+  forfeitedDays: number;
+  newEntitlementDays: number;
+  newAvailableDays: number;
+  action: string;
+  reason: string;
+  warnings: string[];
+};
+
+export type LeaveBalanceRolloverBatch = {
+  rolloverRunId?: string | null;
+  fromFiscalYear: number;
+  toFiscalYear: number;
+  totalUsers: number;
+  created: number;
+  updated: number;
+  skipped: number;
+  blocked: number;
+  items: LeaveBalanceRolloverItem[];
+};
+
+export type LeaveBalanceRolloverFilterRequest = {
+  fromFiscalYear: number;
+  toFiscalYear: number;
+  departmentId?: string | null;
+  employmentType?: string | null;
+  leaveTypeId?: string | null;
+  userId?: string | null;
+};
+
+export type ConfirmLeaveBalanceRolloverBatchRequest = LeaveBalanceRolloverFilterRequest & {
+  reason: string;
 };
 
 export type ConfirmLeaveBalanceRolloverRequest = {
@@ -553,6 +626,11 @@ export async function createLeaveRequest(payload: SaveLeaveRequest) {
   return response.data.data;
 }
 
+export async function previewLeavePolicy(payload: LeavePolicyPreviewRequest) {
+  const response = await httpClient.post<ApiResponse<LeavePolicyPreview>>("/api/leave-requests/policy-preview", payload);
+  return response.data.data;
+}
+
 export async function updateLeaveRequest(id: string, payload: SaveLeaveRequest) {
   const response = await httpClient.put<ApiResponse<LeaveRequest>>(`/api/leave-requests/${id}`, payload);
   return response.data.data;
@@ -702,6 +780,21 @@ export async function rolloverLeaveBalances(targetFiscalYear: number) {
     { targetFiscalYear },
   );
   return response.data.data;
+}
+
+export async function previewLeaveBalanceRolloverBatch(payload: LeaveBalanceRolloverFilterRequest) {
+  const response = await httpClient.post<ApiResponse<LeaveBalanceRolloverBatch>>("/api/leave-balances/rollover/preview", payload);
+  return response.data.data;
+}
+
+export async function confirmLeaveBalanceRolloverBatch(payload: ConfirmLeaveBalanceRolloverBatchRequest) {
+  const response = await httpClient.post<ApiResponse<LeaveBalanceRolloverBatch>>("/api/leave-balances/rollover/confirm", payload);
+  return response.data.data;
+}
+
+export async function exportLeaveBalanceRolloverPreview(payload: LeaveBalanceRolloverFilterRequest) {
+  const response = await httpClient.post("/api/leave-balances/rollover/export-preview", payload, { responseType: "blob" });
+  return response.data as Blob;
 }
 
 export async function previewLeaveBalanceRollover(id: string) {

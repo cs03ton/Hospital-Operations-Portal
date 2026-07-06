@@ -82,7 +82,39 @@ POST /api/admin/line/test-send
 GET  /api/admin/line/test-history
 GET  /api/admin/line/delivery-logs
 POST /api/admin/line/simulate
+POST /api/line/webhook
 ```
+
+ดูรายละเอียดการผูกบัญชีผู้ใช้กับ LINE OA ได้ที่ [LINE-USER-BINDING.md](LINE-USER-BINDING.md)
+
+### Diagnose HTTP 400: Failed to send messages
+
+ถ้า LINE ตอบกลับ:
+
+```json
+{"message":"Failed to send messages"}
+```
+
+ให้ตรวจตามลำดับ:
+
+1. `LINE User ID` ต้องขึ้นต้นด้วย `U` และเป็น userId ของ LINE OA นี้
+2. ผู้รับต้องเพิ่มเพื่อน LINE OA แล้ว
+3. Channel Access Token ต้องเป็นของ OA เดียวกับ user ที่เพิ่มเพื่อน
+4. ทดสอบ `Send Plain Text Test` ก่อน
+5. ถ้า plain text ผ่าน ให้ทดสอบ `Send Minimal Flex Test`
+6. ถ้า minimal flex ผ่าน แต่ full flex fail ให้ดู validation และ payload preview:
+   - `altText` ต้องไม่ว่าง
+   - `contents.type` ต้องเป็น `bubble`
+   - action URI ต้องเป็น HTTPS public URL
+   - image URL ต้องเป็น HTTPS public URL หรือไม่ส่ง image component
+
+หน้า LINE Operations Center จะแสดง:
+
+- request type: `text` / `flex`
+- recipient แบบ masked
+- sanitized payload preview
+- LINE HTTP status code
+- LINE response body
 
 ### Test Send API
 

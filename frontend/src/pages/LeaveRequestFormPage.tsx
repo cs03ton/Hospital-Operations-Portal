@@ -5,9 +5,11 @@ import dayjs from "dayjs";
 import { useEffect } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { useNavigate } from "react-router-dom";
-import { createLeaveRequest, getLeaveHolidays, getLeaveTypes, getMyLeaveBalances, type SaveLeaveRequest } from "../api/leaveApi";
+import { getMyProfile } from "../api/profileApi";
+import { createLeaveRequest, getLeaveHolidays, getLeaveTypes, previewLeavePolicy, type SaveLeaveRequest } from "../api/leaveApi";
 import { AppDatePicker } from "../components/common/AppDatePicker";
 import { PageHeader } from "../components/PageHeader";
+import { appConfig } from "../config/appConfig";
 import { useNotification } from "../hooks/useNotification";
 import { isStartDateBeforeOrSameEndDate, isValidApiDate } from "../utils/dateFormat";
 import { getLeaveTypeLabel } from "../utils/leaveLabels";
@@ -16,7 +18,7 @@ export function LeaveRequestFormPage() {
   const navigate = useNavigate();
   const { showSuccess } = useNotification();
   const { data: leaveTypes = [] } = useQuery({ queryKey: ["leave-types"], queryFn: getLeaveTypes });
-  const { data: leaveBalances = [] } = useQuery({ queryKey: ["leave-balances", "me"], queryFn: getMyLeaveBalances });
+  const { data: profile } = useQuery({ queryKey: ["me", "profile"], queryFn: getMyProfile });
   const { control, register, handleSubmit, watch, setValue, formState: { errors } } = useForm<SaveLeaveRequest>({
     defaultValues: { durationType: "FULL_DAY", totalDays: 1, reason: "" },
   });
@@ -27,14 +29,35 @@ export function LeaveRequestFormPage() {
   const isHalfDay = durationType === "HALF_DAY_AM" || durationType === "HALF_DAY_PM";
   const holidayYear = startDate && dayjs(startDate).isValid() ? dayjs(startDate).year() : dayjs().year();
   const { data: holidays = [] } = useQuery({ queryKey: ["leave-holidays", holidayYear], queryFn: () => getLeaveHolidays({ year: holidayYear }) });
+  const visibleLeaveTypes = leaveTypes
+    .filter((item) => item.isActive)
+    .filter((item) => !appConfig.hideIneligibleLeaveTypes || isLeaveTypeEligibleByGender(item.code, profile?.gender));
   const selectedLeaveType = leaveTypes.find((item) => item.id === leaveTypeId);
-  const selectedBalance = leaveBalances.find((item) => item.leaveTypeId === leaveTypeId);
   const requestedDays = isHalfDay ? 0.5 : estimateRequestedDays(startDate, endDate);
-  const availableDays = selectedBalance?.remainingDays ?? selectedLeaveType?.defaultDaysPerYear ?? 0;
   const shouldValidateBalance = selectedLeaveType?.requiresBalance !== false;
-  const hasInsufficientBalance = Boolean(leaveTypeId && shouldValidateBalance && requestedDays > 0 && requestedDays > availableDays);
   const holidayNamesInRange = getHolidayNamesInRange(startDate, isHalfDay ? startDate : endDate, holidays);
   const hasHolidayInRange = holidayNamesInRange.length > 0;
+  const canPreviewPolicy = Boolean(
+    leaveTypeId &&
+    startDate &&
+    (isHalfDay || endDate) &&
+    isValidApiDate(startDate) &&
+    isValidApiDate(isHalfDay ? startDate : endDate),
+  );
+  const { data: policyPreview, isFetching: isPolicyPreviewLoading } = useQuery({
+    queryKey: ["leave-policy-preview", leaveTypeId, startDate, isHalfDay ? startDate : endDate, durationType],
+    queryFn: () => previewLeavePolicy({
+      leaveTypeId,
+      startDate,
+      endDate: isHalfDay ? startDate : endDate,
+      durationType,
+    }),
+    enabled: canPreviewPolicy,
+  });
+  const policyErrors = policyPreview?.errors ?? [];
+  const policyWarnings = policyPreview?.warnings ?? [];
+  const policyNotes = policyPreview?.policyNotes ?? [];
+  const hasPolicyError = policyErrors.length > 0 || policyPreview?.canSubmit === false;
   useEffect(() => {
     setValue("totalDays", isHalfDay ? 0.5 : 1);
     if (isHalfDay && startDate) {
@@ -61,25 +84,41 @@ export function LeaveRequestFormPage() {
           <Stack component="form" spacing={2} onSubmit={handleSubmit((values) => mutation.mutate(values))}>
             {mutation.isError && <Alert severity="error">{getApiErrorMessage(mutation.error, "สร้างคำขอลาไม่สำเร็จ")}</Alert>}
             {leaveTypeId && (
-              <Alert severity={hasInsufficientBalance ? "warning" : "info"}>
-                {shouldValidateBalance ? (
+              <Alert severity={hasPolicyError ? "warning" : "info"}>
+                {isPolicyPreviewLoading ? (
+                  "กำลังตรวจสอบสิทธิ์วันลา..."
+                ) : policyPreview ? (
                   <>
-                    คงเหลือ {availableDays.toLocaleString("th-TH")} วัน · คำขอนี้ใช้ประมาณ {requestedDays.toLocaleString("th-TH")} วัน
-                    {selectedBalance && <> · รออนุมัติ {selectedBalance.pendingDays.toLocaleString("th-TH")} วัน</>}
-                    {hasInsufficientBalance && " · ยอดวันลาไม่เพียงพอ"}
+                    ประเภทบุคลากร: {policyPreview.employmentTypeName} · ปีงบประมาณ {policyPreview.fiscalYear + 543} ·
+                    สิทธิ์ {policyPreview.entitlementDays.toLocaleString("th-TH")} วัน ·
+                    ใช้ไปแล้ว {policyPreview.usedDays.toLocaleString("th-TH")} วัน ·
+                    รออนุมัติ {policyPreview.pendingDays.toLocaleString("th-TH")} วัน ·
+                    คงเหลือใช้ได้ {policyPreview.availableDays.toLocaleString("th-TH")} วัน ·
+                    คำขอนี้ใช้ {policyPreview.requestedDays.toLocaleString("th-TH")} วัน
                   </>
+                ) : shouldValidateBalance ? (
+                  "เลือกประเภทการลาและวันที่ เพื่อให้ระบบตรวจสิทธิ์วันลาอัตโนมัติ"
                 ) : (
                   "ประเภทการลานี้ไม่ใช้โควตาวันลา"
                 )}
               </Alert>
             )}
+            {policyErrors.map((message) => (
+              <Alert key={message} severity="error">{message}</Alert>
+            ))}
+            {policyWarnings.map((message) => (
+              <Alert key={message} severity="warning">{message}</Alert>
+            ))}
+            {policyNotes.map((message) => (
+              <Alert key={message} severity="info">{message}</Alert>
+            ))}
             {hasHolidayInRange && (
               <Alert severity="warning">
                 ไม่สามารถขอลาในวันหยุดได้: {holidayNamesInRange.join(", ")}
               </Alert>
             )}
             <TextField fullWidth select label="ประเภทการลา" InputLabelProps={{ shrink: true }} error={Boolean(errors.leaveTypeId)} helperText={errors.leaveTypeId?.message} {...register("leaveTypeId", { required: "กรุณาเลือกประเภทการลา" })}>
-              {leaveTypes.filter((item) => item.isActive).map((item) => (
+              {visibleLeaveTypes.map((item) => (
                 <MenuItem key={item.id} value={item.id}>{getLeaveTypeLabel(item.name || item.code)}</MenuItem>
               ))}
             </TextField>
@@ -146,7 +185,7 @@ export function LeaveRequestFormPage() {
             </Typography>
             <TextField label="เหตุผล" multiline minRows={4} error={Boolean(errors.reason)} helperText={errors.reason?.message} {...register("reason", { required: "กรุณากรอกเหตุผล" })} />
             <Stack direction="row" spacing={1.5}>
-              <Button type="submit" variant="contained" disabled={mutation.isPending || hasInsufficientBalance || hasHolidayInRange}>บันทึกแบบร่าง</Button>
+              <Button type="submit" variant="contained" disabled={mutation.isPending || hasPolicyError || hasHolidayInRange}>บันทึกแบบร่าง</Button>
               <Button variant="outlined" onClick={() => navigate("/leave")}>ยกเลิก</Button>
             </Stack>
           </Stack>
@@ -195,6 +234,18 @@ function estimateRequestedDays(startDate?: string, endDate?: string) {
   }
 
   return days;
+}
+
+function isLeaveTypeEligibleByGender(code?: string | null, gender?: string | null) {
+  if (code === "MATERNITY_LEAVE") {
+    return gender === "Female";
+  }
+
+  if (code === "ORDINATION_LEAVE") {
+    return gender === "Male";
+  }
+
+  return true;
 }
 
 function getApiErrorMessage(error: unknown, fallback: string) {

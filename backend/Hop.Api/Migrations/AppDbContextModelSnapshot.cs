@@ -650,6 +650,144 @@ namespace Hop.Api.Migrations
                     b.ToTable("leave_balance_adjustments", (string)null);
                 });
 
+            modelBuilder.Entity("Hop.Api.Models.LeaveBalanceRolloverRun", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<int>("BlockedCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("blocked_count");
+
+                    b.Property<DateTime?>("CompletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("completed_at");
+
+                    b.Property<Guid?>("CreatedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by_user_id");
+
+                    b.Property<int>("CreatedCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("created_count");
+
+                    b.Property<string>("FiltersJson")
+                        .HasColumnType("text")
+                        .HasColumnName("filters_json");
+
+                    b.Property<int>("FromFiscalYear")
+                        .HasColumnType("integer")
+                        .HasColumnName("from_fiscal_year");
+
+                    b.Property<string>("Reason")
+                        .HasColumnType("text")
+                        .HasColumnName("reason");
+
+                    b.Property<int>("SkippedCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("skipped_count");
+
+                    b.Property<DateTime>("StartedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("started_at");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("status");
+
+                    b.Property<int>("ToFiscalYear")
+                        .HasColumnType("integer")
+                        .HasColumnName("to_fiscal_year");
+
+                    b.Property<int>("Total")
+                        .HasColumnType("integer")
+                        .HasColumnName("total");
+
+                    b.Property<int>("UpdatedCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("updated_count");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedByUserId");
+
+                    b.HasIndex("FromFiscalYear", "ToFiscalYear", "Status");
+
+                    b.ToTable("leave_balance_rollover_runs", (string)null);
+                });
+
+            modelBuilder.Entity("Hop.Api.Models.LeaveBalanceSnapshot", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<decimal>("AdjustedDays")
+                        .HasColumnType("numeric")
+                        .HasColumnName("adjusted_days");
+
+                    b.Property<decimal>("AvailableDays")
+                        .HasColumnType("numeric")
+                        .HasColumnName("available_days");
+
+                    b.Property<decimal>("CarriedOverDays")
+                        .HasColumnType("numeric")
+                        .HasColumnName("carried_over_days");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid?>("CreatedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by_user_id");
+
+                    b.Property<decimal>("EntitlementDays")
+                        .HasColumnType("numeric")
+                        .HasColumnName("entitlement_days");
+
+                    b.Property<int>("FiscalYear")
+                        .HasColumnType("integer")
+                        .HasColumnName("fiscal_year");
+
+                    b.Property<Guid>("LeaveTypeId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("leave_type_id");
+
+                    b.Property<decimal>("PendingDays")
+                        .HasColumnType("numeric")
+                        .HasColumnName("pending_days");
+
+                    b.Property<Guid>("RolloverRunId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("rollover_run_id");
+
+                    b.Property<decimal>("UsedDays")
+                        .HasColumnType("numeric")
+                        .HasColumnName("used_days");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedByUserId");
+
+                    b.HasIndex("LeaveTypeId");
+
+                    b.HasIndex("RolloverRunId");
+
+                    b.HasIndex("UserId", "LeaveTypeId", "FiscalYear");
+
+                    b.ToTable("leave_balance_snapshots", (string)null);
+                });
+
             modelBuilder.Entity("Hop.Api.Models.LeaveHoliday", b =>
                 {
                     b.Property<Guid>("Id")
@@ -686,6 +824,105 @@ namespace Hop.Api.Migrations
                     b.HasIndex("Name");
 
                     b.ToTable("leave_holidays", (string)null);
+                });
+
+            modelBuilder.Entity("Hop.Api.Models.LeavePolicyRule", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<bool>("AllowCarryOver")
+                        .HasColumnType("boolean")
+                        .HasColumnName("allow_carry_over");
+
+                    b.Property<decimal?>("CarryOverMaxDays")
+                        .HasColumnType("numeric")
+                        .HasColumnName("carry_over_max_days");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("EmploymentType")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)")
+                        .HasColumnName("employment_type");
+
+                    b.Property<decimal>("EntitlementDays")
+                        .HasColumnType("numeric")
+                        .HasColumnName("entitlement_days");
+
+                    b.Property<decimal?>("FirstYearEntitlementDays")
+                        .HasColumnType("numeric")
+                        .HasColumnName("first_year_entitlement_days");
+
+                    b.Property<decimal?>("FirstYearPaidDays")
+                        .HasColumnType("numeric")
+                        .HasColumnName("first_year_paid_days");
+
+                    b.Property<int?>("FiscalYear")
+                        .HasColumnType("integer")
+                        .HasColumnName("fiscal_year");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_active");
+
+                    b.Property<bool>("IsPaid")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_paid");
+
+                    b.Property<Guid>("LeaveTypeId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("leave_type_id");
+
+                    b.Property<decimal?>("MaxAccumulatedDays")
+                        .HasColumnType("numeric")
+                        .HasColumnName("max_accumulated_days");
+
+                    b.Property<decimal?>("MaxExtendedDays")
+                        .HasColumnType("numeric")
+                        .HasColumnName("max_extended_days");
+
+                    b.Property<decimal?>("MaxPaidDays")
+                        .HasColumnType("numeric")
+                        .HasColumnName("max_paid_days");
+
+                    b.Property<int?>("MinServiceMonths")
+                        .HasColumnType("integer")
+                        .HasColumnName("min_service_months");
+
+                    b.Property<int?>("MinServiceYears")
+                        .HasColumnType("integer")
+                        .HasColumnName("min_service_years");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("notes");
+
+                    b.Property<bool>("ProrateIfServiceLessThanYear")
+                        .HasColumnType("boolean")
+                        .HasColumnName("prorate_if_service_less_than_year");
+
+                    b.Property<decimal?>("SocialSecurityMaxDays")
+                        .HasColumnType("numeric")
+                        .HasColumnName("social_security_max_days");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LeaveTypeId");
+
+                    b.HasIndex("EmploymentType", "LeaveTypeId", "FiscalYear", "IsActive");
+
+                    b.ToTable("leave_policy_rules", (string)null);
                 });
 
             modelBuilder.Entity("Hop.Api.Models.LeaveRequest", b =>
@@ -845,6 +1082,76 @@ namespace Hop.Api.Migrations
                     b.ToTable("leave_types", (string)null);
                 });
 
+            modelBuilder.Entity("Hop.Api.Models.LineConnectToken", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("CreatedByIp")
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)")
+                        .HasColumnName("created_by_ip");
+
+                    b.Property<DateTime>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("expires_at");
+
+                    b.Property<string>("LineUserId")
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)")
+                        .HasColumnName("line_user_id");
+
+                    b.Property<string>("Metadata")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("metadata");
+
+                    b.Property<string>("ShortCode")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("short_code");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("status");
+
+                    b.Property<string>("Token")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("token");
+
+                    b.Property<DateTime?>("UsedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("used_at");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ExpiresAt");
+
+                    b.HasIndex("ShortCode")
+                        .IsUnique();
+
+                    b.HasIndex("Token")
+                        .IsUnique();
+
+                    b.HasIndex("UserId", "Status");
+
+                    b.ToTable("line_connect_tokens", (string)null);
+                });
+
             modelBuilder.Entity("Hop.Api.Models.LineDeliveryLog", b =>
                 {
                     b.Property<Guid>("Id")
@@ -908,6 +1215,125 @@ namespace Hop.Api.Migrations
                     b.HasIndex("Status", "NextRetryAt");
 
                     b.ToTable("line_delivery_logs", (string)null);
+                });
+
+            modelBuilder.Entity("Hop.Api.Models.LinePairingCode", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("code");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<DateTime>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("expires_at");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("status");
+
+                    b.Property<DateTime?>("UsedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("used_at");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Code")
+                        .IsUnique();
+
+                    b.HasIndex("ExpiresAt");
+
+                    b.HasIndex("UserId", "Status");
+
+                    b.ToTable("line_pairing_codes", (string)null);
+                });
+
+            modelBuilder.Entity("Hop.Api.Models.LineUserBinding", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTime?>("BoundAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("bound_at");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("DisplayName")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("display_name");
+
+                    b.Property<DateTime?>("LastEventAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("last_event_at");
+
+                    b.Property<string>("LastEventType")
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("last_event_type");
+
+                    b.Property<string>("LineUserId")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)")
+                        .HasColumnName("line_user_id");
+
+                    b.Property<string>("PictureUrl")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("picture_url");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("status");
+
+                    b.Property<DateTime?>("UnboundAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("unbound_at");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid?>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LineUserId")
+                        .IsUnique();
+
+                    b.HasIndex("Status");
+
+                    b.HasIndex("UserId")
+                        .IsUnique()
+                        .HasFilter("\"user_id\" IS NOT NULL AND \"status\" = 'Bound'");
+
+                    b.ToTable("line_user_bindings", (string)null);
                 });
 
             modelBuilder.Entity("Hop.Api.Models.Notification", b =>
@@ -1195,10 +1621,27 @@ namespace Hop.Api.Migrations
                         .HasColumnType("text")
                         .HasColumnName("employee_code");
 
+                    b.Property<DateOnly?>("EmploymentStartDate")
+                        .HasColumnType("date")
+                        .HasColumnName("employment_start_date");
+
+                    b.Property<string>("EmploymentType")
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)")
+                        .HasColumnName("employment_type");
+
                     b.Property<string>("FullName")
                         .IsRequired()
                         .HasColumnType("text")
                         .HasColumnName("fullname");
+
+                    b.Property<string>("Gender")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasDefaultValue("Unknown")
+                        .HasColumnName("gender");
 
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean")
@@ -1264,6 +1707,8 @@ namespace Hop.Api.Migrations
 
                     b.HasIndex("EmployeeCode")
                         .IsUnique();
+
+                    b.HasIndex("EmploymentType");
 
                     b.HasIndex("LeaveApprovalRuleId");
 
@@ -1510,6 +1955,59 @@ namespace Hop.Api.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("Hop.Api.Models.LeaveBalanceRolloverRun", b =>
+                {
+                    b.HasOne("Hop.Api.Models.User", "CreatedByUser")
+                        .WithMany()
+                        .HasForeignKey("CreatedByUserId");
+
+                    b.Navigation("CreatedByUser");
+                });
+
+            modelBuilder.Entity("Hop.Api.Models.LeaveBalanceSnapshot", b =>
+                {
+                    b.HasOne("Hop.Api.Models.User", "CreatedByUser")
+                        .WithMany()
+                        .HasForeignKey("CreatedByUserId");
+
+                    b.HasOne("Hop.Api.Models.LeaveType", "LeaveType")
+                        .WithMany()
+                        .HasForeignKey("LeaveTypeId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Hop.Api.Models.LeaveBalanceRolloverRun", "RolloverRun")
+                        .WithMany()
+                        .HasForeignKey("RolloverRunId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Hop.Api.Models.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("CreatedByUser");
+
+                    b.Navigation("LeaveType");
+
+                    b.Navigation("RolloverRun");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("Hop.Api.Models.LeavePolicyRule", b =>
+                {
+                    b.HasOne("Hop.Api.Models.LeaveType", "LeaveType")
+                        .WithMany()
+                        .HasForeignKey("LeaveTypeId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("LeaveType");
+                });
+
             modelBuilder.Entity("Hop.Api.Models.LeaveRequest", b =>
                 {
                     b.HasOne("Hop.Api.Models.User", "CurrentApprover")
@@ -1535,6 +2033,17 @@ namespace Hop.Api.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("Hop.Api.Models.LineConnectToken", b =>
+                {
+                    b.HasOne("Hop.Api.Models.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("Hop.Api.Models.LineDeliveryLog", b =>
                 {
                     b.HasOne("Hop.Api.Models.LeaveRequest", "LeaveRequest")
@@ -1548,6 +2057,26 @@ namespace Hop.Api.Migrations
                     b.Navigation("LeaveRequest");
 
                     b.Navigation("RecipientUser");
+                });
+
+            modelBuilder.Entity("Hop.Api.Models.LinePairingCode", b =>
+                {
+                    b.HasOne("Hop.Api.Models.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("Hop.Api.Models.LineUserBinding", b =>
+                {
+                    b.HasOne("Hop.Api.Models.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId");
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("Hop.Api.Models.RefreshToken", b =>

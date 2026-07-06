@@ -8,6 +8,7 @@
 .env
 .env.*
 !.env.example
+!.env.production.example
 !**/.env.example
 *.local
 *.secret
@@ -77,6 +78,10 @@ test-results/
 blob-report/
 **/blob-report/
 frontend/playwright/.cache/
+tests/e2e/screenshots/screenshot-users.json
+frontend/e2e/screenshots/screenshot-users.json
+tests/screenshots/config/screenshot-users.json
+docs/manuals/assets/screenshots/.capture-records.jsonl
 
 # QA browser automation artifacts
 docs/qa/chrome-profile/

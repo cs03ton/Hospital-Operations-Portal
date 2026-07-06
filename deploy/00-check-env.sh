@@ -36,6 +36,11 @@ load_env() {
   export DB_USER="${DB_USER:-${POSTGRES_USER:-}}"
   export DB_PASSWORD="${DB_PASSWORD:-${POSTGRES_PASSWORD:-}}"
   export LINE_ENABLED="${LINE_ENABLED:-${Line__Enabled:-false}}"
+  export Line__Enabled="${Line__Enabled:-${LINE_ENABLED:-false}}"
+  export Line__AccessToken="${Line__AccessToken:-${LINE_ACCESS_TOKEN:-${Line__ChannelAccessToken:-${LINE_CHANNEL_ACCESS_TOKEN:-}}}}"
+  export Line__ChannelSecret="${Line__ChannelSecret:-${LINE_CHANNEL_SECRET:-}}"
+  export Storage__RootPath="${Storage__RootPath:-${STORAGE_ROOT_PATH:-/app/storage}}"
+  export Storage__PublicBaseUrl="${Storage__PublicBaseUrl:-${STORAGE_PUBLIC_BASE_URL:-${PUBLIC_FILE_BASE_URL:-}}}"
   export ConnectionStrings__DefaultConnection="${ConnectionStrings__DefaultConnection:-Host=${DB_HOST:-postgres};Port=${DB_PORT:-5432};Database=${DB_NAME:-};Username=${DB_USER:-};Password=${DB_PASSWORD:-}}"
 }
 
@@ -81,8 +86,12 @@ log "OK compose file: $COMPOSE_FILE"
 require_env ASPNETCORE_ENVIRONMENT
 require_env ConnectionStrings__DefaultConnection
 require_env Jwt__Key
-require_env LINE_ENABLED
+require_env Line__Enabled
+require_env Line__AccessToken
+require_env Line__ChannelSecret
 require_env PUBLIC_APP_URL
+require_env Storage__RootPath
+require_env Storage__PublicBaseUrl
 require_env DB_HOST
 require_env DB_PORT
 require_env DB_NAME

@@ -1,0 +1,109 @@
+\documentclass[16pt,a4paper]{extarticle}
+
+\usepackage{fontspec}
+\usepackage{polyglossia}
+\setmainlanguage{thai}
+\setotherlanguage{english}
+\defaultfontfeatures{Ligatures=TeX,Scale=1.0}
+\IfFontExistsTF{$mainfont$}{
+  \setmainfont{$mainfont$}
+}{
+  \IfFontExistsTF{$fallbackfont$}{
+    \setmainfont{$fallbackfont$}
+  }{
+    \setmainfont{Tahoma}
+  }
+}
+
+\usepackage{xcolor}
+\definecolor{HopPrimary}{HTML}{$primary-color$}
+\definecolor{HopSecondary}{HTML}{$secondary-color$}
+\definecolor{HopAccent}{HTML}{$accent-color$}
+\definecolor{HopText}{HTML}{$text-color$}
+\definecolor{HopBackground}{HTML}{$background-color$}
+
+\usepackage[$for(geometry)$$geometry$$sep$,$endfor$]{geometry}
+\usepackage{graphicx}
+\usepackage{longtable}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{fancyhdr}
+\usepackage{titlesec}
+\usepackage{tocloft}
+\usepackage{hyperref}
+\usepackage{enumitem}
+\usepackage{caption}
+\usepackage{setspace}
+\usepackage{lastpage}
+\usepackage{etoolbox}
+\usepackage{fvextra}
+
+\hypersetup{
+  colorlinks=true,
+  linkcolor=HopPrimary,
+  urlcolor=HopPrimary,
+  citecolor=HopPrimary,
+  pdftitle={$title$},
+  pdfauthor={$organization$}
+}
+
+\pagecolor{HopBackground}
+\color{HopText}
+\setstretch{1.15}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{0.55em}
+\setlist{itemsep=0.25em, topsep=0.35em}
+
+\titleformat{\section}{\fontsize{20pt}{24pt}\bfseries\color{HopPrimary}}{\thesection}{0.8em}{}
+\titleformat{\subsection}{\fontsize{18pt}{22pt}\bfseries\color{HopPrimary}}{\thesubsection}{0.8em}{}
+\titleformat{\subsubsection}{\fontsize{16pt}{20pt}\bfseries\color{HopSecondary}}{\thesubsubsection}{0.8em}{}
+\captionsetup{font={small},labelfont={bf},textfont={color=HopText}}
+\renewcommand{\cftsecfont}{\color{HopText}}
+\renewcommand{\cftsecpagefont}{\color{HopText}}
+
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small Hospital Operations Portal}
+\fancyhead[R]{\small $organization$}
+\fancyfoot[L]{\small Version $version$ | ปีงบประมาณ $fiscal-year$}
+\fancyfoot[R]{\small หน้า \thepage\ / \pageref{LastPage}}
+\renewcommand{\headrulewidth}{0.4pt}
+\renewcommand{\footrulewidth}{0.4pt}
+\renewcommand{\headrule}{\hbox to\headwidth{\color{HopPrimary}\leaders\hrule height \headrulewidth\hfill}}
+\renewcommand{\footrule}{\hbox to\headwidth{\color{HopPrimary}\leaders\hrule height \footrulewidth\hfill}}
+
+\DefineVerbatimEnvironment{Highlighting}{Verbatim}{breaklines,commandchars=\\\{\}}
+\DefineVerbatimEnvironment{verbatim}{Verbatim}{breaklines}
+
+\newcommand{\HopRule}{\noindent\textcolor{HopPrimary}{\rule{\linewidth}{1.2pt}}}
+
+\begin{document}
+
+\begin{titlepage}
+  \centering
+  \vspace*{22mm}
+  {\color{HopPrimary}\rule{0.86\textwidth}{2pt}\par}
+  \vspace{14mm}
+  {\fontsize{24pt}{30pt}\bfseries Hospital Operations Portal (HOP)\par}
+  \vspace{8mm}
+  {\fontsize{24pt}{30pt}\bfseries คู่มือการใช้งานระบบ\par}
+  \vspace{8mm}
+  {\fontsize{20pt}{26pt}\bfseries Phase 1\par}
+  \vspace{18mm}
+  {\fontsize{18pt}{24pt}\bfseries $organization$\par}
+  \vfill
+  {\fontsize{16pt}{22pt}\bfseries Version $version$\par}
+  \vspace{3mm}
+  {\fontsize{16pt}{22pt}\bfseries ปีงบประมาณ $fiscal-year$\par}
+  \vspace{14mm}
+  {\color{HopSecondary}\rule{0.86\textwidth}{1pt}\par}
+\end{titlepage}
+
+$if(toc)$
+\tableofcontents
+\newpage
+$endif$
+
+$body$
+
+\end{document}

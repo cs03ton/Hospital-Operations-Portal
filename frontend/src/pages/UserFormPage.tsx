@@ -29,6 +29,8 @@ import {
 import { getApprovalChains } from "../api/leaveApi";
 import { PageHeader } from "../components/PageHeader";
 import { useNotification } from "../hooks/useNotification";
+import { employmentTypeOptions } from "../utils/employmentLabels";
+import { genderOptions } from "../utils/genderLabels";
 import { getRoleLabel } from "../utils/roleLabels";
 
 type UserFormValues = {
@@ -39,6 +41,9 @@ type UserFormValues = {
   roleIds: string[];
   departmentId: string;
   leaveApprovalRuleId: string;
+  gender: string;
+  employmentType: string;
+  employmentStartDate: string;
   lineUserId: string;
   isActive: boolean;
 };
@@ -72,6 +77,9 @@ export function UserFormPage() {
       roleIds: [],
       departmentId: "",
       leaveApprovalRuleId: "",
+      gender: "Unknown",
+      employmentType: "",
+      employmentStartDate: "",
       lineUserId: "",
       isActive: true,
     },
@@ -93,6 +101,9 @@ export function UserFormPage() {
         roleIds: editingUser.roleIds,
         departmentId: editingUser.departmentId ?? "",
         leaveApprovalRuleId: editingUser.leaveApprovalRuleId ?? "",
+        gender: editingUser.gender ?? "Unknown",
+        employmentType: editingUser.employmentType ?? "",
+        employmentStartDate: editingUser.employmentStartDate ?? "",
         lineUserId: editingUser.lineUserId ?? "",
         isActive: editingUser.isActive,
       });
@@ -117,6 +128,9 @@ export function UserFormPage() {
       roleIds: values.roleIds,
       departmentId: values.departmentId || null,
       leaveApprovalRuleId: values.leaveApprovalRuleId || null,
+      gender: values.gender || "Unknown",
+      employmentType: values.employmentType || null,
+      employmentStartDate: values.employmentStartDate || null,
       lineUserId: values.lineUserId || null,
       isActive: values.isActive,
     });
@@ -223,6 +237,53 @@ export function UserFormPage() {
                   </Box>
                 </FormControl>
               )}
+            />
+            <Controller
+              name="employmentType"
+              control={control}
+              render={({ field }) => (
+                <FormControl fullWidth>
+                  <InputLabel shrink>ประเภทพนักงาน</InputLabel>
+                  <Select label="ประเภทพนักงาน" {...field}>
+                    <MenuItem value="">ไม่ระบุ</MenuItem>
+                    {employmentTypeOptions.map((option) => (
+                      <MenuItem key={option.value} value={option.value}>
+                        {option.label}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                  <Box sx={{ mt: 0.5, color: "text.secondary", fontSize: 12 }}>
+                    ใช้สำหรับคำนวณสิทธิ์วันลาตามกฎของแต่ละประเภทพนักงาน
+                  </Box>
+                </FormControl>
+              )}
+            />
+            <Controller
+              name="gender"
+              control={control}
+              render={({ field }) => (
+                <FormControl fullWidth>
+                  <InputLabel shrink>เพศ</InputLabel>
+                  <Select label="เพศ" {...field}>
+                    {genderOptions.map((option) => (
+                      <MenuItem key={option.value} value={option.value}>
+                        {option.label}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                  <Box sx={{ mt: 0.5, color: "text.secondary", fontSize: 12 }}>
+                    ใช้ตรวจสิทธิ์ลาคลอดบุตรและลาบวช
+                  </Box>
+                </FormControl>
+              )}
+            />
+            <TextField
+              fullWidth
+              label="วันที่เริ่มปฏิบัติงาน"
+              InputLabelProps={{ shrink: true }}
+              type="date"
+              helperText="ใช้ตรวจเงื่อนไขอายุงาน เช่น สิทธิ์ลาพักผ่อนหรือสิทธิ์ลาป่วยปีแรก"
+              {...register("employmentStartDate")}
             />
             <TextField
               fullWidth

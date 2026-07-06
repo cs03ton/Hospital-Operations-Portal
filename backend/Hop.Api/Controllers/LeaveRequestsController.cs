@@ -17,6 +17,8 @@ public class LeaveRequestsController(
     AppDbContext db,
     IAuditLogService auditLogService,
     ILeaveValidationService leaveValidationService,
+    ILeavePolicyService leavePolicyService,
+    ILeaveCalendarService leaveCalendarService,
     IApprovalChainService approvalChainService,
     ILeaveAttachmentStorageService attachmentStorage,
     ILeavePdfService leavePdfService,
@@ -212,6 +214,55 @@ public class LeaveRequestsController(
 
         var created = await LoadLeaveRequests().SingleAsync(item => item.Id == leaveRequest.Id);
         return CreatedAtAction(nameof(GetLeaveRequest), new { id = leaveRequest.Id }, ApiResponse<LeaveRequestResponse>.Ok(ToResponse(created)));
+    }
+
+    [HttpPost("policy-preview")]
+    [RequirePermission(LeavePermissions.Create)]
+    public async Task<ActionResult<ApiResponse<LeavePolicyPreviewResponse>>> PreviewLeavePolicy(LeavePolicyPreviewRequest request)
+    {
+        var userId = GetCurrentUserId();
+        if (userId is null)
+        {
+            return Unauthorized(ApiResponse<LeavePolicyPreviewResponse>.Fail("Invalid access token."));
+        }
+
+        var durationType = LeaveDurationTypes.Normalize(request.DurationType);
+        var requestedDays = LeaveDurationTypes.IsHalfDay(durationType)
+            ? 0.5m
+            : await leaveCalendarService.CalculateBusinessDaysAsync(request.StartDate, request.EndDate, false);
+        var preview = await leavePolicyService.ValidateLeaveRequestAsync(
+            userId.Value,
+            request.LeaveTypeId,
+            request.StartDate,
+            request.EndDate,
+            durationType,
+            requestedDays,
+            HttpContext.RequestAborted);
+
+        var holidaysInRange = await db.LeaveHolidays
+            .AsNoTracking()
+            .Where(item => item.IsActive && item.HolidayDate >= request.StartDate && item.HolidayDate <= request.EndDate)
+            .Select(item => item.Name)
+            .ToListAsync(HttpContext.RequestAborted);
+        if (holidaysInRange.Count > 0)
+        {
+            var errors = preview.Errors.Concat([$"ไม่สามารถขอลาในวันหยุดได้: {string.Join(", ", holidaysInRange)}"]).Distinct().ToList();
+            preview = preview with { CanSubmit = false, Errors = errors };
+        }
+
+        return ApiResponse<LeavePolicyPreviewResponse>.Ok(new LeavePolicyPreviewResponse(
+            preview.EmploymentType,
+            preview.EmploymentTypeName,
+            preview.FiscalYear,
+            preview.EntitlementDays,
+            preview.UsedDays,
+            preview.PendingDays,
+            preview.AvailableDays == decimal.MaxValue ? 0 : preview.AvailableDays,
+            preview.RequestedDays,
+            preview.CanSubmit,
+            preview.Warnings,
+            preview.Errors,
+            preview.PolicyNotes));
     }
 
     [HttpPut("{id:guid}")]

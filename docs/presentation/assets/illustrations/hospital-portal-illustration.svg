@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="420" viewBox="0 0 760 420">
+      <rect width="760" height="420" rx="30" fill="#FFFFFF"/>
+      <rect x="72" y="70" width="280" height="230" rx="24" fill="#CCFBF1"/>
+      <rect x="390" y="96" width="250" height="56" rx="18" fill="#0F766E"/>
+      <rect x="390" y="176" width="250" height="56" rx="18" fill="#E0F2FE"/>
+      <rect x="390" y="256" width="250" height="56" rx="18" fill="#DCFCE7"/>
+      <text x="212" y="198" text-anchor="middle" font-family="Arial" font-size="70" font-weight="700" fill="#0F766E">HOP</text>
+    </svg>

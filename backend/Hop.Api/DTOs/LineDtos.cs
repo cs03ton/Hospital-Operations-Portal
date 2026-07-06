@@ -81,7 +81,12 @@ public record LineDeliveryLogResponse(
     string Status,
     int Retry,
     long? DurationMs,
-    string? Error
+    string? Error,
+    string? RequestType = null,
+    string? SanitizedRecipient = null,
+    string? PayloadPreview = null,
+    int? HttpStatusCode = null,
+    string? ResponseBody = null
 );
 
 public record LineDeliveryLogDetailResponse(
@@ -123,4 +128,69 @@ public record LineFlexTestSendRequest(
     string? Payload,
     string? Variant = null,
     string? AvatarMode = null
+);
+
+public record LineBindingStatusResponse(
+    bool IsBound,
+    string Status,
+    string? LineUserIdMasked,
+    string? DisplayName,
+    string? PictureUrl,
+    DateTime? BoundAt,
+    DateTime? UnboundAt,
+    DateTime? ExpiresAt
+);
+
+public record LinePairingCodeResponse(
+    string Code,
+    DateTime ExpiresAt,
+    string Instruction
+);
+
+public record LineConnectTokenResponse(
+    string Token,
+    string ShortCode,
+    DateTime ExpiresAt,
+    string? LineAddFriendUrl,
+    string QrCodePayload
+);
+
+public record LineMeStatusResponse(
+    bool Connected,
+    string Status,
+    string? DisplayName,
+    string? PictureUrl,
+    string? LineUserIdMasked,
+    DateTime? ConnectedAt,
+    DateTime? ExpiresAt
+);
+
+public record LineUserBindingResponse(
+    Guid Id,
+    string LineUserIdMasked,
+    string? DisplayName,
+    string? PictureUrl,
+    Guid? UserId,
+    string? Fullname,
+    string? Username,
+    string Status,
+    string? LastEventType,
+    DateTime? LastEventAt,
+    DateTime? BoundAt,
+    DateTime? UnboundAt,
+    DateTime CreatedAt
+);
+
+public record LineUserBindingStatsResponse(
+    int PendingConnectTokenCount,
+    int ExpiredConnectTokenCount,
+    int RecentlyBoundUserCount
+);
+
+public record LineWebhookHandleResult(
+    string EventType,
+    string? LineUserIdMasked,
+    string Status,
+    bool Bound,
+    string Message
 );

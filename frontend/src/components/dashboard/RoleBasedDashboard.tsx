@@ -13,7 +13,7 @@ import { alpha, useTheme } from "@mui/material/styles";
 import type { SvgIconComponent } from "@mui/icons-material";
 import { Link as RouterLink } from "react-router-dom";
 import type { ReactNode } from "react";
-import type { DashboardSummary } from "../../api/adminApi";
+import type { DashboardLeaveBalance, DashboardSummary } from "../../api/adminApi";
 import { MyLeaveSummaryCard } from "../leave/MyLeaveSummaryCard";
 import { brandColors } from "../../theme/theme";
 
@@ -72,7 +72,11 @@ const widgetRegistry: Record<string, DashboardWidgetDefinition> = {
       </DashboardPanel>
     ),
   },
-  leaveBalance: metricWidget("leaveBalance", "วันลาคงเหลือของฉัน", "ยอดรวมวันลาคงเหลือของปีงบประมาณปัจจุบัน", AccountBalanceWalletOutlinedIcon, (data) => data.myRemainingLeaveDays, "primary.main", "/leave/balances"),
+  leaveBalance: {
+    id: "leaveBalance",
+    size: { xs: 12 },
+    render: ({ data, isLoading }) => <CoreLeaveBalanceWidget balances={data?.myCoreLeaveBalances ?? []} isLoading={isLoading} />,
+  },
   myPendingRequests: metricWidget("myPendingRequests", "คำขอของฉันที่รออนุมัติ", "คำขอลาที่อยู่ในกระบวนการ", FactCheckOutlinedIcon, (data) => data.myLeaveRequestsPending, "warning.main", "/leave"),
   pendingApproval: metricWidget("pendingApproval", "งานรออนุมัติของฉัน", "แสดงเฉพาะคำขอลาที่ถึงคิวผู้ใช้งานปัจจุบัน", ApprovalOutlinedIcon, (data) => data.pendingApprovals, "warning.main", "/leave/pending-approvals"),
   pendingApprovalOverview: metricWidget("pendingApprovalOverview", "ภาพรวมคำขอรออนุมัติ", "จำนวนคำขอที่ยังอยู่ในกระบวนการอนุมัติทั้งระบบ", ApprovalOutlinedIcon, (data) => data.totalPendingLeaveRequests, "warning.main"),
@@ -145,6 +149,94 @@ function statusWidget(id: string, title: string, note: string, selector: (data: 
       </DashboardPanel>
     ),
   };
+}
+
+const coreLeaveTypes = [
+  { code: "VACATION_LEAVE", title: "ลาพักผ่อน", icon: "🏖", color: "success.main" },
+  { code: "PERSONAL_LEAVE", title: "ลากิจ", icon: "🏠", color: "warning.main" },
+  { code: "SICK_LEAVE", title: "ลาป่วย", icon: "🤒", color: "info.main" },
+];
+
+function CoreLeaveBalanceWidget({ balances, isLoading }: { balances: DashboardLeaveBalance[]; isLoading: boolean }) {
+  const byCode = new Map(balances.map((balance) => [balance.leaveTypeCode.toUpperCase(), balance]));
+
+  return (
+    <DashboardPanel
+      title="วันลาคงเหลือของฉัน"
+      subtitle="แยกตามประเภทลา เนื่องจากวันลาแต่ละประเภทใช้แทนกันไม่ได้"
+      icon={AccountBalanceWalletOutlinedIcon}
+      actionTo="/leave/balances"
+    >
+      <Grid container spacing={1.5}>
+        {coreLeaveTypes.map((leaveType) => (
+          <Grid item xs={12} md={4} key={leaveType.code}>
+            <LeaveBalanceMiniCard definition={leaveType} balance={byCode.get(leaveType.code)} isLoading={isLoading} />
+          </Grid>
+        ))}
+      </Grid>
+      <Typography variant="caption" color="text.secondary">
+        ประเภทลาอื่น เช่น ลาคลอดหรือลาบวช ดูรายละเอียดได้ที่หน้า “วันลาคงเหลือ”
+      </Typography>
+    </DashboardPanel>
+  );
+}
+
+function LeaveBalanceMiniCard({
+  definition,
+  balance,
+  isLoading,
+}: {
+  definition: (typeof coreLeaveTypes)[number];
+  balance?: DashboardLeaveBalance;
+  isLoading: boolean;
+}) {
+  const theme = useTheme();
+  if (isLoading) {
+    return <Skeleton variant="rounded" height={156} />;
+  }
+
+  return (
+    <Box
+      sx={{
+        border: `1px solid ${alpha(theme.palette.primary.main, 0.14)}`,
+        borderRadius: 2,
+        p: 1.5,
+        bgcolor: alpha(theme.palette.background.default, 0.48),
+        height: "100%",
+      }}
+    >
+      <Stack spacing={1.25}>
+        <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={1}>
+          <Stack direction="row" spacing={1} alignItems="center">
+            <Typography fontSize={24}>{definition.icon}</Typography>
+            <Typography fontWeight={800}>{definition.title}</Typography>
+          </Stack>
+          <Typography variant="h5" sx={{ color: definition.color, fontWeight: 900 }}>
+            {formatDays(balance?.availableDays ?? 0)}
+          </Typography>
+        </Stack>
+        <Stack spacing={0.75}>
+          <BalanceRow label="สิทธิ" value={balance?.entitledDays ?? 0} />
+          <BalanceRow label="ใช้ไป" value={balance?.usedDays ?? 0} />
+          <BalanceRow label="รออนุมัติ" value={balance?.pendingDays ?? 0} />
+          <BalanceRow label="คงเหลือ" value={balance?.availableDays ?? 0} strong />
+        </Stack>
+      </Stack>
+    </Box>
+  );
+}
+
+function BalanceRow({ label, value, strong }: { label: string; value: number; strong?: boolean }) {
+  return (
+    <Stack direction="row" justifyContent="space-between" spacing={1}>
+      <Typography variant="body2" color="text.secondary">{label}</Typography>
+      <Typography variant="body2" fontWeight={strong ? 800 : 600}>{formatDays(value)} วัน</Typography>
+    </Stack>
+  );
+}
+
+function formatDays(value: number) {
+  return value.toLocaleString("th-TH", { maximumFractionDigits: 1 });
 }
 
 function placeholderWidget(id: string, title: string, message: string, icon: SvgIconComponent, to?: string): DashboardWidgetDefinition {
@@ -242,6 +334,7 @@ const emptyDashboard: DashboardSummary = {
   staffOnLeaveThisWeek: 0,
   staffOnLeaveThisMonth: 0,
   myRemainingLeaveDays: 0,
+  myCoreLeaveBalances: [],
   myLeaveRequestsTotal: 0,
   myLeaveRequestsPending: 0,
   myLeaveRequestsApproved: 0,

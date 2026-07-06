@@ -429,7 +429,7 @@ public class LeaveValidationTests
 
     private static LeaveValidationService CreateService(AppDbContext db)
     {
-        return new LeaveValidationService(db, new LeaveCalendarService(db), new LeaveBalanceValidationService(db));
+        return new LeaveValidationService(db, new LeaveCalendarService(db), new LeaveBalanceValidationService(db, new LeavePolicyService(db)));
     }
 
     private static async Task<LeaveType> AddLeaveType(AppDbContext db, decimal defaultDays = 30, bool requiresBalance = true)

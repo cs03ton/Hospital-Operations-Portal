@@ -262,7 +262,7 @@ export function LineSettingsPage() {
                       disabled={!canSend || testSendMutation.isPending}
                       onClick={() => testSendMutation.mutate({ toUserId: toUserId || null, message })}
                     >
-                      {testSendMutation.isPending ? "กำลังส่ง..." : "ส่งข้อความทดสอบ"}
+                      {testSendMutation.isPending ? "กำลังส่ง..." : "Send Plain Text Test"}
                     </Button>
                     <Button variant="outlined" startIcon={<ClearOutlinedIcon />} onClick={() => { setToUserId(""); setMessage("ทดสอบการแจ้งเตือนจาก HOP"); }}>
                       ล้างข้อมูล
@@ -350,7 +350,15 @@ export function LineSettingsPage() {
                     disabled={!canSendFlex || flexSendMutation.isPending}
                     onClick={() => flexSendMutation.mutate({ toUserId: flexToUserId || null, payload: flexJson || null, variant: flexVariant, avatarMode: flexAvatarMode })}
                   >
-                    {flexSendMutation.isPending ? "กำลังส่ง..." : "Send Test Flex"}
+                    {flexSendMutation.isPending ? "กำลังส่ง..." : "Send Full Leave Flex Test"}
+                  </Button>
+                  <Button
+                    variant="outlined"
+                    startIcon={<SendOutlinedIcon />}
+                    disabled={!canSendFlex || flexSendMutation.isPending}
+                    onClick={() => flexSendMutation.mutate({ toUserId: flexToUserId || null, payload: buildMinimalFlexPayload(), variant: "minimal", avatarMode: "without-image" })}
+                  >
+                    Send Minimal Flex Test
                   </Button>
                 </Stack>
               </Stack>
@@ -583,7 +591,24 @@ function Metric({ label, value }: { label: string; value: string }) {
   );
 }
 
-function LogTable({ loading, rows, showAction = false }: { loading: boolean; rows: Array<{ id: string; date: string; recipient: string; module: string; event: string; status: string; retry: number; durationMs?: number | null; error?: string | null }>; showAction?: boolean }) {
+type LineLogRow = {
+  id: string;
+  date: string;
+  recipient: string;
+  module: string;
+  event: string;
+  status: string;
+  retry: number;
+  durationMs?: number | null;
+  error?: string | null;
+  requestType?: string | null;
+  sanitizedRecipient?: string | null;
+  payloadPreview?: string | null;
+  httpStatusCode?: number | null;
+  responseBody?: string | null;
+};
+
+function LogTable({ loading, rows, showAction = false }: { loading: boolean; rows: LineLogRow[]; showAction?: boolean }) {
   if (loading) {
     return <Skeleton variant="rounded" height={180} />;
   }
@@ -601,9 +626,13 @@ function LogTable({ loading, rows, showAction = false }: { loading: boolean; row
             <TableCell>ผู้รับ</TableCell>
             <TableCell>Module</TableCell>
             <TableCell>Event</TableCell>
+            <TableCell>Type</TableCell>
+            <TableCell>LINE Status</TableCell>
             <TableCell>Status</TableCell>
             <TableCell>Retry</TableCell>
             <TableCell>Duration</TableCell>
+            <TableCell>Masked Payload Preview</TableCell>
+            <TableCell>Response Body</TableCell>
             {showAction && <TableCell>Action</TableCell>}
           </TableRow>
         </TableHead>
@@ -614,9 +643,23 @@ function LogTable({ loading, rows, showAction = false }: { loading: boolean; row
               <TableCell>{row.recipient}</TableCell>
               <TableCell>{row.module}</TableCell>
               <TableCell>{row.event}</TableCell>
+              <TableCell>{row.requestType ?? "-"}</TableCell>
+              <TableCell>{row.httpStatusCode ?? "-"}</TableCell>
               <TableCell><StatusChip status={row.status} /></TableCell>
               <TableCell>{row.retry}</TableCell>
               <TableCell>{row.durationMs ? `${row.durationMs} ms` : "-"}</TableCell>
+              <TableCell sx={{ minWidth: 240 }}>
+                <Typography variant="caption" sx={{ display: "block", fontFamily: "Consolas, monospace", whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+                  ผู้รับจริงถูก mask: {row.sanitizedRecipient ?? "-"}
+                  {"\n"}
+                  {row.payloadPreview ?? "-"}
+                </Typography>
+              </TableCell>
+              <TableCell sx={{ minWidth: 220 }}>
+                <Typography variant="caption" color={row.status === "Failed" ? "error" : "text.secondary"} sx={{ display: "block", whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+                  {row.responseBody ?? row.error ?? "-"}
+                </Typography>
+              </TableCell>
               {showAction && <TableCell>{row.error ? <Typography variant="caption" color="error">{row.error.slice(0, 80)}</Typography> : "-"}</TableCell>}
             </TableRow>
           ))}
@@ -646,4 +689,57 @@ function Setting({ label, value, state }: { label: string; value: string; state?
       </Box>
     </Grid>
   );
+}
+
+function buildMinimalFlexPayload() {
+  return JSON.stringify({
+    to: "",
+    messages: [
+      {
+        type: "flex",
+        altText: "ทดสอบ Minimal Flex จาก HOP",
+        contents: {
+          type: "bubble",
+          size: "mega",
+          body: {
+            type: "box",
+            layout: "vertical",
+            spacing: "md",
+            contents: [
+              {
+                type: "text",
+                text: "ทดสอบ Minimal Flex",
+                weight: "bold",
+                size: "lg",
+                color: "#1F2937",
+              },
+              {
+                type: "text",
+                text: "ถ้าข้อความนี้ส่งได้ แปลว่า token และ LINE User ID ใช้งานกับ OA เดียวกัน",
+                wrap: true,
+                size: "sm",
+                color: "#6B7280",
+              },
+            ],
+          },
+          footer: {
+            type: "box",
+            layout: "vertical",
+            contents: [
+              {
+                type: "button",
+                style: "primary",
+                color: "#2563EB",
+                action: {
+                  type: "uri",
+                  label: "เปิด HOP",
+                  uri: "https://example.com",
+                },
+              },
+            ],
+          },
+        },
+      },
+    ],
+  });
 }

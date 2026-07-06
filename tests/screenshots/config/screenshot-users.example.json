@@ -1,0 +1,34 @@
+{
+  "baseUrl": "http://localhost:5173",
+  "roles": {
+    "user": {
+      "username": "staff01",
+      "password": "CHANGE_ME"
+    },
+    "head": {
+      "username": "head01",
+      "password": "CHANGE_ME"
+    },
+    "director": {
+      "username": "director01",
+      "password": "CHANGE_ME"
+    },
+    "hr": {
+      "username": "hr.test",
+      "password": "CHANGE_ME"
+    },
+    "superadmin": {
+      "username": "admin",
+      "password": "CHANGE_ME"
+    }
+  },
+  "seed": {
+    "leaveDraftId": "",
+    "leavePendingHeadId": "",
+    "leavePendingDirectorId": "",
+    "leaveApprovedId": "",
+    "testUserId": "",
+    "testDepartmentId": "",
+    "testRoleId": ""
+  }
+}

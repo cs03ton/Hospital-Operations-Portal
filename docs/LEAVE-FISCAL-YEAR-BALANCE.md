@@ -38,7 +38,7 @@ Carry over applies only to leave types with `allowCarryOver=true`.
 carriedOverDays = min(unusedDaysFromPreviousFiscalYear, carryOverMaxDays)
 ```
 
-Default maximum carry over is 30 days.
+Carry over cap is resolved by `LeavePolicyService` from policy rules and employment type. Controllers must not hardcode the cap.
 
 ## Leave Type Configuration
 
@@ -73,48 +73,54 @@ Admin can run rollover from the Leave Balance Management page.
 
 There are two modes:
 
-- Bulk fiscal year rollover for all active users.
-- Individual rollover with preview and confirm.
+- Batch fiscal year rollover with filters.
+- Individual rollover by sending `userId` to the same preview/confirm API.
 
-API:
+Preview API:
 
 ```http
-POST /api/leave-balances/rollover
+POST /api/leave-balances/rollover/preview
 Content-Type: application/json
 
 {
-  "targetFiscalYear": 2027
+  "fromFiscalYear": 2026,
+  "toFiscalYear": 2027,
+  "departmentId": null,
+  "employmentType": null,
+  "leaveTypeId": null,
+  "userId": null
+}
+```
+
+Confirm API:
+
+```http
+POST /api/leave-balances/rollover/confirm
+Content-Type: application/json
+
+{
+  "fromFiscalYear": 2026,
+  "toFiscalYear": 2027,
+  "reason": "ยกยอดวันลาปีงบประมาณ 2570"
 }
 ```
 
 Behavior:
 
-- Reads previous fiscal year balances.
-- Calculates available days.
-- Creates new balances for active users and active leave types that require balance.
-- Applies carry over only when the leave type allows it.
-- Skips balances that already exist for the target year.
-- Writes audit event `LeaveBalance.Rollover`.
+- Preview is dry-run and does not create/update leave balances.
+- Confirm reruns preview before writing.
+- Confirm requires a reason.
+- Confirm writes in a transaction.
+- Existing target balances are not duplicated.
+- If target balance exists, only `carriedOverDays` is updated when policy allows.
+- Confirm creates `leave_balance_rollover_runs` and `leave_balance_snapshots`.
+- Backend fiscal years must be CE. Buddhist years are rejected.
 
-Individual rollover APIs:
-
-```http
-POST /api/leave-balances/{id}/rollover-preview
-```
+Export preview:
 
 ```http
-POST /api/leave-balances/{id}/rollover-confirm
-Content-Type: application/json
-
-{
-  "toFiscalYear": 2027,
-  "newEntitlementDays": 10,
-  "reason": "ยกยอดวันลาปีงบประมาณ 2570",
-  "updateExistingCarriedOverOnly": false
-}
+POST /api/leave-balances/rollover/export-preview
 ```
-
-Individual rollover always requires preview before confirm in the UI. If the target fiscal year balance already exists, the system shows a warning and requires explicit confirmation to update only `carriedOverDays`.
 
 ## Testing
 
@@ -125,5 +131,7 @@ Backend focused tests cover:
 - Carry over is capped at 30 days by default.
 - Pending days reduce available days.
 - Submit is rejected when available days are not enough.
-- Individual rollover preview calculates carry over and forfeited days.
-- Individual rollover confirm requires a reason.
+- Rollover preview does not create/update balances.
+- Rollover confirm requires a reason.
+- Rollover confirm is idempotent and does not duplicate target year balances.
+- Buddhist fiscal year values are rejected at backend boundary.

@@ -4,7 +4,10 @@ import { ApprovalChainFormPage } from "../pages/ApprovalChainFormPage";
 import { ApprovalChainManagementPage } from "../pages/ApprovalChainManagementPage";
 import { AuditLogPage } from "../pages/AuditLogPage";
 import { AuditLogExportPage } from "../pages/AuditLogExportPage";
+import { AdminHealthPage } from "../pages/AdminHealthPage";
 import { DashboardPage } from "../pages/DashboardPage";
+import { DashboardComingSoonPage } from "../pages/DashboardComingSoonPage";
+import { DashboardHubPage } from "../pages/DashboardHubPage";
 import { DepartmentManagementPage } from "../pages/DepartmentManagementPage";
 import { DepartmentFormPage } from "../pages/DepartmentFormPage";
 import { LeaveManagementPage } from "../pages/LeaveManagementPage";
@@ -20,6 +23,7 @@ import { LoginPage } from "../pages/LoginPage";
 import { LeaveReportsPage } from "../pages/LeaveReportsPage";
 import { LeaveSupportPage } from "../pages/LeaveSupportPage";
 import { LineSettingsPage } from "../pages/LineSettingsPage";
+import { LineUsersPage } from "../pages/LineUsersPage";
 import { LineLeaveApprovalPage } from "../pages/LineLeaveApprovalPage";
 import { NotificationCenterPage } from "../pages/NotificationCenterPage";
 import { PendingApprovalsPage } from "../pages/PendingApprovalsPage";
@@ -31,6 +35,7 @@ import { RoleManagementPage } from "../pages/RoleManagementPage";
 import { RolePermissionsPage } from "../pages/RolePermissionsPage";
 import { SystemSettingsPage } from "../pages/SystemSettingsPage";
 import { UnauthorizedPage } from "../pages/UnauthorizedPage";
+import { canAccessDashboardModule, getDashboardModule, type DashboardModuleKey } from "../config/dashboardModules";
 import { useAuth } from "../context/AuthContext";
 import { PermissionGuard } from "../context/PermissionContext";
 import { ProtectedRoute } from "./ProtectedRoute";
@@ -76,6 +81,21 @@ function LeaveTypeGuard() {
   return withPermission(<LeaveTypeManagementPage />, "LeaveAdmin.ManageTypes");
 }
 
+function DashboardModuleGuard({ moduleKey, children }: { moduleKey: DashboardModuleKey; children?: JSX.Element }) {
+  const { user } = useAuth();
+  const module = getDashboardModule(moduleKey);
+
+  if (!module || !canAccessDashboardModule(module, user)) {
+    return <Navigate to="/unauthorized" replace />;
+  }
+
+  if (module.status !== "active") {
+    return <DashboardComingSoonPage module={module} />;
+  }
+
+  return children ?? <DashboardComingSoonPage module={module} />;
+}
+
 export function AppRoutes() {
   return (
     <Routes>
@@ -84,7 +104,12 @@ export function AppRoutes() {
         <Route element={<MainLayout />}>
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="/unauthorized" element={<UnauthorizedPage />} />
-          <Route path="/dashboard" element={withPermission(<DashboardPage />, "Dashboard.View")} />
+          <Route path="/dashboard" element={withPermission(<DashboardHubPage />, "Dashboard.View")} />
+          <Route path="/dashboard/leave" element={<DashboardModuleGuard moduleKey="leave"><DashboardPage /></DashboardModuleGuard>} />
+          <Route path="/dashboard/vehicle" element={<DashboardModuleGuard moduleKey="vehicle" />} />
+          <Route path="/dashboard/repair" element={<DashboardModuleGuard moduleKey="repair" />} />
+          <Route path="/dashboard/inventory" element={<DashboardModuleGuard moduleKey="inventory" />} />
+          <Route path="/dashboard/executive" element={<DashboardModuleGuard moduleKey="executive" />} />
           <Route path="/notifications" element={withPermission(<NotificationCenterPage />, "Dashboard.View")} />
           <Route path="/profile" element={<ProfilePage />} />
           <Route path="/admin/users" element={withPermission(<UserManagementPage />, "UserManagement.View")} />
@@ -97,8 +122,10 @@ export function AppRoutes() {
           <Route path="/admin/roles/:id/permissions" element={withPermission(<RolePermissionsPage />, "RoleManagement.Manage")} />
           <Route path="/admin/audit-logs" element={withPermission(<AuditLogPage />, "SystemSettings.View")} />
           <Route path="/admin/audit-logs/export" element={withPermission(<AuditLogExportPage />, "SystemSettings.Export")} />
+          <Route path="/admin/health" element={withPermission(<AdminHealthPage />, "SystemSettings.View")} />
           <Route path="/admin/system-settings" element={withPermission(<SystemSettingsPage />, "SystemSettings.View")} />
           <Route path="/admin/line-settings" element={withAnyPermission(<LineSettingsPage />, ["System.Line.TestSend", "SystemSettings.View"])} />
+          <Route path="/admin/line-users" element={withAnyPermission(<LineUsersPage />, ["System.Line.TestSend", "SystemSettings.View"])} />
           <Route path="/admin/leave-support" element={withPermission(<LeaveSupportPage />, "LeaveSupport.ViewAll")} />
           <Route path="/admin/approval-chains" element={withPermission(<ApprovalChainManagementPage />, "LeaveAdmin.ManageApprovalChains")} />
           <Route path="/admin/approval-chains/create" element={withPermission(<ApprovalChainFormPage />, "LeaveAdmin.ManageApprovalChains")} />

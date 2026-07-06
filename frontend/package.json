@@ -7,6 +7,8 @@
     "dev": "vite --host 0.0.0.0",
     "build": "tsc && vite build",
     "e2e:phase1": "playwright test e2e/phase1-web-qa.spec.ts",
+    "e2e:screenshots": "playwright test e2e/screenshots",
+    "docs:screenshot": "set NODE_PATH=./node_modules&& playwright test ../tests/screenshots --config ../tests/screenshots/config/playwright.config.ts",
     "preview": "vite preview --host 0.0.0.0",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0"
   },

@@ -60,3 +60,21 @@
 - การปรับยอดต้องระบุเหตุผลเสมอ
 - การยกยอดต้อง preview ก่อน confirm
 - ถ้าปีงบประมาณปลายทางมีข้อมูลอยู่แล้ว ระบบจะไม่ overwrite เงียบ ๆ
+
+## ความสัมพันธ์กับกฎสิทธิ์วันลา
+
+ตั้งแต่ Phase 1 policy update ระบบใช้ `leave_policy_rules` เป็นค่า default สำหรับสิทธิ์วันลาตามประเภทพนักงาน ถ้าผู้ใช้ยังไม่มีแถว balance ของปีงบประมาณนั้น ระบบ validation จะอ้างอิง entitlement จาก policy ก่อน
+
+ระบบคำนวณผ่าน `LeavePolicyService` เพื่อให้หน้า create/update/submit, balance, rollover และ report ใช้ logic เดียวกันในอนาคต
+
+ข้อมูลที่ต้องครบ:
+
+- ผู้ใช้มี `employmentType`
+- ผู้ใช้มี `employmentStartDate` ถ้า policy กำหนดเงื่อนไขอายุงาน
+- ประเภทลามี policy rule ที่ active
+
+อ่านรายละเอียดเพิ่มเติมที่:
+
+- `docs/EMPLOYMENT-TYPES.md`
+- `docs/LEAVE-TYPES.md`
+- `docs/LEAVE-POLICY-RULES.md`

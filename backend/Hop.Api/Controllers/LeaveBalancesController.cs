@@ -13,7 +13,10 @@ namespace Hop.Api.Controllers;
 [ApiController]
 [Route("api/leave-balances")]
 [Authorize]
-public class LeaveBalancesController(AppDbContext db, IAuditLogService auditLogService) : ControllerBase
+public class LeaveBalancesController(
+    AppDbContext db,
+    IAuditLogService auditLogService,
+    ILeaveBalanceRolloverService rolloverService) : ControllerBase
 {
     [HttpGet]
     [RequirePermission(LeavePermissions.ManageBalances)]
@@ -242,64 +245,65 @@ public class LeaveBalancesController(AppDbContext db, IAuditLogService auditLogS
     }
 
     [HttpPost("rollover")]
-    [RequirePermission(LeavePermissions.ManageBalances)]
+    [RequireAnyPermission(LeavePermissions.ManageBalances, LeavePermissions.RolloverBalances)]
     public async Task<ActionResult<ApiResponse<LeaveBalanceRolloverResponse>>> RolloverBalances(LeaveBalanceRolloverRequest request)
     {
-        if (request.TargetFiscalYear < 2000 || request.TargetFiscalYear > 2200)
+        try
         {
-            return BadRequest(ApiResponse<LeaveBalanceRolloverResponse>.Fail("Target fiscal year is invalid."));
+            var previousFiscalYear = request.TargetFiscalYear - 1;
+            var result = await rolloverService.ConfirmAsync(
+                new LeaveBalanceRolloverConfirmBatchRequest(previousFiscalYear, request.TargetFiscalYear, null, null, null, null, $"ยกยอดวันลาปีงบประมาณ {request.TargetFiscalYear + 543}"),
+                GetCurrentUserId(),
+                HttpContext.RequestAborted);
+            return ApiResponse<LeaveBalanceRolloverResponse>.Ok(new LeaveBalanceRolloverResponse(request.TargetFiscalYear, previousFiscalYear, result.Created, result.Skipped + result.Blocked));
         }
-
-        var previousFiscalYear = request.TargetFiscalYear - 1;
-        var users = await db.Users.AsNoTracking().Where(item => item.IsActive).Select(item => item.Id).ToListAsync();
-        var leaveTypes = await db.LeaveTypes.AsNoTracking().Where(item => item.IsActive && item.RequiresBalance).ToListAsync();
-        var existing = await db.LeaveBalances
-            .Where(item => item.Year == request.TargetFiscalYear)
-            .Select(item => new { item.UserId, item.LeaveTypeId })
-            .ToListAsync();
-        var previousBalances = await db.LeaveBalances
-            .AsNoTracking()
-            .Where(item => item.Year == previousFiscalYear)
-            .ToListAsync();
-
-        var existingKeys = existing.Select(item => (item.UserId, item.LeaveTypeId)).ToHashSet();
-        var createdCount = 0;
-        var skippedCount = 0;
-
-        foreach (var userId in users)
+        catch (InvalidOperationException ex)
         {
-            foreach (var leaveType in leaveTypes)
-            {
-                if (existingKeys.Contains((userId, leaveType.Id)))
-                {
-                    skippedCount++;
-                    continue;
-                }
-
-                var previous = previousBalances.FirstOrDefault(item => item.UserId == userId && item.LeaveTypeId == leaveType.Id);
-                var previousAvailable = previous is null
-                    ? 0
-                    : FiscalYearHelper.CalculateAvailableDays(previous.EntitledDays, previous.CarriedOverDays, previous.UsedDays, previous.PendingDays, previous.AdjustedDays);
-
-                db.LeaveBalances.Add(new LeaveBalance
-                {
-                    UserId = userId,
-                    LeaveTypeId = leaveType.Id,
-                    Year = request.TargetFiscalYear,
-                    EntitledDays = leaveType.DefaultDaysPerYear,
-                    CarriedOverDays = FiscalYearHelper.CalculateCarryOver(previousAvailable, leaveType),
-                    AdjustedDays = 0,
-                    UsedDays = 0,
-                    PendingDays = 0
-                });
-                createdCount++;
-            }
+            return BadRequest(ApiResponse<LeaveBalanceRolloverResponse>.Fail(ex.Message));
         }
+    }
 
-        await db.SaveChangesAsync();
-        await auditLogService.WriteAsync(GetCurrentUserId(), "LeaveBalance.Rollover", "LeaveBalance", null, $"Rolled over balances to fiscal year {request.TargetFiscalYear}. Created={createdCount}, Skipped={skippedCount}.", "Success", HttpContext);
+    [HttpPost("rollover/preview")]
+    [RequireAnyPermission(LeavePermissions.ManageBalances, LeavePermissions.RolloverBalances)]
+    public async Task<ActionResult<ApiResponse<LeaveBalanceRolloverBatchResponse>>> PreviewRollover(LeaveBalanceRolloverFilterRequest request)
+    {
+        try
+        {
+            return ApiResponse<LeaveBalanceRolloverBatchResponse>.Ok(await rolloverService.PreviewAsync(request, GetCurrentUserId(), HttpContext.RequestAborted));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(ApiResponse<LeaveBalanceRolloverBatchResponse>.Fail(ex.Message));
+        }
+    }
 
-        return ApiResponse<LeaveBalanceRolloverResponse>.Ok(new LeaveBalanceRolloverResponse(request.TargetFiscalYear, previousFiscalYear, createdCount, skippedCount));
+    [HttpPost("rollover/confirm")]
+    [RequireAnyPermission(LeavePermissions.ManageBalances, LeavePermissions.RolloverBalances)]
+    public async Task<ActionResult<ApiResponse<LeaveBalanceRolloverBatchResponse>>> ConfirmRollover(LeaveBalanceRolloverConfirmBatchRequest request)
+    {
+        try
+        {
+            return ApiResponse<LeaveBalanceRolloverBatchResponse>.Ok(await rolloverService.ConfirmAsync(request, GetCurrentUserId(), HttpContext.RequestAborted));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(ApiResponse<LeaveBalanceRolloverBatchResponse>.Fail(ex.Message));
+        }
+    }
+
+    [HttpPost("rollover/export-preview")]
+    [RequireAnyPermission(LeavePermissions.ManageBalances, LeavePermissions.RolloverBalances)]
+    public async Task<IActionResult> ExportRolloverPreview(LeaveBalanceRolloverFilterRequest request)
+    {
+        try
+        {
+            var bytes = await rolloverService.ExportPreviewCsvAsync(request, GetCurrentUserId(), HttpContext.RequestAborted);
+            return File(bytes, "text/csv; charset=utf-8", $"leave-rollover-preview-{request.FromFiscalYear}-{request.ToFiscalYear}.csv");
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(ApiResponse<object>.Fail(ex.Message));
+        }
     }
 
     [HttpPost("{id:guid}/rollover-preview")]

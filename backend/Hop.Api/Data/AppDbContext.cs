@@ -16,7 +16,10 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<Notification> Notifications => Set<Notification>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
     public DbSet<LeaveType> LeaveTypes => Set<LeaveType>();
+    public DbSet<LeavePolicyRule> LeavePolicyRules => Set<LeavePolicyRule>();
     public DbSet<LeaveBalance> LeaveBalances => Set<LeaveBalance>();
+    public DbSet<LeaveBalanceRolloverRun> LeaveBalanceRolloverRuns => Set<LeaveBalanceRolloverRun>();
+    public DbSet<LeaveBalanceSnapshot> LeaveBalanceSnapshots => Set<LeaveBalanceSnapshot>();
     public DbSet<LeaveRequest> LeaveRequests => Set<LeaveRequest>();
     public DbSet<LeaveAttachment> LeaveAttachments => Set<LeaveAttachment>();
     public DbSet<LeaveApproval> LeaveApprovals => Set<LeaveApproval>();
@@ -28,6 +31,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<LeaveBalanceAdjustment> LeaveBalanceAdjustments => Set<LeaveBalanceAdjustment>();
     public DbSet<LeaveHoliday> LeaveHolidays => Set<LeaveHoliday>();
     public DbSet<LineDeliveryLog> LineDeliveryLogs => Set<LineDeliveryLog>();
+    public DbSet<LineUserBinding> LineUserBindings => Set<LineUserBinding>();
+    public DbSet<LinePairingCode> LinePairingCodes => Set<LinePairingCode>();
+    public DbSet<LineConnectToken> LineConnectTokens => Set<LineConnectToken>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -55,6 +61,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             entity.Property(item => item.Email).HasColumnName("email");
             entity.Property(item => item.PhoneNumber).HasColumnName("phone_number");
             entity.Property(item => item.LeaveContactAddress).HasColumnName("leave_contact_address");
+            entity.Property(item => item.Gender).HasColumnName("gender").HasMaxLength(20).HasDefaultValue(GenderTypes.Unknown);
+            entity.Property(item => item.EmploymentType).HasColumnName("employment_type").HasMaxLength(80);
+            entity.Property(item => item.EmploymentStartDate).HasColumnName("employment_start_date");
             entity.Property(item => item.ProfileImageUrl).HasColumnName("profile_image_url");
             entity.Property(item => item.ProfileImagePath).HasColumnName("profile_image_path");
             entity.Property(item => item.ProfileImageFileName).HasColumnName("profile_image_file_name");
@@ -69,6 +78,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             entity.HasIndex(item => item.Username).IsUnique();
             entity.HasIndex(item => item.EmployeeCode).IsUnique();
             entity.HasIndex(item => item.LeaveApprovalRuleId);
+            entity.HasIndex(item => item.EmploymentType);
             entity.HasOne(item => item.LeaveApprovalRule)
                 .WithMany()
                 .HasForeignKey(item => item.LeaveApprovalRuleId);
@@ -226,6 +236,36 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             entity.HasIndex(item => item.Code).IsUnique();
         });
 
+        modelBuilder.Entity<LeavePolicyRule>(entity =>
+        {
+            entity.ToTable("leave_policy_rules");
+            entity.Property(item => item.Id).HasColumnName("id");
+            entity.Property(item => item.EmploymentType).HasColumnName("employment_type").HasMaxLength(80);
+            entity.Property(item => item.LeaveTypeId).HasColumnName("leave_type_id");
+            entity.Property(item => item.FiscalYear).HasColumnName("fiscal_year");
+            entity.Property(item => item.EntitlementDays).HasColumnName("entitlement_days");
+            entity.Property(item => item.MaxPaidDays).HasColumnName("max_paid_days");
+            entity.Property(item => item.AllowCarryOver).HasColumnName("allow_carry_over");
+            entity.Property(item => item.CarryOverMaxDays).HasColumnName("carry_over_max_days");
+            entity.Property(item => item.MaxAccumulatedDays).HasColumnName("max_accumulated_days");
+            entity.Property(item => item.MinServiceMonths).HasColumnName("min_service_months");
+            entity.Property(item => item.MinServiceYears).HasColumnName("min_service_years");
+            entity.Property(item => item.ProrateIfServiceLessThanYear).HasColumnName("prorate_if_service_less_than_year");
+            entity.Property(item => item.FirstYearEntitlementDays).HasColumnName("first_year_entitlement_days");
+            entity.Property(item => item.FirstYearPaidDays).HasColumnName("first_year_paid_days");
+            entity.Property(item => item.IsPaid).HasColumnName("is_paid");
+            entity.Property(item => item.MaxExtendedDays).HasColumnName("max_extended_days");
+            entity.Property(item => item.SocialSecurityMaxDays).HasColumnName("social_security_max_days");
+            entity.Property(item => item.Notes).HasColumnName("notes").HasMaxLength(1000);
+            entity.Property(item => item.IsActive).HasColumnName("is_active");
+            entity.Property(item => item.CreatedAt).HasColumnName("created_at");
+            entity.Property(item => item.UpdatedAt).HasColumnName("updated_at");
+            entity.HasIndex(item => new { item.EmploymentType, item.LeaveTypeId, item.FiscalYear, item.IsActive });
+            entity.HasOne(item => item.LeaveType)
+                .WithMany()
+                .HasForeignKey(item => item.LeaveTypeId);
+        });
+
         modelBuilder.Entity<LeaveBalance>(entity =>
         {
             entity.ToTable("leave_balances");
@@ -375,6 +415,60 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
                 .HasForeignKey(item => item.ApproverUserId);
         });
 
+        modelBuilder.Entity<LeaveBalanceRolloverRun>(entity =>
+        {
+            entity.ToTable("leave_balance_rollover_runs");
+            entity.Property(item => item.Id).HasColumnName("id");
+            entity.Property(item => item.FromFiscalYear).HasColumnName("from_fiscal_year");
+            entity.Property(item => item.ToFiscalYear).HasColumnName("to_fiscal_year");
+            entity.Property(item => item.Status).HasColumnName("status").HasMaxLength(40);
+            entity.Property(item => item.FiltersJson).HasColumnName("filters_json");
+            entity.Property(item => item.Total).HasColumnName("total");
+            entity.Property(item => item.CreatedCount).HasColumnName("created_count");
+            entity.Property(item => item.UpdatedCount).HasColumnName("updated_count");
+            entity.Property(item => item.SkippedCount).HasColumnName("skipped_count");
+            entity.Property(item => item.BlockedCount).HasColumnName("blocked_count");
+            entity.Property(item => item.Reason).HasColumnName("reason");
+            entity.Property(item => item.StartedAt).HasColumnName("started_at");
+            entity.Property(item => item.CompletedAt).HasColumnName("completed_at");
+            entity.Property(item => item.CreatedByUserId).HasColumnName("created_by_user_id");
+            entity.HasIndex(item => new { item.FromFiscalYear, item.ToFiscalYear, item.Status });
+            entity.HasOne(item => item.CreatedByUser)
+                .WithMany()
+                .HasForeignKey(item => item.CreatedByUserId);
+        });
+
+        modelBuilder.Entity<LeaveBalanceSnapshot>(entity =>
+        {
+            entity.ToTable("leave_balance_snapshots");
+            entity.Property(item => item.Id).HasColumnName("id");
+            entity.Property(item => item.RolloverRunId).HasColumnName("rollover_run_id");
+            entity.Property(item => item.UserId).HasColumnName("user_id");
+            entity.Property(item => item.LeaveTypeId).HasColumnName("leave_type_id");
+            entity.Property(item => item.FiscalYear).HasColumnName("fiscal_year");
+            entity.Property(item => item.EntitlementDays).HasColumnName("entitlement_days");
+            entity.Property(item => item.CarriedOverDays).HasColumnName("carried_over_days");
+            entity.Property(item => item.AdjustedDays).HasColumnName("adjusted_days");
+            entity.Property(item => item.UsedDays).HasColumnName("used_days");
+            entity.Property(item => item.PendingDays).HasColumnName("pending_days");
+            entity.Property(item => item.AvailableDays).HasColumnName("available_days");
+            entity.Property(item => item.CreatedAt).HasColumnName("created_at");
+            entity.Property(item => item.CreatedByUserId).HasColumnName("created_by_user_id");
+            entity.HasIndex(item => new { item.UserId, item.LeaveTypeId, item.FiscalYear });
+            entity.HasOne(item => item.RolloverRun)
+                .WithMany()
+                .HasForeignKey(item => item.RolloverRunId);
+            entity.HasOne(item => item.User)
+                .WithMany()
+                .HasForeignKey(item => item.UserId);
+            entity.HasOne(item => item.LeaveType)
+                .WithMany()
+                .HasForeignKey(item => item.LeaveTypeId);
+            entity.HasOne(item => item.CreatedByUser)
+                .WithMany()
+                .HasForeignKey(item => item.CreatedByUserId);
+        });
+
         modelBuilder.Entity<ApprovalDelegation>(entity =>
         {
             entity.ToTable("approval_delegations");
@@ -513,6 +607,70 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             entity.HasOne(item => item.RecipientUser)
                 .WithMany()
                 .HasForeignKey(item => item.RecipientUserId);
+        });
+
+        modelBuilder.Entity<LineUserBinding>(entity =>
+        {
+            entity.ToTable("line_user_bindings");
+            entity.Property(item => item.Id).HasColumnName("id");
+            entity.Property(item => item.LineUserId).HasColumnName("line_user_id").HasMaxLength(80);
+            entity.Property(item => item.DisplayName).HasColumnName("display_name").HasMaxLength(200);
+            entity.Property(item => item.PictureUrl).HasColumnName("picture_url").HasMaxLength(1000);
+            entity.Property(item => item.UserId).HasColumnName("user_id");
+            entity.Property(item => item.Status).HasColumnName("status").HasMaxLength(40);
+            entity.Property(item => item.LastEventType).HasColumnName("last_event_type").HasMaxLength(40);
+            entity.Property(item => item.LastEventAt).HasColumnName("last_event_at");
+            entity.Property(item => item.BoundAt).HasColumnName("bound_at");
+            entity.Property(item => item.UnboundAt).HasColumnName("unbound_at");
+            entity.Property(item => item.CreatedAt).HasColumnName("created_at");
+            entity.Property(item => item.UpdatedAt).HasColumnName("updated_at");
+            entity.HasIndex(item => item.LineUserId).IsUnique();
+            entity.HasIndex(item => item.UserId).IsUnique().HasFilter("\"user_id\" IS NOT NULL AND \"status\" = 'Bound'");
+            entity.HasIndex(item => item.Status);
+            entity.HasOne(item => item.User)
+                .WithMany()
+                .HasForeignKey(item => item.UserId);
+        });
+
+        modelBuilder.Entity<LinePairingCode>(entity =>
+        {
+            entity.ToTable("line_pairing_codes");
+            entity.Property(item => item.Id).HasColumnName("id");
+            entity.Property(item => item.UserId).HasColumnName("user_id");
+            entity.Property(item => item.Code).HasColumnName("code").HasMaxLength(20);
+            entity.Property(item => item.Status).HasColumnName("status").HasMaxLength(40);
+            entity.Property(item => item.ExpiresAt).HasColumnName("expires_at");
+            entity.Property(item => item.UsedAt).HasColumnName("used_at");
+            entity.Property(item => item.CreatedAt).HasColumnName("created_at");
+            entity.HasIndex(item => item.Code).IsUnique();
+            entity.HasIndex(item => new { item.UserId, item.Status });
+            entity.HasIndex(item => item.ExpiresAt);
+            entity.HasOne(item => item.User)
+                .WithMany()
+                .HasForeignKey(item => item.UserId);
+        });
+
+        modelBuilder.Entity<LineConnectToken>(entity =>
+        {
+            entity.ToTable("line_connect_tokens");
+            entity.Property(item => item.Id).HasColumnName("id");
+            entity.Property(item => item.UserId).HasColumnName("user_id");
+            entity.Property(item => item.Token).HasColumnName("token").HasMaxLength(120);
+            entity.Property(item => item.ShortCode).HasColumnName("short_code").HasMaxLength(20);
+            entity.Property(item => item.Status).HasColumnName("status").HasMaxLength(40);
+            entity.Property(item => item.ExpiresAt).HasColumnName("expires_at");
+            entity.Property(item => item.UsedAt).HasColumnName("used_at");
+            entity.Property(item => item.CreatedAt).HasColumnName("created_at");
+            entity.Property(item => item.CreatedByIp).HasColumnName("created_by_ip").HasMaxLength(80);
+            entity.Property(item => item.LineUserId).HasColumnName("line_user_id").HasMaxLength(80);
+            entity.Property(item => item.Metadata).HasColumnName("metadata").HasColumnType("jsonb");
+            entity.HasIndex(item => item.Token).IsUnique();
+            entity.HasIndex(item => item.ShortCode).IsUnique();
+            entity.HasIndex(item => new { item.UserId, item.Status });
+            entity.HasIndex(item => item.ExpiresAt);
+            entity.HasOne(item => item.User)
+                .WithMany()
+                .HasForeignKey(item => item.UserId);
         });
     }
 }

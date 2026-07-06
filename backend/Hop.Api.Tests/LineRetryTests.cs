@@ -16,6 +16,8 @@ namespace Hop.Api.Tests;
 
 public class LineRetryTests
 {
+    private const string TestLineUserId = "U12345678901234567890";
+
     [Fact]
     public async Task SendTestMessageAsync_ReturnsDisabledWhenLineIsOff()
     {
@@ -27,7 +29,7 @@ public class LineRetryTests
             new HttpClient(new FakeLineHandler(HttpStatusCode.OK, "{}")),
             NullLogger<LineMessagingService>.Instance);
 
-        var result = await service.SendTestMessageAsync("U123", "hello");
+        var result = await service.SendTestMessageAsync(TestLineUserId, "hello");
 
         Assert.False(result.Success);
         Assert.Equal("Disabled", result.DeliveryStatus);
@@ -45,14 +47,14 @@ public class LineRetryTests
             new HttpClient(new FakeLineHandler(HttpStatusCode.OK, "{}")),
             NullLogger<LineMessagingService>.Instance);
 
-        var result = await service.SendTestMessageAsync("U123", "hello");
+        var result = await service.SendTestMessageAsync(TestLineUserId, "hello");
         var log = await db.LineDeliveryLogs.SingleAsync();
 
         Assert.True(result.Success);
         Assert.Equal("Sent", log.Status);
         Assert.Equal(200, result.HttpStatusCode);
         Assert.NotNull(result.ResponseTimeMs);
-        Assert.Contains("\"to\":\"U123\"", log.Payload);
+        Assert.Contains($"\"to\":\"{TestLineUserId}\"", log.Payload);
     }
 
     [Fact]
@@ -66,7 +68,7 @@ public class LineRetryTests
             new HttpClient(new FakeLineHandler(HttpStatusCode.BadRequest, "{\"message\":\"bad\"}")),
             NullLogger<LineMessagingService>.Instance);
 
-        var result = await service.SendTestMessageAsync("U123", "hello");
+        var result = await service.SendTestMessageAsync(TestLineUserId, "hello");
         var log = await db.LineDeliveryLogs.SingleAsync();
 
         Assert.False(result.Success);
@@ -104,7 +106,7 @@ public class LineRetryTests
             Username = "line-user",
             FullName = "Line User",
             PasswordHash = "hash",
-            LineUserId = "U123"
+            LineUserId = TestLineUserId
         });
         db.LineDeliveryLogs.Add(new LineDeliveryLog
         {
@@ -129,7 +131,7 @@ public class LineRetryTests
         Assert.Equal(1, processed);
         Assert.Equal("Sent", log.Status);
         Assert.Equal(1, log.AttemptCount);
-        Assert.Contains("\"to\":\"U123\"", log.Payload);
+        Assert.Contains($"\"to\":\"{TestLineUserId}\"", log.Payload);
     }
 
     [Fact]
@@ -143,7 +145,7 @@ public class LineRetryTests
             Username = "line-user",
             FullName = "Line User",
             PasswordHash = "hash",
-            LineUserId = "U123"
+            LineUserId = TestLineUserId
         });
         db.LineDeliveryLogs.Add(new LineDeliveryLog
         {
@@ -170,7 +172,7 @@ public class LineRetryTests
     }
 
     [Fact]
-    public void LineConfigurationResolver_UsesAppSettingsFallbackWhenMergedConfigIsBlank()
+    public void LineConfigurationResolver_DoesNotReadAppSettingsFallbackWhenMergedConfigIsBlank()
     {
         var settingsDirectory = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
         Directory.CreateDirectory(settingsDirectory);
@@ -198,10 +200,10 @@ public class LineRetryTests
             configuration,
             new TestHostEnvironment(settingsDirectory, Environments.Development));
 
-        Assert.True(resolver.HasChannelSecret);
-        Assert.True(resolver.HasAccessToken);
-        Assert.Equal("secret-from-json", resolver.ChannelSecret);
-        Assert.Equal("token-from-json", resolver.AccessToken);
+        Assert.False(resolver.HasChannelSecret);
+        Assert.False(resolver.HasAccessToken);
+        Assert.Null(resolver.ChannelSecret);
+        Assert.Null(resolver.AccessToken);
     }
 
     [Fact]

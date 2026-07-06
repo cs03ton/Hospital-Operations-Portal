@@ -10,6 +10,7 @@ import EventAvailableOutlinedIcon from "@mui/icons-material/EventAvailableOutlin
 import EventBusyOutlinedIcon from "@mui/icons-material/EventBusyOutlined";
 import FactCheckOutlinedIcon from "@mui/icons-material/FactCheckOutlined";
 import GroupOutlinedIcon from "@mui/icons-material/GroupOutlined";
+import HealthAndSafetyOutlinedIcon from "@mui/icons-material/HealthAndSafetyOutlined";
 import HistoryOutlinedIcon from "@mui/icons-material/HistoryOutlined";
 import ManageSearchOutlinedIcon from "@mui/icons-material/ManageSearchOutlined";
 import Inventory2OutlinedIcon from "@mui/icons-material/Inventory2Outlined";
@@ -40,12 +41,21 @@ export type NavigationModule = {
 
 export const navigationModules: NavigationModule[] = [
   {
+    moduleId: "DashboardPortal",
+    moduleLabel: "Dashboard",
+    moduleIcon: DashboardOutlinedIcon,
+    enabled: true,
+    children: [
+      { label: "Dashboard Hub", path: "/dashboard", icon: DashboardOutlinedIcon, permission: "Dashboard.View", activePatterns: ["/dashboard"] },
+    ],
+  },
+  {
     moduleId: "LeaveManagement",
     moduleLabel: "ระบบลา",
     moduleIcon: EventAvailableOutlinedIcon,
     enabled: true,
     children: [
-      { label: "แดชบอร์ดการลา", path: "/dashboard", icon: DashboardOutlinedIcon, permission: "Dashboard.View" },
+      { label: "แดชบอร์ดการลา", path: "/dashboard/leave", icon: DashboardOutlinedIcon, permission: "Dashboard.View", activePatterns: ["/dashboard/leave"] },
       { label: "งานรออนุมัติของฉัน", path: "/leave/pending-approvals", icon: FactCheckOutlinedIcon, permission: "LeaveRequest.ViewPendingApproval", activePatterns: ["/leave/pending-approvals"], hiddenForRoles: ["Admin", "SuperAdmin"] },
       { label: "รายการคำขอลา", path: "/leave", icon: EventAvailableOutlinedIcon, permissions: leaveViewPermissions, activePatterns: ["/leave", "/leave/:id"] },
       { label: "ปฏิทินการลา", path: "/leave/calendar", icon: CalendarMonthOutlinedIcon, permissions: leaveViewPermissions, activePatterns: ["/leave/calendar"] },
@@ -68,9 +78,11 @@ export const navigationModules: NavigationModule[] = [
       { label: "จัดการผู้ใช้", path: "/admin/users", icon: GroupOutlinedIcon, permission: "UserManagement.View" },
       { label: "จัดการหน่วยงาน", path: "/admin/departments", icon: BusinessOutlinedIcon, permission: "DepartmentManagement.View" },
       { label: "บทบาทและสิทธิ์", path: "/admin/roles", icon: SecurityOutlinedIcon, permission: "RoleManagement.View" },
+      { label: "สถานะระบบ", path: "/admin/health", icon: HealthAndSafetyOutlinedIcon, permission: "SystemSettings.View" },
       { label: "บันทึกการใช้งาน", path: "/admin/audit-logs", icon: HistoryOutlinedIcon, permission: "SystemSettings.View" },
       { label: "ตั้งค่าระบบ", path: "/admin/system-settings", icon: TuneOutlinedIcon, permission: "SystemSettings.View" },
       { label: "ตั้งค่า LINE", path: "/admin/line-settings", icon: NotificationsActiveOutlinedIcon, permissions: ["System.Line.TestSend", "SystemSettings.View"] },
+      { label: "ผู้ใช้ LINE", path: "/admin/line-users", icon: NotificationsActiveOutlinedIcon, permissions: ["System.Line.TestSend", "SystemSettings.View"] },
     ],
   },
   {

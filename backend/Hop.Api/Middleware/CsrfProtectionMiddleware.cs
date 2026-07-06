@@ -60,6 +60,7 @@ public sealed class CsrfProtectionMiddleware(RequestDelegate next, ILogger<CsrfP
             return false;
         }
 
-        return !context.Request.Path.StartsWithSegments("/api/auth/login", StringComparison.OrdinalIgnoreCase);
+        return !context.Request.Path.StartsWithSegments("/api/auth/login", StringComparison.OrdinalIgnoreCase) &&
+            !context.Request.Path.StartsWithSegments("/api/line/webhook", StringComparison.OrdinalIgnoreCase);
     }
 }

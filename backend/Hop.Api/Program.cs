@@ -12,9 +12,10 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.IdentityModel.Tokens;
 
-EnvFileLoader.LoadFromParentDirectories(".env");
+EnvFileLoader.LoadForEnvironment();
 
 var builder = WebApplication.CreateBuilder(args);
+builder.Configuration.AddEnvironmentVariables();
 
 builder.Logging.ClearProviders();
 builder.Logging.AddConsole();
@@ -70,7 +71,9 @@ builder.Services.AddScoped<IFileScanningService>(provider =>
         : ActivatorUtilities.CreateInstance<PlaceholderFileScanningService>(provider);
 });
 builder.Services.AddScoped<ILeaveCalendarService, LeaveCalendarService>();
+builder.Services.AddScoped<ILeavePolicyService, LeavePolicyService>();
 builder.Services.AddScoped<ILeaveBalanceValidationService, LeaveBalanceValidationService>();
+builder.Services.AddScoped<ILeaveBalanceRolloverService, LeaveBalanceRolloverService>();
 builder.Services.AddScoped<ILeaveValidationService, LeaveValidationService>();
 builder.Services.AddScoped<IApprovalChainService, ApprovalChainService>();
 builder.Services.AddScoped<IApprovalEscalationService, ApprovalEscalationService>();
@@ -83,6 +86,7 @@ builder.Services.AddScoped<LineConfigurationResolver>();
 builder.Services.AddScoped<IUserAvatarUrlResolver, UserAvatarUrlResolver>();
 builder.Services.AddSingleton<ILoginRateLimiter, InMemoryLoginRateLimiter>();
 builder.Services.AddHttpClient<ILineMessagingService, LineMessagingService>();
+builder.Services.AddHttpClient<ILineUserBindingService, LineUserBindingService>();
 builder.Services.AddHostedService<LineRetryWorker>();
 builder.Services.AddHostedService<ApprovalEscalationWorker>();
 builder.Services.AddSingleton<IAuthorizationPolicyProvider, PermissionPolicyProvider>();
@@ -135,6 +139,7 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
+app.UseMiddleware<GlobalExceptionMiddleware>();
 app.UseCors("Frontend");
 app.UseAuthentication();
 app.UseMiddleware<CsrfProtectionMiddleware>();

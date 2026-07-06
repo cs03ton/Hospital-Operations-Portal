@@ -1,0 +1,25 @@
+{
+  "baseUrl": "http://localhost:5173",
+  "users": {
+    "user": {
+      "username": "user.test",
+      "password": "CHANGE_ME"
+    },
+    "head": {
+      "username": "head.test",
+      "password": "CHANGE_ME"
+    },
+    "director": {
+      "username": "director.test",
+      "password": "CHANGE_ME"
+    },
+    "hr": {
+      "username": "hr.test",
+      "password": "CHANGE_ME"
+    },
+    "superadmin": {
+      "username": "superadmin.test",
+      "password": "CHANGE_ME"
+    }
+  }
+}
