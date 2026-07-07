@@ -18,8 +18,8 @@ type QaResult = {
 };
 
 const frontendUrl = process.env.PHASE1_FRONTEND_URL ?? "http://localhost:5173";
-const username = process.env.PHASE1_QA_USERNAME ?? "admin";
-const password = process.env.PHASE1_QA_PASSWORD ?? "Admin@1234";
+const username = process.env.PHASE1_QA_USERNAME ?? "";
+const password = process.env.PHASE1_QA_PASSWORD ?? "";
 const screenshotDir = path.resolve(process.cwd(), "..", "docs", "qa", "screenshots", "phase1");
 const reportPath = path.resolve(process.cwd(), "..", "docs", "qa", "PHASE1-WEB-QA-REPORT.md");
 
@@ -28,6 +28,8 @@ test.use({
   viewport: { width: 1440, height: 1000 },
   ignoreHTTPSErrors: true,
 });
+
+test.skip(!username || !password, "Set PHASE1_QA_USERNAME and PHASE1_QA_PASSWORD before running Phase 1 web QA.");
 
 test("Phase 1 web QA with screenshots", async ({ page }) => {
   test.setTimeout(120000);
@@ -286,7 +288,7 @@ function writeReport(results: QaResult[], bugs: QaResult[]) {
 ## Test Account
 
 - Username: ${username}
-- Password: ใช้ค่าจาก env หรือ default QA password
+- Password: ใช้ค่าจาก PHASE1_QA_PASSWORD เท่านั้น
 
 ## Test Result Table
 

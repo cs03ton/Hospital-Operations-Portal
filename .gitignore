@@ -10,6 +10,8 @@
 !.env.example
 !.env.production.example
 !**/.env.example
+appsettings.Production.json
+**/appsettings.Production.json
 *.local
 *.secret
 *.secrets

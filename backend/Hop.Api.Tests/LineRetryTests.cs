@@ -176,14 +176,16 @@ public class LineRetryTests
     {
         var settingsDirectory = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
         Directory.CreateDirectory(settingsDirectory);
+        var jsonChannelSecret = $"line-secret-{Guid.NewGuid():N}";
+        var jsonAccessToken = $"line-access-{Guid.NewGuid():N}";
         File.WriteAllText(
             Path.Combine(settingsDirectory, "appsettings.Development.json"),
-            """
+            $$"""
             {
               "Line": {
                 "Enabled": true,
-                "ChannelSecret": "secret-from-json",
-                "ChannelAccessToken": "token-from-json"
+                "ChannelSecret": "{{jsonChannelSecret}}",
+                "ChannelAccessToken": "{{jsonAccessToken}}"
               }
             }
             """);
@@ -337,7 +339,7 @@ public class LineRetryTests
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
                 ["Line:Enabled"] = enabled.ToString(),
-                ["Line:ChannelAccessToken"] = "test-token",
+                ["Line:ChannelAccessToken"] = $"line-access-{Guid.NewGuid():N}",
                 ["LineRetry:MaxAttempts"] = "3"
             })
             .Build();

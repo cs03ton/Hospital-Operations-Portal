@@ -35,13 +35,15 @@ public class AdminHealthAndErrorTests
     {
         await using var db = CreateDbContext("health-safe");
         var storagePath = Path.Combine(Path.GetTempPath(), $"hop-health-{Guid.NewGuid():N}");
+        var accessToken = $"line-access-{Guid.NewGuid():N}";
+        var channelSecret = $"line-secret-{Guid.NewGuid():N}";
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
                 ["Storage:RootPath"] = storagePath,
                 ["Line:Enabled"] = "true",
-                ["Line:AccessToken"] = "secret-token-value",
-                ["Line:ChannelSecret"] = "secret-channel-value"
+                ["Line:AccessToken"] = accessToken,
+                ["Line:ChannelSecret"] = channelSecret
             })
             .Build();
         var controller = new AdminHealthController(
@@ -54,8 +56,8 @@ public class AdminHealthAndErrorTests
 
         var response = Assert.IsType<ApiResponse<AdminHealthResponse>>(result.Value);
         var json = JsonSerializer.Serialize(response);
-        Assert.DoesNotContain("secret-token-value", json);
-        Assert.DoesNotContain("secret-channel-value", json);
+        Assert.DoesNotContain(accessToken, json);
+        Assert.DoesNotContain(channelSecret, json);
         Assert.Equal("Healthy", response.Data?.Api.Status);
         Assert.NotNull(response.Data?.CurrentTimeServer);
 

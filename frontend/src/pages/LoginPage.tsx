@@ -41,8 +41,8 @@ export function LoginPage() {
     formState: { errors, isSubmitting },
   } = useForm<LoginForm>({
     defaultValues: {
-      username: "admin",
-      password: "Admin@1234",
+      username: "",
+      password: "",
     },
   });
 

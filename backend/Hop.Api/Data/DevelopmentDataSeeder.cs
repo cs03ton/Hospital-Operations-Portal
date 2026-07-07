@@ -8,7 +8,6 @@ namespace Hop.Api.Data;
 public static class DevelopmentDataSeeder
 {
     private const string ItDepartmentName = "Information Technology";
-    private const string StandardItPassword = "Nm@12345";
     private const string ItStaffApprovalRuleName = "IT-STAFF";
     private const string ItHeadApprovalRuleName = "IT-HEAD";
     private const string DirectorApprovalRuleName = "DIRECTOR";
@@ -306,17 +305,7 @@ public static class DevelopmentDataSeeder
                 var adminPassword = configuration["Seed:AdminPassword"] ?? configuration["SEED_ADMIN_PASSWORD"];
                 if (string.IsNullOrWhiteSpace(adminPassword))
                 {
-                    if (environment.IsProduction())
-                    {
-                        throw new InvalidOperationException("Seed:AdminPassword is required when creating a bootstrap admin in production.");
-                    }
-
-                    adminPassword = "Admin@1234";
-                }
-
-                if (environment.IsProduction() && adminPassword == "Admin@1234")
-                {
-                    throw new InvalidOperationException("The development admin password cannot be used in production.");
+                    throw new InvalidOperationException("Seed:AdminPassword is required when creating a bootstrap admin.");
                 }
 
                 var adminEmployeeCode = configuration["Seed:AdminEmployeeCode"] ?? configuration["SEED_ADMIN_EMPLOYEE_CODE"] ?? "ADMIN";
@@ -421,6 +410,12 @@ public static class DevelopmentDataSeeder
                 ?? !environment.IsProduction();
             if (shouldCreateStandardItUsers)
             {
+                var standardItPassword = configuration["Seed:StandardItPassword"] ?? configuration["SEED_STANDARD_IT_PASSWORD"];
+                if (string.IsNullOrWhiteSpace(standardItPassword))
+                {
+                    throw new InvalidOperationException("Seed:StandardItPassword is required when creating standard IT users.");
+                }
+
                 await RetireDevelopmentUsers(db, logger);
                 await SeedStandardItUsersAndApprovalChain(
                     db,
@@ -432,6 +427,7 @@ public static class DevelopmentDataSeeder
                         ["DepartmentHead"] = departmentHeadRole,
                         ["Director"] = directorRole
                     },
+                    standardItPassword,
                     logger);
             }
 
@@ -604,6 +600,7 @@ public static class DevelopmentDataSeeder
         AppDbContext db,
         Department department,
         IReadOnlyDictionary<string, Role> rolesByName,
+        string standardItPassword,
         ILogger logger)
     {
         var usersByUsername = new Dictionary<string, User>(StringComparer.OrdinalIgnoreCase);
@@ -627,7 +624,7 @@ public static class DevelopmentDataSeeder
 
             user.EmployeeCode = userSeed.EmployeeCode;
             user.FullName = userSeed.FullName;
-            user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(StandardItPassword);
+            user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(standardItPassword);
             user.DepartmentId = department.Id;
             user.Gender = userSeed.Gender;
             user.EmploymentType = userSeed.EmploymentType;

@@ -16,6 +16,9 @@ namespace Hop.Api.Tests.E2E;
 
 public class PostgresApiE2ETests
 {
+    private static readonly string E2EAdminPassword = $"e2e-admin-{Guid.NewGuid():N}";
+    private static readonly string E2EStandardItPassword = $"e2e-standard-it-{Guid.NewGuid():N}";
+
     [Fact]
     public async Task LeaveWorkflow_UsesRealPostgres_WhenConfigured()
     {
@@ -32,7 +35,7 @@ public class PostgresApiE2ETests
         var unauthorizedReport = await client.GetAsync("/api/reports/leaves");
         Assert.Equal(HttpStatusCode.Unauthorized, unauthorizedReport.StatusCode);
 
-        var login = await PostApi<LoginResponse>(client, "/api/auth/login", new LoginRequest("admin", "Admin@1234"));
+        var login = await PostApi<LoginResponse>(client, "/api/auth/login", new LoginRequest("admin", E2EAdminPassword));
         Assert.False(string.IsNullOrWhiteSpace(login.AccessToken));
         Assert.False(string.IsNullOrWhiteSpace(login.RefreshToken));
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", login.AccessToken);
@@ -136,7 +139,9 @@ public class PostgresApiE2ETests
                     ["Line:Enabled"] = "false",
                     ["Storage:RootPath"] = Path.Combine(Path.GetTempPath(), "hop-e2e-storage"),
                     ["Auth:TokenStorageMode"] = "LocalStorage",
-                    ["FileScan:Enabled"] = "false"
+                    ["FileScan:Enabled"] = "false",
+                    ["Seed:AdminPassword"] = E2EAdminPassword,
+                    ["Seed:StandardItPassword"] = E2EStandardItPassword
                 });
             });
 
