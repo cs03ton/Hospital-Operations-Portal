@@ -76,7 +76,102 @@ jobs:
       - name: TypeScript and Vite build
         working-directory: frontend
         env:
-          VITE_API_BASE_URL: http://localhost:5000
+          VITE_API_URL: ""
+          VITE_API_BASE_URL: ""
           VITE_APP_NAME: Hospital Operations Portal
           VITE_HOSPITAL_NAME: โรงพยาบาลทดสอบ
         run: npm run build
+
+      - name: Frontend dist readiness scan
+        run: |
+          if grep -R -I -E 'localhost:5000|https://localhost:5000|http://localhost:5000|127\.0\.0\.1|Line__ChannelSecret|Line__ChannelAccessToken|Line__AccessToken|Jwt__Key|POSTGRES_PASSWORD|Admin@1234|Nm@12345' frontend/dist; then
+            echo "Production readiness scan failed: frontend/dist contains localhost, secret markers, or default credentials."
+            exit 1
+          fi
+
+  production-readiness:
+    name: Production readiness gate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Secret marker scan
+        run: |
+          if grep -R -I -E 'Admin@1234|Nm@12345|secret-from-json|token-from-json|secret-token-value|secret-channel-value|test-token|change-this-postgres-password|change-this-strong-postgres-password|change-this-jwt-secret|change-this-line' \
+            --exclude-dir=.git \
+            --exclude-dir=bin \
+            --exclude-dir=obj \
+            --exclude-dir=dist \
+            --exclude=tests/screenshots/config/screenshot-users.json \
+            frontend backend tests .env.example .env.production.example; then
+            echo "Production readiness scan failed: forbidden secret marker found."
+            exit 1
+          fi
+
+      - name: Shell script syntax check
+        run: |
+          bash -n deploy/00-check-env.sh
+          bash -n deploy/01-deploy-db.sh
+          bash -n deploy/02-deploy-backend.sh
+          bash -n deploy/03-deploy-frontend.sh
+          bash -n deploy/04-crosscheck.sh
+          bash -n deploy/deploy-all.sh
+          bash -n deploy/rollback.sh
+          bash -n scripts/backup/backup-hop.sh
+          bash -n scripts/backup/restore-hop.sh
+
+      - name: Docker compose production config validation
+        run: |
+          cat > .env.production <<'EOF'
+          PUBLIC_APP_URL=https://hop.example.test
+          VITE_API_BASE_URL=
+          HTTP_PORT=8080
+          POSTGRES_DB=hop_ci
+          POSTGRES_USER=hop_ci
+          POSTGRES_PASSWORD=ci-postgres-password
+          POSTGRES_BIND=127.0.0.1
+          POSTGRES_PORT=55432
+          DB_HOST=postgres
+          DB_PORT=5432
+          ASPNETCORE_ENVIRONMENT=Production
+          Jwt__Key=ci-jwt-key-that-is-long-enough-for-production-gate
+          Jwt__Issuer=Hop.Api.CI
+          Jwt__Audience=Hop.Client.CI
+          Hospital__Name=โรงพยาบาลทดสอบ
+          Database__SeedOnStartup=false
+          Seed__CreateDefaultAdmin=false
+          VITE_APP_NAME=Hospital Operations Portal
+          VITE_HOSPITAL_NAME=โรงพยาบาลทดสอบ
+          VITE_APP_VERSION=1.0.0
+          Auth__TokenStorageMode=Cookie
+          Auth__Cookie__Secure=true
+          Auth__Cookie__SameSite=Lax
+          Auth__Cookie__RefreshTokenName=hop_refresh_token
+          Auth__Cookie__CsrfEnabled=true
+          Auth__Cookie__CsrfTokenName=hop_csrf_token
+          Auth__Cookie__CsrfHeaderName=X-CSRF-TOKEN
+          Cors__AllowCredentials=true
+          VITE_AUTH_TOKEN_STORAGE_MODE=cookie
+          VITE_AUTH_CSRF_COOKIE_NAME=hop_csrf_token
+          VITE_AUTH_CSRF_HEADER_NAME=X-CSRF-TOKEN
+          Storage__RootPath=/app/storage
+          Storage__PublicBaseUrl=https://hop.example.test/storage
+          LeaveAttachments__MaxFileSizeMb=5
+          LeaveAttachments__AllowedExtensions=.pdf,.jpg,.jpeg,.png
+          FileScan__Enabled=true
+          FileScan__Provider=ClamAV
+          FileScan__FailClosed=true
+          ClamAv__TimeoutMs=5000
+          Line__Enabled=false
+          LineRetry__Enabled=false
+          ApprovalEscalation__Enabled=false
+          RefreshToken__ReuseDetectionEnabled=true
+          LoginRateLimit__Enabled=true
+          AuditLog__RetentionDays=365
+          EOF
+          docker compose --env-file .env.production -f docker-compose.prod.yml config >/tmp/hop-compose-config.txt
+          if grep -E 'Admin@1234|Nm@12345|localhost:5000|change-this-jwt-secret|change-this-strong-postgres-password' /tmp/hop-compose-config.txt; then
+            echo "Production compose config contains forbidden marker."
+            exit 1
+          fi

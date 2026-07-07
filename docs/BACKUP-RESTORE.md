@@ -26,13 +26,6 @@ On Ubuntu, make scripts executable after deploy:
 chmod +x /opt/hop/scripts/backup/backup-hop.sh /opt/hop/scripts/backup/restore-hop.sh
 ```
 
-PowerShell PostgreSQL-only helpers เดิมยังคงอยู่สำหรับ Windows/local:
-
-```text
-scripts/backup-postgres.ps1
-scripts/restore-postgres.ps1
-```
-
 ## Required Environment
 
 | Variable | Required | Description |

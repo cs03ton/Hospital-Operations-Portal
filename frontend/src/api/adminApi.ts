@@ -139,6 +139,18 @@ export type LineHealth = {
   message?: string | null;
 };
 
+export type QueueHealth = {
+  status: string;
+  lineRetryEnabled: boolean;
+  approvalEscalationEnabled: boolean;
+  pendingLineDeliveries: number;
+  failedLineDeliveries: number;
+  pendingRetries: number;
+  lastLineSuccessAt?: string | null;
+  lastLineFailureAt?: string | null;
+  message?: string | null;
+};
+
 export type DiskHealth = {
   status: string;
   usedPercent?: number | null;
@@ -156,6 +168,7 @@ export type AdminHealth = {
   database: HealthComponent;
   storage: StorageHealth;
   line: LineHealth;
+  queue: QueueHealth;
   disk: DiskHealth;
   backup: BackupHealth;
   version: string;

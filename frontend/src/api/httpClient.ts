@@ -3,7 +3,7 @@ import { notifyGlobal } from "../contexts/NotificationContext";
 import { authStorageKeys } from "../types/auth";
 
 const apiBaseUrl =
-  import.meta.env.VITE_API_URL ?? import.meta.env.VITE_API_BASE_URL ?? "https://localhost:5000";
+  import.meta.env.VITE_API_URL ?? import.meta.env.VITE_API_BASE_URL ?? "";
 const tokenStorageMode = (import.meta.env.VITE_AUTH_TOKEN_STORAGE_MODE ?? "localStorage").toLowerCase();
 const cookieTokenMode = tokenStorageMode === "cookie";
 const csrfCookieName = import.meta.env.VITE_AUTH_CSRF_COOKIE_NAME ?? "hop_csrf_token";

@@ -5,6 +5,7 @@ public record AdminHealthResponse(
     HealthComponentResponse Database,
     StorageHealthResponse Storage,
     LineHealthResponse Line,
+    QueueHealthResponse Queue,
     DiskHealthResponse Disk,
     BackupHealthResponse Backup,
     string Version,
@@ -29,6 +30,18 @@ public record LineHealthResponse(
     bool Enabled,
     DateTime? LastSuccessAt,
     DateTime? LastFailureAt,
+    string? Message = null
+);
+
+public record QueueHealthResponse(
+    string Status,
+    bool LineRetryEnabled,
+    bool ApprovalEscalationEnabled,
+    int PendingLineDeliveries,
+    int FailedLineDeliveries,
+    int PendingRetries,
+    DateTime? LastLineSuccessAt,
+    DateTime? LastLineFailureAt,
     string? Message = null
 );
 

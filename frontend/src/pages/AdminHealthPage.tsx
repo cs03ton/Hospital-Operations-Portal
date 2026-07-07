@@ -6,6 +6,7 @@ import BackupOutlinedIcon from "@mui/icons-material/BackupOutlined";
 import DnsOutlinedIcon from "@mui/icons-material/DnsOutlined";
 import DataUsageOutlinedIcon from "@mui/icons-material/DataUsageOutlined";
 import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
+import SettingsSuggestOutlinedIcon from "@mui/icons-material/SettingsSuggestOutlined";
 import { Box, Button, Card, CardContent, Chip, Grid, Skeleton, Stack, Typography } from "@mui/material";
 import { alpha, useTheme } from "@mui/material/styles";
 import { useQuery } from "@tanstack/react-query";
@@ -25,7 +26,7 @@ export function AdminHealthPage() {
   return (
     <Stack spacing={3}>
       <Stack direction={{ xs: "column", md: "row" }} justifyContent="space-between" spacing={2}>
-        <PageHeader title="สถานะระบบ" subtitle="ตรวจสอบ API, Database, Storage, LINE, Backup และสภาพแวดล้อมของระบบ" />
+        <PageHeader title="สถานะระบบ" subtitle="ตรวจสอบ API, Database, Storage, LINE, Queue, Backup และสภาพแวดล้อมของระบบ" />
         <Box>
           <Button variant="contained" startIcon={<RefreshOutlinedIcon />} onClick={() => refetch()} disabled={isFetching}>
             รีเฟรช
@@ -38,6 +39,7 @@ export function AdminHealthPage() {
         <HealthCard title="Database Status" icon={StorageOutlinedIcon} status={data?.database.status} message={formatLatency(data?.database.latencyMs, data?.database.message)} isLoading={isLoading} />
         <HealthCard title="Storage Status" icon={DnsOutlinedIcon} status={data?.storage.status} message={data ? (data.storage.writable ? "เขียนไฟล์ได้" : data.storage.message) : undefined} isLoading={isLoading} />
         <HealthCard title="LINE Status" icon={NotificationsActiveOutlinedIcon} status={data?.line.status} message={buildLineMessage(data)} isLoading={isLoading} />
+        <HealthCard title="Queue / Worker Status" icon={SettingsSuggestOutlinedIcon} status={data?.queue.status} message={buildQueueMessage(data)} isLoading={isLoading} />
         <HealthCard title="Disk Usage" icon={DataUsageOutlinedIcon} status={data?.disk.status} message={data?.disk.usedPercent == null ? data?.disk.message : `ใช้งาน ${data.disk.usedPercent.toLocaleString("th-TH", { maximumFractionDigits: 2 })}%`} isLoading={isLoading} />
         <HealthCard title="Backup Status" icon={BackupOutlinedIcon} status={data?.backup.status} message={data?.backup.lastBackupAt ? `ล่าสุด ${formatThaiDateTime(data.backup.lastBackupAt)}` : data?.backup.message} isLoading={isLoading} />
         <InfoCard title="App Version" value={data?.version ?? "-"} isLoading={isLoading} />
@@ -50,6 +52,19 @@ export function AdminHealthPage() {
       </Typography>
     </Stack>
   );
+}
+
+function buildQueueMessage(data?: AdminHealth) {
+  if (!data) return undefined;
+  const parts = [
+    `LINE pending ${data.queue.pendingLineDeliveries.toLocaleString("th-TH")}`,
+    `failed ${data.queue.failedLineDeliveries.toLocaleString("th-TH")}`,
+    `retry ${data.queue.pendingRetries.toLocaleString("th-TH")}`,
+    data.queue.lineRetryEnabled ? "LINE retry เปิดใช้งาน" : "LINE retry ปิดใช้งาน",
+    data.queue.approvalEscalationEnabled ? "Escalation เปิดใช้งาน" : "Escalation ปิดใช้งาน",
+    data.queue.message,
+  ].filter(Boolean);
+  return parts.join(" · ");
 }
 
 function HealthCard({ title, icon: Icon, status, message, isLoading }: { title: string; icon: SvgIconComponent; status?: string; message?: string | null; isLoading: boolean }) {

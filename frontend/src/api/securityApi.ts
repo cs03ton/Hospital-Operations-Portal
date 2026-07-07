@@ -1,4 +1,4 @@
-import { httpClient } from "./httpClient";
+import { getApiBaseUrl, httpClient } from "./httpClient";
 import type { ApiResponse } from "../types/auth";
 
 export type SessionSummary = {
@@ -26,7 +26,7 @@ export async function revokeSession(id: string) {
 }
 
 export function getAuditLogExportUrl() {
-  const baseUrl = import.meta.env.VITE_API_URL ?? import.meta.env.VITE_API_BASE_URL ?? "https://localhost:5000";
+  const baseUrl = getApiBaseUrl();
   return `${baseUrl}/api/audit-logs/export`;
 }
 

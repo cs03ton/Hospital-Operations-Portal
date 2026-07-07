@@ -59,6 +59,7 @@ public class AdminHealthAndErrorTests
         Assert.DoesNotContain(accessToken, json);
         Assert.DoesNotContain(channelSecret, json);
         Assert.Equal("Healthy", response.Data?.Api.Status);
+        Assert.NotNull(response.Data?.Queue);
         Assert.NotNull(response.Data?.CurrentTimeServer);
 
         if (Directory.Exists(storagePath))
@@ -92,6 +93,52 @@ public class AdminHealthAndErrorTests
     }
 
     [Fact]
+    public async Task Get_ReturnsQueueHealthWithoutSecrets()
+    {
+        await using var db = CreateDbContext("health-queue");
+        db.LineDeliveryLogs.Add(new Models.LineDeliveryLog
+        {
+            EventName = "LeaveApprovalFlexCardSent",
+            Status = "Queued",
+            Payload = "{}",
+            NextRetryAt = DateTime.UtcNow.AddMinutes(-1)
+        });
+        db.LineDeliveryLogs.Add(new Models.LineDeliveryLog
+        {
+            EventName = "Line.TestMessageFailed",
+            Status = "Failed",
+            Payload = "{}",
+            ResponseDetail = "HTTP 400",
+            UpdatedAt = DateTime.UtcNow
+        });
+        await db.SaveChangesAsync();
+
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Storage:RootPath"] = Path.GetTempPath(),
+                ["Line:Enabled"] = "false",
+                ["LineRetry:Enabled"] = "true",
+                ["ApprovalEscalation:Enabled"] = "false"
+            })
+            .Build();
+        var controller = new AdminHealthController(
+            db,
+            configuration,
+            new TestWebHostEnvironment("Production"),
+            new LineConfigurationResolver(Options.Create(new LineOptions()), configuration));
+
+        var result = await controller.Get(CancellationToken.None);
+
+        var response = Assert.IsType<ApiResponse<AdminHealthResponse>>(result.Value);
+        Assert.Equal("Warning", response.Data?.Queue.Status);
+        Assert.True(response.Data?.Queue.LineRetryEnabled);
+        Assert.Equal(1, response.Data?.Queue.PendingLineDeliveries);
+        Assert.Equal(1, response.Data?.Queue.FailedLineDeliveries);
+        Assert.Equal(2, response.Data?.Queue.PendingRetries);
+    }
+
+    [Fact]
     public async Task GlobalExceptionMiddleware_ProductionResponseIncludesReferenceIdAndNoStackTrace()
     {
         var middleware = new GlobalExceptionMiddleware(
@@ -114,6 +161,25 @@ public class AdminHealthAndErrorTests
         Assert.Equal("trace-test-001", payload?.ReferenceId);
         Assert.DoesNotContain("InvalidOperationException", body);
         Assert.DoesNotContain("sensitive stack detail", body);
+    }
+
+    [Fact]
+    public async Task CorrelationIdMiddleware_UsesIncomingHeaderAsTraceIdentifierAndResponseHeader()
+    {
+        var middleware = new CorrelationIdMiddleware(
+            context =>
+            {
+                Assert.Equal("test-hop-001", context.TraceIdentifier);
+                return Task.CompletedTask;
+            },
+            NullLogger<CorrelationIdMiddleware>.Instance);
+        var context = new DefaultHttpContext();
+        context.Request.Headers[CorrelationIdMiddleware.HeaderName] = "test-hop-001";
+
+        await middleware.InvokeAsync(context);
+
+        Assert.Equal("test-hop-001", context.TraceIdentifier);
+        Assert.Equal("test-hop-001", context.Response.Headers[CorrelationIdMiddleware.HeaderName]);
     }
 
     private static AppDbContext CreateDbContext(string name)

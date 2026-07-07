@@ -23,6 +23,7 @@ public class AdminHealthController(
         var database = await CheckDatabase(cancellationToken);
         var storage = CheckStorage();
         var line = await CheckLine(cancellationToken);
+        var queue = await CheckQueue(cancellationToken);
         var disk = CheckDisk();
         var backup = CheckBackup();
         var version = typeof(Program).Assembly.GetName().Version?.ToString() ?? "1.0.0";
@@ -32,6 +33,7 @@ public class AdminHealthController(
             Database: database,
             Storage: storage,
             Line: line,
+            Queue: queue,
             Disk: disk,
             Backup: backup,
             Version: version,
@@ -124,6 +126,73 @@ public class AdminHealthController(
             lastSuccess == default ? null : lastSuccess,
             lastFailure == default ? null : lastFailure,
             message);
+    }
+
+    private async Task<QueueHealthResponse> CheckQueue(CancellationToken cancellationToken)
+    {
+        var lineRetryEnabled = configuration.GetValue("LineRetry:Enabled", false);
+        var approvalEscalationEnabled = configuration.GetValue("ApprovalEscalation:Enabled", false);
+
+        try
+        {
+            var now = DateTime.UtcNow;
+            var deliveryStats = await db.LineDeliveryLogs
+                .AsNoTracking()
+                .GroupBy(_ => 1)
+                .Select(group => new
+                {
+                    Pending = group.Count(item => item.Status == "Queued"),
+                    Failed = group.Count(item => item.Status == "Failed"),
+                    PendingRetries = group.Count(item =>
+                        (item.Status == "Queued" || item.Status == "Failed") &&
+                        (item.NextRetryAt == null || item.NextRetryAt <= now)),
+                    LastSuccess = group
+                        .Where(item => item.Status == "Sent" || item.Status == "Success")
+                        .Max(item => (DateTime?)(item.SentAt ?? item.UpdatedAt ?? item.CreatedAt)),
+                    LastFailure = group
+                        .Where(item => item.Status == "Failed")
+                        .Max(item => (DateTime?)(item.UpdatedAt ?? item.CreatedAt))
+                })
+                .FirstOrDefaultAsync(cancellationToken);
+
+            var pending = deliveryStats?.Pending ?? 0;
+            var failed = deliveryStats?.Failed ?? 0;
+            var pendingRetries = deliveryStats?.PendingRetries ?? 0;
+            var status = failed > 0
+                ? "Warning"
+                : pending > 100
+                    ? "Warning"
+                    : "Healthy";
+            var message = status == "Warning"
+                ? $"LINE queue มี pending {pending} รายการ, failed {failed} รายการ, retry พร้อมส่ง {pendingRetries} รายการ"
+                : lineRetryEnabled || approvalEscalationEnabled
+                    ? "worker พร้อมใช้งาน"
+                    : "worker ยังปิดใช้งานตาม configuration";
+
+            return new QueueHealthResponse(
+                status,
+                lineRetryEnabled,
+                approvalEscalationEnabled,
+                pending,
+                failed,
+                pendingRetries,
+                deliveryStats?.LastSuccess,
+                deliveryStats?.LastFailure,
+                message);
+        }
+        catch (Exception)
+        {
+            return new QueueHealthResponse(
+                "Warning",
+                lineRetryEnabled,
+                approvalEscalationEnabled,
+                0,
+                0,
+                0,
+                null,
+                null,
+                "ไม่สามารถตรวจสอบ queue หรือ worker ได้");
+        }
     }
 
     private DiskHealthResponse CheckDisk()

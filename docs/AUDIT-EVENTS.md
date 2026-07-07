@@ -1,5 +1,28 @@
 # Audit Events
 
+## Phase 1 Core Events
+
+| Event | Description |
+| --- | --- |
+| `Auth.LoginSuccess` | ผู้ใช้เข้าสู่ระบบสำเร็จ |
+| `Auth.LoginFailed` | เข้าสู่ระบบไม่สำเร็จ |
+| `Auth.LoginLocked` | บัญชีหรือ username ถูก rate limit/lock ชั่วคราวจากการ login ผิดหลายครั้ง |
+| `PermissionDenied` | ผู้ใช้พยายามเรียก endpoint หรือ action ที่ไม่มีสิทธิ์ |
+| `LeaveRequest.Created` | สร้างคำขอลา |
+| `LeaveRequest.Submitted` | ส่งคำขอเข้าสู่ workflow อนุมัติ |
+| `LeaveRequest.Approved` | อนุมัติคำขอลาใน current step |
+| `LeaveRequest.Rejected` | ไม่อนุมัติคำขอลาใน current step |
+| `LeaveRequest.Cancelled` | ผู้ขอยกเลิกคำขอลา |
+| `LeaveRequest.PdfGenerated` | Generate/Download PDF ใบลา |
+| `LeaveAttachment.Upload` | แนบไฟล์กับคำขอลาสำเร็จ |
+| `LeaveAttachment.UploadFailed` | แนบไฟล์ไม่สำเร็จ |
+| `UserProfile.Updated` | ผู้ใช้อัปเดตข้อมูลส่วนตัว |
+| `UserProfile.ImageUploaded` | ผู้ใช้อัปโหลดรูปโปรไฟล์ |
+| `AuditLog.Export` | Export audit log เป็น CSV |
+| `AuditLog.ExportExcel` | Export audit log เป็น Excel |
+| `AuditLog.ExportPdf` | Export audit log เป็น PDF |
+| `AuditLog.RetentionRun` | รัน retention เพื่อลบ audit log ที่เกินอายุ |
+
 ## Leave Support and Governance
 
 | Event | Description |
@@ -23,3 +46,7 @@
 | `Line.TestMessageFailed` | ส่งข้อความทดสอบ LINE ไม่สำเร็จ หรือ config ไม่ครบ |
 
 ทุก event ต้องมี actor ถ้ามี, target resource, result และ detail เพียงพอสำหรับ audit ย้อนหลัง
+
+## Coverage Note
+
+ควรตรวจ event ข้างต้นใน Phase 1 pilot test report หลังทำ manual workflow จริงอย่างน้อย 1 รอบ: create, submit, approve, reject, cancel, PDF download, attachment upload, login success/fail, permission denied, export และ retention run

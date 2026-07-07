@@ -23,6 +23,8 @@
 
 ## Role Mapping
 
+> **HR ใน Phase 1:** ไม่ seed role `HR` แยกใน runtime ปัจจุบัน งาน HR ด้านระบบลาให้ map เป็น role `LeaveAdmin` โดยตรง ส่วน `Admin` ใช้สำหรับผู้ดูแลระบบที่ได้รับสิทธิ์ support เพิ่มเติมเท่านั้น
+
 | Role | Permissions |
 | --- | --- |
 | Staff | `LeaveRequest.ViewOwn`, `LeaveRequest.Create`, `LeaveRequest.EditOwn`, `LeaveRequest.CancelOwn` |
@@ -31,7 +33,7 @@
 | LeaveAdmin | `LeaveRequest.ViewDepartment`, `LeaveAdmin.ManageTypes`, `LeaveAdmin.ManageBalances`, `LeaveAdmin.ManageHolidays`, `LeaveAdmin.ManageApprovalChains` |
 | SuperAdmin | `LeaveRequest.ViewAll`, `LeaveApproval.Override`, `LeaveApproval.Delegate`, และ admin permissions ทั้งหมด |
 
-`Admin` ยังถูก seed ให้มี admin permissions หลักเพื่อ backward compatibility กับ deployment เดิม แต่ role ใหม่ที่แนะนำสำหรับงานระบบลาคือ `LeaveAdmin`
+`Admin` ยังถูก seed ให้มี admin permissions หลักเพื่อ backward compatibility กับ deployment เดิม แต่ role ที่ใช้แทน HR operator สำหรับ Phase 1 คือ `LeaveAdmin`
 
 ## Visibility Rules
 

@@ -26,6 +26,7 @@ SystemSettings.View
 | Storage Status | ตรวจว่า storage path เขียนไฟล์ได้หรือไม่ |
 | LINE Status | เปิดใช้งานหรือไม่ และเวลาส่งสำเร็จ/ล้มเหลวล่าสุด |
 | Disk Usage | เปอร์เซ็นต์การใช้งาน disk ของ storage root |
+| Queue / Worker Status | จำนวน LINE delivery ที่รอส่ง, failed, retry และสถานะ worker ที่เปิดใช้งาน |
 | Backup Status | เวลา backup ล่าสุดจาก `BACKUP_ROOT` หรือโฟลเดอร์ `backups` |
 | App Version | version ของ backend assembly |
 | Environment | Development / Production |
@@ -59,6 +60,7 @@ Response แสดงเฉพาะ status, message แบบปลอดภั
 2. ไปที่เมนู `สถานะระบบ`
 3. ตรวจ card แต่ละใบ
 4. กดปุ่ม `รีเฟรช`
-5. ตรวจว่าไม่มี secret/token แสดงบนหน้าเว็บหรือ network response
+5. ตรวจ Queue / Worker Status ว่าแสดง `LINE pending`, `failed`, `retry`, `LINE retry` และ `Escalation`
+6. ตรวจว่าไม่มี secret/token แสดงบนหน้าเว็บหรือ network response
 
 เอกสารนี้เป็นส่วนหนึ่งของโครงการ Hospital Operations Portal (HOP) โรงพยาบาลนาหมื่น

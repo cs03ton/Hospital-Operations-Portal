@@ -83,7 +83,8 @@ Use this checklist before deploying HOP to the first real department.
 
 ## Backup and Rollback
 
-- [ ] `scripts/backup-postgres.ps1` creates a backup dump.
+- [ ] Production backup completed with `scripts/backup/backup-hop.sh`.
+- [ ] Production restore command reviewed with `scripts/backup/restore-hop.sh`.
 - [ ] Restore workflow is rehearsed on a non-production database.
 - [ ] Uploaded file storage backup is available.
 - [ ] Rollback command is documented for the release.

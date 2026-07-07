@@ -1,7 +1,7 @@
 # Production Readiness Audit: Hospital Operations Portal (HOP)
 
 วันที่ตรวจสอบ: 6 กรกฎาคม 2026  
-ปรับปรุงล่าสุด: 6 กรกฎาคม 2026 จากการ scan repository ปัจจุบัน  
+ปรับปรุงล่าสุด: 7 กรกฎาคม 2026 หลังแก้ P0 Secret Hygiene, HR Mapping, CI Gate, Correlation ID และ Queue Health
 ขอบเขต: ตรวจสอบสถานะจริงจาก repository และ working tree ปัจจุบันเท่านั้น  
 ข้อจำกัด: ไม่ได้แก้ source code, config, database schema หรือรัน deploy จริง มีการสร้างรายงานนี้เป็นไฟล์เดียว
 
@@ -11,9 +11,9 @@ HOP มีความพร้อมด้าน Production Readiness อยู
 
 อย่างไรก็ตามยังมีความเสี่ยงก่อน production จริง โดยเฉพาะ:
 
-- **P0:** Secret management ยังต้องปิดงานให้เรียบร้อยก่อน deploy จริง เนื่องจากมี local `.env` / `.env.development` ที่มี secret ในเครื่อง, มี dev password `Admin@1234` อยู่ใน source/docs, และ `.env.production.example` ยังเป็นไฟล์ untracked ใน working tree
-- **P1:** Docker/deploy พร้อมใช้เชิงโครงสร้าง แต่ยังมี fallback `localhost` ใน frontend/runtime defaults ที่ต้องควบคุมด้วย env production และควรเพิ่ม TLS checklist ให้ชัดเจน
-- **P1:** Testing มี backend tests และ QA report แล้ว แต่รายงานล่าสุดยังระบุว่า manual browser E2E, LINE real delivery และ PDF visual check ต้อง rerun บน pilot database จริง
+- **P0:** Secret management ดีขึ้นแล้ว: ลบ default dev password ออกจาก source/login/e2e/seeder, example env ถูก sanitize และ frontend production fallback เปลี่ยนเป็น same-origin แล้ว แต่ยังต้อง rotate secret จริงและ track `.env.production.example`
+- **P1:** Docker/deploy พร้อมใช้เชิงโครงสร้าง และเพิ่ม CI/production readiness gate + frontend dist scan แล้ว แต่ยังต้องยืนยัน live deploy บน staging/pilot และ TLS/domain จริง
+- **P1:** Automated backend/frontend gate ล่าสุดผ่าน (`dotnet test` 116/116 และ `npm run build`) แต่ manual browser E2E, LINE real delivery และ PDF visual check ยังต้อง rerun บน pilot database จริง
 - **P1:** Backup/restore มี script และเอกสาร แต่ยังไม่พบหลักฐาน cron/schedule จริงหรือผล monthly restore test จริง
 
 สรุป Go/No-Go: **ยังไม่ควร Production Go-Live แบบเต็ม** จนกว่าจะปิด P0 และ rerun P1 validation บน environment pilot จริง แต่สามารถใช้เป็นฐานสำหรับ Pilot Readiness ได้หากดำเนิน checklist ที่ระบุไว้ครบ
@@ -22,15 +22,15 @@ HOP มีความพร้อมด้าน Production Readiness อยู
 
 | Area | Status | Priority | Evidence | Gap | Recommended Next Action |
 |---|---|---:|---|---|---|
-| Secret Management | Risk | P0 | `.gitignore`, `.env.example`, `.env.production.example`, `backend/Hop.Api/appsettings.json`, `backend/Hop.Api/Program.cs`, `frontend/src/pages/LoginPage.tsx` | มี local `.env`/`.env.development` ที่มี secret ในเครื่อง, `.env.production.example` ยัง untracked, source มี dev password `Admin@1234`, frontend มี fallback localhost | track sanitized `.env.production.example`, ลบ/ย้าย dev credential ออกจาก source UI, rotate secret ที่เคยใช้ทดสอบจริง, ใช้ secret manager หรือ protected env บน server |
-| Docker / Deploy | Partial | P1 | `docker-compose.prod.yml`, `deploy/nginx.conf`, `deploy/*.sh`, `deploy/backend.Dockerfile`, `deploy/frontend.Dockerfile`, `docs/DEPLOYMENT.md` | โครงครบ แต่ยังต้องยืนยัน `.env.production`, TLS, domain, public URL, และ frontend fallback | dry-run `docker compose config`, deploy staging, เพิ่ม TLS/HTTPS runbook และยืนยัน `VITE_API_BASE_URL` production |
-| Backup / Restore | Partial | P1 | `scripts/backup/backup-hop.sh`, `scripts/backup/restore-hop.sh`, `docs/BACKUP-RESTORE.md` | มี script และ runbook แต่ยังไม่พบหลักฐาน cron จริงหรือ monthly restore test จริง; checklist บางจุดอ้าง script เก่า | ตั้ง cron/systemd timer, เก็บผล restore test รายเดือน, sync checklist ให้ตรงกับ script ใหม่ |
-| Health Check | Done / Partial | P1 | `backend/Hop.Api/Program.cs`, `backend/Hop.Api/Controllers/AdminHealthController.cs`, `frontend/src/pages/AdminHealthPage.tsx`, `docs/HEALTH-DASHBOARD.md` | มี `/health`, `/healthz`, `/api/admin/health`; backup health ยังตรวจจาก folder/file ล่าสุด ไม่ใช่ job status จริง | เพิ่ม backup job status file และ alert hook ภายหลัง |
-| Error Handling | Done | P1 | `backend/Hop.Api/Middleware/GlobalExceptionMiddleware.cs`, `frontend/src/components/common/ErrorBoundary.tsx`, `frontend/src/api/httpClient.ts`, `docs/ERROR-HANDLING.md` | มี safe Thai error + referenceId แล้ว; ยังควรทดสอบ production mode จริง | เพิ่ม smoke test production exception และ log search by referenceId |
-| Permission & Role | Partial | P0/P1 | `backend/Hop.Api/Authorization/LeavePermissions.cs`, `backend/Hop.Api/Services/LeaveRequestAccessService.cs`, `backend/Hop.Api/Controllers/LeaveRequestsController.cs`, `frontend/src/routes/AppRoutes.tsx`, `docs/PERMISSION-MATRIX.md` | Granular permission ดีขึ้นมาก แต่ไม่พบ role ชื่อ `hr` ตรง ๆ; ใช้ `Admin`/`LeaveAdmin` แทน | ระบุ HR role mapping อย่างเป็นทางการ หรือ seed role `HR` หาก policy ต้องการชื่อ role แยก |
-| Testing | Partial | P1 | `backend/Hop.Api.Tests/*`, `frontend/e2e/*`, `docs/qa/PHASE1-PILOT-TEST-REPORT.md`, `docs/TESTING.md` | Backend tests มี แต่ manual E2E/LINE real/PDF visual ยังต้อง rerun ตามรายงาน | รัน full test suite บน staging/pilot DB และอัปเดต QA report พร้อม screenshots |
+| Secret Management | Partial / Risk | P0 | `.gitignore`, `.env.example`, `.env.production.example`, `backend/Hop.Api/appsettings.json`, `backend/Hop.Api/Program.cs`, `frontend/src/pages/LoginPage.tsx` | Source/default credential risk ลดแล้ว แต่ `.env.production.example` ยัง untracked และยังต้อง rotate secret จริงบน environment จริง | track sanitized `.env.production.example`, rotate LINE/JWT/DB secret ที่เคยใช้จริง, ใช้ protected env หรือ secret manager บน server |
+| Docker / Deploy | Partial | P1 | `docker-compose.prod.yml`, `deploy/nginx.conf`, `deploy/*.sh`, `deploy/backend.Dockerfile`, `deploy/frontend.Dockerfile`, `.github/workflows/ci.yml`, `docs/DEPLOYMENT.md` | โครงครบและ CI validate compose config แล้ว แต่ยังต้องยืนยัน `.env.production`, TLS, domain, public URL บน staging/pilot จริง | deploy staging, รัน `deploy/04-crosscheck.sh`, เพิ่ม TLS/HTTPS runbook หากยังไม่มี |
+| Backup / Restore | Partial | P1 | `scripts/backup/backup-hop.sh`, `scripts/backup/restore-hop.sh`, `docs/BACKUP-RESTORE.md` | มี script/runbook ปัจจุบันแล้ว แต่ยังไม่พบหลักฐาน cron จริงหรือ monthly restore test จริง | ตั้ง cron/systemd timer และเก็บผล restore test รายเดือน |
+| Health Check | Done / Partial | P1/P2 | `backend/Hop.Api/Program.cs`, `backend/Hop.Api/Controllers/AdminHealthController.cs`, `backend/Hop.Api/DTOs/HealthDtos.cs`, `frontend/src/pages/AdminHealthPage.tsx`, `docs/HEALTH-DASHBOARD.md` | มี `/health`, `/healthz`, `/api/admin/health` และ Queue/Worker Health แล้ว; backup health ยังตรวจจาก folder/file ล่าสุด ไม่ใช่ job status จริง | เพิ่ม structured backup job status file และ alert hook ภายหลัง |
+| Error Handling | Done | P1/P2 | `backend/Hop.Api/Middleware/CorrelationIdMiddleware.cs`, `backend/Hop.Api/Middleware/GlobalExceptionMiddleware.cs`, `deploy/nginx.conf`, `frontend/src/components/common/ErrorBoundary.tsx`, `frontend/src/api/httpClient.ts`, `docs/ERROR-HANDLING.md` | มี safe Thai error + referenceId + `X-Correlation-ID`; ยังควรทดสอบ production mode จริงผ่าน reverse proxy | smoke test production exception และค้น log ด้วย correlation id |
+| Permission & Role | Done / Partial | P0/P1 | `backend/Hop.Api/Authorization/LeavePermissions.cs`, `backend/Hop.Api/Services/LeaveRequestAccessService.cs`, `backend/Hop.Api/Controllers/LeaveRequestsController.cs`, `frontend/src/routes/AppRoutes.tsx`, `docs/PERMISSION-MATRIX.md`, `docs/security/PERMISSION-MODEL.md` | HR mapping ถูกล็อกเป็น `LeaveAdmin`; ยังควร regression test dashboard/notification role categories | เพิ่ม regression tests สำหรับ dashboard module visibility และ notification role categories |
+| Testing | Partial | P1 | `backend/Hop.Api.Tests/*`, `frontend/e2e/*`, `docs/qa/PHASE1-PILOT-TEST-REPORT.md`, `docs/TESTING.md` | Automated local gate ล่าสุดผ่าน แต่ manual E2E/LINE real/PDF visual ยังต้อง rerun บน pilot | รัน manual E2E บน pilot DB และอัปเดต QA report พร้อม screenshots |
 | Manual / Docs | Done / Partial | P2 | `docs/manuals/phase1/*`, `docs/manuals/assets/screenshots/*`, `docs/DEPLOYMENT.md`, `docs/PHASE1-PILOT-CHECKLIST.md` | คู่มือและ screenshot มีแล้ว แต่ควร refresh หลัง UI/dashboard ล่าสุด | ทำ doc QA pass รอบสุดท้ายก่อนอบรมผู้ใช้ |
-| Logging / Audit | Done / Partial | P1 | `backend/Hop.Api/Services/AuditLogService.cs`, `backend/Hop.Api/Controllers/AuditLogsController.cs`, `backend/Hop.Api/Middleware/PermissionDeniedAuditMiddleware.cs`, `docs/AUDIT-EVENTS.md`, `docs/AUDIT-RETENTION.md` | Audit/export/retention มีแล้ว แต่ควรยืนยัน event coverage ทั้งหมดจาก workflow จริง | เพิ่ม audit coverage checklist และ retention schedule/owner |
+| Logging / Audit | Done / Partial | P1 | `backend/Hop.Api/Services/AuditLogService.cs`, `backend/Hop.Api/Controllers/AuditLogsController.cs`, `backend/Hop.Api/Middleware/PermissionDeniedAuditMiddleware.cs`, `docs/AUDIT-EVENTS.md`, `docs/AUDIT-RETENTION.md` | Audit/export/retention docs อัปเดตแล้ว แต่ควรยืนยัน event coverage ทั้งหมดจาก workflow จริง | ทำ manual audit workflow บน pilot และกำหนด retention schedule/owner |
 
 ## 1. Secret Management
 
@@ -59,24 +59,23 @@ HOP มีความพร้อมด้าน Production Readiness อยู
   - `Line__ChannelSecret`
   - `Line__AccessToken`
 - `deploy/04-crosscheck.sh` มี secret leakage check สำหรับ frontend dist
-- `frontend/src/pages/LoginPage.tsx` ยังมี dev password string `Admin@1234`
-- `frontend/src/api/httpClient.ts` และ `frontend/src/api/securityApi.ts` มี fallback เป็น `https://localhost:5000`
-- `.env.example` และ docs หลายไฟล์มีค่า example เช่น `Admin@1234`, `change-this-*`, localhost ซึ่งเป็นตัวอย่าง แต่ต้องไม่ใช้จริงใน production
+- `frontend/src/pages/LoginPage.tsx` ไม่มี default username/password แล้ว
+- `backend/Hop.Api/Data/DevelopmentDataSeeder.cs` บังคับรับ `Seed__AdminPassword` และ `Seed__StandardItPassword` จาก environment/config
+- `frontend/src/api/httpClient.ts` และ `frontend/src/api/securityApi.ts` ใช้ same-origin fallback แทน `https://localhost:5000`
+- `.env.example`, `.env.production.example` และ `frontend/.env.example` ถูก sanitize ไม่ใส่ secret/password จริง
 
 ### Gap
 
 - Local `.env` / `.env.development` มีค่า secret จริงในเครื่อง แม้ถูก ignore แต่เป็น operational risk บน workstation
 - `.env.production.example` ยัง untracked ทำให้ production setup อาจไม่ reproducible หากยังไม่ commit template ที่ sanitized
-- dev password `Admin@1234` อยู่ใน source และ docs หลายจุด เป็น risk ด้าน social/operational หากผู้ใช้เข้าใจผิดว่ายังใช้ได้ใน production
-- fallback `localhost` ใน frontend หาก env production ไม่ถูก inject จะทำให้หน้าบ้านชี้ผิด endpoint
+- ยังต้อง rotate secret จริงที่เคยใช้กับ LINE/JWT/DB หากเคยใส่ใน local/test environment
 
 ### Recommended Next Action
 
 - **P0:** Commit เฉพาะ `.env.production.example` ที่ sanitized แล้ว และห้าม commit `.env.production`
-- **P0:** ลบหรือเปลี่ยน `Admin@1234` ใน frontend source ให้เป็น dev-only fixture ที่ไม่แสดงใน production build
 - **P0:** Rotate LINE/JWT/DB secret ที่เคยใส่ใน local หากเคยใช้กับของจริง
 - **P1:** ใช้ server-side secret management เช่น protected `.env.production` permission 600, Docker secrets, หรือ secret manager ตาม infra ที่ใช้จริง
-- **P1:** บังคับ production build fail ถ้า `VITE_API_BASE_URL` หรือ same-origin config ไม่ถูกต้อง
+- **P1:** รัน CI/production readiness gate ต่อเนื่องทุก PR
 
 ## 2. Docker / Deploy
 
@@ -173,11 +172,12 @@ HOP มีความพร้อมด้าน Production Readiness อยู
 - `backend/Hop.Api/Controllers/AdminHealthController.cs`
   - `GET /api/admin/health`
   - `[RequirePermission("SystemSettings.View")]`
-  - ตรวจ Database, Storage, LINE, Disk, Backup, Version, Environment, Server Time
+  - ตรวจ Database, Storage, LINE, Queue/Worker, Disk, Backup, Version, Environment, Server Time
 - `backend/Hop.Api/DTOs/HealthDtos.cs`
-  - มี DTO สำหรับ database/storage/line/disk/backup
+  - มี DTO สำหรับ database/storage/line/queue/disk/backup
 - `frontend/src/pages/AdminHealthPage.tsx`
   - หน้า admin health dashboard
+  - แสดง Queue / Worker Status สำหรับ LINE pending, failed, retry, LINE retry worker และ approval escalation worker
 - `frontend/src/routes/AppRoutes.tsx`
   - route `/admin/health`
 - `docs/HEALTH-DASHBOARD.md`
@@ -186,13 +186,11 @@ HOP มีความพร้อมด้าน Production Readiness อยู
 ### Gap
 
 - Backup health ยังเป็นการ scan folder ล่าสุด ไม่ใช่ผลสำเร็จของ job แบบ structured
-- ยังไม่พบ health check ของ background queue/notification retry worker แบบละเอียด
 - ยังไม่ได้ยืนยันผลบน production/staging runtime จริงใน audit รอบนี้
 
 ### Recommended Next Action
 
 - **P1:** เพิ่ม structured backup status file
-- **P2:** เพิ่ม queue/worker health component
 - **P2:** เพิ่ม endpoint smoke test ใน deployment crosscheck
 
 ## 5. Error Handling
@@ -206,8 +204,14 @@ HOP มีความพร้อมด้าน Production Readiness อยู
   - ใช้ `context.TraceIdentifier` เป็น `referenceId`
   - production response ใช้ข้อความปลอดภัยภาษาไทย
   - development แสดงรายละเอียดมากขึ้นตาม environment
+- `backend/Hop.Api/Middleware/CorrelationIdMiddleware.cs`
+  - รับ/ส่งต่อ `X-Correlation-ID`
+  - ตั้งค่า `HttpContext.TraceIdentifier` ให้ตรงกับ correlation id ที่รับมาเมื่อ valid
 - `backend/Hop.Api/Program.cs`
+  - `app.UseMiddleware<CorrelationIdMiddleware>()`
   - `app.UseMiddleware<GlobalExceptionMiddleware>()`
+- `deploy/nginx.conf`
+  - ส่งต่อ `X-Correlation-ID` ไป backend สำหรับ `/api`, `/health`, `/healthz`
 - `frontend/src/components/common/ErrorBoundary.tsx`
   - แสดง “เกิดข้อผิดพลาด”
   - แสดง `Reference ID`
@@ -220,12 +224,12 @@ HOP มีความพร้อมด้าน Production Readiness อยู
 ### Gap
 
 - ต้องทดสอบจริงใน `ASPNETCORE_ENVIRONMENT=Production`
-- ยังไม่เห็น correlation id ที่ propagate ข้าม reverse proxy เป็น header มาตรฐาน เช่น `X-Correlation-ID`
+- ต้องทดสอบผ่าน reverse proxy จริงว่า `X-Correlation-ID` ปรากฏใน backend log และ response header
 
 ### Recommended Next Action
 
 - **P1:** เพิ่ม production smoke test สำหรับ 500 response
-- **P2:** เพิ่ม correlation id middleware/header ถ้าต้องการ trace ข้าม Nginx/API/log aggregator
+- **P2:** ต่อ correlation id เข้ากับ log aggregator ถ้ามี
 
 ## 6. Permission & Role
 
@@ -259,19 +263,21 @@ HOP มีความพร้อมด้าน Production Readiness อยู
   - ซ่อน/แสดงเมนูตาม permission และ role
 - `docs/PERMISSION-MATRIX.md`
   - ระบุ role/permission matrix
+- `docs/security/PERMISSION-MODEL.md`
+  - ระบุว่า Phase 1 map งาน HR เป็น role `LeaveAdmin` และใช้ `Admin` เฉพาะ support/admin เพิ่มเติม
+- `docs/manuals/phase1/05-HR-User-Guide.md`
+  - คู่มือ HR ระบุ Role `LeaveAdmin` ให้ตรงกับ implementation
 - `docs/LEAVE-REQUEST-VISIBILITY.md`
   - ระบุ BUG-001 fixed: Director no longer has implicit ViewAll
 - พบ authorization attributes ใน controller ประมาณ 129 จุดจากการ scan
 
 ### Gap
 
-- Requirement ระบุ role `hr` แต่ repo ปัจจุบันไม่พบ role ชื่อ `HR` ตรง ๆ; มี `LeaveAdmin`/`Admin` ที่ทำหน้าที่ใกล้เคียง
 - Dashboard module config ยังมีบางจุดที่ใช้ role เช่น `SuperAdmin` เพื่อแสดง dashboard card ซึ่งควรตรวจว่าไม่ขัดกับ policy “ไม่ hardcode role กระจายหลายไฟล์”
 - Notification controller มี role-based categories สำหรับ Staff/DepartmentHead/Director/Admin/SuperAdmin ควรทบทวนต่อว่าไม่ทำให้ visibility ขยายเกิน policy
 
 ### Recommended Next Action
 
-- **P0:** ตัดสินใจว่าจะใช้ role `HR` จริงหรือ map HR เป็น `LeaveAdmin` อย่างเป็นทางการ แล้วอัปเดต docs/seed/UI ให้ตรงกัน
 - **P1:** เพิ่ม regression tests สำหรับ dashboard module visibility และ notification role categories
 - **P1:** ตรวจ endpoint ทุกตัวที่เกี่ยวกับ calendar/report ว่าใช้ `LeaveRequestAccessService` หรือ policy equivalent
 
@@ -302,6 +308,12 @@ HOP มีความพร้อมด้าน Production Readiness อยู
   - `docs/TESTING.md`
   - `docs/qa/PHASE1-PILOT-TEST-REPORT.md`
   - `docs/PHASE1-PILOT-CHECKLIST.md`
+- รอบตรวจล่าสุด 7 กรกฎาคม 2026:
+  - `dotnet test backend/Hop.Api.Tests/Hop.Api.Tests.csproj` ผ่าน 116/116
+  - `npm run build` ผ่านเมื่อ build แบบ same-origin (`VITE_API_URL=''`, `VITE_API_BASE_URL=''`)
+  - `frontend/dist` scan ไม่พบ localhost/secret/default credential markers
+- CI:
+  - `.github/workflows/ci.yml` มี frontend dist readiness scan และ production readiness gate
 - `docs/qa/PHASE1-PILOT-TEST-REPORT.md` ระบุ:
   - Automated result: 86 passed, 0 failed
   - Frontend build result: Passed
@@ -310,7 +322,6 @@ HOP มีความพร้อมด้าน Production Readiness อยู
 
 ### Gap
 
-- Audit รอบนี้ไม่ได้รัน `dotnet test` หรือ `npm run build`; ตรวจจาก repository และรายงานที่มีอยู่เท่านั้น
 - รายงาน QA ระบุ manual browser E2E, LINE real delivery และ PDF visual rendering ยังต้องทำซ้ำบน pilot database จริง
 - `frontend/e2e/phase1-web-qa.spec.ts` ยังพบ URL fallback บางจุดเป็น localhost ซึ่งเหมาะกับ local แต่ต้องตั้ง env สำหรับ pilot
 
@@ -321,7 +332,7 @@ HOP มีความพร้อมด้าน Production Readiness อยู
   - `npm run build`
   - `npm run e2e:phase1` หรือ Playwright command ที่ใช้จริง
 - **P1:** อัปเดต `docs/qa/PHASE1-PILOT-TEST-REPORT.md` ด้วยผลล่าสุด, screenshot paths และ bug list
-- **P2:** เพิ่ม CI gate สำหรับ production readiness tests
+- **P2:** ตรวจ CI gate บน PR จริงและเก็บ artifact/log ตาม policy
 
 ## 8. Manual / Docs
 
@@ -424,10 +435,9 @@ HOP มีความพร้อมด้าน Production Readiness อยู
 
 1. ปิด Secret Management:
    - track `.env.production.example` ที่ sanitized
-   - ลบ dev password ออกจาก source UI หรือจำกัดเป็น dev-only
    - rotate secret ที่ใช้จริงใน local/test หากมีโอกาสรั่ว
 2. ตัดสินใจ role HR:
-   - เพิ่ม role `HR` หรือประกาศ mapping เป็น `LeaveAdmin`/`Admin` ให้ชัดใน seed/docs/UI
+   - เสร็จแล้ว: Phase 1 map HR operator เป็น `LeaveAdmin`
 3. ยืนยัน production env:
    - `Jwt__Key`
    - `ConnectionStrings__DefaultConnection`
@@ -442,16 +452,16 @@ HOP มีความพร้อมด้าน Production Readiness อยู
 2. ทดสอบ LINE real delivery ด้วย LINE OA/channel จริง
 3. เปิด PDF ภาษาไทยจาก browser จริงและตรวจ layout
 4. ตั้ง backup cron/systemd timer และทำ restore test
-5. เพิ่ม staging/deploy crosscheck ว่า frontend dist ไม่มี localhost/secret markers
-6. อัปเดต checklist ที่อ้าง script backup เก่า
+5. รัน staging/deploy crosscheck ว่า frontend dist ไม่มี localhost/secret markers
+6. ตรวจ CI production readiness gate บน PR จริง
 
 ### P2: ทำหลัง pilot หรือก่อน scale-up
 
 1. เพิ่ม structured backup status และ alert
-2. เพิ่ม correlation id header ข้าม Nginx/API
-3. เพิ่ม CI gate สำหรับ production readiness
+2. เสร็จแล้ว: เพิ่ม correlation id header ข้าม Nginx/API
+3. เสร็จแล้ว: เพิ่ม CI gate สำหรับ production readiness
 4. refresh screenshots/manual หลัง UI freeze
-5. เพิ่ม queue/background worker health ถ้ามีการเปิดใช้ worker จริง
+5. เสร็จแล้ว: เพิ่ม queue/background worker health ใน Admin Health
 
 ## Files Inspected
 
@@ -545,16 +555,16 @@ HOP มีความพร้อมด้าน Production Readiness อยู
 
 | Category | Readiness |
 |---|---:|
-| Secret Management | 60% |
-| Docker / Deploy | 80% |
+| Secret Management | 75% |
+| Docker / Deploy | 85% |
 | Backup / Restore | 75% |
-| Health Check | 85% |
-| Error Handling | 85% |
-| Permission / Role | 80% |
-| Testing | 70% |
+| Health Check | 90% |
+| Error Handling | 90% |
+| Permission / Role | 85% |
+| Testing | 80% |
 | Manual / Docs | 85% |
-| Logging / Audit | 80% |
+| Logging / Audit | 85% |
 
-Overall Readiness: **ประมาณ 78%**
+Overall Readiness: **ประมาณ 83%**
 
-คำแนะนำโดยรวม: HOP มี foundation ที่ดีและใกล้พร้อม Pilot มาก แต่ควรปิด P0 เรื่อง secret/role mapping ก่อน จากนั้น rerun P1 validation บน pilot environment จริงเพื่อยืนยันว่า workflow, LINE, PDF, backup และ permission ทำงานครบตาม production policy.
+คำแนะนำโดยรวม: HOP มี foundation ที่ดีและใกล้พร้อม Pilot มากขึ้นแล้ว โดยปิด role mapping, เพิ่ม CI readiness gate, เพิ่ม correlation id และเพิ่ม queue health แล้ว เหลือ P0 ที่ต้องทำบน environment จริงคือ rotate secret และยืนยัน `.env.production` จากนั้น rerun P1 validation บน pilot environment จริงเพื่อยืนยัน workflow, LINE, PDF, backup และ audit coverage.

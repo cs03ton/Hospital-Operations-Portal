@@ -62,7 +62,7 @@ $env:ConnectionStrings__DefaultConnection='Host=localhost;Port=55432;Database=ho
 $env:Database__SeedOnStartup='true'
 $env:Seed__CreateDefaultAdmin='true'
 $env:Seed__AdminUsername='admin'
-$env:Seed__AdminPassword='Admin@1234'
+$env:Seed__AdminPassword='<qa-admin-password>'
 $env:Seed__AdminFullName='Default Administrator'
 $env:Seed__AdminEmployeeCode='ADMIN'
 
@@ -82,7 +82,7 @@ Start-Sleep -Seconds 8
 
 curl.exe -f http://localhost:55000/healthz
 docker exec hop-qa-postgres psql -U hop_qa -d hop_qa -c "SELECT table_name FROM information_schema.tables WHERE table_schema='public' AND table_name IN ('users','roles','permissions','leave_types','leave_requests','leave_approvals','leave_attachments','leave_balances','approval_chains','approval_chain_steps','approval_delegations','approval_escalation_rules','line_delivery_logs') ORDER BY table_name;"
-curl.exe -s -X POST http://localhost:55000/api/auth/login -H "Content-Type: application/json" -d "{\"username\":\"admin\",\"password\":\"Admin@1234\"}"
+curl.exe -s -X POST http://localhost:55000/api/auth/login -H "Content-Type: application/json" -d "{\"username\":\"admin\",\"password\":\"<qa-admin-password>\"}"
 
 Stop-Process -Id $backend.Id
 docker rm -f hop-qa-postgres
@@ -135,7 +135,7 @@ $backend = Start-Process -FilePath dotnet -ArgumentList "run --project backend/H
 Start-Sleep -Seconds 8
 
 curl.exe -s -X POST http://localhost:55000/api/auth/login -H "Content-Type: application/json" -d "{\"username\":\"<production-admin-username>\",\"password\":\"<strong-temporary-password>\"}"
-curl.exe -s -X POST http://localhost:55000/api/auth/login -H "Content-Type: application/json" -d "{\"username\":\"admin\",\"password\":\"Admin@1234\"}"
+curl.exe -s -X POST http://localhost:55000/api/auth/login -H "Content-Type: application/json" -d "{\"username\":\"admin\",\"password\":\"<old-development-password>\"}"
 Stop-Process -Id $backend.Id
 ```
 
