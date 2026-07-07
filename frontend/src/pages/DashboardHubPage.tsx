@@ -6,7 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link as RouterLink } from "react-router-dom";
 import { getDashboardSummary } from "../api/adminApi";
 import { PageHeader } from "../components/PageHeader";
-import { dashboardModules, getVisibleDashboardModules } from "../config/dashboardModules";
+import { dashboardModules, getDashboardModuleMetricLabel, getVisibleDashboardModules } from "../config/dashboardModules";
 import { hospitalName } from "../config/appConfig";
 import { useAuth } from "../context/AuthContext";
 import { brandColors } from "../theme/theme";
@@ -38,6 +38,7 @@ export function DashboardHubPage() {
           const Icon = module.icon;
           const disabled = module.status !== "active";
           const metric = module.metricSelector(data);
+          const metricLabel = getDashboardModuleMetricLabel(module, user);
 
           return (
             <Grid item xs={12} sm={6} lg={4} key={module.key}>
@@ -95,7 +96,7 @@ export function DashboardHubPage() {
                       }}
                     >
                       <Typography variant="caption" color="text.secondary">
-                        {module.metricLabel}
+                        {metricLabel}
                       </Typography>
                       {isLoading ? (
                         <Skeleton width={96} height={36} />

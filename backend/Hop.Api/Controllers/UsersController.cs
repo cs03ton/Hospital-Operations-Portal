@@ -47,13 +47,81 @@ public class UsersController(AppDbContext db, IAuditLogService auditLogService, 
 
     [HttpGet]
     [RequirePermission("UserManagement.View")]
-    public async Task<ActionResult<ApiResponse<IReadOnlyList<UserResponse>>>> GetUsers()
+    public async Task<ActionResult<ApiResponse<object>>> GetUsers(
+        int? page = null,
+        int pageSize = 20,
+        string? search = null,
+        string? sort = "fullname",
+        string? direction = "asc",
+        Guid? departmentId = null,
+        Guid? roleId = null,
+        string? employmentType = null,
+        string? status = null,
+        bool? hasLine = null)
     {
-        var users = await LoadUsers()
-            .OrderBy(user => user.FullName)
+        var query = LoadUsers();
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var keyword = search.Trim().ToLower();
+            query = query.Where(user =>
+                user.Username.ToLower().Contains(keyword) ||
+                user.FullName.ToLower().Contains(keyword) ||
+                (user.Department != null && user.Department.Name.ToLower().Contains(keyword)) ||
+                user.UserRoles.Any(userRole => userRole.Role != null && userRole.Role.Name.ToLower().Contains(keyword)));
+        }
+
+        if (departmentId is not null)
+        {
+            query = query.Where(user => user.DepartmentId == departmentId);
+        }
+
+        if (roleId is not null)
+        {
+            query = query.Where(user => user.UserRoles.Any(userRole => userRole.RoleId == roleId));
+        }
+
+        if (!string.IsNullOrWhiteSpace(employmentType))
+        {
+            var normalizedEmploymentType = NormalizeEmploymentType(employmentType);
+            query = query.Where(user => user.EmploymentType == normalizedEmploymentType);
+        }
+
+        if (!string.IsNullOrWhiteSpace(status) && !status.Equals("all", StringComparison.OrdinalIgnoreCase))
+        {
+            var active = status.Equals("active", StringComparison.OrdinalIgnoreCase);
+            query = query.Where(user => user.IsActive == active);
+        }
+
+        if (hasLine is not null)
+        {
+            query = hasLine.Value
+                ? query.Where(user => !string.IsNullOrWhiteSpace(user.LineUserId))
+                : query.Where(user => string.IsNullOrWhiteSpace(user.LineUserId));
+        }
+
+        query = ApplyUserSorting(query, sort, direction);
+
+        if (page is null)
+        {
+            var users = await query.ToListAsync();
+            return ApiResponse<object>.Ok(users.Select(ToResponse).ToList());
+        }
+
+        var currentPage = Math.Max(1, page.Value);
+        var currentPageSize = Math.Clamp(pageSize, 1, 100);
+        var totalItems = await query.CountAsync();
+        var items = await query
+            .Skip((currentPage - 1) * currentPageSize)
+            .Take(currentPageSize)
             .ToListAsync();
 
-        return ApiResponse<IReadOnlyList<UserResponse>>.Ok(users.Select(ToResponse).ToList());
+        return ApiResponse<object>.Ok(new PagedResponse<UserResponse>(
+            items.Select(ToResponse).ToList(),
+            currentPage,
+            currentPageSize,
+            totalItems,
+            (int)Math.Ceiling(totalItems / (double)currentPageSize)));
     }
 
     [HttpGet("{id:guid}")]
@@ -248,20 +316,72 @@ public class UsersController(AppDbContext db, IAuditLogService auditLogService, 
 
     [HttpDelete("{id:guid}")]
     [RequirePermission("UserManagement.Delete")]
-    public async Task<IActionResult> DeleteUser(Guid id)
+    public async Task<ActionResult<ApiResponse<DeleteResultResponse>>> DeleteUser(Guid id)
     {
-        var user = await db.Users.FirstOrDefaultAsync(item => item.Id == id);
+        var user = await db.Users
+            .Include(item => item.UserRoles)
+                .ThenInclude(item => item.Role)
+            .FirstOrDefaultAsync(item => item.Id == id);
         if (user is null)
         {
             return NotFound(ApiResponse<string>.Fail("User not found."));
         }
 
-        user.IsActive = false;
-        user.UpdatedAt = DateTime.UtcNow;
-        await db.SaveChangesAsync();
-        await auditLogService.WriteAsync(GetCurrentUserId(), "User.Delete", "User", user.Id.ToString(), $"Deactivated user {user.Username}.", "Success", HttpContext);
+        var currentUserId = GetCurrentUserId();
+        if (currentUserId == id)
+        {
+            return Conflict(ApiResponse<DeleteResultResponse>.Fail("ไม่สามารถลบผู้ใช้งานที่กำลังเข้าสู่ระบบอยู่ได้"));
+        }
 
-        return NoContent();
+        if (user.UserRoles.Any(item => item.Role?.Name == "SuperAdmin"))
+        {
+            var activeSuperAdminCount = await db.UserRoles
+                .CountAsync(item => item.Role != null && item.Role.Name == "SuperAdmin" && item.User != null && item.User.IsActive);
+            if (activeSuperAdminCount <= 1)
+            {
+                return Conflict(ApiResponse<DeleteResultResponse>.Fail("ไม่สามารถลบ SuperAdmin คนสุดท้ายของระบบได้"));
+            }
+        }
+
+        var currentApproverCount = await db.LeaveRequests.CountAsync(item =>
+            item.CurrentApproverId == id &&
+            item.Status != "Approved" &&
+            item.Status != "Rejected" &&
+            item.Status != "Cancelled");
+        if (currentApproverCount > 0)
+        {
+            return Conflict(ApiResponse<DeleteResultResponse>.Fail("ไม่สามารถลบผู้ใช้งานได้ เนื่องจากเป็นผู้อนุมัติปัจจุบันของคำขอลา"));
+        }
+
+        var references = await GetUserDeleteReferences(id);
+        if (references.Any(item => item.Count > 0))
+        {
+            user.IsActive = false;
+            user.UpdatedAt = DateTime.UtcNow;
+            foreach (var refreshToken in await db.RefreshTokens.Where(item => item.UserId == id && item.RevokedAt == null).ToListAsync())
+            {
+                refreshToken.RevokedAt = DateTime.UtcNow;
+                refreshToken.RevokedReason = "User deleted by administrator";
+            }
+
+            await db.SaveChangesAsync();
+            await auditLogService.WriteAsync(currentUserId, "User.SoftDelete", "User", user.Id.ToString(), $"Soft deleted user {user.Username}.", "Success", HttpContext);
+
+            return ApiResponse<DeleteResultResponse>.Ok(new DeleteResultResponse(
+                "SoftDeleted",
+                "ไม่สามารถลบผู้ใช้งานได้ เนื่องจากมีข้อมูลอ้างอิงในระบบ ระบบจึงปิดการใช้งานผู้ใช้แทน",
+                references));
+        }
+
+        db.UserRoles.RemoveRange(user.UserRoles);
+        db.Users.Remove(user);
+        await db.SaveChangesAsync();
+        await auditLogService.WriteAsync(currentUserId, "User.Delete", "User", user.Id.ToString(), $"Deleted user {user.Username}.", "Success", HttpContext);
+
+        return ApiResponse<DeleteResultResponse>.Ok(new DeleteResultResponse(
+            "Deleted",
+            "ลบผู้ใช้งานเรียบร้อยแล้ว",
+            references));
     }
 
     private IQueryable<User> LoadUsers()
@@ -269,8 +389,50 @@ public class UsersController(AppDbContext db, IAuditLogService auditLogService, 
         return db.Users
             .Include(user => user.Department)
             .Include(user => user.LeaveApprovalRule)
+            .Include(user => user.RefreshTokens)
             .Include(user => user.UserRoles)
                 .ThenInclude(userRole => userRole.Role);
+    }
+
+    private static IQueryable<User> ApplyUserSorting(IQueryable<User> query, string? sort, string? direction)
+    {
+        var descending = direction?.Equals("desc", StringComparison.OrdinalIgnoreCase) == true;
+        var normalizedSort = string.IsNullOrWhiteSpace(sort) ? "fullname" : sort.Trim().ToLowerInvariant();
+
+        return (normalizedSort, descending) switch
+        {
+            ("username", true) => query.OrderByDescending(user => user.Username),
+            ("username", false) => query.OrderBy(user => user.Username),
+            ("name", true) or ("fullname", true) => query.OrderByDescending(user => user.FullName),
+            ("name", false) or ("fullname", false) => query.OrderBy(user => user.FullName),
+            ("department", true) => query.OrderByDescending(user => user.Department != null ? user.Department.Name : string.Empty),
+            ("department", false) => query.OrderBy(user => user.Department != null ? user.Department.Name : string.Empty),
+            ("createdat", true) or ("created", true) => query.OrderByDescending(user => user.CreatedAt),
+            ("createdat", false) or ("created", false) => query.OrderBy(user => user.CreatedAt),
+            ("lastlogin", true) => query.OrderByDescending(user => user.RefreshTokens.Max(token => token.LastUsedAt ?? token.CreatedAt)),
+            ("lastlogin", false) => query.OrderBy(user => user.RefreshTokens.Max(token => token.LastUsedAt ?? token.CreatedAt)),
+            _ => descending ? query.OrderByDescending(user => user.FullName) : query.OrderBy(user => user.FullName)
+        };
+    }
+
+    private async Task<IReadOnlyList<DeleteReferenceSummary>> GetUserDeleteReferences(Guid id)
+    {
+        return
+        [
+            new DeleteReferenceSummary("Leave Requests", await db.LeaveRequests.CountAsync(item => item.UserId == id)),
+            new DeleteReferenceSummary("Leave Approvals", await db.LeaveApprovals.CountAsync(item => item.ApproverId == id)),
+            new DeleteReferenceSummary("Current Approver", await db.LeaveRequests.CountAsync(item => item.CurrentApproverId == id)),
+            new DeleteReferenceSummary("Approval Chain Steps", await db.ApprovalChainSteps.CountAsync(item => item.ApproverUserId == id)),
+            new DeleteReferenceSummary("Approval Delegations", await db.ApprovalDelegations.CountAsync(item =>
+                item.ApproverUserId == id || item.DelegateUserId == id || item.CreatedByUserId == id)),
+            new DeleteReferenceSummary("Leave Balances", await db.LeaveBalances.CountAsync(item => item.UserId == id)),
+            new DeleteReferenceSummary("Leave Balance Adjustments", await db.LeaveBalanceAdjustments.CountAsync(item =>
+                item.UserId == id || item.AdjustedByUserId == id)),
+            new DeleteReferenceSummary("Audit Logs", await db.AuditLogs.CountAsync(item =>
+                item.UserId == id || (item.EntityName == "User" && item.EntityId == id.ToString()))),
+            new DeleteReferenceSummary("LINE Bindings", await db.LineUserBindings.CountAsync(item => item.UserId == id)),
+            new DeleteReferenceSummary("LINE Delivery Logs", await db.LineDeliveryLogs.CountAsync(item => item.RecipientUserId == id))
+        ];
     }
 
     private static UserResponse ToResponse(User user)
@@ -309,7 +471,11 @@ public class UsersController(AppDbContext db, IAuditLogService auditLogService, 
             user.LineUserId,
             user.IsActive,
             user.CreatedAt,
-            user.UpdatedAt
+            user.UpdatedAt,
+            user.RefreshTokens
+                .Select(token => token.LastUsedAt ?? token.CreatedAt)
+                .OrderByDescending(value => value)
+                .FirstOrDefault()
         );
     }
 

@@ -3,6 +3,7 @@ import DeleteOutlineOutlinedIcon from "@mui/icons-material/DeleteOutlineOutlined
 import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 import RuleOutlinedIcon from "@mui/icons-material/RuleOutlined";
 import {
+  Box, 
   Button,
   Card,
   CardContent,
@@ -55,7 +56,9 @@ export function ApprovalChainManagementPage() {
   return (
     <>
       <Stack direction={{ xs: "column", sm: "row" }} justifyContent="space-between" spacing={2}>
-        <PageHeader title="กฎการอนุมัติวันลา" subtitle="กำหนด rule และลำดับผู้อนุมัติสำหรับผูกกับผู้ใช้งานแต่ละคน" />
+        <Box sx={{ minWidth: 0 }}>
+          <PageHeader title="กฎการอนุมัติวันลา" subtitle="กำหนด rule และลำดับผู้อนุมัติสำหรับผูกกับผู้ใช้งานแต่ละคน" />
+        </Box>        
         <PermissionGuard permission="LeaveAdmin.ManageApprovalChains">
           <ActionTooltip title="เพิ่มกฎการอนุมัติวันลา">
             <Button variant="contained" size="medium" startIcon={<AddOutlinedIcon />} onClick={() => navigate("/admin/approval-chains/create")}>
@@ -63,7 +66,7 @@ export function ApprovalChainManagementPage() {
             </Button>
           </ActionTooltip>
         </PermissionGuard>
-      </Stack>
+      </Stack>      
       <Card>
         <CardContent>
           <Table size="small">

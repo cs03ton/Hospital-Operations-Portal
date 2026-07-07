@@ -26,8 +26,13 @@ import { PageHeader } from "../components/PageHeader";
 import { PermissionGuard } from "../context/PermissionContext";
 import { useNotification } from "../hooks/useNotification";
 import { getRoleLabels } from "../utils/roleLabels";
+import { UserManagementGridPage } from "./UserManagementGridPage";
 
 export function UserManagementPage() {
+  return <UserManagementGridPage />;
+}
+
+function LegacyUserManagementPage() {
   const queryClient = useQueryClient();
   const { showSuccess } = useNotification();
   const [preview, setPreview] = useState<ApprovalRulePreview | null>(null);

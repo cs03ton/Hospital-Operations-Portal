@@ -24,7 +24,8 @@ public record UserResponse(
     string? LineUserId,
     bool IsActive,
     DateTime CreatedAt,
-    DateTime? UpdatedAt
+    DateTime? UpdatedAt,
+    DateTime? LastLoginAt
 );
 
 public record CreateUserRequest(

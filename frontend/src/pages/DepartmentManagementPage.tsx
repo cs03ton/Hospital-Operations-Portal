@@ -26,8 +26,13 @@ import { ActionTooltip } from "../components/common/ActionTooltip";
 import { PageHeader } from "../components/PageHeader";
 import { PermissionGuard } from "../context/PermissionContext";
 import { useNotification } from "../hooks/useNotification";
+import { DepartmentManagementGridPage } from "./DepartmentManagementGridPage";
 
 export function DepartmentManagementPage() {
+  return <DepartmentManagementGridPage />;
+}
+
+function LegacyDepartmentManagementPage() {
   const queryClient = useQueryClient();
   const { showSuccess } = useNotification();
   const [deletingDepartment, setDeletingDepartment] = useState<DepartmentSummary | null>(null);

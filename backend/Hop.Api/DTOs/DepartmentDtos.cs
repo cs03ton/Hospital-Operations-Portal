@@ -6,7 +6,8 @@ public record DepartmentDto(
     string? Description,
     bool IsActive,
     DateTime CreatedAt,
-    DateTime? UpdatedAt
+    DateTime? UpdatedAt,
+    int UsersCount = 0
 );
 
 public record CreateDepartmentRequest(string Name, string? Description, bool IsActive);

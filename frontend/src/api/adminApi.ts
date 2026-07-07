@@ -20,6 +20,7 @@ export type UserSummary = {
   isActive: boolean;
   createdAt: string;
   updatedAt?: string | null;
+  lastLoginAt?: string | null;
 };
 
 export type SaveUserRequest = {
@@ -44,6 +45,7 @@ export type DepartmentSummary = {
   isActive: boolean;
   createdAt: string;
   updatedAt?: string | null;
+  usersCount: number;
 };
 
 export type SaveDepartmentRequest = {
@@ -60,6 +62,8 @@ export type RoleSummary = {
   isActive: boolean;
   createdAt: string;
   updatedAt?: string | null;
+  usersCount: number;
+  permissionsCount: number;
 };
 
 export type SaveRoleRequest = {
@@ -75,6 +79,20 @@ export type PermissionSummary = {
   group: string;
   action: string;
   isActive: boolean;
+  rolesCount: number;
+  createdAt?: string | null;
+  updatedAt?: string | null;
+};
+
+export type DeleteReferenceSummary = {
+  label: string;
+  count: number;
+};
+
+export type DeleteResult = {
+  action: "Deleted" | "SoftDeleted" | "Blocked" | string;
+  message: string;
+  references: DeleteReferenceSummary[];
 };
 
 export type DashboardSummary = {
@@ -206,6 +224,20 @@ export type AuditLogQuery = {
   action?: string;
   from?: string;
   to?: string;
+};
+
+export type ManagementQuery = {
+  page?: number;
+  pageSize?: number;
+  search?: string;
+  sort?: string;
+  direction?: "asc" | "desc";
+  status?: string;
+  departmentId?: string;
+  roleId?: string;
+  employmentType?: string;
+  hasLine?: boolean;
+  module?: string;
 };
 
 export type SystemSettings = {
@@ -360,6 +392,11 @@ export async function getUsers() {
   return response.data.data;
 }
 
+export async function getUsersPaged(params: ManagementQuery = {}) {
+  const response = await httpClient.get<ApiResponse<PagedResponse<UserSummary>>>("/api/users", { params });
+  return response.data.data;
+}
+
 export async function getUser(id: string) {
   const response = await httpClient.get<ApiResponse<UserSummary>>(`/api/users/${id}`);
   return response.data.data;
@@ -375,12 +412,20 @@ export async function updateUser(id: string, payload: SaveUserRequest) {
   return response.data.data;
 }
 
-export async function deactivateUser(id: string) {
-  await httpClient.delete(`/api/users/${id}`);
+export async function deleteUser(id: string) {
+  const response = await httpClient.delete<ApiResponse<DeleteResult>>(`/api/users/${id}`);
+  return response.data.data;
 }
+
+export const deactivateUser = deleteUser;
 
 export async function getDepartments() {
   const response = await httpClient.get<ApiResponse<DepartmentSummary[]>>("/api/departments");
+  return response.data.data;
+}
+
+export async function getDepartmentsPaged(params: ManagementQuery = {}) {
+  const response = await httpClient.get<ApiResponse<PagedResponse<DepartmentSummary>>>("/api/departments", { params });
   return response.data.data;
 }
 
@@ -400,11 +445,17 @@ export async function updateDepartment(id: string, payload: SaveDepartmentReques
 }
 
 export async function deleteDepartment(id: string) {
-  await httpClient.delete(`/api/departments/${id}`);
+  const response = await httpClient.delete<ApiResponse<DeleteResult>>(`/api/departments/${id}`);
+  return response.data.data;
 }
 
 export async function getRoles() {
   const response = await httpClient.get<ApiResponse<RoleSummary[]>>("/api/roles");
+  return response.data.data;
+}
+
+export async function getRolesPaged(params: ManagementQuery = {}) {
+  const response = await httpClient.get<ApiResponse<PagedResponse<RoleSummary>>>("/api/roles", { params });
   return response.data.data;
 }
 
@@ -423,12 +474,25 @@ export async function updateRole(id: string, payload: SaveRoleRequest) {
   return response.data.data;
 }
 
-export async function deactivateRole(id: string) {
-  await httpClient.delete(`/api/roles/${id}`);
+export async function deleteRole(id: string) {
+  const response = await httpClient.delete<ApiResponse<DeleteResult>>(`/api/roles/${id}`);
+  return response.data.data;
 }
+
+export const deactivateRole = deleteRole;
 
 export async function getPermissions() {
   const response = await httpClient.get<ApiResponse<PermissionSummary[]>>("/api/permissions");
+  return response.data.data;
+}
+
+export async function getPermissionsPaged(params: ManagementQuery = {}) {
+  const response = await httpClient.get<ApiResponse<PagedResponse<PermissionSummary>>>("/api/permissions", { params });
+  return response.data.data;
+}
+
+export async function deletePermission(id: string) {
+  const response = await httpClient.delete<ApiResponse<DeleteResult>>(`/api/permissions/${id}`);
   return response.data.data;
 }
 

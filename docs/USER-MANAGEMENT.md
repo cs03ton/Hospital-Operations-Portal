@@ -40,3 +40,81 @@
 - ถ้า user ไม่มี approval rule จะไม่สามารถ submit leave request ได้
 - ถ้า rule ถูกปิดใช้งานควรเปลี่ยน rule ให้ user ก่อนใช้งานจริง
 - ผู้อนุมัติในแต่ละขั้นต้องมี permission `LeaveApproval.ApproveCurrentStep`
+
+## User Management Grid
+
+หน้า `จัดการผู้ใช้` ใช้ตารางมาตรฐานสำหรับข้อมูลหลัก รองรับการใช้งานกับผู้ใช้จำนวนมาก
+
+### Columns
+
+| Column | รายละเอียด |
+| --- | --- |
+| Avatar | รูป/อักษรย่อผู้ใช้งาน |
+| Username | ชื่อผู้ใช้สำหรับ login |
+| Full Name | ชื่อ-นามสกุล |
+| Department | หน่วยงาน |
+| Employment Type | ประเภทบุคลากร |
+| Role | บทบาท |
+| Status | ใช้งาน / ปิดใช้งาน |
+| LINE | สถานะการเชื่อมต่อ LINE |
+| Created Date | วันที่สร้างบัญชี |
+| Last Login | วันที่ login ล่าสุดจาก refresh token |
+| Action | ทดสอบกฎอนุมัติ / แก้ไข / ลบหรือปิดใช้งาน |
+
+### Search / Filter / Sort
+
+- Search: username, ชื่อ-นามสกุล, หน่วยงาน, role
+- Filter: หน่วยงาน, role, employment type, status, has LINE
+- Sort: username, fullname, department, created date, last login
+- Pagination: 10, 20, 50, 100 รายการต่อหน้า
+
+## Delete / Soft Delete Policy
+
+ระบบไม่ hard delete ผู้ใช้ที่มีข้อมูลอ้างอิงสำคัญ เพื่อป้องกันประวัติคำขอลาและ audit log สูญหาย
+
+### Blocked
+
+ระบบจะไม่อนุญาตให้ลบในกรณีต่อไปนี้:
+
+- ผู้ใช้ที่กำลัง login อยู่
+- `SuperAdmin` คนสุดท้ายของระบบ
+- ผู้ใช้ที่เป็น current approver ของคำขอลาที่ยังไม่จบกระบวนการ
+
+### Soft Delete
+
+ถ้าผู้ใช้มีข้อมูลอ้างอิง เช่น leave request, approval history, audit log, approval chain, LINE binding ระบบจะตั้งค่า:
+
+- `IsActive = false`
+- revoke refresh token ที่ยังใช้งานอยู่
+- บันทึก audit event `User.SoftDelete`
+
+ข้อความที่แสดง:
+
+> ไม่สามารถลบผู้ใช้งานได้ เนื่องจากมีข้อมูลอ้างอิงในระบบ ระบบจึงปิดการใช้งานผู้ใช้แทน
+
+### Hard Delete
+
+ใช้เฉพาะผู้ใช้ที่ไม่มีข้อมูลอ้างอิงในระบบเท่านั้น
+
+## API
+
+`GET /api/users`
+
+รองรับ backward-compatible list และรองรับ paging เมื่อส่ง `page`
+
+Query:
+
+- `page`
+- `pageSize`
+- `search`
+- `sort`
+- `direction`
+- `departmentId`
+- `roleId`
+- `employmentType`
+- `status`
+- `hasLine`
+
+`DELETE /api/users/{id}`
+
+คืนค่า `DeleteResultResponse` เพื่อระบุว่าเป็น `Deleted`, `SoftDeleted` หรือ `Blocked`

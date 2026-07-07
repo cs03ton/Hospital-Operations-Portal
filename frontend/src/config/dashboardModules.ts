@@ -112,6 +112,14 @@ export function canAccessDashboardModule(module: DashboardModuleDefinition, user
   return roleAllowed || permissionAllowed;
 }
 
+export function getDashboardModuleMetricLabel(module: DashboardModuleDefinition, user: AuthUser | null | undefined) {
+  if (module.key === "leave" && user?.role === "Staff") {
+    return "คำขอลาของฉันที่รออนุมัติ";
+  }
+
+  return module.metricLabel;
+}
+
 export const dashboardHubModule = {
   title: "Dashboard Hub",
   route: "/dashboard",

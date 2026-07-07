@@ -7,7 +7,9 @@ public record RoleResponse(
     bool IsSystemRole,
     bool IsActive,
     DateTime CreatedAt,
-    DateTime? UpdatedAt
+    DateTime? UpdatedAt,
+    int UsersCount = 0,
+    int PermissionsCount = 0
 );
 
 public record CreateRoleRequest(string Name, string? Description, bool IsActive);
@@ -20,7 +22,10 @@ public record PermissionResponse(
     string Name,
     string Group,
     string Action,
-    bool IsActive
+    bool IsActive,
+    int RolesCount = 0,
+    DateTime? CreatedAt = null,
+    DateTime? UpdatedAt = null
 );
 
 public record UpdateRolePermissionsRequest(IReadOnlyList<Guid> PermissionIds);

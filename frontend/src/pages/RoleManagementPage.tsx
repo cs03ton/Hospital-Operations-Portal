@@ -36,6 +36,7 @@ import { PageHeader } from "../components/PageHeader";
 import { PermissionGuard, usePermission } from "../context/PermissionContext";
 import { useNotification } from "../hooks/useNotification";
 import { getRoleLabel } from "../utils/roleLabels";
+import { RoleManagementGridPage } from "./RoleManagementGridPage";
 
 type RoleFormValues = {
   name: string;
@@ -44,6 +45,10 @@ type RoleFormValues = {
 };
 
 export function RoleManagementPage() {
+  return <RoleManagementGridPage />;
+}
+
+function LegacyRoleManagementPage() {
   const queryClient = useQueryClient();
   const { hasPermission } = usePermission();
   const { showSuccess } = useNotification();
