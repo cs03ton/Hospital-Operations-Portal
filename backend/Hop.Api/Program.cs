@@ -150,6 +150,8 @@ app.UseAuthorization();
 app.MapControllers();
 app.MapHealthChecks("/health");
 app.MapHealthChecks("/healthz");
+app.MapGet("/health/live", () => Results.Ok(new { status = "Healthy" }));
+app.MapHealthChecks("/health/ready");
 app.MapGet("/api", () => ApiResponse<string>.Ok("Hospital Operations Portal API is running."));
 
 app.Run();

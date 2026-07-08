@@ -1,0 +1,15 @@
+[Unit]
+Description=Hospital Operations Portal healthcheck
+Wants=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/hop
+EnvironmentFile=-/etc/hop/monitoring.env
+ExecStart=/opt/hop/scripts/monitoring/hop-healthcheck.sh
+StandardOutput=append:/var/log/hop/healthcheck.log
+StandardError=append:/var/log/hop/healthcheck.log
+
+[Install]
+WantedBy=multi-user.target

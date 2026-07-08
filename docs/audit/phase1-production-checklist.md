@@ -2,7 +2,7 @@
 
 เป้าหมาย: ปิดงาน Production Readiness ของ Hospital Operations Portal (HOP) Phase 1 ก่อนขึ้น Production ภายในวันที่ 1 ตุลาคม 2026  
 แหล่งอ้างอิงหลัก: `docs/audit/production-readiness-audit.md`  
-ปรับปรุงล่าสุด: 7 กรกฎาคม 2026 หลังแก้ P0 Secret Management, HR Role Mapping, frontend dist crosscheck, checklist sync และ audit coverage docs
+ปรับปรุงล่าสุด: 7 กรกฎาคม 2026 หลังเพิ่ม mandatory backup before migration, rollback runbook, Nginx hardening, health live/ready, smoke test, backup timer examples, monitoring และ deploy log retention
 ขอบเขตเอกสารนี้: Checklist สำหรับแก้ไข/ตรวจรับเท่านั้น ไม่มีการแก้ source code ในรอบจัดทำเอกสารนี้
 
 ## วิธีใช้ Checklist
@@ -512,7 +512,7 @@ Manual test ตามบัญชี pilot:
 
 ### P1-05: ตั้ง backup schedule และทำ restore test จริง
 
-- [ ] สถานะ: ยังไม่เริ่ม
+- [~] สถานะ: สคริปต์/ตัวอย่าง systemd/หลักฐานพร้อมแล้ว / รอติดตั้งและทดสอบบน server จริง
 
 **งานที่ต้องทำ**
 
@@ -528,6 +528,9 @@ Manual test ตามบัญชี pilot:
 
 - `scripts/backup/backup-hop.sh`
 - `scripts/backup/restore-hop.sh`
+- `systemd/hop-backup.service.example`
+- `systemd/hop-backup.timer.example`
+- `docs/qa/RESTORE-TEST-EVIDENCE-TEMPLATE.md`
 - `docs/BACKUP-RESTORE.md`
 - `docs/PHASE1-PILOT-CHECKLIST.md`
 - `docker-compose.prod.yml`
@@ -559,6 +562,15 @@ RESTORE_CONFIRM=I_UNDERSTAND_THIS_WILL_OVERWRITE_HOP DB_DUMP_PATH=/path/to/dump 
 - restore fail
 - ไม่มีหลักฐาน restore test
 - backup เก็บ secret plain text ใน repo/log
+
+**อัปเดตล่าสุด 7 กรกฎาคม 2026**
+
+- `deploy/01-deploy-db.sh` บังคับ run `scripts/backup/backup-hop.sh` ก่อน EF Core migration แล้ว
+- เพิ่ม emergency skip gate ด้วย `SKIP_BACKUP_CONFIRM=I_ACCEPT_MIGRATION_WITHOUT_BACKUP`
+- เพิ่ม `systemd/hop-backup.service.example` และ `systemd/hop-backup.timer.example`
+- เพิ่ม `docs/qa/RESTORE-TEST-EVIDENCE-TEMPLATE.md`
+- อัปเดต `docs/BACKUP-RESTORE.md` และ `docs/DEPLOYMENT-CHECKLIST.md`
+- ยังไม่ปิดเป็น `[x]` เพราะต้องติดตั้ง timer และทำ restore test จริงบน pilot/staging server
 
 ### P1-06: ตรวจ Admin Health Dashboard บน staging/pilot
 

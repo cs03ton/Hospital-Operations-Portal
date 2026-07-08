@@ -1,0 +1,11 @@
+[Unit]
+Description=Run Hospital Operations Portal healthcheck every 5 minutes
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+Persistent=true
+Unit=hop-healthcheck.service
+
+[Install]
+WantedBy=timers.target

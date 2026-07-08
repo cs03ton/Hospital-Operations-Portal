@@ -4,11 +4,27 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
-ENV_FILE="${ENV_FILE:-.env.production}"
+DEFAULT_ENV_FILE="/etc/hop/hop-api.env"
+if [ -z "${ENV_FILE:-}" ]; then
+  if [ -f "$DEFAULT_ENV_FILE" ]; then
+    ENV_FILE="$DEFAULT_ENV_FILE"
+  else
+    ENV_FILE=".env.production"
+  fi
+fi
+export HOP_API_ENV_FILE="${HOP_API_ENV_FILE:-$ENV_FILE}"
+DEPLOY_LOG_ROOT="${DEPLOY_LOG_ROOT:-./logs/deploy}"
+DEPLOY_LOG_RETENTION_DAYS="${DEPLOY_LOG_RETENTION_DAYS:-30}"
+DEPLOY_LOG_FILE="${DEPLOY_LOG_FILE:-${DEPLOY_LOG_ROOT}/deploy_$(date +%Y%m%d_%H%M%S).log}"
 
 log() { printf '[%s] %s\n' "$(date -Is)" "$*"; }
 
+mkdir -p "$DEPLOY_LOG_ROOT"
+exec > >(tee -a "$DEPLOY_LOG_FILE") 2>&1
+find "$DEPLOY_LOG_ROOT" -type f -name 'deploy_*.log' -mtime +"$DEPLOY_LOG_RETENTION_DAYS" -delete >/dev/null 2>&1 || true
+
 log "Starting HOP Phase 1 deploy"
+log "Deploy log: ${DEPLOY_LOG_FILE}"
 if [ -f "$ENV_FILE" ]; then
   while IFS= read -r line || [ -n "$line" ]; do
     line="${line%$'\r'}"

@@ -1,0 +1,10 @@
+[Unit]
+Description=Run Hospital Operations Portal backup daily
+
+[Timer]
+OnCalendar=*-*-* 02:00:00
+Persistent=true
+Unit=hop-backup.service
+
+[Install]
+WantedBy=timers.target

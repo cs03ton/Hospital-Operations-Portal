@@ -6,6 +6,11 @@ public record RefreshTokenRequest(string? RefreshToken);
 
 public record LogoutRequest(string? RefreshToken);
 
+public record CsrfTokenResponse(
+    string CookieName,
+    string HeaderName
+);
+
 public record AuthUserDto(
     Guid Id,
     string Fullname,

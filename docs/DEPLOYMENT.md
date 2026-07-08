@@ -2,11 +2,17 @@
 
 ## Production Environment Files
 
-Production ต้องใช้ไฟล์ `.env.production` หรือ Secret Manager ของเครื่องแม่ข่ายเท่านั้น
+Production ต้องใช้ไฟล์ `/etc/hop/hop-api.env`, `.env.production` หรือ Secret Manager ของเครื่องแม่ข่ายเท่านั้น
+
+ค่าเริ่มต้นของ deploy scripts:
+
+1. ถ้ามี `/etc/hop/hop-api.env` จะใช้ไฟล์นี้อัตโนมัติ
+2. ถ้าไม่มี จะ fallback ไปที่ `.env.production` สำหรับ local/staging
 
 ```bash
-cp .env.production.example .env.production
-nano .env.production
+sudo mkdir -p /etc/hop
+sudo cp .env.production.example /etc/hop/hop-api.env
+sudo nano /etc/hop/hop-api.env
 ./deploy/00-check-env.sh
 ```
 
@@ -36,18 +42,48 @@ docker compose --env-file .env.production -f docker-compose.prod.yml ps
 ```bash
 git pull
 ./deploy/00-check-env.sh
-docker compose --env-file .env.production -f docker-compose.prod.yml up -d --build
+RUN_SMOKE_TEST=true \
+SMOKE_USERNAME=<smoke-user> \
+SMOKE_PASSWORD=<smoke-password-from-secret-manager> \
+bash deploy/deploy-all.sh
 ```
+
+`deploy/01-deploy-db.sh` runs `scripts/backup/backup-hop.sh` before EF Core migrations by default. If the backup fails, migrations stop.
+
+Emergency skip requires explicit approval:
+
+```bash
+RUN_BACKUP_BEFORE_MIGRATION=false \
+SKIP_BACKUP_CONFIRM=I_ACCEPT_MIGRATION_WITHOUT_BACKUP \
+bash deploy/01-deploy-db.sh
+```
+
+Do not use this skip path for normal production deployment.
 
 ## Rollback
 
+Application-only rollback:
+
 ```bash
-git checkout <previous-release-tag>
-./deploy/00-check-env.sh
-docker compose --env-file .env.production -f docker-compose.prod.yml up -d --build
+ROLLBACK_REF=<previous-release-tag> \
+ROLLBACK_CONFIRM=I_UNDERSTAND_ROLLBACK_WILL_REDEPLOY_APP \
+bash deploy/rollback.sh
 ```
 
-> Warning: ก่อน rollback production ให้สำรอง PostgreSQL และ `storage/` ทุกครั้ง
+Application + database + storage rollback from a verified backup:
+
+```bash
+ROLLBACK_REF=<previous-release-tag> \
+ROLLBACK_CONFIRM=I_UNDERSTAND_ROLLBACK_WILL_REDEPLOY_APP \
+RESTORE_CONFIRM=I_UNDERSTAND_THIS_WILL_OVERWRITE_HOP \
+RESTORE_DATABASE=true \
+RESTORE_STORAGE=true \
+DB_DUMP_PATH=/opt/hop/backups/db/hop_db_YYYYMMDD_HHMMSS.dump \
+STORAGE_ARCHIVE_PATH=/opt/hop/backups/storage/hop_storage_YYYYMMDD_HHMMSS.tar.gz \
+bash deploy/rollback.sh
+```
+
+> Warning: Database/storage rollback must be approved, performed in a maintenance window, and use a backup that passed restore-test evidence.
 
 ## Docker Compose Services
 
@@ -203,10 +239,26 @@ Copy-Item .env.production.example .env.production
 notepad .env.production
 ```
 
+On Ubuntu production server:
+
+```bash
+sudo mkdir -p /etc/hop
+sudo cp .env.production.example /etc/hop/hop-api.env
+sudo nano /etc/hop/hop-api.env
+sudo chmod 600 /etc/hop/hop-api.env
+```
+
 Validate compose configuration:
 
 ```powershell
 docker compose --env-file .env.production -f docker-compose.prod.yml config
+```
+
+or on Ubuntu production:
+
+```bash
+ENV_FILE=/etc/hop/hop-api.env HOP_API_ENV_FILE=/etc/hop/hop-api.env \
+docker compose --env-file /etc/hop/hop-api.env -f docker-compose.prod.yml config
 ```
 
 Start the stack:

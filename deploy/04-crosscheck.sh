@@ -4,14 +4,25 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
-ENV_FILE="${ENV_FILE:-.env.production}"
+DEFAULT_ENV_FILE="/etc/hop/hop-api.env"
+if [ -z "${ENV_FILE:-}" ]; then
+  if [ -f "$DEFAULT_ENV_FILE" ]; then
+    ENV_FILE="$DEFAULT_ENV_FILE"
+  else
+    ENV_FILE=".env.production"
+  fi
+fi
+export HOP_API_ENV_FILE="${HOP_API_ENV_FILE:-$ENV_FILE}"
 COMPOSE_FILE="${COMPOSE_FILE:-docker-compose.prod.yml}"
 FRONTEND_URL="${FRONTEND_URL:-http://localhost}"
 BACKEND_HEALTH_URL="${BACKEND_HEALTH_URL:-${FRONTEND_URL}/health}"
+BACKEND_LIVE_URL="${BACKEND_LIVE_URL:-${FRONTEND_URL}/health/live}"
+BACKEND_READY_URL="${BACKEND_READY_URL:-${FRONTEND_URL}/health/ready}"
 BACKEND_API_HEALTH_URL="${BACKEND_API_HEALTH_URL:-${FRONTEND_URL}/api/health}"
 POSTGRES_CONTAINER="${POSTGRES_CONTAINER:-hop-prod-postgres}"
 BACKEND_CONTAINER="${BACKEND_CONTAINER:-hop-prod-api}"
 LINE_SETTINGS_URL="${LINE_SETTINGS_URL:-${FRONTEND_URL}/api/admin/line/settings}"
+RUN_SMOKE_TEST="${RUN_SMOKE_TEST:-false}"
 
 log() { printf '[%s] %s\n' "$(date -Is)" "$*"; }
 fail() { log "ERROR: $*"; exit 1; }
@@ -82,6 +93,8 @@ log "Starting HOP crosscheck"
 docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" ps >/dev/null
 
 check_url "backend /health" "$BACKEND_HEALTH_URL"
+check_url "backend /health/live" "$BACKEND_LIVE_URL"
+check_url "backend /health/ready" "$BACKEND_READY_URL"
 check_url "backend /api/health" "$BACKEND_API_HEALTH_URL"
 check_url "frontend homepage" "$FRONTEND_URL/"
 check_url "frontend /login SPA fallback" "$FRONTEND_URL/login"
@@ -101,6 +114,13 @@ if [ "$LINE_ENABLED" = "true" ]; then
   log "OK LINE enabled and secret presence verified without printing values"
 else
   log "LINE disabled; skipping LINE token presence check"
+fi
+
+if [ "$RUN_SMOKE_TEST" = "true" ]; then
+  log "RUN_SMOKE_TEST=true; running deploy smoke test"
+  bash deploy/05-smoke-e2e.sh
+else
+  log "RUN_SMOKE_TEST=false; skipping authenticated smoke test"
 fi
 
 log "HOP crosscheck completed"

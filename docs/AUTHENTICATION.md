@@ -105,6 +105,7 @@ Cookie mode behavior:
 - Cookie uses configured `Secure`, `SameSite`, and optional `Domain`.
 - Cookie mode issues a readable CSRF cookie named `hop_csrf_token`.
 - Unsafe requests must send the same value in the `X-CSRF-TOKEN` header.
+- The frontend bootstraps the readable CSRF cookie with `GET /api/csrf` before unsafe requests when the cookie is missing.
 - Access token is kept memory-only in the frontend.
 - The frontend sends refresh requests with credentials.
 - Existing JSON refresh-token flow remains available in localStorage mode.
@@ -117,6 +118,7 @@ Rules:
 
 - `GET`, `HEAD`, `OPTIONS`, and `TRACE` are not checked.
 - `POST /api/auth/login` is not checked because no CSRF cookie exists before login.
+- `GET /api/csrf` is safe and can be called before login or before refresh-token to issue a readable CSRF cookie.
 - Other unsafe requests in cookie mode require:
 
 ```text
@@ -144,7 +146,7 @@ Frontend protected routes check the auth context.
 
 The frontend Axios client attaches the access token to API requests automatically.
 
-If a request returns `401`, the client calls `POST /api/auth/refresh-token` with the stored refresh token and retries the original request once.
+If a request returns `401`, the client calls `POST /api/auth/refresh-token` with the stored refresh token and retries the original request once. In cookie mode, the refresh client must also send the matching CSRF header.
 
 If refresh fails, the local session is cleared and the user is redirected to `/login`.
 

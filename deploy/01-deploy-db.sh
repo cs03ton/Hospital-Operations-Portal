@@ -4,13 +4,28 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
-ENV_FILE="${ENV_FILE:-.env.production}"
+DEFAULT_ENV_FILE="/etc/hop/hop-api.env"
+if [ -z "${ENV_FILE:-}" ]; then
+  if [ -f "$DEFAULT_ENV_FILE" ]; then
+    ENV_FILE="$DEFAULT_ENV_FILE"
+  else
+    ENV_FILE=".env.production"
+  fi
+fi
+export HOP_API_ENV_FILE="${HOP_API_ENV_FILE:-$ENV_FILE}"
 COMPOSE_FILE="${COMPOSE_FILE:-docker-compose.prod.yml}"
 POSTGRES_SERVICE="${POSTGRES_SERVICE:-postgres}"
 POSTGRES_CONTAINER="${POSTGRES_CONTAINER:-hop-prod-postgres}"
 MIGRATION_TIMEOUT_SECONDS="${MIGRATION_TIMEOUT_SECONDS:-120}"
 MIGRATION_DB_HOST="${MIGRATION_DB_HOST:-127.0.0.1}"
 MIGRATION_DB_PORT="${MIGRATION_DB_PORT:-${POSTGRES_PORT:-5432}}"
+RUN_BACKUP_BEFORE_MIGRATION="${RUN_BACKUP_BEFORE_MIGRATION:-true}"
+BACKUP_SCRIPT="${BACKUP_SCRIPT:-scripts/backup/backup-hop.sh}"
+BACKUP_ROOT="${BACKUP_ROOT:-./backups}"
+BACKUP_MODE="${BACKUP_MODE:-docker}"
+STORAGE_DOCKER_VOLUME="${STORAGE_DOCKER_VOLUME:-hop_prod_storage}"
+SKIP_BACKUP_CONFIRM="${SKIP_BACKUP_CONFIRM:-}"
+SKIP_BACKUP_CONFIRM_TEXT="I_ACCEPT_MIGRATION_WITHOUT_BACKUP"
 
 log() { printf '[%s] %s\n' "$(date -Is)" "$*"; }
 fail() { log "ERROR: $*"; exit 1; }
@@ -51,6 +66,41 @@ wait_for_postgres() {
   log "PostgreSQL is ready"
 }
 
+backup_before_migration() {
+  if [ "$RUN_BACKUP_BEFORE_MIGRATION" != "true" ]; then
+    if [ "$SKIP_BACKUP_CONFIRM" != "$SKIP_BACKUP_CONFIRM_TEXT" ]; then
+      cat <<EOF
+ERROR: Backup before migration is mandatory for production safety.
+
+To skip only in an approved emergency, set:
+  RUN_BACKUP_BEFORE_MIGRATION=false
+  SKIP_BACKUP_CONFIRM=${SKIP_BACKUP_CONFIRM_TEXT}
+EOF
+      exit 2
+    fi
+
+    log "WARNING: backup before migration was explicitly skipped"
+    return
+  fi
+
+  [ -f "$BACKUP_SCRIPT" ] || fail "Backup script not found: $BACKUP_SCRIPT"
+  log "Running mandatory backup before EF Core migration"
+
+  BACKUP_MODE="$BACKUP_MODE" \
+  DB_HOST="${BACKUP_DB_HOST:-localhost}" \
+  DB_PORT="${BACKUP_DB_PORT:-5432}" \
+  DB_NAME="$DB_NAME" \
+  DB_USER="$DB_USER" \
+  DB_PASSWORD="$DB_PASSWORD" \
+  BACKUP_ROOT="$BACKUP_ROOT" \
+  POSTGRES_CONTAINER="$POSTGRES_CONTAINER" \
+  STORAGE_PATH="${STORAGE_PATH:-./storage}" \
+  STORAGE_DOCKER_VOLUME="$STORAGE_DOCKER_VOLUME" \
+    bash "$BACKUP_SCRIPT"
+
+  log "Mandatory backup completed before migration"
+}
+
 run_migrations() {
   command -v dotnet >/dev/null 2>&1 || fail "dotnet SDK is required to run EF Core migrations from host."
   log "Running EF Core migrations using host connection ${MIGRATION_DB_HOST}:${MIGRATION_DB_PORT}/${DB_NAME}"
@@ -83,6 +133,7 @@ load_env
 log "Starting database deployment"
 docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d "$POSTGRES_SERVICE"
 wait_for_postgres
+backup_before_migration
 run_migrations
 verify_tables
 log "Database deployment completed"

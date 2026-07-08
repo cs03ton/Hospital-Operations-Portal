@@ -1,0 +1,10 @@
+[Unit]
+Description=Run Hospital Operations Portal log retention daily
+
+[Timer]
+OnCalendar=*-*-* 03:30:00
+Persistent=true
+Unit=hop-log-retention.service
+
+[Install]
+WantedBy=timers.target

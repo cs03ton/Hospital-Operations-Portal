@@ -1,7 +1,7 @@
 # Production Readiness Audit: Hospital Operations Portal (HOP)
 
 วันที่ตรวจสอบ: 6 กรกฎาคม 2026  
-ปรับปรุงล่าสุด: 7 กรกฎาคม 2026 หลังแก้ P0 Secret Hygiene, HR Mapping, CI Gate, Correlation ID และ Queue Health
+ปรับปรุงล่าสุด: 7 กรกฎาคม 2026 หลังเพิ่ม mandatory backup before migration, rollback runbook, Nginx hardening, health live/ready, smoke test, backup timer examples, monitoring และ deploy log retention
 ขอบเขต: ตรวจสอบสถานะจริงจาก repository และ working tree ปัจจุบันเท่านั้น  
 ข้อจำกัด: ไม่ได้แก้ source code, config, database schema หรือรัน deploy จริง มีการสร้างรายงานนี้เป็นไฟล์เดียว
 
@@ -12,9 +12,9 @@ HOP มีความพร้อมด้าน Production Readiness อยู
 อย่างไรก็ตามยังมีความเสี่ยงก่อน production จริง โดยเฉพาะ:
 
 - **P0:** Secret management ดีขึ้นแล้ว: ลบ default dev password ออกจาก source/login/e2e/seeder, example env ถูก sanitize และ frontend production fallback เปลี่ยนเป็น same-origin แล้ว แต่ยังต้อง rotate secret จริงและ track `.env.production.example`
-- **P1:** Docker/deploy พร้อมใช้เชิงโครงสร้าง และเพิ่ม CI/production readiness gate + frontend dist scan แล้ว แต่ยังต้องยืนยัน live deploy บน staging/pilot และ TLS/domain จริง
+- **P1:** Docker/deploy พร้อมใช้เชิงโครงสร้าง เพิ่ม CI/production readiness gate, frontend dist scan, mandatory backup ก่อน migration, rollback runbook, Nginx hardening และ smoke test script แล้ว แต่ยังต้องยืนยัน live deploy บน staging/pilot และ TLS/domain จริง
 - **P1:** Automated backend/frontend gate ล่าสุดผ่าน (`dotnet test` 116/116 และ `npm run build`) แต่ manual browser E2E, LINE real delivery และ PDF visual check ยังต้อง rerun บน pilot database จริง
-- **P1:** Backup/restore มี script และเอกสาร แต่ยังไม่พบหลักฐาน cron/schedule จริงหรือผล monthly restore test จริง
+- **P1:** Backup/restore มี script, mandatory pre-migration backup gate, systemd timer examples และ restore evidence template แล้ว แต่ยังต้องติดตั้ง timer และทำ monthly restore test จริงบน server
 
 สรุป Go/No-Go: **ยังไม่ควร Production Go-Live แบบเต็ม** จนกว่าจะปิด P0 และ rerun P1 validation บน environment pilot จริง แต่สามารถใช้เป็นฐานสำหรับ Pilot Readiness ได้หากดำเนิน checklist ที่ระบุไว้ครบ
 
@@ -23,9 +23,9 @@ HOP มีความพร้อมด้าน Production Readiness อยู
 | Area | Status | Priority | Evidence | Gap | Recommended Next Action |
 |---|---|---:|---|---|---|
 | Secret Management | Partial / Risk | P0 | `.gitignore`, `.env.example`, `.env.production.example`, `backend/Hop.Api/appsettings.json`, `backend/Hop.Api/Program.cs`, `frontend/src/pages/LoginPage.tsx` | Source/default credential risk ลดแล้ว แต่ `.env.production.example` ยัง untracked และยังต้อง rotate secret จริงบน environment จริง | track sanitized `.env.production.example`, rotate LINE/JWT/DB secret ที่เคยใช้จริง, ใช้ protected env หรือ secret manager บน server |
-| Docker / Deploy | Partial | P1 | `docker-compose.prod.yml`, `deploy/nginx.conf`, `deploy/*.sh`, `deploy/backend.Dockerfile`, `deploy/frontend.Dockerfile`, `.github/workflows/ci.yml`, `docs/DEPLOYMENT.md` | โครงครบและ CI validate compose config แล้ว แต่ยังต้องยืนยัน `.env.production`, TLS, domain, public URL บน staging/pilot จริง | deploy staging, รัน `deploy/04-crosscheck.sh`, เพิ่ม TLS/HTTPS runbook หากยังไม่มี |
-| Backup / Restore | Partial | P1 | `scripts/backup/backup-hop.sh`, `scripts/backup/restore-hop.sh`, `docs/BACKUP-RESTORE.md` | มี script/runbook ปัจจุบันแล้ว แต่ยังไม่พบหลักฐาน cron จริงหรือ monthly restore test จริง | ตั้ง cron/systemd timer และเก็บผล restore test รายเดือน |
-| Health Check | Done / Partial | P1/P2 | `backend/Hop.Api/Program.cs`, `backend/Hop.Api/Controllers/AdminHealthController.cs`, `backend/Hop.Api/DTOs/HealthDtos.cs`, `frontend/src/pages/AdminHealthPage.tsx`, `docs/HEALTH-DASHBOARD.md` | มี `/health`, `/healthz`, `/api/admin/health` และ Queue/Worker Health แล้ว; backup health ยังตรวจจาก folder/file ล่าสุด ไม่ใช่ job status จริง | เพิ่ม structured backup job status file และ alert hook ภายหลัง |
+| Docker / Deploy | Partial | P1 | `docker-compose.prod.yml`, `deploy/nginx.conf`, `deploy/*.sh`, `deploy/05-smoke-e2e.sh`, `deploy/backend.Dockerfile`, `deploy/frontend.Dockerfile`, `.github/workflows/ci.yml`, `docs/DEPLOYMENT.md`, `docs/NGINX-HARDENING.md`, `docs/ROLLBACK-RUNBOOK.md` | โครงครบขึ้น รวม Nginx hardening, rollback script/runbook และ smoke script แล้ว แต่ยังต้องยืนยัน `.env.production`, TLS, domain, public URL บน staging/pilot จริง | deploy staging, รัน `deploy/04-crosscheck.sh` พร้อม `RUN_SMOKE_TEST=true`, ตรวจ TLS/domain จริง |
+| Backup / Restore | Partial | P1 | `scripts/backup/backup-hop.sh`, `scripts/backup/restore-hop.sh`, `deploy/01-deploy-db.sh`, `systemd/hop-backup*.example`, `docs/BACKUP-RESTORE.md`, `docs/qa/RESTORE-TEST-EVIDENCE-TEMPLATE.md` | มี mandatory backup before migration และ timer template แล้ว แต่ยังไม่พบหลักฐานติดตั้ง timer จริงหรือ monthly restore test จริงบน server | ติดตั้ง systemd timer บน pilot server และบันทึก restore evidence รายเดือน |
+| Health Check | Done / Partial | P1/P2 | `backend/Hop.Api/Program.cs`, `backend/Hop.Api/Controllers/AdminHealthController.cs`, `backend/Hop.Api/DTOs/HealthDtos.cs`, `frontend/src/pages/AdminHealthPage.tsx`, `scripts/monitoring/hop-healthcheck.sh`, `docs/HEALTH-DASHBOARD.md`, `docs/MONITORING.md` | มี `/health`, `/healthz`, `/health/live`, `/health/ready`, `/api/admin/health` และ Queue/Worker Health แล้ว; backup health ยังตรวจจาก folder/file ล่าสุด ไม่ใช่ job status จริง | เพิ่ม structured backup job status file ภายหลัง และติดตั้ง healthcheck timer บน server |
 | Error Handling | Done | P1/P2 | `backend/Hop.Api/Middleware/CorrelationIdMiddleware.cs`, `backend/Hop.Api/Middleware/GlobalExceptionMiddleware.cs`, `deploy/nginx.conf`, `frontend/src/components/common/ErrorBoundary.tsx`, `frontend/src/api/httpClient.ts`, `docs/ERROR-HANDLING.md` | มี safe Thai error + referenceId + `X-Correlation-ID`; ยังควรทดสอบ production mode จริงผ่าน reverse proxy | smoke test production exception และค้น log ด้วย correlation id |
 | Permission & Role | Done / Partial | P0/P1 | `backend/Hop.Api/Authorization/LeavePermissions.cs`, `backend/Hop.Api/Services/LeaveRequestAccessService.cs`, `backend/Hop.Api/Controllers/LeaveRequestsController.cs`, `frontend/src/routes/AppRoutes.tsx`, `docs/PERMISSION-MATRIX.md`, `docs/security/PERMISSION-MODEL.md` | HR mapping ถูกล็อกเป็น `LeaveAdmin`; ยังควร regression test dashboard/notification role categories | เพิ่ม regression tests สำหรับ dashboard module visibility และ notification role categories |
 | Testing | Partial | P1 | `backend/Hop.Api.Tests/*`, `frontend/e2e/*`, `docs/qa/PHASE1-PILOT-TEST-REPORT.md`, `docs/TESTING.md` | Automated local gate ล่าสุดผ่าน แต่ manual E2E/LINE real/PDF visual ยังต้อง rerun บน pilot | รัน manual E2E บน pilot DB และอัปเดต QA report พร้อม screenshots |
@@ -103,11 +103,18 @@ HOP มีความพร้อมด้าน Production Readiness อยู
   - `deploy/02-deploy-backend.sh`
   - `deploy/03-deploy-frontend.sh`
   - `deploy/04-crosscheck.sh`
+  - `deploy/05-smoke-e2e.sh`
   - `deploy/deploy-all.sh`
   - `deploy/rollback.sh`
+- `deploy/01-deploy-db.sh` บังคับ backup ก่อน EF Core migration
+- `deploy/deploy-all.sh` เก็บ deploy log ลง `logs/deploy`
+- `deploy/rollback.sh` รองรับ app rollback และ optional database/storage restore
+- `deploy/nginx.conf` เพิ่ม gzip, security headers, CSP, health live/ready proxy และ HSTS เมื่อมี `X-Forwarded-Proto=https`
 - มี production docs:
   - `docs/DEPLOYMENT.md`
   - `docs/DEPLOYMENT-CHECKLIST.md`
+  - `docs/NGINX-HARDENING.md`
+  - `docs/ROLLBACK-RUNBOOK.md`
   - `docs/ROLLBACK.md`
   - `docs/ENVIRONMENT.md`
 
@@ -117,14 +124,14 @@ HOP มีความพร้อมด้าน Production Readiness อยู
   - `deploy/frontend.Dockerfile`
   - `frontend/src/api/httpClient.ts`
   - `frontend/src/api/securityApi.ts`
-- `deploy/nginx.conf` เป็น HTTP port 80 ยังไม่รวม TLS/HTTPS termination ในไฟล์นี้
+- `deploy/nginx.conf` ยังรับ traffic ที่ port 80 ภายใน container; TLS ต้อง terminate ที่ reverse proxy/load balancer ชั้นหน้า หรือเพิ่ม TLS mount ตาม infrastructure จริง
 - ต้องยืนยันว่า `.env.production` จริงมี `PUBLIC_APP_URL`, `Storage__PublicBaseUrl`, `VITE_API_BASE_URL` หรือ same-origin config ถูกต้อง
 
 ### Recommended Next Action
 
 - **P1:** รัน `docker compose --env-file .env.production -f docker-compose.prod.yml config` ใน staging
-- **P1:** เพิ่ม HTTPS/TLS deployment note หรือ nginx TLS variant สำหรับ production
-- **P1:** เพิ่ม crosscheck ว่า frontend dist ไม่มี `localhost:5000` ก่อน deploy
+- **P1:** รัน `RUN_SMOKE_TEST=true deploy/04-crosscheck.sh` ด้วย smoke user บน staging/pilot
+- **P1:** ตั้ง TLS/domain จริงที่ reverse proxy ชั้นหน้า และตรวจ security headers
 - **P2:** เพิ่ม blue/green หรือ rollback validation หลัง deploy
 
 ## 3. Backup / Restore
@@ -146,16 +153,22 @@ HOP มีความพร้อมด้าน Production Readiness อยู
   - restore storage archive ได้
 - `docs/BACKUP-RESTORE.md`
   - อธิบาย env, backup, restore, cron, monthly restore test checklist
+- `deploy/01-deploy-db.sh`
+  - run mandatory backup ก่อน EF Core migration
+  - มี explicit emergency skip gate
+- `systemd/hop-backup.service.example`
+- `systemd/hop-backup.timer.example`
+- `docs/qa/RESTORE-TEST-EVIDENCE-TEMPLATE.md`
 
 ### Gap
 
-- ยังไม่พบหลักฐานว่า cron/systemd timer ถูกตั้งจริงใน repo
+- มี systemd timer example แล้ว แต่ยังไม่พบหลักฐานว่าติดตั้งจริงบน pilot/production server
 - Health dashboard ตรวจ backup จาก folder/file ล่าสุด ยังไม่ใช่สถานะ job สำเร็จล่าสุดแบบ structured
 - `docs/PHASE1-PILOT-CHECKLIST.md` ยังมีรายการอ้าง `scripts/backup-postgres.ps1` ซึ่งไม่ตรงกับ script ปัจจุบัน `scripts/backup/backup-hop.sh`
 
 ### Recommended Next Action
 
-- **P1:** ตั้ง cron จริงบน pilot server และเก็บ log path มาตรฐาน
+- **P1:** ติดตั้ง `hop-backup.timer` บน pilot server และเก็บ log path มาตรฐาน
 - **P1:** ทำ monthly restore test และบันทึกผลใน docs/qa หรือ runbook
 - **P1:** อัปเดต checklist ให้ตรงกับ script ปัจจุบัน
 - **P2:** เพิ่ม backup status marker เช่น `last_success.json` เพื่อให้ health dashboard ตรวจได้แม่นขึ้น
@@ -169,6 +182,8 @@ HOP มีความพร้อมด้าน Production Readiness อยู
 - `backend/Hop.Api/Program.cs`
   - map `/health`
   - map `/healthz`
+  - map `/health/live`
+  - map `/health/ready`
 - `backend/Hop.Api/Controllers/AdminHealthController.cs`
   - `GET /api/admin/health`
   - `[RequirePermission("SystemSettings.View")]`
@@ -182,6 +197,10 @@ HOP มีความพร้อมด้าน Production Readiness อยู
   - route `/admin/health`
 - `docs/HEALTH-DASHBOARD.md`
   - เอกสารใช้งาน health dashboard
+- `scripts/monitoring/hop-healthcheck.sh`
+  - ตรวจ frontend, `/health/live`, `/health/ready`, Docker Compose และ disk threshold
+- `systemd/hop-healthcheck.service.example`
+- `systemd/hop-healthcheck.timer.example`
 
 ### Gap
 
@@ -191,7 +210,7 @@ HOP มีความพร้อมด้าน Production Readiness อยู
 ### Recommended Next Action
 
 - **P1:** เพิ่ม structured backup status file
-- **P2:** เพิ่ม endpoint smoke test ใน deployment crosscheck
+- **P1:** ติดตั้ง `hop-healthcheck.timer` หรือ equivalent monitoring บน server
 
 ## 5. Error Handling
 
@@ -451,17 +470,19 @@ HOP มีความพร้อมด้าน Production Readiness อยู
 1. รัน full test suite และ manual E2E บน pilot DB จริง
 2. ทดสอบ LINE real delivery ด้วย LINE OA/channel จริง
 3. เปิด PDF ภาษาไทยจาก browser จริงและตรวจ layout
-4. ตั้ง backup cron/systemd timer และทำ restore test
-5. รัน staging/deploy crosscheck ว่า frontend dist ไม่มี localhost/secret markers
-6. ตรวจ CI production readiness gate บน PR จริง
+4. ติดตั้ง backup/healthcheck/log-retention systemd timers บน pilot server และทำ restore test
+5. รัน staging/deploy crosscheck ว่า frontend dist ไม่มี localhost/secret markers และ `/health/live`, `/health/ready` ผ่าน
+6. รัน `deploy/05-smoke-e2e.sh` ด้วย smoke user บน pilot
+7. ตรวจ CI production readiness gate บน PR จริง
 
 ### P2: ทำหลัง pilot หรือก่อน scale-up
 
-1. เพิ่ม structured backup status และ alert
+1. เพิ่ม structured backup status และ alert เข้ากับ monitoring platform จริง
 2. เสร็จแล้ว: เพิ่ม correlation id header ข้าม Nginx/API
 3. เสร็จแล้ว: เพิ่ม CI gate สำหรับ production readiness
 4. refresh screenshots/manual หลัง UI freeze
 5. เสร็จแล้ว: เพิ่ม queue/background worker health ใน Admin Health
+6. เสร็จแล้ว: เพิ่ม server healthcheck script และ deploy log retention template
 
 ## Files Inspected
 
@@ -491,14 +512,24 @@ HOP มีความพร้อมด้าน Production Readiness อยู
 - `deploy/02-deploy-backend.sh`
 - `deploy/03-deploy-frontend.sh`
 - `deploy/04-crosscheck.sh`
+- `deploy/05-smoke-e2e.sh`
 - `deploy/deploy-all.sh`
 - `deploy/rollback.sh`
+- `scripts/monitoring/hop-healthcheck.sh`
+- `scripts/maintenance/rotate-deploy-logs.sh`
+- `systemd/hop-backup.service.example`
+- `systemd/hop-backup.timer.example`
+- `systemd/hop-healthcheck.service.example`
+- `systemd/hop-healthcheck.timer.example`
+- `systemd/hop-log-retention.service.example`
+- `systemd/hop-log-retention.timer.example`
 
 ### Backup / Restore
 
 - `scripts/backup/backup-hop.sh`
 - `scripts/backup/restore-hop.sh`
 - `docs/BACKUP-RESTORE.md`
+- `docs/qa/RESTORE-TEST-EVIDENCE-TEMPLATE.md`
 
 ### Health / Error
 

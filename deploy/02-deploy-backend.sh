@@ -4,7 +4,15 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
-ENV_FILE="${ENV_FILE:-.env.production}"
+DEFAULT_ENV_FILE="/etc/hop/hop-api.env"
+if [ -z "${ENV_FILE:-}" ]; then
+  if [ -f "$DEFAULT_ENV_FILE" ]; then
+    ENV_FILE="$DEFAULT_ENV_FILE"
+  else
+    ENV_FILE=".env.production"
+  fi
+fi
+export HOP_API_ENV_FILE="${HOP_API_ENV_FILE:-$ENV_FILE}"
 COMPOSE_FILE="${COMPOSE_FILE:-docker-compose.prod.yml}"
 BACKEND_SERVICE="${BACKEND_SERVICE:-backend}"
 BACKEND_CONTAINER="${BACKEND_CONTAINER:-hop-prod-api}"

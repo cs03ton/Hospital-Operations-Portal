@@ -1,5 +1,4 @@
 import {
-  Alert,
   Button,
   Card,
   CardContent,
@@ -20,6 +19,7 @@ import {
 } from "../api/adminApi";
 import { PageHeader } from "../components/PageHeader";
 import { useNotification } from "../hooks/useNotification";
+import { extractApiErrorMessage } from "../utils/apiError";
 
 type DepartmentFormValues = {
   name: string;
@@ -32,7 +32,7 @@ export function DepartmentFormPage() {
   const isEdit = Boolean(id);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { showSuccess } = useNotification();
+  const { showError, showSuccess } = useNotification();
 
   const {
     control,
@@ -67,14 +67,18 @@ export function DepartmentFormPage() {
   const saveMutation = useMutation({
     mutationFn: (values: SaveDepartmentRequest) =>
       isEdit ? updateDepartment(id!, values) : createDepartment(values),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["departments"] });
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["departments"] }).catch(() => undefined);
       showSuccess(isEdit ? "บันทึกข้อมูลหน่วยงานเรียบร้อยแล้ว" : "เพิ่มหน่วยงานเรียบร้อยแล้ว");
       navigate("/admin/departments");
+    },
+    onError: (error: unknown) => {
+      showError(extractApiErrorMessage(error, "บันทึกข้อมูลไม่สำเร็จ"));
     },
   });
 
   function onSubmit(values: DepartmentFormValues) {
+    saveMutation.reset();
     saveMutation.mutate({
       name: values.name,
       description: values.description || null,
@@ -91,7 +95,6 @@ export function DepartmentFormPage() {
       <Card>
         <CardContent>
           <Stack component="form" spacing={2.5} onSubmit={handleSubmit(onSubmit)}>
-            {saveMutation.isError && <Alert severity="error">บันทึกข้อมูลไม่สำเร็จ</Alert>}
             <TextField
               fullWidth
               label="ชื่อหน่วยงาน"

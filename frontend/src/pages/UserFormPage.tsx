@@ -1,5 +1,4 @@
 import {
-  Alert,
   Box,
   Button,
   Card,
@@ -29,6 +28,7 @@ import {
 import { getApprovalChains } from "../api/leaveApi";
 import { PageHeader } from "../components/PageHeader";
 import { useNotification } from "../hooks/useNotification";
+import { extractApiErrorMessage } from "../utils/apiError";
 import { employmentTypeOptions } from "../utils/employmentLabels";
 import { genderOptions } from "../utils/genderLabels";
 import { getRoleLabel } from "../utils/roleLabels";
@@ -53,7 +53,7 @@ export function UserFormPage() {
   const isEdit = Boolean(id);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { showSuccess } = useNotification();
+  const { showError, showSuccess } = useNotification();
 
   const { data: departments = [] } = useQuery({
     queryKey: ["departments"],
@@ -112,14 +112,18 @@ export function UserFormPage() {
 
   const saveMutation = useMutation({
     mutationFn: (values: SaveUserRequest) => (isEdit ? updateUser(id!, values) : createUser(values)),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["users"] });
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["users"] }).catch(() => undefined);
       showSuccess(isEdit ? "บันทึกข้อมูลผู้ใช้งานเรียบร้อยแล้ว" : "เพิ่มผู้ใช้งานเรียบร้อยแล้ว");
       navigate("/admin/users");
+    },
+    onError: (error: unknown) => {
+      showError(extractApiErrorMessage(error, "บันทึกข้อมูลไม่สำเร็จ"));
     },
   });
 
   function onSubmit(values: UserFormValues) {
+    saveMutation.reset();
     saveMutation.mutate({
       employeeCode: values.employeeCode || null,
       fullname: values.fullname,
@@ -145,7 +149,6 @@ export function UserFormPage() {
       <Card>
         <CardContent>
           <Stack component="form" spacing={2.5} onSubmit={handleSubmit(onSubmit)}>
-            {saveMutation.isError && <Alert severity="error">บันทึกข้อมูลไม่สำเร็จ</Alert>}
             <TextField fullWidth label="รหัสพนักงาน" InputLabelProps={{ shrink: true }} {...register("employeeCode")} />
             <TextField
               fullWidth

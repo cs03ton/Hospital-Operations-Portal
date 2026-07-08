@@ -1,0 +1,13 @@
+[Unit]
+Description=Hospital Operations Portal deploy and backup log retention
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/hop
+EnvironmentFile=-/etc/hop/log-retention.env
+ExecStart=/opt/hop/scripts/maintenance/rotate-deploy-logs.sh
+StandardOutput=append:/var/log/hop/log-retention.log
+StandardError=append:/var/log/hop/log-retention.log
+
+[Install]
+WantedBy=multi-user.target

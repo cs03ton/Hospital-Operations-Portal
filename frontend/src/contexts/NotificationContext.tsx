@@ -30,6 +30,7 @@ export function notifyGlobal(type: NotificationType, message: string) {
 export function NotificationProvider({ children }: { children: ReactNode }) {
   const [history, setHistory] = useState<AppNotification[]>([]);
   const [current, setCurrent] = useState<AppNotification | null>(null);
+  const [queue, setQueue] = useState<AppNotification[]>([]);
   const [open, setOpen] = useState(false);
 
   const show = useCallback((type: NotificationType, message: string) => {
@@ -40,8 +41,21 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       createdAt: new Date().toISOString(),
     };
     setHistory((items) => [notification, ...items].slice(0, 50));
-    setCurrent(notification);
-    setOpen(true);
+    setQueue((items) => [...items, notification]);
+  }, []);
+
+  useEffect(() => {
+    if (!open && !current && queue.length > 0) {
+      const [next, ...remaining] = queue;
+      setCurrent(next);
+      setQueue(remaining);
+      setOpen(true);
+    }
+  }, [current, open, queue]);
+
+  const closeCurrent = useCallback(() => {
+    setOpen(false);
+    window.setTimeout(() => setCurrent(null), 150);
   }, []);
 
   useEffect(() => {
@@ -66,7 +80,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   return (
     <NotificationContext.Provider value={value}>
       {children}
-      <AppSnackbar notification={current} open={open} onClose={() => setOpen(false)} />
+      <AppSnackbar notification={current} open={open} onClose={closeCurrent} />
     </NotificationContext.Provider>
   );
 }

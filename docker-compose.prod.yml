@@ -24,7 +24,7 @@ services:
       context: .
       dockerfile: deploy/backend.Dockerfile
     env_file:
-      - .env.production
+      - ${HOP_API_ENV_FILE:-.env.production}
     container_name: hop-prod-api
     restart: unless-stopped
     environment:

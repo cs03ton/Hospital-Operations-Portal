@@ -80,7 +80,7 @@ export DB_NAME=hop_db
 export DB_USER=hop_user
 export DB_PASSWORD='set-this-from-secret-manager'
 export BACKUP_ROOT=/opt/hop/backups
-export STORAGE_PATH=/opt/hop/storage
+export STORAGE_PATH=/opt/hop/uploads
 export BACKUP_MODE=host
 
 /opt/hop/scripts/backup/backup-hop.sh
@@ -141,7 +141,7 @@ export DB_NAME=hop_db
 export DB_USER=hop_user
 export DB_PASSWORD='set-this-from-secret-manager'
 export BACKUP_MODE=host
-export STORAGE_PATH=/opt/hop/storage
+export STORAGE_PATH=/opt/hop/uploads
 export DB_DUMP_PATH=/opt/hop/backups/db/hop_db_20260630_020000.dump
 export STORAGE_ARCHIVE_PATH=/opt/hop/backups/storage/hop_storage_20260630_020000.tar.gz
 export RESTORE_CONFIRM=I_UNDERSTAND_THIS_WILL_OVERWRITE_HOP
@@ -210,11 +210,77 @@ STORAGE_DOCKER_VOLUME=hop_prod_storage
 BACKUP_RETENTION_DAYS=30
 ```
 
+For bare-metal runtime, use:
+
+```text
+STORAGE_PATH=/opt/hop/uploads
+```
+
 Load secret separately in cron instead of committing it:
 
 ```cron
 0 2 * * * . /etc/hop/backup.env; export DB_PASSWORD="$(cat /run/secrets/hop_db_password)"; /opt/hop/scripts/backup/backup-hop.sh >> /var/log/hop-backup.log 2>&1
 ```
+
+## Systemd Timer Example
+
+Recommended for production Ubuntu servers:
+
+```bash
+sudo mkdir -p /etc/hop /var/log/hop
+sudo cp /opt/hop/systemd/hop-backup.service.example /etc/systemd/system/hop-backup.service
+sudo cp /opt/hop/systemd/hop-backup.timer.example /etc/systemd/system/hop-backup.timer
+sudo systemctl daemon-reload
+sudo systemctl enable --now hop-backup.timer
+sudo systemctl list-timers hop-backup.timer
+```
+
+Example `/etc/hop/backup.env`:
+
+```text
+BACKUP_MODE=docker
+BACKUP_ROOT=/opt/hop/backups
+BACKUP_RETENTION_DAYS=30
+DB_HOST=localhost
+DB_PORT=5432
+DB_NAME=hop_db
+DB_USER=hop_user
+POSTGRES_CONTAINER=hop-prod-postgres
+STORAGE_DOCKER_VOLUME=hop_prod_storage
+```
+
+Load `DB_PASSWORD` from a protected systemd credential, secret manager, or environment override. Do not put real passwords in repository files.
+
+## Mandatory Backup Before Migration
+
+Production database migration path uses `deploy/01-deploy-db.sh`. This script runs `scripts/backup/backup-hop.sh` before EF Core migrations by default:
+
+```bash
+ENV_FILE=.env.production COMPOSE_FILE=docker-compose.prod.yml bash deploy/01-deploy-db.sh
+```
+
+If the backup fails, migration is stopped and the deploy must not continue.
+
+Emergency skip requires explicit approval:
+
+```bash
+RUN_BACKUP_BEFORE_MIGRATION=false \
+SKIP_BACKUP_CONFIRM=I_ACCEPT_MIGRATION_WITHOUT_BACKUP \
+bash deploy/01-deploy-db.sh
+```
+
+## Restore Evidence
+
+Use `docs/qa/RESTORE-TEST-EVIDENCE-TEMPLATE.md` for monthly restore drills.
+
+Minimum evidence to keep:
+
+- Backup timestamp and artifact names
+- Restore target environment
+- Restore log path
+- Health check result for `/health/live` and `/health/ready`
+- Login result
+- Leave request, attachment, PDF, and audit log verification result
 
 ## Retention
 

@@ -1,0 +1,21 @@
+[Unit]
+Description=Hospital Operations Portal API
+After=network.target postgresql.service
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/hop/backend
+EnvironmentFile=/etc/hop/hop-api.env
+Environment=ASPNETCORE_ENVIRONMENT=Production
+Environment=ASPNETCORE_URLS=http://127.0.0.1:5000
+Environment=Storage__RootPath=/opt/hop/uploads
+Environment=HOP_API_ENV_FILE=/etc/hop/hop-api.env
+ExecStart=/usr/bin/dotnet /opt/hop/backend/Hop.Api.dll
+Restart=always
+RestartSec=10
+SyslogIdentifier=hop-api
+StandardOutput=append:/opt/hop/logs/hop-api.log
+StandardError=append:/opt/hop/logs/hop-api.err.log
+
+[Install]
+WantedBy=multi-user.target

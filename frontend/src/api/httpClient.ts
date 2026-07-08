@@ -1,4 +1,4 @@
-import axios from "axios";
+import axios, { type InternalAxiosRequestConfig } from "axios";
 import { notifyGlobal } from "../contexts/NotificationContext";
 import { authStorageKeys } from "../types/auth";
 
@@ -22,6 +22,14 @@ const refreshClient = axios.create({
   withCredentials: cookieTokenMode,
 });
 
+const csrfClient = axios.create({
+  baseURL: apiBaseUrl,
+  timeout: 15000,
+  withCredentials: cookieTokenMode,
+});
+
+let csrfRequest: Promise<void> | null = null;
+
 export function setAuthToken(token: string | null) {
   memoryAccessToken = token;
   if (token) {
@@ -40,21 +48,16 @@ export function getApiBaseUrl() {
   return apiBaseUrl;
 }
 
-httpClient.interceptors.request.use((config) => {
+httpClient.interceptors.request.use(async (config) => {
   const token = memoryAccessToken ?? (cookieTokenMode ? null : localStorage.getItem(authStorageKeys.accessToken));
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
 
-  if (cookieTokenMode && isUnsafeMethod(config.method)) {
-    const csrfToken = readCookie(csrfCookieName);
-    if (csrfToken) {
-      config.headers[csrfHeaderName] = csrfToken;
-    }
-  }
-
-  return config;
+  return attachCsrfToken(config);
 });
+
+refreshClient.interceptors.request.use(attachCsrfToken);
 
 httpClient.interceptors.response.use(
   (response) => response,
@@ -133,6 +136,31 @@ function clearStoredSession() {
 
 function isUnsafeMethod(method?: string) {
   return ["post", "put", "patch", "delete"].includes((method ?? "get").toLowerCase());
+}
+
+async function attachCsrfToken(config: InternalAxiosRequestConfig) {
+  if (!isUnsafeMethod(config.method)) {
+    return config;
+  }
+
+  let csrfToken = readCookie(csrfCookieName);
+  if (!csrfToken && cookieTokenMode) {
+    await ensureCsrfCookie();
+    csrfToken = readCookie(csrfCookieName);
+  }
+
+  if (csrfToken) {
+    config.headers[csrfHeaderName] = csrfToken;
+  }
+
+  return config;
+}
+
+async function ensureCsrfCookie() {
+  csrfRequest ??= csrfClient.get("/api/csrf").then(() => undefined).finally(() => {
+    csrfRequest = null;
+  });
+  return csrfRequest;
 }
 
 function readCookie(name: string) {

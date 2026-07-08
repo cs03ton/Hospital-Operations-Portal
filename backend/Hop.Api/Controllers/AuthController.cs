@@ -14,6 +14,15 @@ namespace Hop.Api.Controllers;
 [Route("api/[controller]")]
 public class AuthController(AppDbContext db, IJwtTokenService jwtTokenService, IAuditLogService auditLogService, ILoginRateLimiter loginRateLimiter, IConfiguration configuration) : ControllerBase
 {
+    [HttpGet("csrf")]
+    [HttpGet("/api/csrf")]
+    [AllowAnonymous]
+    public ActionResult<ApiResponse<CsrfTokenResponse>> GetCsrf()
+    {
+        AppendCsrfCookie();
+        return ApiResponse<CsrfTokenResponse>.Ok(new CsrfTokenResponse(GetCsrfCookieName(), GetCsrfHeaderName()));
+    }
+
     [HttpPost("login")]
     [AllowAnonymous]
     public async Task<ActionResult<ApiResponse<LoginResponse>>> Login(LoginRequest request)
@@ -327,6 +336,11 @@ public class AuthController(AppDbContext db, IJwtTokenService jwtTokenService, I
     private string GetCsrfCookieName()
     {
         return configuration["Auth:Cookie:CsrfTokenName"] ?? configuration["AUTH_COOKIE_CSRF_TOKEN_NAME"] ?? "hop_csrf_token";
+    }
+
+    private string GetCsrfHeaderName()
+    {
+        return configuration["Auth:Cookie:CsrfHeaderName"] ?? configuration["AUTH_COOKIE_CSRF_HEADER_NAME"] ?? "X-CSRF-TOKEN";
     }
 
     private static string GenerateCsrfToken()

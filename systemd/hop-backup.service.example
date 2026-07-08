@@ -1,0 +1,16 @@
+[Unit]
+Description=Hospital Operations Portal backup
+Wants=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/hop
+EnvironmentFile=/etc/hop/backup.env
+Environment=STORAGE_PATH=/opt/hop/uploads
+ExecStart=/opt/hop/scripts/backup/backup-hop.sh
+StandardOutput=append:/var/log/hop/backup.log
+StandardError=append:/var/log/hop/backup.log
+
+[Install]
+WantedBy=multi-user.target

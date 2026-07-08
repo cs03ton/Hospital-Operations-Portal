@@ -13,6 +13,8 @@ POSTGRES_CONTAINER="${POSTGRES_CONTAINER:-hop-prod-postgres}"
 STORAGE_DOCKER_VOLUME="${STORAGE_DOCKER_VOLUME:-hop_prod_storage}"
 DB_DUMP_PATH="${DB_DUMP_PATH:-}"
 STORAGE_ARCHIVE_PATH="${STORAGE_ARCHIVE_PATH:-}"
+RESTORE_DATABASE="${RESTORE_DATABASE:-true}"
+RESTORE_STORAGE="${RESTORE_STORAGE:-true}"
 RESTORE_CONFIRM="${RESTORE_CONFIRM:-}"
 CONFIRM_TEXT="I_UNDERSTAND_THIS_WILL_OVERWRITE_HOP"
 
@@ -114,16 +116,32 @@ restore_storage_docker() {
 
 confirm_restore
 log "Starting HOP restore"
-log "Mode=${BACKUP_MODE}; DB=${DB_HOST}:${DB_PORT}/${DB_NAME}; BackupRoot=${BACKUP_ROOT}; StoragePath=${STORAGE_PATH}"
+log "Mode=${BACKUP_MODE}; DB=${DB_HOST}:${DB_PORT}/${DB_NAME}; BackupRoot=${BACKUP_ROOT}; StoragePath=${STORAGE_PATH}; RestoreDatabase=${RESTORE_DATABASE}; RestoreStorage=${RESTORE_STORAGE}"
 
 case "$BACKUP_MODE" in
   host)
-    restore_database_host
-    restore_storage_host
+    if [ "$RESTORE_DATABASE" = "true" ]; then
+      restore_database_host
+    else
+      log "RESTORE_DATABASE=false; skipping database restore"
+    fi
+    if [ "$RESTORE_STORAGE" = "true" ]; then
+      restore_storage_host
+    else
+      log "RESTORE_STORAGE=false; skipping storage restore"
+    fi
     ;;
   docker)
-    restore_database_docker
-    restore_storage_docker
+    if [ "$RESTORE_DATABASE" = "true" ]; then
+      restore_database_docker
+    else
+      log "RESTORE_DATABASE=false; skipping database restore"
+    fi
+    if [ "$RESTORE_STORAGE" = "true" ]; then
+      restore_storage_docker
+    else
+      log "RESTORE_STORAGE=false; skipping storage restore"
+    fi
     ;;
   *)
     fail "Unsupported BACKUP_MODE: ${BACKUP_MODE}. Use host or docker."

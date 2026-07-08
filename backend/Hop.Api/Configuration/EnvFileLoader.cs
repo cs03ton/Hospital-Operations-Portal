@@ -6,6 +6,20 @@ public static class EnvFileLoader
 {
     public static void LoadForEnvironment(string? environmentName = null)
     {
+        var configuredEnvFile = Environment.GetEnvironmentVariable("HOP_API_ENV_FILE");
+        if (!string.IsNullOrWhiteSpace(configuredEnvFile) && File.Exists(configuredEnvFile))
+        {
+            Load([configuredEnvFile]);
+            return;
+        }
+
+        const string serverEnvFile = "/etc/hop/hop-api.env";
+        if (File.Exists(serverEnvFile))
+        {
+            Load([serverEnvFile]);
+            return;
+        }
+
         var normalizedEnvironment = environmentName
             ?? Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT")
             ?? Environments.Production;

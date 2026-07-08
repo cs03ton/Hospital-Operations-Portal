@@ -106,6 +106,72 @@ Initial rules for production:
 - `queue.failedLineDeliveries > 0`: ตรวจ LINE token, LINE user binding และ retry worker.
 - `queue.pendingRetries > 50`: ตรวจว่า LINE retry worker เปิดใช้งานและไม่มี rate limit จาก LINE API.
 
+## Server Healthcheck Script
+
+Production servers can run:
+
+```bash
+FRONTEND_URL=https://hop.example.go.th \
+DISK_PATH=/opt/hop \
+DISK_WARNING_PERCENT=85 \
+/opt/hop/scripts/monitoring/hop-healthcheck.sh
+```
+
+The script checks:
+
+- Frontend homepage
+- `/health/live`
+- `/health/ready`
+- Docker Compose service visibility
+- Disk usage threshold
+
+Optional alert hook:
+
+```bash
+ALERT_WEBHOOK_URL=https://monitoring.example/webhook /opt/hop/scripts/monitoring/hop-healthcheck.sh
+```
+
+Do not put LINE token, JWT secret, or database password in monitoring scripts.
+
+## Systemd Healthcheck Timer
+
+```bash
+sudo cp /opt/hop/systemd/hop-healthcheck.service.example /etc/systemd/system/hop-healthcheck.service
+sudo cp /opt/hop/systemd/hop-healthcheck.timer.example /etc/systemd/system/hop-healthcheck.timer
+sudo systemctl daemon-reload
+sudo systemctl enable --now hop-healthcheck.timer
+sudo systemctl list-timers hop-healthcheck.timer
+```
+
+## Deploy Log Retention
+
+`deploy/deploy-all.sh` writes deploy logs to:
+
+```text
+logs/deploy/deploy_YYYYMMDD_HHMMSS.log
+```
+
+Retention defaults:
+
+```text
+DEPLOY_LOG_RETENTION_DAYS=30
+```
+
+For server-level cleanup:
+
+```bash
+sudo cp /opt/hop/systemd/hop-log-retention.service.example /etc/systemd/system/hop-log-retention.service
+sudo cp /opt/hop/systemd/hop-log-retention.timer.example /etc/systemd/system/hop-log-retention.timer
+sudo systemctl daemon-reload
+sudo systemctl enable --now hop-log-retention.timer
+```
+
+Manual command:
+
+```bash
+LOG_RETENTION_DAYS=30 /opt/hop/scripts/maintenance/rotate-deploy-logs.sh
+```
+
 ## Future Work
 
 - Export metrics to Prometheus/OpenTelemetry.
