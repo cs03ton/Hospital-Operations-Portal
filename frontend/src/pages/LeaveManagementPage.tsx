@@ -1,11 +1,11 @@
 import AddCircleOutlineOutlinedIcon from "@mui/icons-material/AddCircleOutlineOutlined";
 import VisibilityOutlinedIcon from "@mui/icons-material/VisibilityOutlined";
-import { Box, Button, Card, CardContent, Chip, Grid, IconButton, MenuItem, Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField } from "@mui/material";
+import { Box, Button, Card, CardContent, Chip, Grid, IconButton, MenuItem, Stack, Table, TableBody, TableCell, TableHead, TablePagination, TableRow, TextField } from "@mui/material";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { Link as RouterLink } from "react-router-dom";
 import { getDepartments } from "../api/adminApi";
-import { getLeaveRequests, getLeaveTypes, type LeaveRequestQuery } from "../api/leaveApi";
+import { getLeaveRequestsPaged, getLeaveTypes, type LeaveRequestQuery } from "../api/leaveApi";
 import { AppDatePicker } from "../components/common/AppDatePicker";
 import { PageHeader } from "../components/PageHeader";
 import { useAuth } from "../context/AuthContext";
@@ -27,6 +27,8 @@ export function LeaveManagementPage() {
     toDate: "",
     userId: "",
   });
+  const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState(10);
   const queryFilters = useMemo<LeaveRequestQuery>(
     () => ({
       leaveTypeId: filters.leaveTypeId || undefined,
@@ -35,10 +37,12 @@ export function LeaveManagementPage() {
       fromDate: filters.fromDate || undefined,
       toDate: filters.toDate || undefined,
       userId: filters.userId || undefined,
+      page: page + 1,
+      pageSize,
     }),
-    [canFilterDepartments, filters],
+    [canFilterDepartments, filters, page, pageSize],
   );
-  const { data = [], isLoading } = useQuery({ queryKey: ["leave-requests", queryFilters], queryFn: () => getLeaveRequests(queryFilters) });
+  const { data, isLoading } = useQuery({ queryKey: ["leave-requests", "paged", queryFilters], queryFn: () => getLeaveRequestsPaged(queryFilters) });
   const { data: leaveTypes = [] } = useQuery({ queryKey: ["leave-types"], queryFn: getLeaveTypes });
   const { data: departments = [] } = useQuery({
     queryKey: ["departments"],
@@ -48,12 +52,17 @@ export function LeaveManagementPage() {
   });
   const requesterOptions = useMemo(() => {
     const map = new Map<string, string>();
-    data.forEach((item) => {
+    (data?.items ?? []).forEach((item) => {
       map.set(item.userId, item.fullname ?? "-");
     });
     return Array.from(map, ([id, fullname]) => ({ id, fullname }));
   }, [data]);
-  const visibleData = data;
+  const visibleData = data?.items ?? [];
+
+  function updateFilters(nextFilters: typeof filters) {
+    setFilters(nextFilters);
+    setPage(0);
+  }
 
   return (
     <>
@@ -85,7 +94,7 @@ export function LeaveManagementPage() {
         <CardContent sx={{ py: 2 }}>
           <Grid container spacing={1.5}>
             <Grid item xs={12} sm={6} md={2}>
-              <TextField select fullWidth size="small" label="ประเภทลา" value={filters.leaveTypeId} onChange={(event) => setFilters({ ...filters, leaveTypeId: event.target.value })}>
+              <TextField select fullWidth size="small" label="ประเภทลา" value={filters.leaveTypeId} onChange={(event) => updateFilters({ ...filters, leaveTypeId: event.target.value })}>
                 <MenuItem value="">ทุกประเภทลา</MenuItem>
                 {leaveTypes.map((item) => (
                   <MenuItem key={item.id} value={item.id}>
@@ -95,7 +104,7 @@ export function LeaveManagementPage() {
               </TextField>
             </Grid>
             <Grid item xs={12} sm={6} md={2}>
-              <TextField select fullWidth size="small" label="สถานะคำขอ" value={filters.status} onChange={(event) => setFilters({ ...filters, status: event.target.value })}>
+              <TextField select fullWidth size="small" label="สถานะคำขอ" value={filters.status} onChange={(event) => updateFilters({ ...filters, status: event.target.value })}>
                 <MenuItem value="">ทุกสถานะ</MenuItem>
                 <MenuItem value="Draft">แบบร่าง</MenuItem>
                 <MenuItem value="Pending">รออนุมัติ</MenuItem>
@@ -106,7 +115,7 @@ export function LeaveManagementPage() {
             </Grid>
             {canFilterDepartments && (
               <Grid item xs={12} sm={6} md={2}>
-                <TextField select fullWidth size="small" label="หน่วยงาน" value={filters.departmentId} onChange={(event) => setFilters({ ...filters, departmentId: event.target.value })}>
+                <TextField select fullWidth size="small" label="หน่วยงาน" value={filters.departmentId} onChange={(event) => updateFilters({ ...filters, departmentId: event.target.value })}>
                   <MenuItem value="">ทุกหน่วยงาน</MenuItem>
                   {departments.map((item) => (
                     <MenuItem key={item.id} value={item.id}>
@@ -117,7 +126,7 @@ export function LeaveManagementPage() {
               </Grid>
             )}
             <Grid item xs={12} sm={6} md={2}>
-              <TextField select fullWidth size="small" label="ผู้ขอลา" value={filters.userId} onChange={(event) => setFilters({ ...filters, userId: event.target.value })}>
+              <TextField select fullWidth size="small" label="ผู้ขอลา" value={filters.userId} onChange={(event) => updateFilters({ ...filters, userId: event.target.value })}>
                 <MenuItem value="">ทุกคน</MenuItem>
                 {requesterOptions.map((item) => (
                   <MenuItem key={item.id} value={item.id}>
@@ -127,10 +136,10 @@ export function LeaveManagementPage() {
               </TextField>
             </Grid>
             <Grid item xs={12} sm={6} md={2}>
-              <AppDatePicker label="ตั้งแต่วันที่" value={filters.fromDate} onChange={(value) => setFilters({ ...filters, fromDate: value })} />
+              <AppDatePicker label="ตั้งแต่วันที่" value={filters.fromDate} onChange={(value) => updateFilters({ ...filters, fromDate: value })} />
             </Grid>
             <Grid item xs={12} sm={6} md={2}>
-              <AppDatePicker label="ถึงวันที่" value={filters.toDate} onChange={(value) => setFilters({ ...filters, toDate: value })} />
+              <AppDatePicker label="ถึงวันที่" value={filters.toDate} onChange={(value) => updateFilters({ ...filters, toDate: value })} />
             </Grid>
           </Grid>
         </CardContent>
@@ -188,6 +197,26 @@ export function LeaveManagementPage() {
               )}
             </TableBody>
           </Table>
+          <TablePagination
+            component="div"
+            count={data?.totalItems ?? 0}
+            page={page}
+            onPageChange={(_, nextPage) => setPage(nextPage)}
+            rowsPerPage={pageSize}
+            onRowsPerPageChange={(event) => {
+              setPageSize(Number(event.target.value));
+              setPage(0);
+            }}
+            rowsPerPageOptions={[10, 20, 50]}
+            labelRowsPerPage="จำนวนรายการต่อหน้า"
+            labelDisplayedRows={({ from, to, count }) => `${from}-${to} จาก ${count !== -1 ? count : `มากกว่า ${to}`}`}
+            getItemAriaLabel={(type) => {
+              if (type === "first") return "ไปหน้าแรก";
+              if (type === "last") return "ไปหน้าสุดท้าย";
+              if (type === "next") return "ไปหน้าถัดไป";
+              return "ไปหน้าก่อนหน้า";
+            }}
+          />
         </CardContent>
       </Card>
     </>

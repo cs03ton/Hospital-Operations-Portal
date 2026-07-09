@@ -34,7 +34,7 @@ type DashboardWidgetDefinition = {
 
 const roleLayouts: Record<DashboardRole, string[]> = {
   Staff: ["welcome", "leaveBalance", "myLeaveRequests", "myPendingRequests", "recentNotifications", "myLeaveCalendar"],
-  DepartmentHead: ["welcome", "pendingApproval", "teamLeaveToday", "teamCalendar", "teamLeaveStats", "employeesNearLeaveLimit", "myLeaveRequests"],
+  DepartmentHead: ["welcome", "leaveBalance", "myLeaveRequests", "myPendingRequests", "myLeaveCalendar", "pendingApproval", "teamLeaveToday", "teamCalendar", "teamLeaveStats", "employeesNearLeaveLimit"],
   Director: ["welcome", "hospitalLeaveSummary", "departmentComparison", "monthlyLeaveStats", "approvalQueue", "executiveCalendar", "leaveTrend"],
   Admin: ["welcome", "userSummary", "departmentSummary", "leaveTypeSummary", "approvalRules", "pendingApprovalOverview", "notificationQueue", "auditLog", "holidayManagement", "systemHealth", "backgroundJobs", "storageUsage", "backupStatus", "versionInfo"],
   SuperAdmin: ["welcome", "userSummary", "departmentSummary", "leaveTypeSummary", "approvalRules", "pendingApprovalOverview", "notificationQueue", "auditLog", "holidayManagement", "systemHealth", "backgroundJobs", "storageUsage", "backupStatus", "versionInfo", "securityEvents", "failedLogin", "permissionDenied", "lineDelivery", "databaseStatus", "apiHealth", "queueMonitoring"],
@@ -58,7 +58,7 @@ export function normalizeDashboardRole(role?: string | null): DashboardRole {
   if (role === "SuperAdmin") return "SuperAdmin";
   if (role === "Admin") return "Admin";
   if (role === "Director") return "Director";
-  if (role === "DepartmentHead") return "DepartmentHead";
+  if (role === "DepartmentHead" || role === "Head" || role === "Department Head") return "DepartmentHead";
   return "Staff";
 }
 

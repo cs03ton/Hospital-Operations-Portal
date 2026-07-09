@@ -1,5 +1,4 @@
 import {
-  Alert,
   Box,
   Button,
   Card,
@@ -25,7 +24,7 @@ import {
   updateRolePermissions,
 } from "../api/adminApi";
 import { PageHeader } from "../components/PageHeader";
-import { useNotification } from "../hooks/useNotification";
+import { useSaveFeedback } from "../hooks/useSaveFeedback";
 import { getRoleLabel } from "../utils/roleLabels";
 
 const groupLabels: Record<string, string> = {
@@ -61,7 +60,7 @@ export function RolePermissionsPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { showSuccess } = useNotification();
+  const { showSaveError, showSuccessAndRedirect } = useSaveFeedback();
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [search, setSearch] = useState("");
 
@@ -97,9 +96,12 @@ export function RolePermissionsPage() {
     mutationFn: () => updateRolePermissions(id!, selectedIds),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["roles", id, "permissions"] });
-      showSuccess("บันทึกสิทธิ์การใช้งานเรียบร้อยแล้ว");
-      navigate("/admin/roles");
+      showSuccessAndRedirect({
+        successMessage: "บันทึกสิทธิ์การใช้งานเรียบร้อยแล้ว",
+        redirectTo: "/admin/roles",
+      });
     },
+    onError: (error: unknown) => showSaveError(error, "บันทึกสิทธิ์ไม่สำเร็จ"),
   });
 
   function togglePermission(permissionId: string) {
@@ -127,7 +129,6 @@ export function RolePermissionsPage() {
       <Card>
         <CardContent>
           <Stack spacing={2}>
-            {saveMutation.isError && <Alert severity="error">บันทึกสิทธิ์ไม่สำเร็จ</Alert>}
             <Stack direction={{ xs: "column", md: "row" }} spacing={1.5} alignItems={{ xs: "stretch", md: "center" }}>
               <TextField
                 fullWidth

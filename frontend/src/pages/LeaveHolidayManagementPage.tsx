@@ -15,7 +15,7 @@ import { DataTableCard } from "../components/common/DataTableCard";
 import { FilterToolbar } from "../components/common/FilterToolbar";
 import { PageToolbar } from "../components/common/PageToolbar";
 import { PageHeader } from "../components/PageHeader";
-import { useNotification } from "../hooks/useNotification";
+import { useSaveFeedback } from "../hooks/useSaveFeedback";
 import { formatDateForApi, formatThaiDate, isValidApiDate } from "../utils/dateFormat";
 
 const emptyHoliday: SaveLeaveHolidayRequest = {
@@ -26,7 +26,7 @@ const emptyHoliday: SaveLeaveHolidayRequest = {
 
 export function LeaveHolidayManagementPage() {
   const queryClient = useQueryClient();
-  const { showSuccess } = useNotification();
+  const { showSaveError, showSuccessAndRedirect } = useSaveFeedback();
   const currentYear = new Date().getFullYear();
   const [year, setYear] = useState(currentYear);
   const [searchInput, setSearchInput] = useState("");
@@ -54,30 +54,33 @@ export function LeaveHolidayManagementPage() {
   const saveMutation = useMutation({
     mutationFn: (values: SaveLeaveHolidayRequest) => editing ? updateLeaveHoliday(editing.id, values) : createLeaveHoliday(values),
     onSuccess: async () => {
-      showSuccess(editing ? "บันทึกวันหยุดราชการเรียบร้อยแล้ว" : "เพิ่มวันหยุดราชการเรียบร้อยแล้ว");
+      showSuccessAndRedirect({ successMessage: editing ? "แก้ไขวันหยุดราชการสำเร็จ" : "เพิ่มวันหยุดราชการสำเร็จ" });
       setEditing(null);
       reset(emptyHoliday);
       await queryClient.invalidateQueries({ queryKey: ["leave-holidays"] });
     },
+    onError: (error: unknown) => showSaveError(error),
   });
   const deleteMutation = useMutation({
     mutationFn: deleteLeaveHoliday,
     onSuccess: () => {
-      showSuccess("ลบวันหยุดราชการเรียบร้อยแล้ว");
+      showSuccessAndRedirect({ successMessage: "ลบวันหยุดราชการเรียบร้อยแล้ว" });
       setDeletingHoliday(null);
       queryClient.invalidateQueries({ queryKey: ["leave-holidays"] });
     },
+    onError: (error: unknown) => showSaveError(error, "ไม่สามารถลบวันหยุดราชการได้"),
   });
   const previewMutation = useMutation({ mutationFn: previewLeaveHolidayImport, onSuccess: setPreview });
   const confirmMutation = useMutation({
     mutationFn: confirmLeaveHolidayImport,
     onSuccess: async () => {
-      showSuccess("นำเข้าวันหยุดราชการเรียบร้อยแล้ว");
+      showSuccessAndRedirect({ successMessage: "นำเข้าวันหยุดราชการเรียบร้อยแล้ว" });
       setImportOpen(false);
       setImportFile(null);
       setPreview(null);
       await queryClient.invalidateQueries({ queryKey: ["leave-holidays"] });
     },
+    onError: (error: unknown) => showSaveError(error, "Import วันหยุดราชการไม่สำเร็จ"),
   });
 
   const validRows = useMemo(() => preview?.rows.filter((row) => row.isValid && row.holidayDate).map((row) => ({
@@ -106,7 +109,7 @@ export function LeaveHolidayManagementPage() {
   async function handleDownloadTemplate() {
     const blob = await downloadLeaveHolidayTemplate();
     downloadBlob(blob, "leave-holiday-import-template.csv");
-    showSuccess("ดาวน์โหลดตัวอย่างไฟล์เรียบร้อยแล้ว");
+    showSuccessAndRedirect({ successMessage: "ดาวน์โหลดตัวอย่างไฟล์เรียบร้อยแล้ว" });
   }
 
   function handleCloseImport() {
@@ -184,7 +187,6 @@ export function LeaveHolidayManagementPage() {
           <CardContent>
             <Typography variant="h6" sx={{ mb: 2 }}>{editing ? "แก้ไขวันหยุด" : "เพิ่มวันหยุด"}</Typography>
             <Stack component="form" spacing={2} onSubmit={handleSubmit((values) => saveMutation.mutate(values))}>
-              {saveMutation.isError && <Alert severity="error">บันทึกวันหยุดไม่สำเร็จ</Alert>}
               <Grid container spacing={1.5}>
                 <Grid item xs={12} md={4}>
                   <Controller

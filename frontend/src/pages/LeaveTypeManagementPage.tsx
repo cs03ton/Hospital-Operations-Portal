@@ -2,7 +2,6 @@ import DeleteOutlineOutlinedIcon from "@mui/icons-material/DeleteOutlineOutlined
 import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 import AddOutlinedIcon from "@mui/icons-material/AddOutlined";
 import {
-  Alert,
   Button,
   Card,
   CardContent,
@@ -32,13 +31,13 @@ import { DataTableCard } from "../components/common/DataTableCard";
 import { PageHeader } from "../components/PageHeader";
 import { useAuth } from "../context/AuthContext";
 import { PermissionGuard } from "../context/PermissionContext";
-import { useNotification } from "../hooks/useNotification";
+import { useSaveFeedback } from "../hooks/useSaveFeedback";
 import { getLeaveTypeLabel } from "../utils/leaveLabels";
 
 export function LeaveTypeManagementPage() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  const { showSuccess } = useNotification();
+  const { showSaveError, showSuccessAndRedirect } = useSaveFeedback();
   const [editing, setEditing] = useState<LeaveType | null>(null);
   const [deleting, setDeleting] = useState<LeaveType | null>(null);
   const canSeeManageColumn = user?.role === "Admin" || user?.role === "SuperAdmin";
@@ -51,19 +50,21 @@ export function LeaveTypeManagementPage() {
   const saveMutation = useMutation({
     mutationFn: (payload: SaveLeaveTypeRequest) => editing ? updateLeaveType(editing.id, payload) : createLeaveType(payload),
     onSuccess: async () => {
-      showSuccess(editing ? "บันทึกประเภทการลาเรียบร้อยแล้ว" : "เพิ่มประเภทการลาเรียบร้อยแล้ว");
+      showSuccessAndRedirect({ successMessage: editing ? "แก้ไขประเภทการลาสำเร็จ" : "เพิ่มประเภทการลาสำเร็จ" });
       setEditing(null);
       reset(getEmptyLeaveTypeForm());
       await queryClient.invalidateQueries({ queryKey: ["leave-types"] });
     },
+    onError: (error: unknown) => showSaveError(error),
   });
   const deleteMutation = useMutation({
     mutationFn: deactivateLeaveType,
     onSuccess: () => {
-      showSuccess("ลบประเภทการลาเรียบร้อยแล้ว");
+      showSuccessAndRedirect({ successMessage: "ลบประเภทการลาเรียบร้อยแล้ว" });
       setDeleting(null);
       queryClient.invalidateQueries({ queryKey: ["leave-types"] });
     },
+    onError: (error: unknown) => showSaveError(error, "ไม่สามารถลบประเภทการลาได้"),
   });
 
   function onEdit(item: LeaveType) {
@@ -80,7 +81,6 @@ export function LeaveTypeManagementPage() {
             <CardContent>
               <Typography variant="h6" sx={{ mb: 2 }}>{editing ? "แก้ไขประเภทการลา" : "เพิ่มประเภทการลา"}</Typography>
               <Stack component="form" spacing={2} onSubmit={handleSubmit((values) => saveMutation.mutate({ ...values, defaultDaysPerYear: Number(values.defaultDaysPerYear), carryOverMaxDays: Number(values.carryOverMaxDays) }))}>
-                {saveMutation.isError && <Alert severity="error">บันทึกประเภทการลาไม่สำเร็จ</Alert>}
                 <Grid container spacing={1.5}>
                   <Grid item xs={12} md={3}>
                     <TextField fullWidth size="small" label="รหัส" InputLabelProps={{ shrink: true }} error={Boolean(errors.code)} helperText={errors.code?.message} {...register("code", { required: "กรุณากรอกรหัส" })} />

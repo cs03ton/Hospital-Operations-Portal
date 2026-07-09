@@ -18,8 +18,7 @@ import {
   type SaveDepartmentRequest,
 } from "../api/adminApi";
 import { PageHeader } from "../components/PageHeader";
-import { useNotification } from "../hooks/useNotification";
-import { extractApiErrorMessage } from "../utils/apiError";
+import { useSaveFeedback } from "../hooks/useSaveFeedback";
 
 type DepartmentFormValues = {
   name: string;
@@ -32,7 +31,7 @@ export function DepartmentFormPage() {
   const isEdit = Boolean(id);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { showError, showSuccess } = useNotification();
+  const { showSaveError, showSuccessAndRedirect } = useSaveFeedback();
 
   const {
     control,
@@ -69,11 +68,13 @@ export function DepartmentFormPage() {
       isEdit ? updateDepartment(id!, values) : createDepartment(values),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["departments"] }).catch(() => undefined);
-      showSuccess(isEdit ? "บันทึกข้อมูลหน่วยงานเรียบร้อยแล้ว" : "เพิ่มหน่วยงานเรียบร้อยแล้ว");
-      navigate("/admin/departments");
+      showSuccessAndRedirect({
+        successMessage: isEdit ? "แก้ไขหน่วยงานสำเร็จ" : "เพิ่มหน่วยงานสำเร็จ",
+        redirectTo: "/admin/departments",
+      });
     },
     onError: (error: unknown) => {
-      showError(extractApiErrorMessage(error, "บันทึกข้อมูลไม่สำเร็จ"));
+      showSaveError(error);
     },
   });
 

@@ -50,8 +50,6 @@ public class DashboardController(AppDbContext db) : ControllerBase
         var monthEnd = monthStart.AddMonths(1).AddDays(-1);
         var todayStart = DateTime.UtcNow.Date;
         var tomorrowStart = todayStart.AddDays(1);
-        var fiscalYear = FiscalYearHelper.GetFiscalYear(today);
-
         var pendingApprovals = userId is null || !canViewPendingApprovals
             ? 0
             : await db.LeaveApprovals.CountAsync(item =>
@@ -71,7 +69,7 @@ public class DashboardController(AppDbContext db) : ControllerBase
 
         var myCoreLeaveBalances = userId is null
             ? Array.Empty<DashboardLeaveBalanceResponse>()
-            : await LoadMyCoreLeaveBalances(userId.Value, fiscalYear);
+            : await LoadMyCoreLeaveBalances(userId.Value, today);
 
         var myLeaveQuery = userId is null
             ? db.LeaveRequests.Where(item => false)
@@ -164,29 +162,47 @@ public class DashboardController(AppDbContext db) : ControllerBase
             .CountAsync();
     }
 
-    private async Task<IReadOnlyList<DashboardLeaveBalanceResponse>> LoadMyCoreLeaveBalances(Guid userId, int fiscalYear)
+    private async Task<IReadOnlyList<DashboardLeaveBalanceResponse>> LoadMyCoreLeaveBalances(Guid userId, DateOnly today)
     {
-        var balances = await db.LeaveBalances
+        var leaveTypes = await db.LeaveTypes
             .AsNoTracking()
-            .Include(item => item.LeaveType)
-            .Where(item => item.UserId == userId && item.Year == fiscalYear)
-            .Where(item => item.LeaveType != null && CoreLeaveTypeCodes.Contains(item.LeaveType.Code))
+            .Where(item => item.IsActive && CoreLeaveTypeCodes.Contains(item.Code))
             .ToListAsync();
 
-        return balances
-            .OrderBy(item => Array.IndexOf(CoreLeaveTypeCodes, item.LeaveType!.Code))
-            .Select(item => new DashboardLeaveBalanceResponse(
-                item.LeaveType!.Code,
-                item.LeaveType.Name,
-                item.EntitledDays + item.CarriedOverDays + item.AdjustedDays,
-                item.UsedDays,
-                item.PendingDays,
-                FiscalYearHelper.CalculateAvailableDays(
-                    item.EntitledDays,
-                    item.CarriedOverDays,
-                    item.UsedDays,
-                    item.PendingDays,
-                    item.AdjustedDays)))
+        var leaveTypeIds = leaveTypes.Select(item => item.Id).ToHashSet();
+        var targetYearsByLeaveTypeId = leaveTypes.ToDictionary(
+            item => item.Id,
+            item => FiscalYearHelper.ResolveBalanceYear(today, item));
+
+        var balances = await db.LeaveBalances
+            .AsNoTracking()
+            .Where(item => item.UserId == userId && leaveTypeIds.Contains(item.LeaveTypeId))
+            .ToListAsync();
+
+        return leaveTypes
+            .OrderBy(item => Array.IndexOf(CoreLeaveTypeCodes, item.Code))
+            .Select(leaveType =>
+            {
+                var targetYear = targetYearsByLeaveTypeId[leaveType.Id];
+                var balance = balances.FirstOrDefault(item => item.LeaveTypeId == leaveType.Id && item.Year == targetYear)
+                    ?? balances
+                        .Where(item => item.LeaveTypeId == leaveType.Id)
+                        .OrderByDescending(item => item.Year)
+                        .FirstOrDefault();
+                var entitled = balance?.EntitledDays ?? leaveType.DefaultDaysPerYear;
+                var carriedOver = balance?.CarriedOverDays ?? 0;
+                var adjusted = balance?.AdjustedDays ?? 0;
+                var used = balance?.UsedDays ?? 0;
+                var pending = balance?.PendingDays ?? 0;
+
+                return new DashboardLeaveBalanceResponse(
+                    leaveType.Code,
+                    leaveType.Name,
+                    entitled + carriedOver + adjusted,
+                    used,
+                    pending,
+                    FiscalYearHelper.CalculateAvailableDays(entitled, carriedOver, used, pending, adjusted));
+            })
             .ToList();
     }
 

@@ -226,6 +226,26 @@ public class LineRetryTests
     }
 
     [Fact]
+    public void LineConfigurationResolver_PublicAppUrlPrefersConfiguredNonLocalUrl()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["ASPNETCORE_ENVIRONMENT"] = Environments.Production,
+                ["Line:PublicAppUrl"] = "http://localhost:5173",
+                ["PUBLIC_APP_URL"] = "http://172.16.2.99"
+            })
+            .Build();
+
+        var resolver = new LineConfigurationResolver(
+            Options.Create(new LineOptions()),
+            configuration,
+            new TestHostEnvironment(Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString()), Environments.Production));
+
+        Assert.Equal("http://172.16.2.99", resolver.PublicAppUrl);
+    }
+
+    [Fact]
     public void LeaveLineFlexMessageTemplates_PendingCardUsesMinimalActionColors()
     {
         var payload = LeaveLineFlexMessageTemplates.BuildPendingApprovalCard(CreateLeaveRequest(), "https://hop.example.local");

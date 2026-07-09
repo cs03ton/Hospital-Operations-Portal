@@ -35,7 +35,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
 
   const show = useCallback((type: NotificationType, message: string) => {
     const notification = {
-      id: crypto.randomUUID(),
+      id: createNotificationId(),
       type,
       message,
       createdAt: new Date().toISOString(),
@@ -92,4 +92,12 @@ export function useNotificationContext() {
   }
 
   return context;
+}
+
+function createNotificationId() {
+  if ("crypto" in window && typeof window.crypto.randomUUID === "function") {
+    return window.crypto.randomUUID();
+  }
+
+  return `notification-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 }

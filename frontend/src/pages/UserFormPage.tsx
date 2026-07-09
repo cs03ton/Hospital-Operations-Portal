@@ -14,7 +14,7 @@ import {
   Typography,
 } from "@mui/material";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { useNavigate, useParams } from "react-router-dom";
 import {
@@ -27,8 +27,7 @@ import {
 } from "../api/adminApi";
 import { getApprovalChains } from "../api/leaveApi";
 import { PageHeader } from "../components/PageHeader";
-import { useNotification } from "../hooks/useNotification";
-import { extractApiErrorMessage } from "../utils/apiError";
+import { useSaveFeedback } from "../hooks/useSaveFeedback";
 import { employmentTypeOptions } from "../utils/employmentLabels";
 import { genderOptions } from "../utils/genderLabels";
 import { getRoleLabel } from "../utils/roleLabels";
@@ -53,7 +52,8 @@ export function UserFormPage() {
   const isEdit = Boolean(id);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { showError, showSuccess } = useNotification();
+  const { showSaveError, showSuccessAndRedirect } = useSaveFeedback();
+  const [roleSelectOpen, setRoleSelectOpen] = useState(false);
 
   const { data: departments = [] } = useQuery({
     queryKey: ["departments"],
@@ -114,11 +114,13 @@ export function UserFormPage() {
     mutationFn: (values: SaveUserRequest) => (isEdit ? updateUser(id!, values) : createUser(values)),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["users"] }).catch(() => undefined);
-      showSuccess(isEdit ? "บันทึกข้อมูลผู้ใช้งานเรียบร้อยแล้ว" : "เพิ่มผู้ใช้งานเรียบร้อยแล้ว");
-      navigate("/admin/users");
+      showSuccessAndRedirect({
+        successMessage: isEdit ? "แก้ไขผู้ใช้งานสำเร็จ" : "เพิ่มผู้ใช้งานสำเร็จ",
+        redirectTo: "/admin/users",
+      });
     },
     onError: (error: unknown) => {
-      showError(extractApiErrorMessage(error, "บันทึกข้อมูลไม่สำเร็จ"));
+      showSaveError(error);
     },
   });
 
@@ -202,7 +204,28 @@ export function UserFormPage() {
               render={({ field }) => (
                 <FormControl fullWidth error={Boolean(errors.roleIds)}>
                   <InputLabel shrink>บทบาท</InputLabel>
-                  <Select label="บทบาท" multiple {...field}>
+                  <Select
+                    label="บทบาท"
+                    multiple
+                    name={field.name}
+                    value={field.value}
+                    inputRef={field.ref}
+                    open={roleSelectOpen}
+                    onOpen={() => setRoleSelectOpen(true)}
+                    onClose={() => setRoleSelectOpen(false)}
+                    onBlur={field.onBlur}
+                    onChange={(event) => {
+                      const selectedRoleIds =
+                        typeof event.target.value === "string" ? event.target.value.split(",") : event.target.value;
+                      field.onChange(selectedRoleIds);
+                      setRoleSelectOpen(false);
+                    }}
+                    renderValue={(selected) =>
+                      (selected as string[])
+                        .map((roleId) => getRoleLabel(roles.find((role) => role.id === roleId)?.name ?? roleId))
+                        .join(", ")
+                    }
+                  >
                     {roles
                       .filter((role) => role.isActive)
                       .map((role) => (

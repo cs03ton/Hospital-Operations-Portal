@@ -8,6 +8,7 @@ public sealed class LineConfigurationResolver(
     IConfiguration configuration)
 {
     private readonly LineOptions lineOptions = options.Value;
+    private IHostEnvironment? hostEnvironment;
 
     public LineConfigurationResolver(
         IOptions<LineOptions> options,
@@ -15,6 +16,7 @@ public sealed class LineConfigurationResolver(
         IHostEnvironment? _)
         : this(options, configuration)
     {
+        hostEnvironment = _;
     }
 
     public bool Enabled =>
@@ -64,11 +66,7 @@ public sealed class LineConfigurationResolver(
         configuration["LINE:WebhookUrl"],
         configuration["LINE_WEBHOOK_URL"]);
 
-    public string PublicAppUrl => FirstConfigured(
-        lineOptions.PublicAppUrl,
-        configuration["Line:PublicAppUrl"],
-        configuration["PUBLIC_APP_URL"])
-        ?? "http://localhost:5173";
+    public string PublicAppUrl => ResolvePublicAppUrl();
 
     public string? PublicFileBaseUrl => FirstConfigured(
         lineOptions.PublicFileBaseUrl,
@@ -99,5 +97,64 @@ public sealed class LineConfigurationResolver(
     private static string? FirstConfigured(params string?[] values)
     {
         return values.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value));
+    }
+
+    private string ResolvePublicAppUrl()
+    {
+        var candidates = new[]
+        {
+            lineOptions.PublicAppUrl,
+            configuration["Line:PublicAppUrl"],
+            configuration["LINE:PublicAppUrl"],
+            configuration["LINE_PUBLIC_APP_URL"],
+            configuration["PUBLIC_APP_URL"],
+            configuration["PHASE1_FRONTEND_URL"],
+            configuration["FRONTEND_URL"]
+        };
+
+        var usableUrl = candidates
+            .Select(NormalizeUrl)
+            .FirstOrDefault(IsUsableLineActionUrl);
+
+        if (!string.IsNullOrWhiteSpace(usableUrl))
+        {
+            return usableUrl;
+        }
+
+        var configuredUrl = NormalizeUrl(FirstConfigured(candidates));
+        if (!string.IsNullOrWhiteSpace(configuredUrl) && IsDevelopmentEnvironment())
+        {
+            return configuredUrl;
+        }
+
+        return IsDevelopmentEnvironment() ? "http://localhost:5173" : string.Empty;
+    }
+
+    private bool IsDevelopmentEnvironment()
+    {
+        return hostEnvironment?.IsDevelopment() == true ||
+            string.Equals(configuration["ASPNETCORE_ENVIRONMENT"], Environments.Development, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string? NormalizeUrl(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value) ? null : value.Trim().TrimEnd('/');
+    }
+
+    private static bool IsUsableLineActionUrl(string? value)
+    {
+        if (!Uri.TryCreate(value, UriKind.Absolute, out var uri))
+        {
+            return false;
+        }
+
+        if (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps)
+        {
+            return false;
+        }
+
+        return !uri.Host.Equals("localhost", StringComparison.OrdinalIgnoreCase) &&
+            !uri.Host.Equals("127.0.0.1", StringComparison.OrdinalIgnoreCase) &&
+            !uri.Host.Equals("::1", StringComparison.OrdinalIgnoreCase);
     }
 }

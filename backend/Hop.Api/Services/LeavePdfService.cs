@@ -177,15 +177,7 @@ public sealed class LeavePdfService(IWebHostEnvironment environment, IConfigurat
 
     private PdfImage? TryLoadLogo()
     {
-        var configuredPath = configuration["Branding:LogoPath"];
-        var candidates = new[]
-        {
-            configuredPath,
-            Path.Combine(environment.ContentRootPath, "assets", "logo", "hospital-logo.png"),
-            Path.GetFullPath(Path.Combine(environment.ContentRootPath, "..", "..", "frontend", "src", "assets", "logo", "hospital-logo.png"))
-        };
-
-        foreach (var candidate in candidates.Where(path => !string.IsNullOrWhiteSpace(path)))
+        foreach (var candidate in GetLogoPathCandidates())
         {
             if (File.Exists(candidate) && PngImageReader.TryReadRgb(candidate, out var image))
             {
@@ -198,17 +190,91 @@ public sealed class LeavePdfService(IWebHostEnvironment environment, IConfigurat
 
     private string? TryResolveLogoPath()
     {
-        var configuredPath = configuration["Branding:LogoPath"];
-        var candidates = new[]
+        return GetLogoPathCandidates().FirstOrDefault(File.Exists);
+    }
+
+    private IEnumerable<string> GetLogoPathCandidates()
+    {
+        var configuredPaths = new[]
         {
-            configuredPath,
+            configuration["Branding:LogoPath"],
+            configuration["Hospital:LogoPath"],
+            configuration["HOSPITAL_LOGO_PATH"],
+            configuration["HOP_HOSPITAL_LOGO_PATH"]
+        };
+
+        foreach (var configuredPath in configuredPaths)
+        {
+            foreach (var resolvedPath in ResolveLogoConfigPath(configuredPath))
+            {
+                yield return resolvedPath;
+            }
+        }
+
+        var fixedCandidates = new[]
+        {
             Path.Combine(environment.ContentRootPath, "assets", "logo", "hospital-logo.png"),
+            Path.GetFullPath(Path.Combine(environment.ContentRootPath, "..", "assets", "logo", "hospital-logo.png")),
+            "/opt/hop/backend/assets/logo/hospital-logo.png",
+            "/opt/hop/assets/logo/hospital-logo.png",
+            "/var/www/hop/assets/logo/hospital-logo.png",
             Path.GetFullPath(Path.Combine(environment.ContentRootPath, "..", "..", "frontend", "src", "assets", "logo", "hospital-logo.png"))
         };
 
-        return candidates
-            .Where(path => !string.IsNullOrWhiteSpace(path))
-            .FirstOrDefault(File.Exists);
+        foreach (var candidate in fixedCandidates)
+        {
+            yield return candidate;
+        }
+
+        foreach (var directory in new[]
+        {
+            Path.Combine(environment.ContentRootPath, "assets"),
+            Path.Combine(environment.ContentRootPath, "assets", "logo"),
+            "/var/www/hop/assets",
+            "/var/www/hop/assets/logo"
+        })
+        {
+            foreach (var candidate in FindLogoFiles(directory))
+            {
+                yield return candidate;
+            }
+        }
+    }
+
+    private IEnumerable<string> ResolveLogoConfigPath(string? configuredPath)
+    {
+        if (string.IsNullOrWhiteSpace(configuredPath))
+        {
+            yield break;
+        }
+
+        var trimmedPath = configuredPath.Trim();
+        yield return trimmedPath;
+
+        if (!Path.IsPathRooted(trimmedPath))
+        {
+            yield return Path.GetFullPath(Path.Combine(environment.ContentRootPath, trimmedPath));
+            yield break;
+        }
+
+        if (trimmedPath.StartsWith("/assets/", StringComparison.OrdinalIgnoreCase))
+        {
+            var relativeWebPath = trimmedPath.TrimStart('/').Replace('/', Path.DirectorySeparatorChar);
+            yield return Path.Combine("/var/www/hop", relativeWebPath);
+            yield return Path.Combine(environment.ContentRootPath, relativeWebPath);
+        }
+    }
+
+    private static IEnumerable<string> FindLogoFiles(string directory)
+    {
+        if (!Directory.Exists(directory))
+        {
+            return [];
+        }
+
+        return Directory
+            .EnumerateFiles(directory, "hospital-logo*.png", SearchOption.TopDirectoryOnly)
+            .OrderBy(path => Path.GetFileName(path), StringComparer.OrdinalIgnoreCase);
     }
 
     private string RegisterThaiFont(string preferredFontFamily)
@@ -347,12 +413,19 @@ public sealed class LeavePdfService(IWebHostEnvironment environment, IConfigurat
     {
         Section(container, "วันลาคงเหลือ", body =>
         {
-            body.Row(row =>
+            body.Column(column =>
             {
-                row.RelativeItem().Element(item => LabelValue(item, "ก่อนลา", values["balanceBefore"]));
-                row.RelativeItem().Element(item => LabelValue(item, "ใช้ครั้งนี้", values["balanceUsedThisRequest"]));
-                row.RelativeItem().Element(item => LabelValue(item, "รออนุมัติ", values["balancePending"]));
-                row.RelativeItem().Element(item => LabelValue(item, "คงเหลือหลังอนุมัติ", values["balanceAfterApproval"]));
+                column.Spacing(6);
+                column.Item().Text($"ประเภทลา: {values["balanceLeaveTypeName"]} | {values["balanceYearLabel"]}")
+                    .FontSize(13)
+                    .SemiBold();
+                column.Item().Row(row =>
+                {
+                    row.RelativeItem().Element(item => LabelValue(item, $"ก่อนลา ({values["balanceLeaveTypeName"]})", values["balanceBefore"]));
+                    row.RelativeItem().Element(item => LabelValue(item, "ใช้ครั้งนี้", values["balanceUsedThisRequest"]));
+                    row.RelativeItem().Element(item => LabelValue(item, "รออนุมัติ", values["balancePending"]));
+                    row.RelativeItem().Element(item => LabelValue(item, "คงเหลือหลังอนุมัติ", values["balanceAfterApproval"]));
+                });
             });
         });
     }
@@ -544,7 +617,8 @@ public sealed class LeavePdfService(IWebHostEnvironment environment, IConfigurat
             new($"ตั้งแต่วันที่: {values["startDate"]}   ถึงวันที่: {values["endDate"]}   จำนวนวันลา: {values["totalDays"]} วัน", 70, 474, 14),
             new($"วันทำการ: {values["workingDays"]}   วันหยุดราชการ: {values["holidayDays"]}   วันเสาร์-อาทิตย์: {values["weekendDays"]}", 70, 454, 14),
             new("วันลาคงเหลือ", 50, 426, 16),
-            new($"ก่อนลา: {values["balanceBefore"]}   ใช้ครั้งนี้: {values["balanceUsedThisRequest"]}   รออนุมัติ: {values["balancePending"]}   คงเหลือหลังอนุมัติ: {values["balanceAfterApproval"]}", 70, 404, 14),
+            new($"ประเภทลา: {values["balanceLeaveTypeName"]} | {values["balanceYearLabel"]}", 70, 408, 13),
+            new($"ก่อนลา ({values["balanceLeaveTypeName"]}): {values["balanceBefore"]}   ใช้ครั้งนี้: {values["balanceUsedThisRequest"]}   รออนุมัติ: {values["balancePending"]}   คงเหลือหลังอนุมัติ: {values["balanceAfterApproval"]}", 70, 392, 14),
             new("เหตุผลการลา", 50, 376, 16),
             new(values["reason"], 70, 354, 14),
             new("เอกสารแนบ", 50, 326, 16),
@@ -603,6 +677,10 @@ public sealed class LeavePdfService(IWebHostEnvironment environment, IConfigurat
         var holidayDays = context.Holidays.Count;
         var balanceBefore = context.LeaveBalance is null ? (decimal?)null : context.LeaveBalance.EntitledDays - context.LeaveBalance.UsedDays - context.LeaveBalance.PendingDays;
         decimal? balanceAfterApproval = balanceBefore is null ? null : balanceBefore.Value - leaveRequest.TotalDays;
+        var balanceYear = context.LeaveBalance?.Year ?? FiscalYearHelper.ResolveBalanceYear(leaveRequest.StartDate, leaveRequest.LeaveType ?? new LeaveType());
+        var balanceYearLabel = leaveRequest.LeaveType?.UseFiscalYear == true
+            ? $"ปีงบประมาณ {balanceYear + 543}"
+            : $"ปี {balanceYear + 543}";
         var finalApproval = leaveRequest.Approvals
             .OrderByDescending(item => item.StepOrder)
             .FirstOrDefault(item => item.Status is "Approved" or "Rejected");
@@ -637,6 +715,8 @@ public sealed class LeavePdfService(IWebHostEnvironment environment, IConfigurat
             ["balanceUsedThisRequest"] = leaveRequest.TotalDays.ToString("0.##", CultureInfo.InvariantCulture),
             ["balancePending"] = FormatDecimalOrDash(context.LeaveBalance?.PendingDays),
             ["balanceAfterApproval"] = FormatDecimalOrDash(balanceAfterApproval),
+            ["balanceLeaveTypeName"] = leaveType,
+            ["balanceYearLabel"] = balanceYearLabel,
             ["reason"] = leaveRequest.Reason,
             ["attachmentCount"] = leaveRequest.Attachments.Count.ToString(CultureInfo.InvariantCulture),
             ["attachmentCheckboxes"] = BuildAttachmentCheckboxes(leaveRequest),
@@ -730,9 +810,23 @@ public sealed class LeavePdfService(IWebHostEnvironment environment, IConfigurat
 
     private static bool IsLeaveType(LeaveRequest leaveRequest, string code, string thaiName)
     {
-        var leaveTypeCode = leaveRequest.LeaveType?.Code ?? string.Empty;
+        var leaveTypeCode = NormalizeCode(leaveRequest.LeaveType?.Code);
         var leaveTypeName = leaveRequest.LeaveType?.Name ?? string.Empty;
-        if (leaveTypeCode.Equals(code, StringComparison.OrdinalIgnoreCase))
+        string[] expectedCodes = code switch
+        {
+            "sick" => ["SICK", "SICKLEAVE", "SICK_LEAVE"],
+            "personal" => ["PERSONAL", "PERSONALLEAVE", "PERSONAL_LEAVE"],
+            "annual" => ["ANNUAL", "ANNUALLEAVE", "VACATION", "VACATIONLEAVE", "VACATION_LEAVE"],
+            "maternity" => ["MATERNITY", "MATERNITYLEAVE", "MATERNITY_LEAVE"],
+            "ordination" => ["ORDINATION", "ORDINATIONLEAVE", "ORDINATION_LEAVE", "MONK", "MONKHOOD"],
+            "paternity" => ["PATERNITY", "PATERNITYLEAVE", "PATERNITY_LEAVE"],
+            "study" => ["STUDY", "STUDYLEAVE", "STUDY_LEAVE", "TRAINING", "TRAINING_LEAVE"],
+            "official" => ["OFFICIAL", "OFFICIALLEAVE", "OFFICIAL_LEAVE", "DUTY", "DUTY_LEAVE"],
+            "international" => ["INTERNATIONAL", "INTERNATIONALLEAVE", "INTERNATIONAL_LEAVE", "ABROAD", "ABROAD_LEAVE"],
+            _ => [NormalizeCode(code)]
+        };
+
+        if (expectedCodes.Any(item => leaveTypeCode.Equals(NormalizeCode(item), StringComparison.OrdinalIgnoreCase)))
         {
             return true;
         }
@@ -749,42 +843,90 @@ public sealed class LeavePdfService(IWebHostEnvironment environment, IConfigurat
             "annual" => leaveTypeName.Contains("พักผ่อน", StringComparison.OrdinalIgnoreCase),
             "maternity" => leaveTypeName.Contains("คลอด", StringComparison.OrdinalIgnoreCase),
             "ordination" => leaveTypeName.Contains("อุปสมบท", StringComparison.OrdinalIgnoreCase),
+            "paternity" => leaveTypeName.Contains("ภริยา", StringComparison.OrdinalIgnoreCase) || leaveTypeName.Contains("ช่วย", StringComparison.OrdinalIgnoreCase),
             "study" => leaveTypeName.Contains("ศึกษา", StringComparison.OrdinalIgnoreCase) || leaveTypeName.Contains("อบรม", StringComparison.OrdinalIgnoreCase),
-            _ => code == "other"
+            "official" => leaveTypeName.Contains("ปฏิบัติราชการ", StringComparison.OrdinalIgnoreCase),
+            "international" => leaveTypeName.Contains("ต่างประเทศ", StringComparison.OrdinalIgnoreCase),
+            _ => code == "other" && !IsKnownLeaveType(leaveTypeCode, leaveTypeName)
         };
     }
 
     private static string BuildDurationCheckboxes(string? durationType)
     {
-        var normalized = LeaveDurationTypes.Normalize(durationType);
+        var normalized = NormalizeDurationTypeForPdf(durationType);
         return string.Join("   ", new[]
         {
-            $"{Checkbox(normalized == "FULL_DAY")} เต็มวัน",
-            $"{Checkbox(normalized == "HALF_DAY_AM")} ครึ่งวัน (เช้า)",
-            $"{Checkbox(normalized == "HALF_DAY_PM")} ครึ่งวัน (บ่าย)"
+            $"{Checkbox(normalized == LeaveDurationTypes.FullDay)} เต็มวัน",
+            $"{Checkbox(normalized == LeaveDurationTypes.HalfDayAm)} ครึ่งวัน (เช้า)",
+            $"{Checkbox(normalized == LeaveDurationTypes.HalfDayPm)} ครึ่งวัน (บ่าย)"
         });
     }
 
     private static string BuildAttachmentCheckboxes(LeaveRequest leaveRequest)
     {
-        var hasAttachments = leaveRequest.Attachments.Count > 0;
+        var attachments = leaveRequest.Attachments.ToList();
+        var hasMedicalCertificate = IsLeaveType(leaveRequest, "sick", "ลาป่วย") &&
+            attachments.Any(item => ContainsAny(item.FileName, "medical", "doctor", "certificate", "ใบรับรอง", "แพทย์"));
+        var hasInvitation = attachments.Any(item => ContainsAny(item.FileName, "invite", "invitation", "หนังสือเชิญ", "เชิญ"));
+        var hasOfficialDocument = attachments.Any(item => ContainsAny(item.FileName, "official", "ราชการ", "คำสั่ง", "หนังสือ"));
+        var hasOtherAttachments = attachments.Count > 0 && !hasMedicalCertificate && !hasInvitation && !hasOfficialDocument;
+
         return string.Join("   ", new[]
         {
-            $"{Checkbox(false)} ใบรับรองแพทย์",
-            $"{Checkbox(false)} หนังสือเชิญ",
-            $"{Checkbox(false)} เอกสารราชการ",
-            $"{Checkbox(hasAttachments)} อื่น ๆ"
+            $"{Checkbox(hasMedicalCertificate)} ใบรับรองแพทย์",
+            $"{Checkbox(hasInvitation)} หนังสือเชิญ",
+            $"{Checkbox(hasOfficialDocument)} เอกสารราชการ",
+            $"{Checkbox(hasOtherAttachments)} อื่น ๆ"
         });
     }
 
     private static string BuildFinalApprovalCheckboxes(string status)
     {
-        return $"{Checkbox(status == "Approved")} อนุมัติ   {Checkbox(status == "Rejected")} ไม่อนุมัติ";
+        var normalized = NormalizeCode(status);
+        return $"{Checkbox(normalized == "APPROVED")} อนุมัติ   {Checkbox(normalized == "REJECTED")} ไม่อนุมัติ";
     }
 
     private static string Checkbox(bool isChecked)
     {
-        return isChecked ? "☑" : "☐";
+        return isChecked ? "[X]" : "[ ]";
+    }
+
+    private static string NormalizeDurationTypeForPdf(string? durationType)
+    {
+        var normalized = NormalizeCode(durationType);
+        return normalized switch
+        {
+            "" or "FULLDAY" or "FULL_DAY" or "FULL" or "เต็มวัน" => LeaveDurationTypes.FullDay,
+            "HALFDAYAM" or "HALF_DAY_AM" or "MORNING" or "AM" or "เช้า" => LeaveDurationTypes.HalfDayAm,
+            "HALFDAYPM" or "HALF_DAY_PM" or "AFTERNOON" or "PM" or "บ่าย" => LeaveDurationTypes.HalfDayPm,
+            _ => LeaveDurationTypes.Normalize(durationType)
+        };
+    }
+
+    private static bool IsKnownLeaveType(string normalizedCode, string leaveTypeName)
+    {
+        var knownCodes = new[]
+        {
+            "SICK", "SICKLEAVE", "SICK_LEAVE",
+            "PERSONAL", "PERSONALLEAVE", "PERSONAL_LEAVE",
+            "ANNUAL", "ANNUALLEAVE", "VACATION", "VACATIONLEAVE", "VACATION_LEAVE",
+            "MATERNITY", "MATERNITYLEAVE", "MATERNITY_LEAVE",
+            "ORDINATION", "ORDINATIONLEAVE", "ORDINATION_LEAVE",
+            "PATERNITY", "PATERNITYLEAVE", "PATERNITY_LEAVE",
+            "STUDY", "STUDYLEAVE", "STUDY_LEAVE", "TRAINING", "TRAINING_LEAVE",
+            "OFFICIAL", "OFFICIALLEAVE", "OFFICIAL_LEAVE",
+            "INTERNATIONAL", "INTERNATIONALLEAVE", "INTERNATIONAL_LEAVE", "ABROAD", "ABROAD_LEAVE"
+        };
+
+        return knownCodes.Any(item => normalizedCode.Equals(NormalizeCode(item), StringComparison.OrdinalIgnoreCase)) ||
+            ContainsAny(leaveTypeName, "ป่วย", "กิจ", "พักผ่อน", "คลอด", "อุปสมบท", "ภริยา", "ศึกษา", "อบรม", "ปฏิบัติราชการ", "ต่างประเทศ");
+    }
+
+    private static string NormalizeCode(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value)
+            ? string.Empty
+            : value.Trim().Replace("-", "_", StringComparison.Ordinal).ToUpperInvariant();
     }
 
     private static int CountBusinessDays(DateOnly startDate, DateOnly endDate, IReadOnlyList<LeaveHoliday> holidays)

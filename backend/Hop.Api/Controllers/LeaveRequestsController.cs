@@ -3,6 +3,7 @@ using Hop.Api.Data;
 using Hop.Api.DTOs;
 using Hop.Api.Interfaces;
 using Hop.Api.Models;
+using Hop.Api.Services;
 using System.Data;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -31,13 +32,15 @@ public class LeaveRequestsController(
 {
     [HttpGet]
     [RequireAnyPermission(LeavePermissions.ViewOwn, LeavePermissions.ViewPendingApproval, LeavePermissions.ViewDepartment, LeavePermissions.ViewAll, LeavePermissions.SupportViewAll)]
-    public async Task<ActionResult<ApiResponse<IReadOnlyList<LeaveRequestResponse>>>> GetLeaveRequests(
+    public async Task<ActionResult<ApiResponse<object>>> GetLeaveRequests(
         [FromQuery] Guid? leaveTypeId,
         [FromQuery] string? status,
         [FromQuery] Guid? departmentId,
         [FromQuery] DateOnly? fromDate,
         [FromQuery] DateOnly? toDate,
-        [FromQuery(Name = "userId")] Guid? filterUserId)
+        [FromQuery(Name = "userId")] Guid? filterUserId,
+        [FromQuery] int? page,
+        [FromQuery] int? pageSize)
     {
         var currentUserId = GetCurrentUserId();
         var visibility = await leaveRequestAccessService.GetVisibilityAsync(currentUserId);
@@ -74,12 +77,32 @@ public class LeaveRequestsController(
             query = query.Where(item => item.UserId == filterUserId);
         }
 
+        query = query.OrderByDescending(item => item.CreatedAt);
+
+        if (page is not null || pageSize is not null)
+        {
+            var currentPage = Math.Max(page ?? 1, 1);
+            var currentPageSize = Math.Clamp(pageSize ?? 10, 1, 100);
+            var totalItems = await query.CountAsync();
+            var pagedItems = await query
+                .Skip((currentPage - 1) * currentPageSize)
+                .Take(currentPageSize)
+                .Select(item => ToResponse(item))
+                .ToListAsync();
+
+            return ApiResponse<object>.Ok(new PagedResponse<LeaveRequestResponse>(
+                pagedItems,
+                currentPage,
+                currentPageSize,
+                totalItems,
+                (int)Math.Ceiling(totalItems / (double)currentPageSize)));
+        }
+
         var items = await query
-            .OrderByDescending(item => item.CreatedAt)
             .Select(item => ToResponse(item))
             .ToListAsync();
 
-        return ApiResponse<IReadOnlyList<LeaveRequestResponse>>.Ok(items);
+        return ApiResponse<object>.Ok(items);
     }
 
     [HttpGet("{id:guid}")]
@@ -133,12 +156,13 @@ public class LeaveRequestsController(
             ?? configuration["Vite:HospitalName"]
             ?? "Hospital";
         var applicationVersion = configuration["Application:Version"] ?? configuration["APP_VERSION"] ?? "0.1.0";
+        var balanceYear = FiscalYearHelper.ResolveBalanceYear(leaveRequest.StartDate, leaveRequest.LeaveType!);
         var leaveBalance = await db.LeaveBalances
             .AsNoTracking()
             .FirstOrDefaultAsync(item =>
                 item.UserId == leaveRequest.UserId &&
                 item.LeaveTypeId == leaveRequest.LeaveTypeId &&
-                item.Year == leaveRequest.StartDate.Year);
+                item.Year == balanceYear);
         var holidays = await db.LeaveHolidays
             .AsNoTracking()
             .Where(item =>

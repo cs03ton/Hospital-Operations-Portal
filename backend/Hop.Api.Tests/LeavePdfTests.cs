@@ -4,6 +4,7 @@ using Hop.Api.Services;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.FileProviders;
+using System.Reflection;
 using Xunit;
 
 namespace Hop.Api.Tests;
@@ -72,6 +73,32 @@ public class LeavePdfTests
         Assert.Equal("%PDF", System.Text.Encoding.ASCII.GetString(bytes, 0, 4));
     }
 
+    [Fact]
+    public void LeavePdfService_CheckboxHelpers_MarkLeaveTypeDurationAttachmentsAndDecision()
+    {
+        var request = new LeaveRequest
+        {
+            Status = "Approved",
+            DurationType = "HALF_DAY_PM",
+            LeaveType = new LeaveType { Code = "PERSONAL_LEAVE", Name = "ลากิจ" },
+            Attachments =
+            [
+                new LeaveAttachment { FileName = "personal-document.pdf" }
+            ]
+        };
+
+        var leaveTypeLine = InvokePrivateStatic<string>("BuildLeaveTypeCheckboxLine", request, 1);
+        var durationLine = InvokePrivateStatic<string>("BuildDurationCheckboxes", request.DurationType);
+        var attachmentLine = InvokePrivateStatic<string>("BuildAttachmentCheckboxes", request);
+        var finalDecisionLine = InvokePrivateStatic<string>("BuildFinalApprovalCheckboxes", request.Status);
+
+        Assert.Contains("[X] ลากิจส่วนตัว", leaveTypeLine);
+        Assert.Contains("[X] ครึ่งวัน (บ่าย)", durationLine);
+        Assert.Contains("[X] อื่น ๆ", attachmentLine);
+        Assert.Contains("[X] อนุมัติ", finalDecisionLine);
+        Assert.Contains("[ ] ไม่อนุมัติ", finalDecisionLine);
+    }
+
     private sealed class TestWebHostEnvironment : IWebHostEnvironment
     {
         public string EnvironmentName { get; set; } = "Development";
@@ -80,5 +107,12 @@ public class LeavePdfTests
         public IFileProvider WebRootFileProvider { get; set; } = new NullFileProvider();
         public string ContentRootPath { get; set; } = AppContext.BaseDirectory;
         public IFileProvider ContentRootFileProvider { get; set; } = new NullFileProvider();
+    }
+
+    private static T InvokePrivateStatic<T>(string methodName, params object?[] parameters)
+    {
+        var method = typeof(LeavePdfService).GetMethod(methodName, BindingFlags.NonPublic | BindingFlags.Static)
+            ?? throw new MissingMethodException(typeof(LeavePdfService).FullName, methodName);
+        return (T)method.Invoke(null, parameters)!;
     }
 }

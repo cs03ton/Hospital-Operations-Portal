@@ -405,6 +405,8 @@ export type LeaveRequestQuery = {
   fromDate?: string;
   toDate?: string;
   userId?: string;
+  page?: number;
+  pageSize?: number;
 };
 
 export type SaveApprovalDelegationRequest = {
@@ -613,6 +615,11 @@ export async function deactivateLeaveType(id: string) {
 
 export async function getLeaveRequests(params?: LeaveRequestQuery) {
   const response = await httpClient.get<ApiResponse<LeaveRequest[]>>("/api/leave-requests", { params });
+  return response.data.data;
+}
+
+export async function getLeaveRequestsPaged(params: LeaveRequestQuery) {
+  const response = await httpClient.get<ApiResponse<PagedResponse<LeaveRequest>>>("/api/leave-requests", { params });
   return response.data.data;
 }
 

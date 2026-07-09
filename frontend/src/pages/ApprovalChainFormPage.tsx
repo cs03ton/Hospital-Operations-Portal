@@ -1,6 +1,6 @@
 import DeleteOutlineOutlinedIcon from "@mui/icons-material/DeleteOutlineOutlined";
 import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
-import { Alert, Button, Card, CardContent, Checkbox, FormControlLabel, Grid, IconButton, MenuItem, Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography } from "@mui/material";
+import { Button, Card, CardContent, Checkbox, FormControlLabel, Grid, IconButton, MenuItem, Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography } from "@mui/material";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
@@ -21,7 +21,7 @@ import {
 } from "../api/leaveApi";
 import { PageHeader } from "../components/PageHeader";
 import { PermissionGuard } from "../context/PermissionContext";
-import { useNotification } from "../hooks/useNotification";
+import { useSaveFeedback } from "../hooks/useSaveFeedback";
 import { getLeaveTypeLabel } from "../utils/leaveLabels";
 import { getRoleLabel } from "../utils/roleLabels";
 
@@ -48,7 +48,7 @@ export function ApprovalChainFormPage() {
   const isEdit = Boolean(id);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { showSuccess } = useNotification();
+  const { showSaveError, showSuccessAndRedirect } = useSaveFeedback();
   const [editingStep, setEditingStep] = useState<ApprovalChainStep | null>(null);
   const { data: chain } = useQuery({ queryKey: ["approval-chains", id], queryFn: () => getApprovalChain(id!), enabled: isEdit });
   const { data: steps = [] } = useQuery({ queryKey: ["approval-chains", id, "steps"], queryFn: () => getApprovalChainSteps(id!), enabled: isEdit });
@@ -81,11 +81,12 @@ export function ApprovalChainFormPage() {
     },
     onSuccess: async (saved) => {
       await queryClient.invalidateQueries({ queryKey: ["approval-chains"] });
-      showSuccess(isEdit ? "บันทึกกฎการอนุมัติเรียบร้อยแล้ว" : "เพิ่มกฎการอนุมัติเรียบร้อยแล้ว");
-      if (!isEdit) {
-        navigate(`/admin/approval-chains/${saved.id}/edit`);
-      }
+      showSuccessAndRedirect({
+        successMessage: isEdit ? "แก้ไขกฎการอนุมัติสำเร็จ" : "เพิ่มกฎการอนุมัติสำเร็จ",
+        redirectTo: isEdit ? "/admin/approval-chains" : `/admin/approval-chains/${saved.id}/edit`,
+      });
     },
+    onError: (error: unknown) => showSaveError(error),
   });
 
   const saveStepMutation = useMutation({
@@ -96,17 +97,19 @@ export function ApprovalChainFormPage() {
     onSuccess: async () => {
       setEditingStep(null);
       stepForm.reset(emptyStep);
-      showSuccess("บันทึกขั้นอนุมัติเรียบร้อยแล้ว");
+      showSuccessAndRedirect({ successMessage: "บันทึกขั้นอนุมัติเรียบร้อยแล้ว" });
       await queryClient.invalidateQueries({ queryKey: ["approval-chains", id, "steps"] });
     },
+    onError: (error: unknown) => showSaveError(error),
   });
 
   const deleteStepMutation = useMutation({
     mutationFn: deleteApprovalChainStep,
     onSuccess: () => {
-      showSuccess("ลบขั้นอนุมัติเรียบร้อยแล้ว");
+      showSuccessAndRedirect({ successMessage: "ลบขั้นอนุมัติเรียบร้อยแล้ว" });
       return queryClient.invalidateQueries({ queryKey: ["approval-chains", id, "steps"] });
     },
+    onError: (error: unknown) => showSaveError(error, "ไม่สามารถลบขั้นอนุมัติได้"),
   });
 
   function onEditStep(step: ApprovalChainStep) {
@@ -128,7 +131,6 @@ export function ApprovalChainFormPage() {
         <Card>
           <CardContent>
             <Stack component="form" spacing={2} onSubmit={chainForm.handleSubmit((values) => saveChainMutation.mutate(values))}>
-              {saveChainMutation.isError && <Alert severity="error">บันทึกกฎการอนุมัติไม่สำเร็จ</Alert>}
               <TextField label="ชื่อกฎการอนุมัติ" error={Boolean(chainForm.formState.errors.name)} helperText={chainForm.formState.errors.name?.message} {...chainForm.register("name", { required: "กรุณากรอกชื่อกฎการอนุมัติ" })} />
               <TextField label="รายละเอียด" {...chainForm.register("description")} />
               <Grid container spacing={2}>
@@ -163,7 +165,6 @@ export function ApprovalChainFormPage() {
               <CardContent>
                 <Typography variant="h6" sx={{ mb: 2 }}>{editingStep ? "แก้ไขขั้นอนุมัติ" : "เพิ่มขั้นอนุมัติ"}</Typography>
                 <Stack component="form" spacing={2} onSubmit={stepForm.handleSubmit((values) => saveStepMutation.mutate(values))}>
-                  {saveStepMutation.isError && <Alert severity="error">บันทึกขั้นอนุมัติไม่สำเร็จ</Alert>}
                   <Grid container spacing={2}>
                     <Grid item xs={12} md={2}>
                       <TextField fullWidth type="number" label="ลำดับ" inputProps={{ min: 1 }} {...stepForm.register("stepOrder", { required: true })} />

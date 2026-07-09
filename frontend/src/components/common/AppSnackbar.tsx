@@ -12,7 +12,7 @@ export function AppSnackbar({ notification, open, onClose }: AppSnackbarProps) {
   return (
     <Snackbar
       open={open}
-      autoHideDuration={4500}
+      autoHideDuration={3000}
       onClose={(_, reason) => {
         if (reason !== "clickaway") {
           onClose();
