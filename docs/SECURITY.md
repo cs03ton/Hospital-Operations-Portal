@@ -1,0 +1,62 @@
+# Security
+
+เอกสารนี้สรุปมาตรการความปลอดภัยหลักของ Hospital Operations Portal (HOP) Phase 1
+
+## Authentication
+
+- ใช้ JWT access token
+- ใช้ refresh token พร้อม rotation
+- รองรับ hardened cookie mode พร้อม CSRF protection
+- password hash ด้วย BCrypt
+- login rate limit ป้องกัน brute force เบื้องต้น
+
+## Self-Service Password Change
+
+ผู้ใช้สามารถเปลี่ยนรหัสผ่านของตนเองผ่าน:
+
+```text
+POST /api/me/change-password
+```
+
+Security controls:
+
+- ใช้ user id จาก JWT/session เท่านั้น
+- ไม่รับ `userId` จาก frontend
+- ต้องยืนยันรหัสผ่านปัจจุบันก่อน
+- validate Password Policy ฝั่ง backend เสมอ
+- ไม่ส่ง password หรือ password hash กลับ frontend
+- ไม่ log password จริง
+- revoke refresh token ทุก token หลังเปลี่ยนสำเร็จ
+- บันทึก audit event `User.PasswordChanged`
+
+## Admin Reset Password
+
+Admin reset password เป็น workflow แยกจาก self-service password change
+
+- ต้องใช้ permission ของ User Management
+- ไม่ต้องทราบรหัสผ่านเดิมของผู้ใช้
+- ต้องไม่ใช้ endpoint `/api/me/change-password`
+
+## Audit Events
+
+Events ที่เกี่ยวข้อง:
+
+```text
+Auth.LoginSuccess
+Auth.LoginFailed
+Auth.LoginLocked
+Auth.Logout
+User.PasswordChanged
+User.PasswordChangeFailed
+Security.CsrfValidationFailed
+PermissionDenied
+```
+
+## Production Reminder
+
+- ตั้ง `Jwt__Key` จาก environment variable และยาวอย่างน้อย 32 ตัวอักษร
+- ห้าม commit secret/token/password ลง repository
+- ใช้ HTTPS และตั้ง cookie `Secure=true` เมื่อใช้งาน production
+- ตรวจ backup และ restore test ก่อน pilot
+
+เอกสารนี้เป็นส่วนหนึ่งของโครงการ Hospital Operations Portal (HOP) โรงพยาบาลนาหมื่น

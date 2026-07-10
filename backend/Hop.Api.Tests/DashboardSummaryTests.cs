@@ -59,6 +59,71 @@ public class DashboardSummaryTests
         Assert.Equal(26.5m, balances.Single(item => item.LeaveTypeCode == "SICK_LEAVE").AvailableDays);
     }
 
+    [Fact]
+    public async Task GetExecutiveDashboard_CountsUniqueApprovedLeaveUsersToday()
+    {
+        await using var db = CreateDbContext();
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var department = new Department { Id = Guid.NewGuid(), Name = "OPD", IsActive = true };
+        var user = new User { Id = Guid.NewGuid(), FullName = "เจ้าหน้าที่ 01", Username = "staff01", PasswordHash = "hash", IsActive = true, DepartmentId = department.Id };
+        var otherUser = new User { Id = Guid.NewGuid(), FullName = "เจ้าหน้าที่ 02", Username = "staff02", PasswordHash = "hash", IsActive = true, DepartmentId = department.Id };
+        var leaveType = AddLeaveType(db, "SICK_LEAVE", "ลาป่วย");
+        db.Departments.Add(department);
+        db.Users.AddRange(user, otherUser);
+        GrantRole(db, user.Id, "SuperAdmin");
+        AddLeaveRequest(db, user.Id, leaveType.Id, today, 0.5m, "Approved");
+        AddLeaveRequest(db, user.Id, leaveType.Id, today, 0.5m, "Approved");
+        AddLeaveRequest(db, otherUser.Id, leaveType.Id, today, 1m, "Rejected");
+        AddLeaveRequest(db, otherUser.Id, leaveType.Id, today, 1m, "Cancelled");
+        await db.SaveChangesAsync();
+
+        var controller = new DashboardController(db);
+        SetUserContext(controller, user.Id);
+
+        var result = await controller.GetExecutiveDashboard(null, null, null, CancellationToken.None);
+
+        var response = Assert.IsType<ApiResponse<ExecutiveDashboardResponse>>(result.Value);
+        Assert.NotNull(response.Data);
+        Assert.Equal(2, response.Data!.Kpis.TotalActiveUsers);
+        Assert.Equal(1, response.Data.Kpis.OnLeaveToday);
+        Assert.Equal(1, response.Data.Kpis.PresentToday);
+        Assert.Equal(50m, response.Data.Kpis.LeaveRate);
+        Assert.Equal(1, response.Data.TodaySummary.SickLeaveToday);
+        Assert.Equal("OPD", response.Data.TodaySummary.TopDepartmentToday);
+        Assert.Equal(12, response.Data.MonthlyTrend.Count);
+    }
+
+    [Fact]
+    public async Task GetExecutiveDashboard_YearlySummaryUsesFiscalYearAndHalfDayTotals()
+    {
+        await using var db = CreateDbContext();
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var fiscalYear = FiscalYearHelper.GetFiscalYear(today);
+        var user = new User { Id = Guid.NewGuid(), FullName = "เจ้าหน้าที่ 01", Username = "staff01", PasswordHash = "hash", IsActive = true };
+        var vacation = AddLeaveType(db, "VACATION_LEAVE", "ลาพักผ่อน");
+        db.Users.Add(user);
+        GrantRole(db, user.Id, "SuperAdmin");
+        AddLeaveRequest(db, user.Id, vacation.Id, today, 0.5m, "Approved");
+        AddLeaveRequest(db, user.Id, vacation.Id, today, 1m, "Approved");
+        AddLeaveRequest(db, user.Id, vacation.Id, today, 1m, "Rejected");
+        await db.SaveChangesAsync();
+
+        var controller = new DashboardController(db);
+        SetUserContext(controller, user.Id);
+
+        var result = await controller.GetExecutiveDashboard(today.Month, today.Year, fiscalYear, CancellationToken.None);
+
+        var response = Assert.IsType<ApiResponse<ExecutiveDashboardResponse>>(result.Value);
+        var vacationSummary = Assert.Single(response.Data!.YearlySummary, item => item.LeaveTypeCode == "VACATION_LEAVE");
+        Assert.Equal(fiscalYear, vacationSummary.FiscalYear);
+        Assert.Equal(1.5m, vacationSummary.UsedDays);
+        Assert.Single(response.Data.MonthlyTrend);
+
+        var previousFiscalYearResult = await controller.GetExecutiveDashboard(today.Month, today.Year, fiscalYear - 1, CancellationToken.None);
+        var previousFiscalYearResponse = Assert.IsType<ApiResponse<ExecutiveDashboardResponse>>(previousFiscalYearResult.Value);
+        Assert.DoesNotContain(previousFiscalYearResponse.Data!.YearlySummary, item => item.LeaveTypeCode == "VACATION_LEAVE");
+    }
+
     private static LeaveType AddLeaveType(AppDbContext db, string code, string name)
     {
         var leaveType = new LeaveType
@@ -84,6 +149,41 @@ public class DashboardSummaryTests
             EntitledDays = entitled,
             UsedDays = used,
             PendingDays = pending
+        });
+    }
+
+    private static void GrantRole(AppDbContext db, Guid userId, string roleName)
+    {
+        var role = new Role
+        {
+            Id = Guid.NewGuid(),
+            Name = roleName,
+            IsActive = true
+        };
+        db.Roles.Add(role);
+        db.UserRoles.Add(new UserRole
+        {
+            UserId = userId,
+            RoleId = role.Id,
+            Role = role
+        });
+    }
+
+    private static void AddLeaveRequest(AppDbContext db, Guid userId, Guid leaveTypeId, DateOnly date, decimal totalDays, string status)
+    {
+        db.LeaveRequests.Add(new LeaveRequest
+        {
+            Id = Guid.NewGuid(),
+            UserId = userId,
+            LeaveTypeId = leaveTypeId,
+            StartDate = date,
+            EndDate = date,
+            DurationType = totalDays == 0.5m ? "HALF_DAY_AM" : "FULL_DAY",
+            TotalDays = totalDays,
+            Reason = "test",
+            Status = status,
+            SubmittedAt = DateTime.UtcNow.AddHours(-8),
+            UpdatedAt = status is "Approved" or "Rejected" ? DateTime.UtcNow : null
         });
     }
 

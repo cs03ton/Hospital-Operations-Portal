@@ -52,6 +52,7 @@ import { LoadingState } from "../components/common/LoadingState";
 import { PageHeader } from "../components/PageHeader";
 import { useNotification } from "../hooks/useNotification";
 import { formatThaiDateTime } from "../utils/dateFormat";
+import type { ReactNode } from "react";
 
 export function LineSettingsPage() {
   const { showError, showSuccess } = useNotification();
@@ -175,9 +176,9 @@ export function LineSettingsPage() {
   const selectableUsers = (usersQuery.data ?? []).filter((user) => user.lineUserId);
 
   return (
-    <>
-      <PageHeader title="LINE Operations Center" subtitle="Monitor, Diagnose, Test และ Audit LINE Messaging API" />
-      <Stack spacing={2}>
+    <Box sx={{ maxWidth: 1440, mx: "auto" }}>
+      <Stack spacing={3}>
+        <PageHeader title="LINE Operations Center" subtitle="Monitor, Diagnose, Test และ Audit LINE Messaging API" />
         <Card sx={{ borderTop: (theme) => `4px solid ${theme.palette.secondary.main}` }}>
           <CardContent>
             <Stack direction={{ xs: "column", md: "row" }} justifyContent="space-between" spacing={2}>
@@ -230,9 +231,8 @@ export function LineSettingsPage() {
           </CardContent>
         </Card>
 
-        <Grid container spacing={2}>
-          <Grid item xs={12} lg={7}>
-            <Card>
+        <LineDashboardGrid columns={{ xs: "1fr", lg: "7fr 5fr" }}>
+            <Card sx={{ height: "100%" }}>
               <CardContent>
                 <Stack spacing={2}>
                   <SectionTitle title="ส่งข้อความทดสอบ" />
@@ -281,9 +281,7 @@ export function LineSettingsPage() {
                 </Stack>
               </CardContent>
             </Card>
-          </Grid>
-          <Grid item xs={12} lg={5}>
-            <Card>
+            <Card sx={{ height: "100%" }}>
               <CardContent>
                 <Stack spacing={2}>
                   <SectionTitle title="Health Check" />
@@ -297,8 +295,7 @@ export function LineSettingsPage() {
                 </Stack>
               </CardContent>
             </Card>
-          </Grid>
-        </Grid>
+        </LineDashboardGrid>
 
         <Card sx={{ borderTop: (theme) => `4px solid ${theme.palette.secondary.main}` }}>
           <CardContent>
@@ -461,9 +458,8 @@ export function LineSettingsPage() {
           </CardContent>
         </Card>
 
-        <Grid container spacing={2}>
-          <Grid item xs={12} lg={6}>
-            <Card>
+        <LineDashboardGrid columns={{ xs: "1fr", lg: "repeat(2, minmax(0, 1fr))" }}>
+            <Card sx={{ height: "100%" }}>
               <CardContent>
                 <Stack spacing={2}>
                   <SectionTitle title="จำลอง Event แจ้งเตือน" />
@@ -507,9 +503,7 @@ export function LineSettingsPage() {
                 </Stack>
               </CardContent>
             </Card>
-          </Grid>
-          <Grid item xs={12} lg={6}>
-            <Card>
+            <Card sx={{ height: "100%" }}>
               <CardContent>
                 <Stack spacing={1.5}>
                   <SectionTitle title="Troubleshooting Checklist" />
@@ -525,8 +519,7 @@ export function LineSettingsPage() {
                 </Stack>
               </CardContent>
             </Card>
-          </Grid>
-        </Grid>
+        </LineDashboardGrid>
 
         <Card>
           <CardContent>
@@ -567,7 +560,32 @@ export function LineSettingsPage() {
           </CardContent>
         </Card>
       </Stack>
-    </>
+    </Box>
+  );
+}
+
+type ResponsiveColumns = {
+  xs: string;
+  sm?: string;
+  md?: string;
+  lg?: string;
+  xl?: string;
+};
+
+function LineDashboardGrid({ children, columns }: { children: ReactNode; columns: ResponsiveColumns }) {
+  return (
+    <Box
+      sx={{
+        display: "grid",
+        gridTemplateColumns: columns,
+        gap: { xs: 2, md: 2.5 },
+        alignItems: "stretch",
+        width: "100%",
+        "& > *": { minWidth: 0 },
+      }}
+    >
+      {children}
+    </Box>
   );
 }
 
@@ -631,7 +649,7 @@ function LogTable({ loading, rows, showAction = false }: { loading: boolean; row
             <TableCell>Status</TableCell>
             <TableCell>Retry</TableCell>
             <TableCell>Duration</TableCell>
-            <TableCell>Masked Payload Preview</TableCell>
+            <TableCell sx={{ whiteSpace: "nowrap" }}>Masked Payload Preview</TableCell>
             <TableCell>Response Body</TableCell>
             {showAction && <TableCell>Action</TableCell>}
           </TableRow>
@@ -648,11 +666,35 @@ function LogTable({ loading, rows, showAction = false }: { loading: boolean; row
               <TableCell><StatusChip status={row.status} /></TableCell>
               <TableCell>{row.retry}</TableCell>
               <TableCell>{row.durationMs ? `${row.durationMs} ms` : "-"}</TableCell>
-              <TableCell sx={{ minWidth: 240 }}>
-                <Typography variant="caption" sx={{ display: "block", fontFamily: "Consolas, monospace", whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
-                  ผู้รับจริงถูก mask: {row.sanitizedRecipient ?? "-"}
-                  {"\n"}
-                  {row.payloadPreview ?? "-"}
+              <TableCell sx={{ width: 280, maxWidth: 280 }}>
+                <Typography
+                  variant="caption"
+                  title={`ผู้รับจริงถูก mask: ${row.sanitizedRecipient ?? "-"}\n${row.payloadPreview ?? "-"}`}
+                  sx={{
+                    display: "block",
+                    maxWidth: 260,
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                    fontFamily: "Consolas, monospace",
+                  }}
+                >
+                  ผู้รับ: {row.sanitizedRecipient ?? "-"}
+                </Typography>
+                <Typography
+                  variant="caption"
+                  color="text.secondary"
+                  title={row.payloadPreview ?? "-"}
+                  sx={{
+                    display: "block",
+                    maxWidth: 260,
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                    fontFamily: "Consolas, monospace",
+                  }}
+                >
+                  {summarizePayloadPreview(row.payloadPreview)}
                 </Typography>
               </TableCell>
               <TableCell sx={{ minWidth: 220 }}>
@@ -673,6 +715,33 @@ function StatusChip({ status }: { status: string }) {
   const color = status === "Sent" ? "success" : status === "Failed" ? "error" : status === "Queued" ? "warning" : "default";
   const label = status === "Sent" ? "Success" : status === "Failed" ? "Failed" : status === "Queued" ? "Pending" : status;
   return <Chip size="small" color={color} label={label} />;
+}
+
+function summarizePayloadPreview(payload?: string | null) {
+  if (!payload) return "-";
+
+  try {
+    const parsed = JSON.parse(payload) as {
+      messages?: Array<{
+        type?: string;
+        text?: string;
+        altText?: string;
+      }>;
+    };
+    const firstMessage = parsed.messages?.[0];
+
+    if (firstMessage?.type === "text" && firstMessage.text) {
+      return `ส่งข้อความ: ${firstMessage.text}`;
+    }
+
+    if (firstMessage?.type === "flex") {
+      return `Flex Message: ${firstMessage.altText || "ไม่มี altText"}`;
+    }
+  } catch {
+    return payload;
+  }
+
+  return payload;
 }
 
 function Setting({ label, value, state }: { label: string; value: string; state?: "success" | "warning" | "error" }) {

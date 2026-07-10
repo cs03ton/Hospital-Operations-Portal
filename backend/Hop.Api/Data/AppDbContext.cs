@@ -35,6 +35,18 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<LinePairingCode> LinePairingCodes => Set<LinePairingCode>();
     public DbSet<LineConnectToken> LineConnectTokens => Set<LineConnectToken>();
 
+    public override int SaveChanges(bool acceptAllChangesOnSuccess)
+    {
+        SanitizePostgresTextValues();
+        return base.SaveChanges(acceptAllChangesOnSuccess);
+    }
+
+    public override Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
+    {
+        SanitizePostgresTextValues();
+        return base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+    }
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<Department>(entity =>
@@ -75,6 +87,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             entity.Property(item => item.IsActive).HasColumnName("is_active");
             entity.Property(item => item.CreatedAt).HasColumnName("created_at");
             entity.Property(item => item.UpdatedAt).HasColumnName("updated_at");
+            entity.Property(item => item.PasswordChangedAt).HasColumnName("password_changed_at");
             entity.HasIndex(item => item.Username).IsUnique();
             entity.HasIndex(item => item.EmployeeCode).IsUnique();
             entity.HasIndex(item => item.LeaveApprovalRuleId);
@@ -672,5 +685,28 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
                 .WithMany()
                 .HasForeignKey(item => item.UserId);
         });
+    }
+
+    private void SanitizePostgresTextValues()
+    {
+        foreach (var entry in ChangeTracker.Entries())
+        {
+            if (entry.State is not (EntityState.Added or EntityState.Modified))
+            {
+                continue;
+            }
+
+            foreach (var property in entry.Properties)
+            {
+                if (property.Metadata.ClrType != typeof(string) ||
+                    property.CurrentValue is not string value ||
+                    !value.Contains('\0'))
+                {
+                    continue;
+                }
+
+                property.CurrentValue = value.Replace("\0", string.Empty);
+            }
+        }
     }
 }

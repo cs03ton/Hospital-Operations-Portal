@@ -1,6 +1,8 @@
-# Admin Health Dashboard
+# Admin Health Dashboard / Health Center
 
-เอกสารนี้อธิบายหน้า Admin Health Dashboard สำหรับ HOP Phase 1 Pilot
+เอกสารนี้เป็นเอกสารเดิมของ Admin Health Dashboard และถูกยกระดับเป็น Health Center ใน Phase 1.5
+
+ดูรายละเอียดฉบับล่าสุดที่ [HEALTH-CENTER.md](HEALTH-CENTER.md)
 
 ## Route
 
@@ -12,10 +14,10 @@
 ใช้สิทธิ์:
 
 ```text
-SystemSettings.View
+System.Health.View
 ```
 
-ผู้ใช้งานทั่วไปและ Staff ไม่ควรเข้าถึงหน้านี้ได้ หากเข้าผ่าน URL โดยตรงต้องถูกปฏิเสธสิทธิ์
+Admin และ SuperAdmin ยังเข้าได้ตามบทบาทเพื่อให้ไม่ lock ผู้ดูแลระบบออกจากหน้า Health Center ส่วนผู้ใช้งานทั่วไปและ Staff ต้องถูกปฏิเสธสิทธิ์เมื่อเข้าผ่าน URL ตรง
 
 ## ข้อมูลที่แสดง
 
@@ -26,8 +28,10 @@ SystemSettings.View
 | Storage Status | ตรวจว่า storage path เขียนไฟล์ได้หรือไม่ |
 | LINE Status | เปิดใช้งานหรือไม่ และเวลาส่งสำเร็จ/ล้มเหลวล่าสุด |
 | Disk Usage | เปอร์เซ็นต์การใช้งาน disk ของ storage root |
+| CPU Status | จำนวน core และ load average ถ้าระบบปฏิบัติการรองรับ |
+| RAM Status | หน่วยความจำรวม ใช้ไป เหลือ และเปอร์เซ็นต์ใช้งาน |
 | Queue / Worker Status | จำนวน LINE delivery ที่รอส่ง, failed, retry และสถานะ worker ที่เปิดใช้งาน |
-| Backup Status | เวลา backup ล่าสุดจาก `BACKUP_ROOT` หรือโฟลเดอร์ `backups` |
+| Backup Status | เวลา backup ล่าสุดจาก `BACKUP_ROOT`, ไฟล์ล่าสุด, ขนาดไฟล์ และ restore-test evidence ถ้ามี |
 | App Version | version ของ backend assembly |
 | Environment | Development / Production |
 | Current Time Server | เวลา UTC จาก server |
@@ -51,16 +55,16 @@ Response แสดงเฉพาะ status, message แบบปลอดภั
 | Healthy | พร้อมใช้งาน |
 | Warning | ใช้งานได้แต่ควรตรวจสอบ |
 | Unhealthy | มีปัญหาที่ควรแก้ก่อนใช้งานจริง |
-| Disabled | ปิดใช้งานตาม configuration |
 | Unknown | ตรวจสอบไม่ได้ |
 
 ## วิธีทดสอบ
 
 1. Login ด้วยบัญชี Admin หรือ SuperAdmin
-2. ไปที่เมนู `สถานะระบบ`
+2. ไปที่เมนู `Health Center`
 3. ตรวจ card แต่ละใบ
 4. กดปุ่ม `รีเฟรช`
 5. ตรวจ Queue / Worker Status ว่าแสดง `LINE pending`, `failed`, `retry`, `LINE retry` และ `Escalation`
-6. ตรวจว่าไม่มี secret/token แสดงบนหน้าเว็บหรือ network response
+6. ตรวจ CPU/RAM/Disk/Backup
+7. ตรวจว่าไม่มี secret/token แสดงบนหน้าเว็บหรือ network response
 
 เอกสารนี้เป็นส่วนหนึ่งของโครงการ Hospital Operations Portal (HOP) โรงพยาบาลนาหมื่น

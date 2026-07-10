@@ -44,6 +44,38 @@ In cookie mode, the refresh token is read from an httpOnly cookie and the respon
 
 `POST /api/auth/logout` revokes the submitted refresh token and clears the frontend session.
 
+## Self-Service Password Change
+
+ผู้ใช้ที่เข้าสู่ระบบแล้วสามารถเปลี่ยนรหัสผ่านของตนเองได้จากเมนูผู้ใช้มุมขวาบน:
+
+```text
+ข้อมูลส่วนตัวของฉัน > เปลี่ยนรหัสผ่าน
+```
+
+Route:
+
+```text
+/profile/change-password
+```
+
+API:
+
+```text
+GET  /api/me/password-policy
+POST /api/me/change-password
+```
+
+`POST /api/me/change-password` ใช้ user id จาก JWT/session เท่านั้น ไม่รับ `userId` จาก frontend จึงไม่สามารถใช้ endpoint นี้เปลี่ยนรหัสผ่านของผู้อื่นได้
+
+หลังเปลี่ยนรหัสผ่านสำเร็จ ระบบจะ:
+
+- hash รหัสผ่านใหม่ด้วย BCrypt
+- อัปเดต `users.password_changed_at`
+- revoke refresh token ทุก token ของผู้ใช้คนนั้น
+- clear auth cookies ใน cookie mode
+- บันทึก audit event `User.PasswordChanged`
+- ให้ผู้ใช้ออกจากระบบและเข้าสู่ระบบใหม่
+
 ## Default Development Admin
 
 Local development default:

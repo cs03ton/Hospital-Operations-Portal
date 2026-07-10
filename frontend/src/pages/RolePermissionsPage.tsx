@@ -31,12 +31,15 @@ const groupLabels: Record<string, string> = {
   LeaveRequest: "คำขอลา",
   LeaveApproval: "การอนุมัติวันลา",
   LeaveAdmin: "จัดการระบบลา",
+  AdminDashboard: "Admin Dashboard",
   Dashboard: "แดชบอร์ด",
   UserManagement: "จัดการผู้ใช้",
   DepartmentManagement: "จัดการหน่วยงาน",
   RoleManagement: "บทบาทและสิทธิ์",
   SystemSettings: "ตั้งค่าระบบ",
+  System: "ระบบ",
   ReportManagement: "รายงาน",
+  LeaveAnalytics: "วิเคราะห์ข้อมูลการลา",
 };
 
 const permissionDescriptions: Record<string, string> = {
@@ -50,10 +53,14 @@ const permissionDescriptions: Record<string, string> = {
   "LeaveApproval.ApproveCurrentStep": "อนุมัติหรือไม่อนุมัติเฉพาะขั้นตอนปัจจุบันของตนเอง",
   "LeaveApproval.Delegate": "จัดการการมอบหมายผู้อนุมัติ",
   "LeaveApproval.Override": "สิทธิ์ override สำหรับกรณีพิเศษ ยังไม่เปิด flow ใช้งาน",
+  "AdminDashboard.View": "ดู Admin Dashboard แบบ Control Center สำหรับผู้ดูแลระบบ",
   "LeaveAdmin.ManageTypes": "จัดการประเภทการลา",
   "LeaveAdmin.ManageBalances": "จัดการยอดวันลาและปรับยอดวันลา",
   "LeaveAdmin.ManageHolidays": "จัดการวันหยุดราชการ",
   "LeaveAdmin.ManageApprovalChains": "จัดการกฎการอนุมัติวันลา",
+  "LeaveAnalytics.View": "ดูหน้า Leave Analytics และส่งออกข้อมูลวิเคราะห์การลา",
+  "System.Health.View": "ดู Health Center และสถานะระบบสำคัญโดยไม่เปิดเผยข้อมูลลับ",
+  "System.Line.TestSend": "ทดสอบส่งข้อความ LINE และตรวจสอบสถานะ LINE Operations Center",
 };
 
 export function RolePermissionsPage() {

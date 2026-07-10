@@ -40,15 +40,16 @@ export function AppSidebar({
     .map((module) => ({
       ...module,
       children: module.children.filter((item) => {
+        const roleAllowed = item.allowedRoles?.includes(user?.role ?? "") ?? false;
         if (item.hiddenForRoles?.includes(user?.role ?? "")) {
           return false;
         }
 
         if (item.permissions?.length) {
-          return hasAnyPermission(item.permissions);
+          return roleAllowed || hasAnyPermission(item.permissions);
         }
 
-        return !item.permission || hasPermission(item.permission);
+        return roleAllowed || !item.permission || hasPermission(item.permission);
       }),
     }))
     .filter((module) => (!module.permission || hasPermission(module.permission)) && module.children.length > 0);

@@ -1659,6 +1659,10 @@ namespace Hop.Api.Migrations
                         .HasColumnType("text")
                         .HasColumnName("line_user_id");
 
+                    b.Property<DateTime?>("PasswordChangedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("password_changed_at");
+
                     b.Property<string>("PasswordHash")
                         .IsRequired()
                         .HasColumnType("text")

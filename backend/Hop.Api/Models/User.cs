@@ -25,6 +25,7 @@ public class User
     public bool IsActive { get; set; } = true;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? UpdatedAt { get; set; }
+    public DateTime? PasswordChangedAt { get; set; }
 
     public Department? Department { get; set; }
     public ApprovalChain? LeaveApprovalRule { get; set; }

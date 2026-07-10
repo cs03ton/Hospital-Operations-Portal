@@ -320,6 +320,8 @@ After every backup job:
    ```bash
    tar -tzf /opt/hop/backups/storage/hop_storage_YYYYMMDD_HHMMSS.tar.gz | head
    ```
+5. Login as Admin/SuperAdmin and open `/admin/health`.
+6. Confirm Backup Status shows the latest backup timestamp and file metadata from `BACKUP_ROOT`.
 
 ## Monthly Restore Test Checklist
 
@@ -338,7 +340,9 @@ Run monthly against a test server or disposable database only:
 11. Verify leave attachments download.
 12. Verify PDF template and PDF generation.
 13. Verify audit logs.
-14. Record result in deployment checklist.
+14. Create restore-test evidence in the backup evidence folder or naming convention that includes `restore`.
+15. Open `/admin/health` and confirm Last Restore Test is visible when evidence exists.
+16. Record result in deployment checklist.
 
 ## Health and Alerting
 
@@ -352,6 +356,7 @@ Future hook:
 
 - Add LINE notification or monitoring webhook when backup fails.
 - Do not put LINE tokens in the script or repository; load them from environment or secret manager.
+- Health Center reads backup metadata only; it does not execute backup or restore commands.
 
 ## Production Checklist
 

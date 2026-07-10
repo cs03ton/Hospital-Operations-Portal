@@ -71,3 +71,145 @@ public record DashboardLeaveBalanceResponse(
     decimal PendingDays,
     decimal AvailableDays
 );
+
+public record ExecutiveDashboardResponse(
+    ExecutiveKpiResponse Kpis,
+    ExecutiveTodaySummaryResponse TodaySummary,
+    IReadOnlyList<ExecutiveMonthlyTrendResponse> MonthlyTrend,
+    IReadOnlyList<ExecutiveDepartmentLeaveResponse> LeaveByDepartment,
+    IReadOnlyList<ExecutiveLeaveTypeResponse> LeaveByType,
+    IReadOnlyList<ExecutiveYearlySummaryResponse> YearlySummary,
+    ExecutiveSystemHealthResponse SystemHealth
+);
+
+public record ExecutiveKpiResponse(
+    int TotalActiveUsers,
+    int PresentToday,
+    int OnLeaveToday,
+    int PendingApprovals,
+    int DirectorPendingApprovals,
+    int ApprovedToday,
+    int RejectedToday,
+    decimal LeaveRate,
+    decimal? ApprovalSlaHours
+);
+
+public record ExecutiveTodaySummaryResponse(
+    int TotalLeaveToday,
+    int SickLeaveToday,
+    int PersonalLeaveToday,
+    int VacationLeaveToday,
+    int PendingApprovals,
+    int ApprovedToday,
+    int RejectedToday,
+    string? TopDepartmentToday
+);
+
+public record ExecutiveMonthlyTrendResponse(
+    string Month,
+    decimal SickLeaveDays,
+    decimal PersonalLeaveDays,
+    decimal VacationLeaveDays,
+    decimal TotalDays
+);
+
+public record ExecutiveDepartmentLeaveResponse(
+    string DepartmentName,
+    int UserCount,
+    decimal TotalDays
+);
+
+public record ExecutiveLeaveTypeResponse(
+    string LeaveTypeCode,
+    string LeaveTypeName,
+    int RequestCount,
+    decimal TotalDays
+);
+
+public record ExecutiveYearlySummaryResponse(
+    int FiscalYear,
+    string LeaveTypeCode,
+    string LeaveTypeName,
+    decimal UsedDays
+);
+
+public record ExecutiveSystemHealthResponse(
+    HealthComponentResponse Api,
+    HealthComponentResponse Database,
+    StorageHealthResponse Storage,
+    LineHealthResponse Line,
+    DiskHealthResponse Disk,
+    BackupHealthResponse Backup,
+    string Version,
+    string Environment
+);
+
+public record AdminDashboardResponse(
+    AdminDashboardUserSummaryResponse Users,
+    AdminDashboardDepartmentSummaryResponse Departments,
+    AdminDashboardRolePermissionSummaryResponse Roles,
+    AdminDashboardLineSummaryResponse Line,
+    AdminDashboardLeaveSummaryResponse Leave,
+    AdminDashboardHealthSummaryResponse Health,
+    AdminDashboardAuditSummaryResponse Audit
+);
+
+public record AdminDashboardUserSummaryResponse(
+    int Total,
+    int Active,
+    int Inactive,
+    int MissingLineBinding,
+    int MissingEmploymentType,
+    int MissingApprovalRule
+);
+
+public record AdminDashboardDepartmentSummaryResponse(
+    int Total,
+    int WithoutHead,
+    int WithoutUsers
+);
+
+public record AdminDashboardRolePermissionSummaryResponse(
+    int Total,
+    int Permissions,
+    int UnusedRoles,
+    int ImportantPermissionsUnassigned
+);
+
+public record AdminDashboardLineSummaryResponse(
+    bool Enabled,
+    int BoundUsers,
+    int UnboundUsers,
+    DateTime? LastFailedDeliveryAt
+);
+
+public record AdminDashboardLeaveSummaryResponse(
+    int PendingApprovals,
+    int TodayRequests,
+    int MissingBalances,
+    int MissingApprovalRules
+);
+
+public record AdminDashboardHealthSummaryResponse(
+    string OverallStatus,
+    HealthComponentResponse Api,
+    HealthComponentResponse Database,
+    StorageHealthResponse Storage,
+    LineHealthResponse Line,
+    DiskHealthResponse Disk,
+    BackupHealthResponse Backup
+);
+
+public record AdminDashboardAuditSummaryResponse(
+    int RecentFailedLogins,
+    int RecentPermissionDenied,
+    IReadOnlyList<AdminDashboardAuditActionResponse> RecentAdminActions
+);
+
+public record AdminDashboardAuditActionResponse(
+    DateTime CreatedAt,
+    string Action,
+    string EntityName,
+    string Result,
+    string? ActorName
+);

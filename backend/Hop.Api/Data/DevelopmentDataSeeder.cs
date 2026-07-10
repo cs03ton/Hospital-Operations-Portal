@@ -57,6 +57,7 @@ public static class DevelopmentDataSeeder
         "LeaveHoliday",
         "LeaveAttachment",
         "ReportManagement",
+        "LeaveAnalytics",
         "SystemSettings"
     ];
 
@@ -93,12 +94,20 @@ public static class DevelopmentDataSeeder
         ("LeaveApprovalDelegation.Manage", "จัดการการมอบหมายอนุมัติ", "LeaveApprovalDelegation", "Manage"),
         ("LeaveApprovalEscalation.Manage", "จัดการ escalation งานอนุมัติ", "LeaveApprovalEscalation", "Manage"),
         ("LeaveSupport.ViewAll", "มุมมองช่วยเหลือระบบลา", "LeaveSupport", "ViewAll"),
+        ("AdminDashboard.View", "ดู Admin Dashboard", "AdminDashboard", "View"),
+        ("Dashboard.Executive.View", "ดู Executive Dashboard", "Dashboard", "ExecutiveView"),
+        ("LeaveDashboard.ViewExecutiveSummary", "ดูสรุปผู้บริหารระบบลา", "LeaveDashboard", "ViewExecutiveSummary"),
+        ("LeaveAnalytics.View", "ดูวิเคราะห์ข้อมูลการลา", "LeaveAnalytics", "View"),
         ("LeaveAdmin.ManageTypes", "จัดการประเภทการลา", "LeaveAdmin", "ManageTypes"),
         ("LeaveAdmin.ManageBalances", "จัดการยอดวันลา", "LeaveAdmin", "ManageBalances"),
         ("LeaveBalance.Rollover", "ยกยอดวันลา", "LeaveBalance", "Rollover"),
         ("LeaveAdmin.ManageHolidays", "จัดการวันหยุดราชการ", "LeaveAdmin", "ManageHolidays"),
         ("LeaveAdmin.ManageApprovalChains", "จัดการกฎการอนุมัติวันลา", "LeaveAdmin", "ManageApprovalChains"),
-        ("System.Line.TestSend", "ทดสอบส่งข้อความ LINE", "System", "LineTestSend")
+        ("System.Health.View", "ดู Health Center", "System", "HealthView"),
+        ("System.Line.TestSend", "ทดสอบส่งข้อความ LINE", "System", "LineTestSend"),
+        ("Documentation.View", "ดูศูนย์คู่มือการใช้งาน", "Documentation", "View"),
+        ("Documentation.AdminView", "ดูคู่มือสำหรับผู้ดูแลระบบ", "Documentation", "AdminView"),
+        ("Documentation.Manage", "จัดการคู่มือการใช้งาน", "Documentation", "Manage")
     ];
 
     private sealed record LeaveTypeSeed(string Code, string Name, string Description, decimal DefaultDays, bool RequiresAttachment, bool RequiresBalance, bool AllowCarryOver, decimal CarryOverMaxDays, bool UseFiscalYear, bool IsPaid, string[] LegacyCodes);
@@ -344,12 +353,14 @@ public static class DevelopmentDataSeeder
             await RevokePermissions(db, adminRole.Id, "LeaveRequest.Create");
             await GrantPermissions(db, staffRole.Id,
                 "Dashboard.View",
+                "Documentation.View",
                 "LeaveRequest.ViewOwn",
                 "LeaveRequest.Create",
                 "LeaveRequest.EditOwn",
                 "LeaveRequest.CancelOwn");
             await GrantPermissions(db, departmentHeadRole.Id,
                 "Dashboard.View",
+                "Documentation.View",
                 "LeaveRequest.ViewOwn",
                 "LeaveRequest.ViewPendingApproval",
                 "LeaveRequest.ViewDepartment",
@@ -359,6 +370,11 @@ public static class DevelopmentDataSeeder
                 "LeaveApproval.ApproveCurrentStep");
             await GrantPermissions(db, directorRole.Id,
                 "Dashboard.View",
+                "Documentation.View",
+                "AdminDashboard.View",
+                "Dashboard.Executive.View",
+                "LeaveDashboard.ViewExecutiveSummary",
+                "LeaveAnalytics.View",
                 "LeaveRequest.ViewOwn",
                 "LeaveRequest.ViewPendingApproval",
                 "LeaveRequest.Create",
@@ -367,6 +383,7 @@ public static class DevelopmentDataSeeder
                 "LeaveApproval.ApproveCurrentStep");
             await GrantPermissions(db, leaveAdminRole.Id,
                 "Dashboard.View",
+                "Documentation.View",
                 "LeaveRequest.ViewDepartment",
                 "LeaveAdmin.ManageTypes",
                 "LeaveAdmin.ManageBalances",
@@ -375,6 +392,12 @@ public static class DevelopmentDataSeeder
                 "LeaveAdmin.ManageApprovalChains");
             await GrantPermissions(db, adminRole.Id,
                 "Dashboard.View",
+                "Documentation.View",
+                "Documentation.AdminView",
+                "Documentation.Manage",
+                "Dashboard.Executive.View",
+                "LeaveDashboard.ViewExecutiveSummary",
+                "LeaveAnalytics.View",
                 "UserManagement.View",
                 "UserManagement.Create",
                 "UserManagement.Edit",
@@ -403,6 +426,7 @@ public static class DevelopmentDataSeeder
                 "LeaveBalance.Rollover",
                 "LeaveAdmin.ManageHolidays",
                 "LeaveAdmin.ManageApprovalChains",
+                "System.Health.View",
                 "System.Line.TestSend");
 
             var shouldCreateStandardItUsers = configuration.GetValue<bool?>("Seed:CreateStandardItUsers")

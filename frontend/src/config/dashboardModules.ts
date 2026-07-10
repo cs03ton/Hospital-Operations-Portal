@@ -80,10 +80,11 @@ export const dashboardModules: DashboardModuleDefinition[] = [
     description: "ภาพรวมเชิงบริหาร แนวโน้ม และ KPI สำหรับผู้บริหาร",
     route: "/dashboard/executive",
     icon: QueryStatsOutlinedIcon,
-    status: "planned",
-    requiredPermissions: ["ReportManagement.View", "LeaveSupport.ViewAll", "SystemSettings.View"],
+    status: "active",
+    requiredPermissions: ["Dashboard.Executive.View", "LeaveDashboard.ViewExecutiveSummary"],
+    allowedRoles: ["Director", "Admin", "SuperAdmin"],
     metricLabel: "สถานะระบบ",
-    metricSelector: (summary) => summary?.apiHealth ?? "พร้อมออกแบบ",
+    metricSelector: (summary) => summary?.apiHealth ?? "พร้อมใช้งาน",
     order: 50,
   },
 ];
@@ -104,10 +105,6 @@ export function canAccessDashboardModule(module: DashboardModuleDefinition, user
 
   const roleAllowed = module.allowedRoles?.includes(user.role) ?? false;
   const permissionAllowed = module.requiredPermissions?.some((permission) => user.permissions.includes(permission)) ?? false;
-
-  if (module.allowedRoles?.length && module.requiredPermissions?.length) {
-    return roleAllowed && permissionAllowed;
-  }
 
   return roleAllowed || permissionAllowed;
 }

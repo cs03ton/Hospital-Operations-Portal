@@ -34,8 +34,10 @@ ASP.NET configuration keys:
 FileScan__Enabled=false
 FileScan__Provider=Placeholder
 FileScan__FailClosed=true
+ClamAv__ConnectionType=Tcp
 ClamAv__Host=localhost
 ClamAv__Port=3310
+ClamAv__SocketPath=/var/run/clamav/clamd.ctl
 ClamAv__TimeoutMs=5000
 ```
 
@@ -44,10 +46,24 @@ Use ClamAV:
 ```text
 FILE_SCAN_ENABLED=true
 FILE_SCAN_PROVIDER=ClamAV
+CLAMAV_CONNECTION_TYPE=Tcp
 CLAMAV_HOST=clamav
 CLAMAV_PORT=3310
 FILE_SCAN_FAIL_CLOSED=true
 ```
+
+Use ClamAV on a bare-metal Ubuntu server with the default Unix socket:
+
+```text
+FileScan__Enabled=true
+FileScan__Provider=ClamAV
+FileScan__FailClosed=true
+ClamAV__ConnectionType=UnixSocket
+ClamAV__SocketPath=/var/run/clamav/clamd.ctl
+ClamAV__TimeoutMs=15000
+```
+
+When `ClamAV__ConnectionType=UnixSocket`, `ClamAv__Host` and `ClamAv__Port` are ignored.
 
 Docker Compose includes a `clamav` service:
 
@@ -67,7 +83,7 @@ CLAMAV_PORT=3310
 ## Behavior
 
 - `Placeholder` passes files when scanning is disabled or provider is `Placeholder`.
-- `ClamAV` uses the ClamAV `INSTREAM` protocol.
+- `ClamAV` uses the ClamAV `INSTREAM` protocol over TCP or Unix socket.
 - If ClamAV is unavailable and `FILE_SCAN_FAIL_CLOSED=true`, upload is rejected.
 - If ClamAV is unavailable and `FILE_SCAN_FAIL_CLOSED=false`, upload is allowed and the result message records fail-open behavior.
 - The upload controller records audit events for scan passed and scan failed.

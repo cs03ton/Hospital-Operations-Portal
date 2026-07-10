@@ -27,6 +27,7 @@
 
 ```text
 /profile
+/profile/change-password
 ```
 
 เข้าถึงจาก user menu มุมขวาบนของ Header
@@ -36,9 +37,27 @@
 ```text
 GET /api/me/profile
 PUT /api/me/profile
+GET /api/me/password-policy
+POST /api/me/change-password
 ```
 
 Endpoint นี้ใช้ authenticated user จาก access token เท่านั้น ผู้ใช้จึงแก้ไขได้เฉพาะข้อมูลของตนเอง
+
+## Change Password
+
+หน้า `เปลี่ยนรหัสผ่าน` แสดงเป็นเมนูแยกใต้ user menu และเปิดให้ผู้ใช้ทุก role ที่ login แล้ว
+
+ขั้นตอนใช้งาน:
+
+1. เลือก user menu มุมขวาบน
+2. กด `เปลี่ยนรหัสผ่าน`
+3. กรอกรหัสผ่านปัจจุบัน
+4. กรอกรหัสผ่านใหม่และยืนยันรหัสผ่านใหม่
+5. ตรวจเงื่อนไข Password Policy และระดับความแข็งแรง
+6. กด `เปลี่ยนรหัสผ่าน`
+7. ระบบออกจากระบบและให้เข้าสู่ระบบใหม่
+
+ระบบไม่ส่ง password หรือ password hash กลับ frontend และไม่บันทึก password จริงใน Audit Log
 
 ## Editable Fields
 

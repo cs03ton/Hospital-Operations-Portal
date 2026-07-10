@@ -1,5 +1,6 @@
 import { httpClient } from "./httpClient";
 import type { ApiResponse } from "../types/auth";
+import type { DepartmentSummary } from "./adminApi";
 
 export type LeaveType = {
   id: string;
@@ -483,6 +484,99 @@ export type LeaveReportQuery = {
   to?: string;
   departmentId?: string;
   leaveTypeId?: string;
+};
+
+export type LeaveAnalyticsQuery = {
+  fiscalYear?: number;
+  year?: number;
+  month?: number;
+  departmentId?: string;
+  leaveTypeId?: string;
+  status?: string;
+  coreOnly?: boolean;
+};
+
+export type LeaveAnalyticsFilters = {
+  fiscalYear: number;
+  year?: number | null;
+  month?: number | null;
+  departmentId?: string | null;
+  leaveTypeId?: string | null;
+  status: string;
+  coreOnly: boolean;
+  startDate: string;
+  endDate: string;
+};
+
+export type LeaveAnalyticsSummary = {
+  totalRequests: number;
+  uniqueUsers: number;
+  totalDays: number;
+  sickDays: number;
+  personalDays: number;
+  vacationDays: number;
+  topDepartment?: string | null;
+  topLeaveType?: string | null;
+};
+
+export type LeaveAnalyticsMonthlyTrend = {
+  month: string;
+  requestCount: number;
+  uniqueUsers: number;
+  totalDays: number;
+};
+
+export type LeaveAnalyticsDepartmentStack = {
+  departmentId?: string | null;
+  departmentName: string;
+  sickDays: number;
+  personalDays: number;
+  vacationDays: number;
+  totalDays: number;
+};
+
+export type LeaveAnalyticsLeaveTypeBreakdown = {
+  leaveTypeId: string;
+  leaveTypeCode: string;
+  leaveTypeName: string;
+  requestCount: number;
+  totalDays: number;
+};
+
+export type LeaveAnalyticsHeatmap = {
+  date: string;
+  requestCount: number;
+  uniqueUsers: number;
+  totalDays: number;
+};
+
+export type LeaveAnalyticsTableItem = {
+  id: string;
+  requestNumber?: string | null;
+  fullname?: string | null;
+  departmentName?: string | null;
+  leaveTypeCode?: string | null;
+  leaveTypeName?: string | null;
+  startDate: string;
+  endDate: string;
+  durationType: string;
+  totalDays: number;
+  status: string;
+};
+
+export type LeaveAnalytics = {
+  filters: LeaveAnalyticsFilters;
+  summary: LeaveAnalyticsSummary;
+  monthlyTrend: LeaveAnalyticsMonthlyTrend[];
+  departmentStacked: LeaveAnalyticsDepartmentStack[];
+  leaveTypeBreakdown: LeaveAnalyticsLeaveTypeBreakdown[];
+  heatmap: LeaveAnalyticsHeatmap[];
+  items: LeaveAnalyticsTableItem[];
+};
+
+export type LeaveAnalyticsOptions = {
+  departments: DepartmentSummary[];
+  leaveTypes: LeaveType[];
 };
 
 export type PendingApprovalNotification = {
@@ -977,5 +1071,20 @@ export async function downloadLeaveReportExcel(params: LeaveReportQuery) {
 
 export async function downloadLeaveReportPdf(params: LeaveReportQuery) {
   const response = await httpClient.get("/api/reports/leaves/export-pdf", { params, responseType: "blob" });
+  return response.data as Blob;
+}
+
+export async function getLeaveAnalytics(params: LeaveAnalyticsQuery) {
+  const response = await httpClient.get<ApiResponse<LeaveAnalytics>>("/api/reports/leave-analytics", { params });
+  return response.data.data;
+}
+
+export async function getLeaveAnalyticsOptions() {
+  const response = await httpClient.get<ApiResponse<LeaveAnalyticsOptions>>("/api/reports/leave-analytics/options");
+  return response.data.data;
+}
+
+export async function downloadLeaveAnalyticsExcel(params: LeaveAnalyticsQuery) {
+  const response = await httpClient.get("/api/reports/leave-analytics/export-excel", { params, responseType: "blob" });
   return response.data as Blob;
 }

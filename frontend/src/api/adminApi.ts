@@ -141,12 +141,15 @@ export type HealthComponent = {
   status: string;
   message?: string | null;
   latencyMs?: number | null;
+  uptimeSeconds?: number | null;
+  provider?: string | null;
 };
 
 export type StorageHealth = {
   status: string;
   writable: boolean;
   message?: string | null;
+  path?: string | null;
 };
 
 export type LineHealth = {
@@ -155,6 +158,9 @@ export type LineHealth = {
   lastSuccessAt?: string | null;
   lastFailureAt?: string | null;
   message?: string | null;
+  hasAccessToken?: boolean;
+  hasChannelSecret?: boolean;
+  lastError?: string | null;
 };
 
 export type QueueHealth = {
@@ -173,25 +179,202 @@ export type DiskHealth = {
   status: string;
   usedPercent?: number | null;
   message?: string | null;
+  totalGb?: number | null;
+  usedGb?: number | null;
+  freeGb?: number | null;
+};
+
+export type MemoryHealth = {
+  status: string;
+  totalMb?: number | null;
+  usedMb?: number | null;
+  availableMb?: number | null;
+  usedPercent?: number | null;
+  message?: string | null;
+};
+
+export type CpuHealth = {
+  status: string;
+  processorCount: number;
+  loadAverage?: string | null;
+  message?: string | null;
 };
 
 export type BackupHealth = {
   status: string;
   lastBackupAt?: string | null;
   message?: string | null;
+  lastRestoreTestAt?: string | null;
+  backupDirectory?: string | null;
+  latestBackupSizeBytes?: number | null;
+  latestBackupFile?: string | null;
 };
 
 export type AdminHealth = {
+  overallStatus: string;
+  checkedAt: string;
   api: HealthComponent;
   database: HealthComponent;
   storage: StorageHealth;
   line: LineHealth;
   queue: QueueHealth;
   disk: DiskHealth;
+  memory: MemoryHealth;
+  cpu: CpuHealth;
   backup: BackupHealth;
   version: string;
   environment: string;
   currentTimeServer: string;
+  gitCommit?: string | null;
+  timezone?: string | null;
+};
+
+export type AdminDashboard = {
+  users: AdminDashboardUsers;
+  departments: AdminDashboardDepartments;
+  roles: AdminDashboardRoles;
+  line: AdminDashboardLine;
+  leave: AdminDashboardLeave;
+  health: AdminDashboardHealth;
+  audit: AdminDashboardAudit;
+};
+
+export type AdminDashboardUsers = {
+  total: number;
+  active: number;
+  inactive: number;
+  missingLineBinding: number;
+  missingEmploymentType: number;
+  missingApprovalRule: number;
+};
+
+export type AdminDashboardDepartments = {
+  total: number;
+  withoutHead: number;
+  withoutUsers: number;
+};
+
+export type AdminDashboardRoles = {
+  total: number;
+  permissions: number;
+  unusedRoles: number;
+  importantPermissionsUnassigned: number;
+};
+
+export type AdminDashboardLine = {
+  enabled: boolean;
+  boundUsers: number;
+  unboundUsers: number;
+  lastFailedDeliveryAt?: string | null;
+};
+
+export type AdminDashboardLeave = {
+  pendingApprovals: number;
+  todayRequests: number;
+  missingBalances: number;
+  missingApprovalRules: number;
+};
+
+export type AdminDashboardHealth = {
+  overallStatus: string;
+  api: HealthComponent;
+  database: HealthComponent;
+  storage: StorageHealth;
+  line: LineHealth;
+  disk: DiskHealth;
+  backup: BackupHealth;
+};
+
+export type AdminDashboardAudit = {
+  recentFailedLogins: number;
+  recentPermissionDenied: number;
+  recentAdminActions: AdminDashboardAuditAction[];
+};
+
+export type AdminDashboardAuditAction = {
+  createdAt: string;
+  action: string;
+  entityName: string;
+  result: string;
+  actorName?: string | null;
+};
+
+export type ExecutiveKpis = {
+  totalActiveUsers: number;
+  presentToday: number;
+  onLeaveToday: number;
+  pendingApprovals: number;
+  directorPendingApprovals: number;
+  approvedToday: number;
+  rejectedToday: number;
+  leaveRate: number;
+  approvalSlaHours?: number | null;
+};
+
+export type ExecutiveTodaySummary = {
+  totalLeaveToday: number;
+  sickLeaveToday: number;
+  personalLeaveToday: number;
+  vacationLeaveToday: number;
+  pendingApprovals: number;
+  approvedToday: number;
+  rejectedToday: number;
+  topDepartmentToday?: string | null;
+};
+
+export type ExecutiveMonthlyTrend = {
+  month: string;
+  sickLeaveDays: number;
+  personalLeaveDays: number;
+  vacationLeaveDays: number;
+  totalDays: number;
+};
+
+export type ExecutiveDepartmentLeave = {
+  departmentName: string;
+  userCount: number;
+  totalDays: number;
+};
+
+export type ExecutiveLeaveType = {
+  leaveTypeCode: string;
+  leaveTypeName: string;
+  requestCount: number;
+  totalDays: number;
+};
+
+export type ExecutiveYearlySummary = {
+  fiscalYear: number;
+  leaveTypeCode: string;
+  leaveTypeName: string;
+  usedDays: number;
+};
+
+export type ExecutiveSystemHealth = {
+  api: HealthComponent;
+  database: HealthComponent;
+  storage: StorageHealth;
+  line: LineHealth;
+  disk: DiskHealth;
+  backup: BackupHealth;
+  version: string;
+  environment: string;
+};
+
+export type ExecutiveDashboard = {
+  kpis: ExecutiveKpis;
+  todaySummary: ExecutiveTodaySummary;
+  monthlyTrend: ExecutiveMonthlyTrend[];
+  leaveByDepartment: ExecutiveDepartmentLeave[];
+  leaveByType: ExecutiveLeaveType[];
+  yearlySummary: ExecutiveYearlySummary[];
+  systemHealth: ExecutiveSystemHealth;
+};
+
+export type ExecutiveDashboardQuery = {
+  trendMonth?: number;
+  trendYear?: number;
+  fiscalYear?: number;
 };
 
 export type PagedResponse<T> = {
@@ -518,6 +701,16 @@ export async function getDashboardSummary() {
 
 export async function getAdminHealth() {
   const response = await httpClient.get<ApiResponse<AdminHealth>>("/api/admin/health");
+  return response.data.data;
+}
+
+export async function getAdminDashboard() {
+  const response = await httpClient.get<ApiResponse<AdminDashboard>>("/api/admin/dashboard");
+  return response.data.data;
+}
+
+export async function getExecutiveDashboard(params?: ExecutiveDashboardQuery) {
+  const response = await httpClient.get<ApiResponse<ExecutiveDashboard>>("/api/dashboard/executive", { params });
   return response.data.data;
 }
 

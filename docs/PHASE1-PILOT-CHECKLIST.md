@@ -46,10 +46,33 @@ Use this checklist before deploying HOP to the first real department.
 - [ ] Production admin can login.
 - [ ] Default development admin is disabled or not created.
 - [ ] Admin can manage users, roles, leave types, holidays, approval rules, and balances.
+- [ ] Admin can open `/admin/dashboard`.
+- [ ] Admin Dashboard shows summary, warnings, quick actions, health, LINE, and audit summary only.
+- [ ] Admin Dashboard does not contain full CRUD data grids.
+- [ ] Permission `AdminDashboard.View` exists and is assigned to Admin/SuperAdmin or explicit support roles.
 - [ ] Admin can open `/admin/health`.
-- [ ] Health Dashboard does not display secrets, tokens, passwords, or connection strings.
-- [ ] API, database, storage, LINE, disk, backup, version, environment, and server time cards are visible.
+- [ ] Permission `System.Health.View` exists and is assigned to Admin/SuperAdmin or explicit support roles.
+- [ ] Health Center does not display secrets, tokens, passwords, stack traces, or connection strings.
+- [ ] API, database, storage, LINE, queue, disk, CPU, RAM, backup, version, environment, and server time cards are visible.
+- [ ] Health Center tabs show Overview, Infrastructure, LINE, Backup, and Diagnostics.
+- [ ] Staff cannot open `/admin/health`.
 - [ ] Safe Error Page shows Reference ID and no production stack trace.
+
+## Documentation Center
+
+- [ ] Permission `Documentation.View` exists and is assigned to Staff, DepartmentHead, Director, LeaveAdmin, Admin, and SuperAdmin as appropriate.
+- [ ] Permission `Documentation.AdminView` exists and is assigned only to Admin/SuperAdmin or explicit support roles.
+- [ ] `/docs` opens the Documentation Center.
+- [ ] `/docs/:slug` renders Markdown content.
+- [ ] User with `Documentation.Manage` can edit an allowed Markdown document.
+- [ ] Online editor rejects token, secret, password, or connection string values.
+- [ ] `/api/docs/{slug}/pdf` downloads a readable Thai PDF.
+- [ ] Staff sees only user guide and FAQ.
+- [ ] Head sees user guide, head guide, and FAQ.
+- [ ] Director sees director/approver guide and FAQ.
+- [ ] Admin/SuperAdmin sees all documents.
+- [ ] API does not read files outside `docs/user-guide`.
+- [ ] Markdown files do not contain real token, secret, password, or connection string values.
 
 ## Leave Management
 
@@ -88,6 +111,29 @@ Use this checklist before deploying HOP to the first real department.
 - [ ] Restore workflow is rehearsed on a non-production database.
 - [ ] Uploaded file storage backup is available.
 - [ ] Rollback command is documented for the release.
+
+## Phase 1.5 Executive Dashboard
+
+- [ ] Director/Admin/SuperAdmin can open `/dashboard/executive`.
+- [ ] Staff and Department Head without explicit permission cannot open `/dashboard/executive`.
+- [ ] `GET /api/dashboard/executive` requires `Dashboard.Executive.View` or `LeaveDashboard.ViewExecutiveSummary`.
+- [ ] KPI cards show total active users, present today, on leave today, pending approvals, approved today, rejected today, leave rate, and approval SLA.
+- [ ] On-leave today counts unique users and excludes rejected/cancelled requests.
+- [ ] Analytics sections show monthly trend, leave by department, leave by type, and fiscal-year yearly summary.
+- [ ] System Health section does not expose tokens, secrets, connection strings, or stack traces.
+- [ ] Empty/loading/error states display Thai user-safe messages.
+
+## Phase 1.5 Leave Analytics
+
+- [ ] Director/Admin/SuperAdmin can open `/reports/leave-analytics`.
+- [ ] Staff without explicit permission cannot open `/reports/leave-analytics`.
+- [ ] `GET /api/reports/leave-analytics` enforces `LeaveAnalytics.View`, `ReportManagement.View`, or allowed executive/admin roles.
+- [ ] Default filter uses current fiscal year, status `Approved`, and core leave types only.
+- [ ] Cancelled/Rejected are not counted unless selected by status filter.
+- [ ] KPI cards show total requests, unique users, total days, sick days, personal days, vacation days, top department, and top leave type.
+- [ ] Charts show monthly trend, department stacked bar, leave type donut, and heatmap.
+- [ ] Export Excel uses current filters and filename `leave-analytics-FYxxxx.xlsx`.
+- [ ] Empty/loading/error states display Thai user-safe messages.
 
 ## Go / No-Go
 

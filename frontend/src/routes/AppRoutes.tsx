@@ -4,10 +4,16 @@ import { ApprovalChainFormPage } from "../pages/ApprovalChainFormPage";
 import { ApprovalChainManagementPage } from "../pages/ApprovalChainManagementPage";
 import { AuditLogPage } from "../pages/AuditLogPage";
 import { AuditLogExportPage } from "../pages/AuditLogExportPage";
+import { AdminBackupPage } from "../pages/AdminBackupPage";
+import { AdminDashboardPage } from "../pages/AdminDashboardPage";
 import { AdminHealthPage } from "../pages/AdminHealthPage";
 import { DashboardPage } from "../pages/DashboardPage";
 import { DashboardComingSoonPage } from "../pages/DashboardComingSoonPage";
 import { DashboardHubPage } from "../pages/DashboardHubPage";
+import { ChangePasswordPage } from "../pages/ChangePasswordPage";
+import { DocumentationCenterPage } from "../pages/DocumentationCenterPage";
+import { DocumentationDetailPage } from "../pages/DocumentationDetailPage";
+import { ExecutiveDashboardPage } from "../pages/ExecutiveDashboardPage";
 import { DepartmentManagementPage } from "../pages/DepartmentManagementPage";
 import { DepartmentFormPage } from "../pages/DepartmentFormPage";
 import { LeaveManagementPage } from "../pages/LeaveManagementPage";
@@ -21,6 +27,7 @@ import { LeaveRequestFormPage } from "../pages/LeaveRequestFormPage";
 import { LeaveTypeManagementPage } from "../pages/LeaveTypeManagementPage";
 import { LoginPage } from "../pages/LoginPage";
 import { LeaveReportsPage } from "../pages/LeaveReportsPage";
+import { LeaveAnalyticsPage } from "../pages/LeaveAnalyticsPage";
 import { LeaveSupportPage } from "../pages/LeaveSupportPage";
 import { LineSettingsPage } from "../pages/LineSettingsPage";
 import { LineUsersPage } from "../pages/LineUsersPage";
@@ -47,6 +54,8 @@ const leaveViewPermissions = [
   "LeaveRequest.ViewAll",
 ];
 
+const documentationViewerRoles = ["Staff", "DepartmentHead", "Director", "LeaveAdmin", "Admin", "SuperAdmin"];
+
 function withPermission(element: JSX.Element, permission: string) {
   return (
     <PermissionGuard permission={permission} redirectTo="/unauthorized">
@@ -61,6 +70,22 @@ function withAnyPermission(element: JSX.Element, permissions: string[]) {
       {element}
     </PermissionGuard>
   );
+}
+
+function withAnyPermissionOrRole(element: JSX.Element, permissions: string[], roles: string[]) {
+  return <RoleOrPermissionGuard permissions={permissions} roles={roles}>{element}</RoleOrPermissionGuard>;
+}
+
+function RoleOrPermissionGuard({ children, permissions, roles }: { children: JSX.Element; permissions: string[]; roles: string[] }) {
+  const { user } = useAuth();
+  const roleAllowed = user?.role ? roles.includes(user.role) : false;
+  const permissionAllowed = permissions.some((permission) => user?.permissions?.includes(permission));
+
+  if (roleAllowed || permissionAllowed) {
+    return children;
+  }
+
+  return <Navigate to="/unauthorized" replace />;
 }
 
 function LeaveCreateGuard() {
@@ -109,21 +134,27 @@ export function AppRoutes() {
           <Route path="/dashboard/vehicle" element={<DashboardModuleGuard moduleKey="vehicle" />} />
           <Route path="/dashboard/repair" element={<DashboardModuleGuard moduleKey="repair" />} />
           <Route path="/dashboard/inventory" element={<DashboardModuleGuard moduleKey="inventory" />} />
-          <Route path="/dashboard/executive" element={<DashboardModuleGuard moduleKey="executive" />} />
+          <Route path="/dashboard/executive" element={<DashboardModuleGuard moduleKey="executive"><ExecutiveDashboardPage /></DashboardModuleGuard>} />
           <Route path="/notifications" element={withPermission(<NotificationCenterPage />, "Dashboard.View")} />
+          <Route path="/docs" element={withAnyPermissionOrRole(<DocumentationCenterPage />, ["Documentation.View"], documentationViewerRoles)} />
+          <Route path="/docs/:slug" element={withAnyPermissionOrRole(<DocumentationDetailPage />, ["Documentation.View"], documentationViewerRoles)} />
           <Route path="/profile" element={<ProfilePage />} />
+          <Route path="/profile/change-password" element={<ChangePasswordPage />} />
           <Route path="/admin/users" element={withPermission(<UserManagementPage />, "UserManagement.View")} />
           <Route path="/admin/users/create" element={withPermission(<UserFormPage />, "UserManagement.Create")} />
           <Route path="/admin/users/:id/edit" element={withPermission(<UserFormPage />, "UserManagement.Edit")} />
           <Route path="/admin/departments" element={withPermission(<DepartmentManagementPage />, "DepartmentManagement.View")} />
           <Route path="/admin/departments/create" element={withPermission(<DepartmentFormPage />, "DepartmentManagement.Create")} />
           <Route path="/admin/departments/:id/edit" element={withPermission(<DepartmentFormPage />, "DepartmentManagement.Edit")} />
+          <Route path="/admin/dashboard" element={withAnyPermissionOrRole(<AdminDashboardPage />, ["AdminDashboard.View"], ["Admin", "SuperAdmin"])} />
           <Route path="/admin/roles" element={withPermission(<RoleManagementPage />, "RoleManagement.View")} />
           <Route path="/admin/roles/:id/permissions" element={withPermission(<RolePermissionsPage />, "RoleManagement.Manage")} />
           <Route path="/admin/audit-logs" element={withPermission(<AuditLogPage />, "SystemSettings.View")} />
           <Route path="/admin/audit-logs/export" element={withPermission(<AuditLogExportPage />, "SystemSettings.Export")} />
-          <Route path="/admin/health" element={withPermission(<AdminHealthPage />, "SystemSettings.View")} />
+          <Route path="/admin/health" element={withAnyPermissionOrRole(<AdminHealthPage />, ["System.Health.View"], ["Admin", "SuperAdmin"])} />
+          <Route path="/admin/backup" element={withAnyPermissionOrRole(<AdminBackupPage />, ["System.Health.View"], ["Admin", "SuperAdmin"])} />
           <Route path="/admin/system-settings" element={withPermission(<SystemSettingsPage />, "SystemSettings.View")} />
+          <Route path="/admin/line" element={<Navigate to="/admin/line-settings" replace />} />
           <Route path="/admin/line-settings" element={withAnyPermission(<LineSettingsPage />, ["System.Line.TestSend", "SystemSettings.View"])} />
           <Route path="/admin/line-users" element={withAnyPermission(<LineUsersPage />, ["System.Line.TestSend", "SystemSettings.View"])} />
           <Route path="/admin/leave-support" element={withPermission(<LeaveSupportPage />, "LeaveSupport.ViewAll")} />
@@ -143,6 +174,7 @@ export function AppRoutes() {
           <Route path="/leave/balances" element={withPermission(<LeaveBalancePage />, "LeaveRequest.ViewOwn")} />
           <Route path="/leave/:id" element={withAnyPermission(<LeaveRequestDetailPage />, leaveViewPermissions)} />
           <Route path="/reports/leaves" element={withPermission(<LeaveReportsPage />, "ReportManagement.View")} />
+          <Route path="/reports/leave-analytics" element={withAnyPermissionOrRole(<LeaveAnalyticsPage />, ["LeaveAnalytics.View", "ReportManagement.View"], ["Director", "Admin", "SuperAdmin"])} />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Route>
       </Route>

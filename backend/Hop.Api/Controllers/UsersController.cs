@@ -298,6 +298,7 @@ public class UsersController(AppDbContext db, IAuditLogService auditLogService, 
         if (!string.IsNullOrWhiteSpace(request.Password))
         {
             user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password);
+            user.PasswordChangedAt = DateTime.UtcNow;
         }
 
         db.UserRoles.RemoveRange(user.UserRoles);

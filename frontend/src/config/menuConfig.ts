@@ -1,5 +1,6 @@
 import AccountBalanceWalletOutlinedIcon from "@mui/icons-material/AccountBalanceWalletOutlined";
 import AccountTreeOutlinedIcon from "@mui/icons-material/AccountTreeOutlined";
+import BackupOutlinedIcon from "@mui/icons-material/BackupOutlined";
 import BuildOutlinedIcon from "@mui/icons-material/BuildOutlined";
 import BarChartOutlinedIcon from "@mui/icons-material/BarChartOutlined";
 import DirectionsCarOutlinedIcon from "@mui/icons-material/DirectionsCarOutlined";
@@ -15,9 +16,11 @@ import HistoryOutlinedIcon from "@mui/icons-material/HistoryOutlined";
 import ManageSearchOutlinedIcon from "@mui/icons-material/ManageSearchOutlined";
 import Inventory2OutlinedIcon from "@mui/icons-material/Inventory2Outlined";
 import MeetingRoomOutlinedIcon from "@mui/icons-material/MeetingRoomOutlined";
+import MenuBookOutlinedIcon from "@mui/icons-material/MenuBookOutlined";
 import NotificationsActiveOutlinedIcon from "@mui/icons-material/NotificationsActiveOutlined";
 import RequestQuoteOutlinedIcon from "@mui/icons-material/RequestQuoteOutlined";
 import SecurityOutlinedIcon from "@mui/icons-material/SecurityOutlined";
+import SettingsSuggestOutlinedIcon from "@mui/icons-material/SettingsSuggestOutlined";
 import WarehouseOutlinedIcon from "@mui/icons-material/WarehouseOutlined";
 import TuneOutlinedIcon from "@mui/icons-material/TuneOutlined";
 import type { SvgIconComponent } from "@mui/icons-material";
@@ -29,6 +32,8 @@ const leaveViewPermissions = [
   "LeaveRequest.ViewDepartment",
   "LeaveRequest.ViewAll",
 ];
+
+const documentationViewerRoles = ["Staff", "DepartmentHead", "Director", "LeaveAdmin", "Admin", "SuperAdmin"];
 
 export type NavigationModule = {
   moduleId: string;
@@ -47,6 +52,7 @@ export const navigationModules: NavigationModule[] = [
     enabled: true,
     children: [
       { label: "Dashboard Hub", path: "/dashboard", icon: DashboardOutlinedIcon, permission: "Dashboard.View", activePatterns: ["/dashboard"] },
+      { label: "Admin Dashboard", path: "/admin/dashboard", icon: DashboardOutlinedIcon, permission: "AdminDashboard.View", allowedRoles: ["Admin", "SuperAdmin"], activePatterns: ["/admin/dashboard"] },
     ],
   },
   {
@@ -66,6 +72,7 @@ export const navigationModules: NavigationModule[] = [
       { label: "มอบหมายอนุมัติ", path: "/admin/approval-delegations", icon: AccountTreeOutlinedIcon, permission: "LeaveApproval.Delegate" },
       { label: "วันหยุดราชการ", path: "/admin/leave-holidays", icon: EventBusyOutlinedIcon, permission: "LeaveAdmin.ManageHolidays" },
       { label: "ช่วยเหลือระบบลา", path: "/admin/leave-support", icon: ManageSearchOutlinedIcon, permission: "LeaveSupport.ViewAll" },
+      { label: "วิเคราะห์การลา", path: "/reports/leave-analytics", icon: BarChartOutlinedIcon, permissions: ["LeaveAnalytics.View", "ReportManagement.View"], allowedRoles: ["Director", "Admin", "SuperAdmin"] },
       { label: "รายงานการลา", path: "/reports/leaves", icon: BarChartOutlinedIcon, permission: "ReportManagement.View" },
     ],
   },
@@ -78,11 +85,36 @@ export const navigationModules: NavigationModule[] = [
       { label: "จัดการผู้ใช้", path: "/admin/users", icon: GroupOutlinedIcon, permission: "UserManagement.View" },
       { label: "จัดการหน่วยงาน", path: "/admin/departments", icon: BusinessOutlinedIcon, permission: "DepartmentManagement.View" },
       { label: "บทบาทและสิทธิ์", path: "/admin/roles", icon: SecurityOutlinedIcon, permission: "RoleManagement.View" },
-      { label: "สถานะระบบ", path: "/admin/health", icon: HealthAndSafetyOutlinedIcon, permission: "SystemSettings.View" },
+    ],
+  },
+  {
+    moduleId: "SystemManagement",
+    moduleLabel: "จัดการระบบ",
+    moduleIcon: SettingsSuggestOutlinedIcon,
+    enabled: true,
+    children: [
+      { label: "Health Center", path: "/admin/health", icon: HealthAndSafetyOutlinedIcon, permission: "System.Health.View", allowedRoles: ["Admin", "SuperAdmin"] },
+      { label: "Backup Center", path: "/admin/backup", icon: BackupOutlinedIcon, permission: "System.Health.View", allowedRoles: ["Admin", "SuperAdmin"] },
       { label: "บันทึกการใช้งาน", path: "/admin/audit-logs", icon: HistoryOutlinedIcon, permission: "SystemSettings.View" },
       { label: "ตั้งค่าระบบ", path: "/admin/system-settings", icon: TuneOutlinedIcon, permission: "SystemSettings.View" },
       { label: "ตั้งค่า LINE", path: "/admin/line-settings", icon: NotificationsActiveOutlinedIcon, permissions: ["System.Line.TestSend", "SystemSettings.View"] },
       { label: "ผู้ใช้ LINE", path: "/admin/line-users", icon: NotificationsActiveOutlinedIcon, permissions: ["System.Line.TestSend", "SystemSettings.View"] },
+    ],
+  },
+  {
+    moduleId: "HelpCenter",
+    moduleLabel: "ช่วยเหลือ",
+    moduleIcon: MenuBookOutlinedIcon,
+    enabled: true,
+    children: [
+      {
+        label: "ศูนย์คู่มือ",
+        path: "/docs",
+        icon: MenuBookOutlinedIcon,
+        permission: "Documentation.View",
+        allowedRoles: documentationViewerRoles,
+        activePatterns: ["/docs", "/docs/:slug"],
+      },
     ],
   },
   {

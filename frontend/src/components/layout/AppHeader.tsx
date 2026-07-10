@@ -1,4 +1,5 @@
 import LogoutOutlinedIcon from "@mui/icons-material/LogoutOutlined";
+import LockResetOutlinedIcon from "@mui/icons-material/LockResetOutlined";
 import MenuIcon from "@mui/icons-material/Menu";
 import MenuOpenOutlinedIcon from "@mui/icons-material/MenuOpenOutlined";
 import PersonOutlineOutlinedIcon from "@mui/icons-material/PersonOutlineOutlined";
@@ -102,6 +103,17 @@ export function AppHeader({ drawerWidth, isSidebarCollapsed, onMobileMenuClick, 
             <Stack direction="row" spacing={1} alignItems="center">
               <PersonOutlineOutlinedIcon fontSize="small" />
               <Typography variant="body2">ข้อมูลส่วนตัวของฉัน</Typography>
+            </Stack>
+          </MenuItem>
+          <MenuItem
+            onClick={() => {
+              setUserMenuAnchor(null);
+              navigate("/profile/change-password");
+            }}
+          >
+            <Stack direction="row" spacing={1} alignItems="center">
+              <LockResetOutlinedIcon fontSize="small" />
+              <Typography variant="body2">เปลี่ยนรหัสผ่าน</Typography>
             </Stack>
           </MenuItem>
           <MenuItem

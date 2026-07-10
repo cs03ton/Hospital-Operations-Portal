@@ -486,6 +486,89 @@ public record LeaveReportResponse(
     int PendingApprovalCount
 );
 
+public record LeaveAnalyticsFilterResponse(
+    int FiscalYear,
+    int? Year,
+    int? Month,
+    Guid? DepartmentId,
+    Guid? LeaveTypeId,
+    string Status,
+    bool CoreOnly,
+    DateOnly StartDate,
+    DateOnly EndDate
+);
+
+public record LeaveAnalyticsSummaryResponse(
+    int TotalRequests,
+    int UniqueUsers,
+    decimal TotalDays,
+    decimal SickDays,
+    decimal PersonalDays,
+    decimal VacationDays,
+    string? TopDepartment,
+    string? TopLeaveType
+);
+
+public record LeaveAnalyticsMonthlyTrendResponse(
+    string Month,
+    int RequestCount,
+    int UniqueUsers,
+    decimal TotalDays
+);
+
+public record LeaveAnalyticsDepartmentStackResponse(
+    Guid? DepartmentId,
+    string DepartmentName,
+    decimal SickDays,
+    decimal PersonalDays,
+    decimal VacationDays,
+    decimal TotalDays
+);
+
+public record LeaveAnalyticsLeaveTypeBreakdownResponse(
+    Guid LeaveTypeId,
+    string LeaveTypeCode,
+    string LeaveTypeName,
+    int RequestCount,
+    decimal TotalDays
+);
+
+public record LeaveAnalyticsHeatmapResponse(
+    DateOnly Date,
+    int RequestCount,
+    int UniqueUsers,
+    decimal TotalDays
+);
+
+public record LeaveAnalyticsTableItemResponse(
+    Guid Id,
+    string? RequestNumber,
+    string? Fullname,
+    string? DepartmentName,
+    string? LeaveTypeCode,
+    string? LeaveTypeName,
+    DateOnly StartDate,
+    DateOnly EndDate,
+    string DurationType,
+    decimal TotalDays,
+    string Status
+);
+
+public record LeaveAnalyticsResponse(
+    LeaveAnalyticsFilterResponse Filters,
+    LeaveAnalyticsSummaryResponse Summary,
+    IReadOnlyList<LeaveAnalyticsMonthlyTrendResponse> MonthlyTrend,
+    IReadOnlyList<LeaveAnalyticsDepartmentStackResponse> DepartmentStacked,
+    IReadOnlyList<LeaveAnalyticsLeaveTypeBreakdownResponse> LeaveTypeBreakdown,
+    IReadOnlyList<LeaveAnalyticsHeatmapResponse> Heatmap,
+    IReadOnlyList<LeaveAnalyticsTableItemResponse> Items
+);
+
+public record LeaveAnalyticsOptionsResponse(
+    IReadOnlyList<DepartmentDto> Departments,
+    IReadOnlyList<LeaveTypeResponse> LeaveTypes
+);
+
 public record PendingApprovalNotificationResponse(
     Guid RequestId,
     string? RequestNumber,

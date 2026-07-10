@@ -13,6 +13,7 @@ type AuthContextValue = {
   isLoading: boolean;
   login: (username: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
+  clearSession: () => void;
   refreshUser: () => Promise<void>;
 };
 
@@ -137,6 +138,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isLoading,
       login: signIn,
       logout: signOut,
+      clearSession,
       refreshUser,
     }),
     [accessToken, isLoading, refreshToken, user],

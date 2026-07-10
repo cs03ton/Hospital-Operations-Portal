@@ -8,4 +8,5 @@ export type NavigationItem = {
   permissions?: string[];
   activePatterns?: string[];
   hiddenForRoles?: string[];
+  allowedRoles?: string[];
 };

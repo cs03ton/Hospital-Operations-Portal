@@ -277,7 +277,17 @@ Verify health:
 
 ```powershell
 curl http://localhost/healthz
+curl http://localhost/health/live
+curl http://localhost/health/ready
 ```
+
+Admin/SuperAdmin must also verify the Phase 1.5 Health Center after login:
+
+1. Open `/admin/health`.
+2. Confirm Overall Status is not `Unhealthy`.
+3. Confirm API, Database, Storage, LINE, Disk, CPU, RAM, Backup, Version, Environment, and Server Time are visible.
+4. Confirm the network response does not contain secrets, tokens, passwords, or connection strings.
+5. If Backup is `Warning` or `Unhealthy`, run a manual backup and refresh the page.
 
 ## Phase 1 Deployment Scripts
 

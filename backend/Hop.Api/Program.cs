@@ -32,6 +32,7 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.Configure<LineOptions>(builder.Configuration.GetSection("Line"));
+builder.Services.Configure<PasswordPolicyOptions>(builder.Configuration.GetSection("PasswordPolicy"));
 
 builder.Services.AddCors(options =>
 {
@@ -82,6 +83,9 @@ builder.Services.AddScoped<ILeaveNotificationEventPublisher, LeaveNotificationEv
 builder.Services.AddScoped<ILeaveRequestAccessService, LeaveRequestAccessService>();
 builder.Services.AddScoped<ILeaveRequestNumberService, LeaveRequestNumberService>();
 builder.Services.AddScoped<IAuditRetentionService, AuditRetentionService>();
+builder.Services.AddScoped<IHealthCenterService, HealthCenterService>();
+builder.Services.AddScoped<IDocumentationService, DocumentationService>();
+builder.Services.AddScoped<IPasswordPolicyService, PasswordPolicyService>();
 builder.Services.AddScoped<LineConfigurationResolver>();
 builder.Services.AddScoped<IUserAvatarUrlResolver, UserAvatarUrlResolver>();
 builder.Services.AddSingleton<ILoginRateLimiter, InMemoryLoginRateLimiter>();

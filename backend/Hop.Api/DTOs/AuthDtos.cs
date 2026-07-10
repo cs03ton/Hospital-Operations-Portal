@@ -11,6 +11,21 @@ public record CsrfTokenResponse(
     string HeaderName
 );
 
+public record ChangePasswordRequest(
+    string CurrentPassword,
+    string NewPassword,
+    string ConfirmPassword
+);
+
+public record PasswordPolicyResponse(
+    int MinimumLength,
+    bool RequireUppercase,
+    bool RequireLowercase,
+    bool RequireDigit,
+    bool RequireSpecialCharacter,
+    bool DisallowUsername
+);
+
 public record AuthUserDto(
     Guid Id,
     string Fullname,
