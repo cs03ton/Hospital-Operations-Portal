@@ -10,6 +10,11 @@ DEFAULT_ENV_FILE="/etc/hop/backup.env"
 
 ASSUME_YES=false
 LIST_ONLY=false
+DRY_RUN=false
+BACKUP_ID=""
+TARGET_DB_OVERRIDE=""
+RESTORE_DATABASE_OVERRIDE=""
+RESTORE_STORAGE_OVERRIDE=""
 
 while [ "$#" -gt 0 ]; do
   case "$1" in
@@ -18,6 +23,25 @@ while [ "$#" -gt 0 ]; do
       ;;
     --list)
       LIST_ONLY=true
+      ;;
+    --dry-run)
+      DRY_RUN=true
+      ;;
+    --backup-id)
+      shift
+      BACKUP_ID="${1:?--backup-id requires a value}"
+      ;;
+    --db-only)
+      RESTORE_DATABASE_OVERRIDE=true
+      RESTORE_STORAGE_OVERRIDE=false
+      ;;
+    --storage-only)
+      RESTORE_DATABASE_OVERRIDE=false
+      RESTORE_STORAGE_OVERRIDE=true
+      ;;
+    --target-db)
+      shift
+      TARGET_DB_OVERRIDE="${1:?--target-db requires a database name}"
       ;;
     --dump)
       shift
@@ -57,6 +81,16 @@ RESTORE_DATABASE="${RESTORE_DATABASE:-true}"
 RESTORE_STORAGE="${RESTORE_STORAGE:-true}"
 RESTORE_CONFIRMATION="${RESTORE_CONFIRMATION:-}"
 CONFIRM_TEXT="RESTORE_HOP_DATABASE"
+
+if [ -n "$TARGET_DB_OVERRIDE" ]; then
+  DB_NAME="$TARGET_DB_OVERRIDE"
+fi
+if [ -n "$RESTORE_DATABASE_OVERRIDE" ]; then
+  RESTORE_DATABASE="$RESTORE_DATABASE_OVERRIDE"
+fi
+if [ -n "$RESTORE_STORAGE_OVERRIDE" ]; then
+  RESTORE_STORAGE="$RESTORE_STORAGE_OVERRIDE"
+fi
 
 db_dir="${BACKUP_ROOT}/postgres"
 storage_dir="${BACKUP_ROOT}/storage"
@@ -146,6 +180,11 @@ verify_archive_docker() {
 }
 
 confirm_restore() {
+  if [ "$DRY_RUN" = "true" ]; then
+    log "DRY-RUN: restore confirmation skipped"
+    return
+  fi
+
   if [ "$ASSUME_YES" = "true" ]; then
     [ "$RESTORE_CONFIRMATION" = "$CONFIRM_TEXT" ] || fail "RESTORE_CONFIRMATION=${CONFIRM_TEXT} is required with --yes."
     return
@@ -169,6 +208,10 @@ EOF
 restore_database_host() {
   verify_archive_host
   log "Restoring PostgreSQL database in host mode from ${DB_DUMP_PATH}"
+  if [ "$DRY_RUN" = "true" ]; then
+    log "DRY-RUN: pg_restore would target ${DB_HOST}:${DB_PORT}/${DB_NAME}"
+    return
+  fi
   PGPASSWORD="$DB_PASSWORD" pg_restore \
     --host="$DB_HOST" \
     --port="$DB_PORT" \
@@ -183,6 +226,10 @@ restore_database_host() {
 restore_database_docker() {
   verify_archive_docker
   log "Restoring PostgreSQL database in Docker mode from ${DB_DUMP_PATH} into ${POSTGRES_CONTAINER}"
+  if [ "$DRY_RUN" = "true" ]; then
+    log "DRY-RUN: docker pg_restore would target container ${POSTGRES_CONTAINER}, database ${DB_NAME}"
+    return
+  fi
   docker exec -i \
     -e PGPASSWORD="$DB_PASSWORD" \
     "$POSTGRES_CONTAINER" \
@@ -212,6 +259,10 @@ restore_storage_host() {
   assert_readable_non_empty_file "$STORAGE_ARCHIVE_PATH"
   validate_restore_target_path
   log "Restoring storage archive ${STORAGE_ARCHIVE_PATH} into ${STORAGE_PATH}"
+  if [ "$DRY_RUN" = "true" ]; then
+    log "DRY-RUN: storage archive would be extracted into ${STORAGE_PATH}"
+    return
+  fi
   mkdir -p "$STORAGE_PATH"
   find "$STORAGE_PATH" -mindepth 1 -maxdepth 1 -exec rm -rf -- {} + >>"$log_file" 2>&1
   tar -xzf "$STORAGE_ARCHIVE_PATH" -C "$STORAGE_PATH" >>"$log_file" 2>&1
@@ -229,6 +280,10 @@ restore_storage_docker() {
   archive_dir="$(cd "$(dirname "$STORAGE_ARCHIVE_PATH")" && pwd)"
   archive_name="$(basename "$STORAGE_ARCHIVE_PATH")"
   log "Restoring storage archive ${STORAGE_ARCHIVE_PATH} into Docker volume ${STORAGE_DOCKER_VOLUME}"
+  if [ "$DRY_RUN" = "true" ]; then
+    log "DRY-RUN: storage archive ${archive_name} would be extracted into Docker volume ${STORAGE_DOCKER_VOLUME}"
+    return
+  fi
   docker run --rm \
     -v "${STORAGE_DOCKER_VOLUME}:/data" \
     -v "${archive_dir}:/backup:ro" \
@@ -280,7 +335,7 @@ main() {
 
   confirm_restore
   log "Starting HOP restore"
-  log "Mode=${BACKUP_MODE}; DB=${DB_HOST}:${DB_PORT}/${DB_NAME}; BackupRoot=${BACKUP_ROOT}; StoragePath=${STORAGE_PATH}; RestoreDatabase=${RESTORE_DATABASE}; RestoreStorage=${RESTORE_STORAGE}"
+  log "Mode=${BACKUP_MODE}; DB=${DB_HOST}:${DB_PORT}/${DB_NAME}; BackupRoot=${BACKUP_ROOT}; StoragePath=${STORAGE_PATH}; RestoreDatabase=${RESTORE_DATABASE}; RestoreStorage=${RESTORE_STORAGE}; DryRun=${DRY_RUN}; BackupId=${BACKUP_ID:-none}"
 
   case "$BACKUP_MODE" in
     host)

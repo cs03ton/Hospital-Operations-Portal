@@ -50,6 +50,38 @@ Restore additionally uses:
 | `STORAGE_ARCHIVE_PATH` | No | Path to storage `.tar.gz` file |
 | `RESTORE_CONFIRMATION` | Required with `--yes` | Must be `RESTORE_HOP_DATABASE` |
 
+## Backup Center
+
+SuperAdmin สามารถตรวจประวัติ backup/restore และจัดการ retention ผ่านหน้า:
+
+```text
+/admin/backup
+```
+
+Backend API ที่ใช้:
+
+| API | Purpose |
+|---|---|
+| `GET /api/admin/backups/overview` | สรุป backup ล่าสุดและ policy |
+| `GET /api/admin/backups` | รายการ backup แบบ paging/filter |
+| `POST /api/admin/backups/{id}/verify` | ตรวจ archive และ checksum |
+| `POST /api/admin/backups/{id}/restore-preview` | ตรวจความพร้อมก่อน restore |
+| `POST /api/admin/backups/{id}/restore` | บันทึก restore request พร้อมเหตุผล |
+| `GET /api/admin/backups/restore-runs` | ประวัติ restore |
+| `POST /api/admin/backups/retention/preview` | preview retention |
+| `POST /api/admin/backups/retention/apply` | apply retention |
+
+Permission ที่เกี่ยวข้อง:
+
+```text
+System.Backup.View
+System.Backup.Run
+System.Backup.Restore
+System.Backup.ManageRetention
+```
+
+ดูรายละเอียดที่ [BACKUP-CENTER.md](BACKUP-CENTER.md), [RETENTION-POLICY.md](RETENTION-POLICY.md), และ [DISASTER-RECOVERY.md](DISASTER-RECOVERY.md)
+
 ## Backup Output
 
 The script creates:
@@ -132,6 +164,15 @@ Restore can overwrite production data. Before restore:
 
 Never run restore against production from an unverified backup.
 
+For UI workflow, use Backup Center to:
+
+1. Verify selected backup.
+2. Run restore preview.
+3. Record restore reason and operator.
+4. Keep restore history for audit.
+
+Actual production restore must still follow the shell runbook during a maintenance window.
+
 ## Restore: Host PostgreSQL
 
 ```bash
@@ -153,6 +194,16 @@ The script uses:
 
 ```bash
 pg_restore --clean --if-exists --no-owner
+```
+
+Dry-run example:
+
+```bash
+/opt/hop/scripts/backup/restore-hop.sh \
+  --dry-run \
+  --db-only \
+  --target-db hop_restore_test \
+  --dump /opt/hop/backups/postgres/hopdb_20260630_020000.backup
 ```
 
 ## Restore: Docker PostgreSQL
@@ -299,6 +350,8 @@ Minimum recommendation:
 | Monthly | 12 months, stored off-server |
 
 The script currently enforces day-based retention. Weekly/monthly archival should be handled by server policy or external storage lifecycle rules.
+
+Backup Center adds preview/apply controls for retention metadata and filesystem cleanup. Always run preview before apply and keep at least one verified backup per type.
 
 ## Verify Backup
 

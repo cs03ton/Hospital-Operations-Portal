@@ -251,6 +251,138 @@ export type AdminHealth = {
   timezone?: string | null;
 };
 
+export type BackupRun = {
+  id: string;
+  backupType: string;
+  status: string;
+  fileName: string;
+  relativePath: string;
+  fileSizeBytes: number;
+  checksum?: string | null;
+  startedAt: string;
+  completedAt?: string | null;
+  durationMs?: number | null;
+  errorMessage?: string | null;
+  createdBy?: string | null;
+  verifiedAt?: string | null;
+  verifiedBy?: string | null;
+  deletedAt?: string | null;
+};
+
+export type BackupRunDetail = {
+  backup: BackupRun;
+  logSummary: string;
+  canRestore: boolean;
+  isVerified: boolean;
+  restoreWarnings: string[];
+  restoreErrors: string[];
+};
+
+export type BackupRetentionPolicy = {
+  dailyDays: number;
+  weeklyWeeks: number;
+  monthlyMonths: number;
+  keepVerified: boolean;
+  keepFailedDays: number;
+};
+
+export type BackupOverview = {
+  lastSuccessfulBackup?: BackupRun | null;
+  lastFailedBackup?: BackupRun | null;
+  lastVerifiedBackup?: BackupRun | null;
+  lastRestoreTest?: RestoreRun | null;
+  totalBackupSizeBytes: number;
+  backupRoot: string;
+  retentionPolicy: BackupRetentionPolicy;
+};
+
+export type BackupQuery = {
+  page?: number;
+  pageSize?: number;
+  type?: string;
+  status?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  search?: string;
+  sort?: string;
+  direction?: "asc" | "desc";
+};
+
+export type RestorePreview = {
+  canRestore: boolean;
+  warnings: string[];
+  errors: string[];
+  backupInfo: BackupRun;
+  currentEnvironment: string;
+  recommendedMode: string;
+  freeDiskBytes?: number | null;
+};
+
+export type RestoreRequest = {
+  confirmationText: string;
+  reason: string;
+  restoreDatabase: boolean;
+  restoreStorage: boolean;
+  restoreMode: string;
+  targetDatabase?: string | null;
+};
+
+export type RestoreRun = {
+  id: string;
+  backupRunId: string;
+  backupFileName: string;
+  restoreType: string;
+  targetEnvironment: string;
+  targetDatabase?: string | null;
+  status: string;
+  reason: string;
+  startedAt: string;
+  completedAt?: string | null;
+  durationMs?: number | null;
+  errorMessage?: string | null;
+  createdBy?: string | null;
+  confirmationMethod: string;
+  preRestoreBackupRunId?: string | null;
+};
+
+export type BackupVerification = {
+  backupId: string;
+  status: string;
+  message: string;
+  checksum?: string | null;
+  verifiedAt: string;
+};
+
+export type RetentionPreviewItem = {
+  backupId: string;
+  fileName: string;
+  createdAt: string;
+  type: string;
+  status: string;
+  action: string;
+  reason: string;
+  fileSizeBytes: number;
+};
+
+export type RetentionPreview = {
+  totalFiles: number;
+  keep: number;
+  delete: number;
+  freedBytes: number;
+  items: RetentionPreviewItem[];
+};
+
+export type ApplyRetentionRequest = {
+  reason: string;
+  confirmationText: string;
+};
+
+export type ApplyRetentionResponse = {
+  deletedCount: number;
+  freedBytes: number;
+  items: RetentionPreviewItem[];
+};
+
 export type AdminDashboard = {
   users: AdminDashboardUsers;
   departments: AdminDashboardDepartments;
@@ -723,6 +855,51 @@ export async function getDashboardSummary() {
 
 export async function getAdminHealth() {
   const response = await httpClient.get<ApiResponse<AdminHealth>>("/api/admin/health");
+  return response.data.data;
+}
+
+export async function getBackupOverview() {
+  const response = await httpClient.get<ApiResponse<BackupOverview>>("/api/admin/backups/overview");
+  return response.data.data;
+}
+
+export async function getBackups(params: BackupQuery = {}) {
+  const response = await httpClient.get<ApiResponse<PagedResponse<BackupRun>>>("/api/admin/backups", { params });
+  return response.data.data;
+}
+
+export async function getBackup(id: string) {
+  const response = await httpClient.get<ApiResponse<BackupRunDetail>>(`/api/admin/backups/${id}`);
+  return response.data.data;
+}
+
+export async function verifyBackup(id: string) {
+  const response = await httpClient.post<ApiResponse<BackupVerification>>(`/api/admin/backups/${id}/verify`);
+  return response.data.data;
+}
+
+export async function previewRestore(id: string) {
+  const response = await httpClient.post<ApiResponse<RestorePreview>>(`/api/admin/backups/${id}/restore-preview`);
+  return response.data.data;
+}
+
+export async function confirmRestore(id: string, payload: RestoreRequest) {
+  const response = await httpClient.post<ApiResponse<RestoreRun>>(`/api/admin/backups/${id}/restore`, payload);
+  return response.data.data;
+}
+
+export async function getRestoreRuns(params: BackupQuery = {}) {
+  const response = await httpClient.get<ApiResponse<PagedResponse<RestoreRun>>>("/api/admin/backups/restore-runs", { params });
+  return response.data.data;
+}
+
+export async function previewRetention() {
+  const response = await httpClient.post<ApiResponse<RetentionPreview>>("/api/admin/backups/retention/preview");
+  return response.data.data;
+}
+
+export async function applyRetention(payload: ApplyRetentionRequest) {
+  const response = await httpClient.post<ApiResponse<ApplyRetentionResponse>>("/api/admin/backups/retention/apply", payload);
   return response.data.data;
 }
 

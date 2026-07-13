@@ -109,7 +109,18 @@ Use this checklist before deploying HOP to the first real department.
 - [ ] Production backup completed with `scripts/backup/backup-hop.sh`.
 - [ ] Database backup file exists under `/opt/hop/backups/postgres/hopdb_YYYYMMDD_HHMMSS.backup`.
 - [ ] Storage backup file exists under `/opt/hop/backups/storage/hop_uploads_YYYYMMDD_HHMMSS.tar.gz`.
+- [ ] Tables `backup_runs` and `restore_runs` exist after migration.
+- [ ] Permissions `System.Backup.View`, `System.Backup.Run`, `System.Backup.Restore`, and `System.Backup.ManageRetention` exist.
+- [ ] SuperAdmin can open `/admin/backup`.
+- [ ] Staff, DepartmentHead, and Director cannot open `/admin/backup`.
+- [ ] Backup Center Overview shows latest backup metadata without secrets.
+- [ ] Backup History supports paging, filter, detail, verification, and restore preview.
+- [ ] Restore tab requires reason and confirmation text.
+- [ ] Restore History records operator, reason, status, and timestamp.
+- [ ] Retention tab supports preview before apply.
+- [ ] Retention apply does not delete latest, verified, restored, or running backups.
 - [ ] Production restore command reviewed with `scripts/backup/restore-hop.sh`.
+- [ ] Restore dry-run works with `--dry-run` and a selected backup file.
 - [ ] Restore workflow is rehearsed on a non-production database.
 - [ ] Uploaded file storage backup is available.
 - [ ] Rollback command is documented for the release.

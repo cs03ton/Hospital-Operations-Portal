@@ -128,16 +128,18 @@ Audit Log ใช้ตรวจสอบกิจกรรมในระบบ 
 
 ## การตรวจสอบ Backup Center
 
-Backup Center ใช้สำหรับตรวจสอบว่าระบบมีการสำรองข้อมูลล่าสุดครบทั้งฐานข้อมูลและไฟล์แนบของระบบหรือไม่
+Backup Center ใช้สำหรับตรวจสอบว่าระบบมีการสำรองข้อมูลล่าสุดครบทั้งฐานข้อมูลและไฟล์แนบของระบบหรือไม่ รวมถึงตรวจประวัติ restore และ retention policy
 
 1. Login ด้วยบัญชี Admin หรือ SuperAdmin
 2. ไปที่เมนู `จัดการระบบ`
 3. เลือก `Backup Center`
-4. ตรวจเวลาสำรองข้อมูลล่าสุด
-5. ตรวจชื่อไฟล์ฐานข้อมูลล่าสุด
-6. ตรวจชื่อไฟล์ storage ล่าสุด
-7. ตรวจ log รอบล่าสุดว่ามี error หรือไม่
-8. ตรวจว่ามีหลักฐานทดสอบ restore รายเดือน
+4. เปิด tab `Overview` เพื่อตรวจเวลาสำรองข้อมูลล่าสุด
+5. เปิด tab `Backup History` เพื่อตรวจชื่อไฟล์ฐานข้อมูลและ storage ล่าสุด
+6. กด `Verify` เมื่อต้องการตรวจความสมบูรณ์ของไฟล์ backup
+7. เปิด tab `Restore` เฉพาะเมื่อได้รับมอบหมายให้ทำ restore preview
+8. เปิด tab `Restore History` เพื่อตรวจประวัติ restore test/restore request
+9. เปิด tab `Retention` เพื่อ preview รายการที่จะลบก่อน apply policy
+10. ตรวจว่ามีหลักฐานทดสอบ restore รายเดือน
 
 ค่ามาตรฐานที่ควรรู้:
 
@@ -149,7 +151,16 @@ Backup Center ใช้สำหรับตรวจสอบว่าระบ
 | Storage file name | `hop_uploads_YYYYMMDD_HHMMSS.tar.gz` |
 | Backup env | `/etc/hop/backup.env` |
 
-> **Warning:** Backup Center มีไว้สำหรับตรวจสอบสถานะ ไม่ควร restore production โดยไม่มี maintenance window และผู้อนุมัติ
+สิทธิ์ที่เกี่ยวข้อง:
+
+| Permission | ความหมาย |
+|---|---|
+| `System.Backup.View` | ดู Backup Center |
+| `System.Backup.Run` | Verify backup |
+| `System.Backup.Restore` | Restore preview และบันทึก restore request |
+| `System.Backup.ManageRetention` | Preview/apply retention policy |
+
+> **Warning:** Restore production ต้องทำใน maintenance window พร้อมผู้อนุมัติ และต้องมี pre-restore backup ก่อนเสมอ
 
 > **Tip:** หลัง deploy หรือ migration ให้บันทึกชื่อไฟล์ backup ล่าสุด เช่น `hopdb_20260709_142201.backup` ไว้ใน deploy note
 
@@ -162,6 +173,9 @@ Backup Center ใช้สำหรับตรวจสอบว่าระบ
 - [ ] ตรวจสอบ Audit Log เป็นระยะ
 - [ ] สำรองข้อมูลตามรอบที่กำหนด
 - [ ] ตรวจ Backup Center หลัง deploy และหลัง backup schedule ทำงาน
+- [ ] Verify backup สำคัญหลัง backup job
+- [ ] ตรวจ Restore History หลังซ้อม restore
+- [ ] Preview Retention ก่อน apply ทุกครั้ง
 - [ ] มี restore-test evidence อย่างน้อยเดือนละครั้ง
 - [ ] ไม่เปิดสิทธิ์เกินจำเป็น
 

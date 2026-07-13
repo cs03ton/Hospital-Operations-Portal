@@ -84,6 +84,7 @@ builder.Services.AddScoped<ILeaveRequestAccessService, LeaveRequestAccessService
 builder.Services.AddScoped<ILeaveRequestNumberService, LeaveRequestNumberService>();
 builder.Services.AddScoped<IAuditRetentionService, AuditRetentionService>();
 builder.Services.AddScoped<IHealthCenterService, HealthCenterService>();
+builder.Services.AddScoped<IBackupCenterService, BackupCenterService>();
 builder.Services.AddScoped<IDocumentationService, DocumentationService>();
 builder.Services.AddScoped<IPasswordPolicyService, PasswordPolicyService>();
 builder.Services.AddScoped<LineConfigurationResolver>();

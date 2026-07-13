@@ -152,7 +152,7 @@ export function AppRoutes() {
           <Route path="/admin/audit-logs" element={withPermission(<AuditLogPage />, "SystemSettings.View")} />
           <Route path="/admin/audit-logs/export" element={withPermission(<AuditLogExportPage />, "SystemSettings.Export")} />
           <Route path="/admin/health" element={withAnyPermissionOrRole(<AdminHealthPage />, ["System.Health.View"], ["Admin", "SuperAdmin"])} />
-          <Route path="/admin/backup" element={withAnyPermissionOrRole(<AdminBackupPage />, ["System.Health.View"], ["Admin", "SuperAdmin"])} />
+          <Route path="/admin/backup" element={withAnyPermissionOrRole(<AdminBackupPage />, ["System.Backup.View"], ["SuperAdmin"])} />
           <Route path="/admin/system-settings" element={withPermission(<SystemSettingsPage />, "SystemSettings.View")} />
           <Route path="/admin/line" element={<Navigate to="/admin/line-settings" replace />} />
           <Route path="/admin/line-settings" element={withAnyPermission(<LineSettingsPage />, ["System.Line.TestSend", "SystemSettings.View"])} />

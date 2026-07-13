@@ -34,6 +34,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<LineUserBinding> LineUserBindings => Set<LineUserBinding>();
     public DbSet<LinePairingCode> LinePairingCodes => Set<LinePairingCode>();
     public DbSet<LineConnectToken> LineConnectTokens => Set<LineConnectToken>();
+    public DbSet<BackupRun> BackupRuns => Set<BackupRun>();
+    public DbSet<RestoreRun> RestoreRuns => Set<RestoreRun>();
 
     public override int SaveChanges(bool acceptAllChangesOnSuccess)
     {
@@ -694,6 +696,71 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             entity.HasOne(item => item.User)
                 .WithMany()
                 .HasForeignKey(item => item.UserId);
+        });
+
+        modelBuilder.Entity<BackupRun>(entity =>
+        {
+            entity.ToTable("backup_runs");
+            entity.Property(item => item.Id).HasColumnName("id");
+            entity.Property(item => item.BackupType).HasColumnName("backup_type").HasMaxLength(40);
+            entity.Property(item => item.Status).HasColumnName("status").HasMaxLength(40);
+            entity.Property(item => item.FileName).HasColumnName("file_name").HasMaxLength(260);
+            entity.Property(item => item.FilePath).HasColumnName("file_path").HasMaxLength(1000);
+            entity.Property(item => item.FileSizeBytes).HasColumnName("file_size_bytes");
+            entity.Property(item => item.Checksum).HasColumnName("checksum").HasMaxLength(128);
+            entity.Property(item => item.StartedAt).HasColumnName("started_at");
+            entity.Property(item => item.CompletedAt).HasColumnName("completed_at");
+            entity.Property(item => item.DurationMs).HasColumnName("duration_ms");
+            entity.Property(item => item.ErrorMessage).HasColumnName("error_message").HasMaxLength(1000);
+            entity.Property(item => item.CreatedByUserId).HasColumnName("created_by_user_id");
+            entity.Property(item => item.VerifiedAt).HasColumnName("verified_at");
+            entity.Property(item => item.VerifiedByUserId).HasColumnName("verified_by_user_id");
+            entity.Property(item => item.DeletedAt).HasColumnName("deleted_at");
+            entity.Property(item => item.DeletedByUserId).HasColumnName("deleted_by_user_id");
+            entity.Property(item => item.CreatedAt).HasColumnName("created_at");
+            entity.Property(item => item.UpdatedAt).HasColumnName("updated_at");
+            entity.HasIndex(item => item.FilePath).IsUnique();
+            entity.HasIndex(item => new { item.BackupType, item.Status, item.StartedAt });
+            entity.HasOne(item => item.CreatedByUser)
+                .WithMany()
+                .HasForeignKey(item => item.CreatedByUserId);
+            entity.HasOne(item => item.VerifiedByUser)
+                .WithMany()
+                .HasForeignKey(item => item.VerifiedByUserId);
+            entity.HasOne(item => item.DeletedByUser)
+                .WithMany()
+                .HasForeignKey(item => item.DeletedByUserId);
+        });
+
+        modelBuilder.Entity<RestoreRun>(entity =>
+        {
+            entity.ToTable("restore_runs");
+            entity.Property(item => item.Id).HasColumnName("id");
+            entity.Property(item => item.BackupRunId).HasColumnName("backup_run_id");
+            entity.Property(item => item.RestoreType).HasColumnName("restore_type").HasMaxLength(40);
+            entity.Property(item => item.TargetEnvironment).HasColumnName("target_environment").HasMaxLength(80);
+            entity.Property(item => item.TargetDatabase).HasColumnName("target_database").HasMaxLength(200);
+            entity.Property(item => item.Status).HasColumnName("status").HasMaxLength(40);
+            entity.Property(item => item.Reason).HasColumnName("reason").HasMaxLength(1000);
+            entity.Property(item => item.StartedAt).HasColumnName("started_at");
+            entity.Property(item => item.CompletedAt).HasColumnName("completed_at");
+            entity.Property(item => item.DurationMs).HasColumnName("duration_ms");
+            entity.Property(item => item.ErrorMessage).HasColumnName("error_message").HasMaxLength(1000);
+            entity.Property(item => item.CreatedByUserId).HasColumnName("created_by_user_id");
+            entity.Property(item => item.ConfirmationMethod).HasColumnName("confirmation_method").HasMaxLength(80);
+            entity.Property(item => item.PreRestoreBackupRunId).HasColumnName("pre_restore_backup_run_id");
+            entity.Property(item => item.CreatedAt).HasColumnName("created_at");
+            entity.Property(item => item.UpdatedAt).HasColumnName("updated_at");
+            entity.HasIndex(item => new { item.BackupRunId, item.Status, item.StartedAt });
+            entity.HasOne(item => item.BackupRun)
+                .WithMany()
+                .HasForeignKey(item => item.BackupRunId);
+            entity.HasOne(item => item.PreRestoreBackupRun)
+                .WithMany()
+                .HasForeignKey(item => item.PreRestoreBackupRunId);
+            entity.HasOne(item => item.CreatedByUser)
+                .WithMany()
+                .HasForeignKey(item => item.CreatedByUserId);
         });
     }
 

@@ -94,7 +94,7 @@ export const navigationModules: NavigationModule[] = [
     enabled: true,
     children: [
       { label: "Health Center", path: "/admin/health", icon: HealthAndSafetyOutlinedIcon, permission: "System.Health.View", allowedRoles: ["Admin", "SuperAdmin"] },
-      { label: "Backup Center", path: "/admin/backup", icon: BackupOutlinedIcon, permission: "System.Health.View", allowedRoles: ["Admin", "SuperAdmin"] },
+      { label: "Backup Center", path: "/admin/backup", icon: BackupOutlinedIcon, permission: "System.Backup.View", allowedRoles: ["SuperAdmin"] },
       { label: "บันทึกการใช้งาน", path: "/admin/audit-logs", icon: HistoryOutlinedIcon, permission: "SystemSettings.View" },
       { label: "ตั้งค่าระบบ", path: "/admin/system-settings", icon: TuneOutlinedIcon, permission: "SystemSettings.View" },
       { label: "ตั้งค่า LINE", path: "/admin/line-settings", icon: NotificationsActiveOutlinedIcon, permissions: ["System.Line.TestSend", "SystemSettings.View"] },

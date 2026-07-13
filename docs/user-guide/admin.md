@@ -90,11 +90,16 @@
 ## 💾 Backup/Restore
 
 1. ตรวจ `จัดการระบบ` > `Backup Center`
-2. ตรวจเวลาสำรองข้อมูลล่าสุด และชื่อไฟล์ database backup
-3. ชื่อไฟล์ database ต้องอยู่ในรูปแบบ `hopdb_YYYYMMDD_HHMMSS.backup`
-4. path มาตรฐานของ database backup คือ `/opt/hop/backups/postgres`
-5. ตรวจว่า storage backup อยู่ที่ `/opt/hop/backups/storage`
-6. ทดสอบ restore รายเดือนตาม checklist
+2. เปิด tab `Overview` เพื่อตรวจเวลาสำรองข้อมูลล่าสุด
+3. เปิด tab `Backup History` เพื่อตรวจรายการ backup แบบ paging/filter
+4. ชื่อไฟล์ database ต้องอยู่ในรูปแบบ `hopdb_YYYYMMDD_HHMMSS.backup`
+5. path มาตรฐานของ database backup คือ `/opt/hop/backups/postgres`
+6. ตรวจว่า storage backup อยู่ที่ `/opt/hop/backups/storage`
+7. กด verify backup สำคัญเพื่อบันทึก checksum และสถานะ
+8. ใช้ tab `Restore` เพื่อ preview และบันทึกเหตุผลก่อน restore
+9. ใช้ tab `Restore History` เพื่อตรวจประวัติ restore test
+10. ใช้ tab `Retention` เพื่อ preview/apply policy การลบ backup เก่า
+11. ทดสอบ restore รายเดือนตาม checklist
 
 ### ✅ Checklist Backup Center
 
@@ -104,7 +109,20 @@
 - [ ] พบไฟล์ storage `hop_uploads_YYYYMMDD_HHMMSS.tar.gz`
 - [ ] log backup รอบล่าสุดไม่มี error
 - [ ] มีหลักฐาน restore test ล่าสุด
+- [ ] Retention preview ไม่มีไฟล์สำคัญอยู่ในรายการลบ
+- [ ] Restore request มีเหตุผล ผู้ดำเนินการ และเวลา
 - [ ] ไม่มี secret/token/password แสดงในหน้า Backup Center หรือ log
+
+### 🔐 สิทธิ์ Backup Center
+
+| Permission | ใช้สำหรับ |
+|---|---|
+| `System.Backup.View` | ดู Backup Center |
+| `System.Backup.Run` | Verify backup |
+| `System.Backup.Restore` | Restore preview / restore history |
+| `System.Backup.ManageRetention` | จัดการ retention |
+
+> ⚠️ **ข้อควรระวัง:** ควรให้สิทธิ์ restore และ retention เฉพาะ SuperAdmin หรือผู้ดูแลระบบที่ได้รับมอบหมายเป็นลายลักษณ์อักษรเท่านั้น
 
 ## 🚀 Deploy Checklist
 
