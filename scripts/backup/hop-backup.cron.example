@@ -1,0 +1,8 @@
+# HOP daily backup cron example
+# Install with: sudo crontab -e
+# Keep secrets out of crontab. Put DB credentials in /etc/hop/backup.env with root-only permissions.
+
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+0 2 * * * BACKUP_ENV_FILE=/etc/hop/backup.env /opt/hop/scripts/backup/backup-hop.sh >> /var/log/hop-backup-cron.log 2>&1

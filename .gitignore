@@ -15,6 +15,8 @@ appsettings.Production.json
 *.local
 *.secret
 *.secrets
+scripts/backup/backup.env
+scripts/backup/*.local.env
 
 # Logs / runtime process files
 *.log
