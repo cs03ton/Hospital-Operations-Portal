@@ -101,3 +101,16 @@
 - ข้อความ error ที่แสดง
 - เลขที่คำขอ ถ้าเกี่ยวข้องกับระบบลา
 - รูปภาพหน้าจอ ถ้ามี
+
+## 💾 Backup Center ขึ้น Warning ต้องทำอย่างไร
+
+สำหรับ Admin หรือ SuperAdmin ให้ตรวจตามลำดับ:
+
+1. เปิด `จัดการระบบ` > `Backup Center`
+2. ตรวจว่า database backup ล่าสุดอยู่ที่ `/opt/hop/backups/postgres`
+3. ตรวจว่าชื่อไฟล์เป็นรูปแบบ `hopdb_YYYYMMDD_HHMMSS.backup`
+4. ตรวจว่า storage backup ล่าสุดอยู่ที่ `/opt/hop/backups/storage`
+5. ตรวจ log backup ล่าสุด
+6. หาก backup ไม่สำเร็จ ให้แจ้ง IT พร้อมเวลาที่พบปัญหาและข้อความ error
+
+> 💡 **Tip:** Backup Center ใช้สำหรับตรวจสถานะเท่านั้น การ restore production ต้องทำใน maintenance window และมีผู้อนุมัติ

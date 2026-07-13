@@ -49,7 +49,7 @@ DB_PORT="${DB_PORT:-5432}"
 DB_NAME="${DB_NAME:-}"
 DB_USER="${DB_USER:-}"
 DB_PASSWORD="${DB_PASSWORD:-}"
-BACKUP_ROOT="${BACKUP_ROOT:-${PROJECT_ROOT}/backups}"
+BACKUP_ROOT="${BACKUP_ROOT:-/opt/hop/backups}"
 STORAGE_PATH="${UPLOADS_PATH:-${STORAGE_PATH:-${PROJECT_ROOT}/storage}}"
 POSTGRES_CONTAINER="${POSTGRES_CONTAINER:-hop-prod-postgres}"
 STORAGE_DOCKER_VOLUME="${STORAGE_DOCKER_VOLUME:-hop_prod_storage}"
@@ -58,7 +58,7 @@ RESTORE_STORAGE="${RESTORE_STORAGE:-true}"
 RESTORE_CONFIRMATION="${RESTORE_CONFIRMATION:-}"
 CONFIRM_TEXT="RESTORE_HOP_DATABASE"
 
-db_dir="${BACKUP_ROOT}/db"
+db_dir="${BACKUP_ROOT}/postgres"
 storage_dir="${BACKUP_ROOT}/storage"
 log_dir="${BACKUP_ROOT}/logs"
 timestamp="$(date +%Y%m%d_%H%M%S)"
@@ -85,7 +85,7 @@ human_size() {
 list_backups() {
   printf 'Database backups in %s\n' "$db_dir"
   local db_rows storage_rows
-  db_rows="$(find "$db_dir" -maxdepth 1 -type f -name 'hop_db_*.dump' -printf '%T@ %p %s\n' 2>/dev/null | sort -nr || true)"
+  db_rows="$(find "$db_dir" -maxdepth 1 -type f \( -name 'hopdb_*.backup' -o -name 'hop_db_*.dump' \) -printf '%T@ %p %s\n' 2>/dev/null | sort -nr || true)"
   if [ -n "$db_rows" ]; then
     printf '%s\n' "$db_rows" | awk '{ size=$3; $1=""; $3=""; sub(/^  /,""); printf "- %s (%s bytes)\n", $0, size }'
   else
@@ -102,13 +102,13 @@ list_backups() {
 }
 
 latest_db_dump() {
-  find "$db_dir" -maxdepth 1 -type f -name 'hop_db_*.dump' -printf '%T@ %p\n' 2>/dev/null |
+  find "$db_dir" -maxdepth 1 -type f \( -name 'hopdb_*.backup' -o -name 'hop_db_*.dump' \) -printf '%T@ %p\n' 2>/dev/null |
     sort -nr |
     awk 'NR==1 { $1=""; sub(/^ /,""); print; exit }'
 }
 
 timestamp_from_db_dump() {
-  basename "$1" | sed -n 's/^hop_db_\([0-9]\{8\}_[0-9]\{6\}\)\.dump$/\1/p'
+  basename "$1" | sed -n -e 's/^hopdb_\([0-9]\{8\}_[0-9]\{6\}\)\.backup$/\1/p' -e 's/^hop_db_\([0-9]\{8\}_[0-9]\{6\}\)\.dump$/\1/p'
 }
 
 matching_storage_archive() {

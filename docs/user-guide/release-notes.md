@@ -19,7 +19,7 @@
 - 📈 Leave Analytics
 - 🩺 Health Center
 - 🛠️ Admin Dashboard
-- 💾 Backup Center
+- 💾 Backup Center รองรับ path มาตรฐาน `/opt/hop/backups/postgres` และชื่อไฟล์ `hopdb_YYYYMMDD_HHMMSS.backup`
 - 📚 Documentation Center
 - 🔑 Self-service password change
 - 📎 Attachment preview สำหรับไฟล์แนบคำขอลา

@@ -12,7 +12,8 @@
 8. [การจัดการ Permission](#การจัดการ-permission)
 9. [การตรวจสอบ Audit Log](#การตรวจสอบ-audit-log)
 10. [ข้อควรระวังด้านสิทธิ์](#ข้อควรระวังด้านสิทธิ์)
-11. [Checklist สำหรับ Admin](#checklist-สำหรับ-admin)
+11. [การตรวจสอบ Backup Center](#การตรวจสอบ-backup-center)
+12. [Checklist สำหรับ Admin](#checklist-สำหรับ-admin)
 
 ## ภาพรวมบทบาทผู้ดูแลระบบ
 
@@ -125,6 +126,33 @@ Audit Log ใช้ตรวจสอบกิจกรรมในระบบ 
 4. บันทึกเหตุผลเมื่อแก้ไขสิทธิ์สำคัญ
 5. ตรวจสอบ Audit Log หากพบเหตุการณ์ผิดปกติ
 
+## การตรวจสอบ Backup Center
+
+Backup Center ใช้สำหรับตรวจสอบว่าระบบมีการสำรองข้อมูลล่าสุดครบทั้งฐานข้อมูลและไฟล์แนบของระบบหรือไม่
+
+1. Login ด้วยบัญชี Admin หรือ SuperAdmin
+2. ไปที่เมนู `จัดการระบบ`
+3. เลือก `Backup Center`
+4. ตรวจเวลาสำรองข้อมูลล่าสุด
+5. ตรวจชื่อไฟล์ฐานข้อมูลล่าสุด
+6. ตรวจชื่อไฟล์ storage ล่าสุด
+7. ตรวจ log รอบล่าสุดว่ามี error หรือไม่
+8. ตรวจว่ามีหลักฐานทดสอบ restore รายเดือน
+
+ค่ามาตรฐานที่ควรรู้:
+
+| รายการ | ค่ามาตรฐาน |
+|---|---|
+| Database backup path | `/opt/hop/backups/postgres` |
+| Database file name | `hopdb_YYYYMMDD_HHMMSS.backup` |
+| Storage backup path | `/opt/hop/backups/storage` |
+| Storage file name | `hop_uploads_YYYYMMDD_HHMMSS.tar.gz` |
+| Backup env | `/etc/hop/backup.env` |
+
+> **Warning:** Backup Center มีไว้สำหรับตรวจสอบสถานะ ไม่ควร restore production โดยไม่มี maintenance window และผู้อนุมัติ
+
+> **Tip:** หลัง deploy หรือ migration ให้บันทึกชื่อไฟล์ backup ล่าสุด เช่น `hopdb_20260709_142201.backup` ไว้ใน deploy note
+
 ## Checklist สำหรับ Admin
 
 - [ ] เพิ่มผู้ใช้พร้อมหน่วยงานและ Role ที่ถูกต้อง
@@ -133,6 +161,8 @@ Audit Log ใช้ตรวจสอบกิจกรรมในระบบ 
 - [ ] ปิดใช้งานบัญชีที่ไม่ใช้แล้ว
 - [ ] ตรวจสอบ Audit Log เป็นระยะ
 - [ ] สำรองข้อมูลตามรอบที่กำหนด
+- [ ] ตรวจ Backup Center หลัง deploy และหลัง backup schedule ทำงาน
+- [ ] มี restore-test evidence อย่างน้อยเดือนละครั้ง
 - [ ] ไม่เปิดสิทธิ์เกินจำเป็น
 
 ---

@@ -75,11 +75,11 @@ Application + database + storage rollback from a verified backup:
 ```bash
 ROLLBACK_REF=<previous-release-tag> \
 ROLLBACK_CONFIRM=I_UNDERSTAND_ROLLBACK_WILL_REDEPLOY_APP \
-RESTORE_CONFIRM=I_UNDERSTAND_THIS_WILL_OVERWRITE_HOP \
+RESTORE_CONFIRMATION=RESTORE_HOP_DATABASE \
 RESTORE_DATABASE=true \
 RESTORE_STORAGE=true \
-DB_DUMP_PATH=/opt/hop/backups/db/hop_db_YYYYMMDD_HHMMSS.dump \
-STORAGE_ARCHIVE_PATH=/opt/hop/backups/storage/hop_storage_YYYYMMDD_HHMMSS.tar.gz \
+DB_DUMP_PATH=/opt/hop/backups/postgres/hopdb_YYYYMMDD_HHMMSS.backup \
+STORAGE_ARCHIVE_PATH=/opt/hop/backups/storage/hop_uploads_YYYYMMDD_HHMMSS.tar.gz \
 bash deploy/rollback.sh
 ```
 
@@ -384,8 +384,8 @@ After first login:
 
 Before updating:
 
-```powershell
-.\scripts\backup-postgres.ps1 -EnvFile .env.production -ComposeFile docker-compose.prod.yml
+```bash
+BACKUP_ENV_FILE=/etc/hop/backup.env /opt/hop/scripts/backup/backup-hop.sh
 ```
 
 Deploy updated images:
@@ -400,10 +400,10 @@ docker compose --env-file .env.production -f docker-compose.prod.yml ps
 
 Rollback must restore both database and application version.
 
-```powershell
+```bash
 git checkout <previous-release-tag>
 docker compose --env-file .env.production -f docker-compose.prod.yml up -d --build
-.\scripts\restore-postgres.ps1 -BackupFile database/backup/<backup-file>.dump -EnvFile .env.production -ComposeFile docker-compose.prod.yml
+BACKUP_ENV_FILE=/etc/hop/backup.env /opt/hop/scripts/backup/restore-hop.sh --dump /opt/hop/backups/postgres/hopdb_YYYYMMDD_HHMMSS.backup
 docker compose --env-file .env.production -f docker-compose.prod.yml restart backend frontend nginx
 ```
 
@@ -421,8 +421,8 @@ Detailed commands are documented in `docs/BACKUP-RESTORE.md`.
 
 Minimum production routine:
 
-```powershell
-.\scripts\backup-postgres.ps1 -EnvFile .env.production -ComposeFile docker-compose.prod.yml
+```bash
+BACKUP_ENV_FILE=/etc/hop/backup.env /opt/hop/scripts/backup/backup-hop.sh
 ```
 
 Keep PostgreSQL dumps and uploaded-file backups together for each release. Uploaded-file storage includes leave attachments and `storage/profile-images`.

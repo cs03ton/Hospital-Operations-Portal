@@ -35,9 +35,9 @@ chmod +x /opt/hop/scripts/backup/backup-hop.sh /opt/hop/scripts/backup/restore-h
 | `DB_NAME` | Yes | Database name |
 | `DB_USER` | Yes | Database user |
 | `DB_PASSWORD` | Yes | Database password, pass through environment only |
-| `BACKUP_ROOT` | No | Backup output root, default `./backups` |
-| `STORAGE_PATH` | No | Host storage folder, default `./storage` |
-| `BACKUP_RETENTION_DAYS` | No | Retention in days, default `30` |
+| `BACKUP_ROOT` | No | Backup output root, default `/opt/hop/backups` |
+| `STORAGE_PATH` | No | Host storage folder, production usually `/opt/hop/uploads` |
+| `BACKUP_RETENTION_DAYS` | No | Retention in days, default `7` |
 | `BACKUP_MODE` | No | `host` or `docker`, default `host` |
 | `POSTGRES_CONTAINER` | Docker | PostgreSQL container name, default `hop-prod-postgres` |
 | `STORAGE_DOCKER_VOLUME` | Docker | Storage Docker volume name, default `hop_prod_storage` |
@@ -46,9 +46,9 @@ Restore additionally uses:
 
 | Variable | Required | Description |
 |---|---|---|
-| `DB_DUMP_PATH` | Yes | Path to `.dump` file |
+| `DB_DUMP_PATH` | No | Path to `.backup` file. If omitted, `restore-hop.sh` uses the latest file in `BACKUP_ROOT/postgres` |
 | `STORAGE_ARCHIVE_PATH` | No | Path to storage `.tar.gz` file |
-| `RESTORE_CONFIRM` | Yes | Must be `I_UNDERSTAND_THIS_WILL_OVERWRITE_HOP` |
+| `RESTORE_CONFIRMATION` | Required with `--yes` | Must be `RESTORE_HOP_DATABASE` |
 
 ## Backup Output
 
@@ -56,15 +56,15 @@ The script creates:
 
 ```text
 backups/
-├── db/
-│   └── hop_db_YYYYMMDD_HHMMSS.dump
+├── postgres/
+│   └── hopdb_YYYYMMDD_HHMMSS.backup
 ├── storage/
-│   └── hop_storage_YYYYMMDD_HHMMSS.tar.gz
+│   └── hop_uploads_YYYYMMDD_HHMMSS.tar.gz
 ├── logs/
 │   └── backup_YYYYMMDD_HHMMSS.log
 └── YYYYMMDD_HHMMSS/
-    ├── hop_db_YYYYMMDD_HHMMSS.dump
-    └── hop_storage_YYYYMMDD_HHMMSS.tar.gz
+    ├── hopdb_YYYYMMDD_HHMMSS.backup
+    └── hop_uploads_YYYYMMDD_HHMMSS.tar.gz
 ```
 
 `backups/` is ignored by Git.
@@ -111,13 +111,13 @@ Manual equivalent:
 ```bash
 docker exec -e PGPASSWORD="$DB_PASSWORD" hop-prod-postgres \
   pg_dump -h localhost -p 5432 -U "$DB_USER" -d "$DB_NAME" -Fc --no-owner \
-  > /opt/hop/backups/db/hop_db_YYYYMMDD_HHMMSS.dump
+  > /opt/hop/backups/postgres/hopdb_YYYYMMDD_HHMMSS.backup
 
 docker run --rm \
   -v hop_prod_storage:/data:ro \
   -v /opt/hop/backups/storage:/backup \
   alpine:3.20 \
-  tar -czf /backup/hop_storage_YYYYMMDD_HHMMSS.tar.gz -C /data .
+  tar -czf /backup/hop_uploads_YYYYMMDD_HHMMSS.tar.gz -C /data .
 ```
 
 ## Restore Warning
@@ -128,7 +128,7 @@ Restore can overwrite production data. Before restore:
 2. Stop user traffic.
 3. Confirm selected database dump and storage archive.
 4. Confirm rollback plan.
-5. Export `RESTORE_CONFIRM=I_UNDERSTAND_THIS_WILL_OVERWRITE_HOP`.
+5. For non-interactive restore, export `RESTORE_CONFIRMATION=RESTORE_HOP_DATABASE` and pass `--yes`.
 
 Never run restore against production from an unverified backup.
 
@@ -142,9 +142,9 @@ export DB_USER=hop_user
 export DB_PASSWORD='set-this-from-secret-manager'
 export BACKUP_MODE=host
 export STORAGE_PATH=/opt/hop/uploads
-export DB_DUMP_PATH=/opt/hop/backups/db/hop_db_20260630_020000.dump
-export STORAGE_ARCHIVE_PATH=/opt/hop/backups/storage/hop_storage_20260630_020000.tar.gz
-export RESTORE_CONFIRM=I_UNDERSTAND_THIS_WILL_OVERWRITE_HOP
+export DB_DUMP_PATH=/opt/hop/backups/postgres/hopdb_20260630_020000.backup
+export STORAGE_ARCHIVE_PATH=/opt/hop/backups/storage/hop_uploads_20260630_020000.tar.gz
+export RESTORE_CONFIRMATION=RESTORE_HOP_DATABASE
 
 /opt/hop/scripts/backup/restore-hop.sh
 ```
@@ -166,9 +166,9 @@ export DB_PASSWORD="${POSTGRES_PASSWORD}"
 export BACKUP_MODE=docker
 export POSTGRES_CONTAINER=hop-prod-postgres
 export STORAGE_DOCKER_VOLUME=hop_prod_storage
-export DB_DUMP_PATH=/opt/hop/backups/db/hop_db_20260630_020000.dump
-export STORAGE_ARCHIVE_PATH=/opt/hop/backups/storage/hop_storage_20260630_020000.tar.gz
-export RESTORE_CONFIRM=I_UNDERSTAND_THIS_WILL_OVERWRITE_HOP
+export DB_DUMP_PATH=/opt/hop/backups/postgres/hopdb_20260630_020000.backup
+export STORAGE_ARCHIVE_PATH=/opt/hop/backups/storage/hop_uploads_20260630_020000.tar.gz
+export RESTORE_CONFIRMATION=RESTORE_HOP_DATABASE
 
 /opt/hop/scripts/backup/restore-hop.sh
 ```
@@ -176,7 +176,7 @@ export RESTORE_CONFIRM=I_UNDERSTAND_THIS_WILL_OVERWRITE_HOP
 Manual equivalent:
 
 ```bash
-cat /opt/hop/backups/db/hop_db_YYYYMMDD_HHMMSS.dump | \
+cat /opt/hop/backups/postgres/hopdb_YYYYMMDD_HHMMSS.backup | \
   docker exec -i -e PGPASSWORD="$DB_PASSWORD" hop-prod-postgres \
   pg_restore -h localhost -p 5432 -U "$DB_USER" -d "$DB_NAME" \
   --clean --if-exists --no-owner
@@ -185,7 +185,7 @@ docker run --rm \
   -v hop_prod_storage:/data \
   -v /opt/hop/backups/storage:/backup:ro \
   alpine:3.20 \
-  sh -c 'rm -rf /data/* /data/.[!.]* /data/..?* 2>/dev/null || true; tar -xzf /backup/hop_storage_YYYYMMDD_HHMMSS.tar.gz -C /data'
+  sh -c 'rm -rf /data/* /data/.[!.]* /data/..?* 2>/dev/null || true; tar -xzf /backup/hop_uploads_YYYYMMDD_HHMMSS.tar.gz -C /data'
 ```
 
 ## Cron Example
@@ -306,7 +306,7 @@ After every backup job:
 
 1. Check non-zero file sizes:
    ```bash
-   ls -lh /opt/hop/backups/db/*.dump /opt/hop/backups/storage/*.tar.gz
+   ls -lh /opt/hop/backups/postgres/*.backup /opt/hop/backups/storage/*.tar.gz
    ```
 2. Check latest log:
    ```bash
@@ -314,11 +314,11 @@ After every backup job:
    ```
 3. Verify dump metadata:
    ```bash
-   pg_restore --list /opt/hop/backups/db/hop_db_YYYYMMDD_HHMMSS.dump | head
+   pg_restore --list /opt/hop/backups/postgres/hopdb_YYYYMMDD_HHMMSS.backup | head
    ```
 4. Verify storage archive:
    ```bash
-   tar -tzf /opt/hop/backups/storage/hop_storage_YYYYMMDD_HHMMSS.tar.gz | head
+   tar -tzf /opt/hop/backups/storage/hop_uploads_YYYYMMDD_HHMMSS.tar.gz | head
    ```
 5. Login as Admin/SuperAdmin and open `/admin/health`.
 6. Confirm Backup Status shows the latest backup timestamp and file metadata from `BACKUP_ROOT`.
@@ -328,7 +328,7 @@ After every backup job:
 Run monthly against a test server or disposable database only:
 
 1. Create a test DB.
-2. Restore the latest `.dump`.
+2. Restore the latest `.backup`.
 3. Restore the latest storage `.tar.gz`.
 4. Start backend/frontend against the restored DB.
 5. Verify `/healthz`.

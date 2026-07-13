@@ -20,6 +20,8 @@ Use this checklist before the first pilot department deployment.
 - [ ] `DB_PASSWORD`, JWT secret, and LINE token are loaded from secret storage or protected server env.
 - [ ] `docker compose --env-file .env.production -f docker-compose.prod.yml config` passes.
 - [ ] Backup completed with `scripts/backup/backup-hop.sh`.
+- [ ] Database backup artifact recorded as `/opt/hop/backups/postgres/hopdb_YYYYMMDD_HHMMSS.backup`.
+- [ ] Storage backup artifact recorded as `/opt/hop/backups/storage/hop_uploads_YYYYMMDD_HHMMSS.tar.gz`.
 - [ ] Restore test has been performed on a non-production database.
 - [ ] Restore-test evidence recorded using `docs/qa/RESTORE-TEST-EVIDENCE-TEMPLATE.md`.
 - [ ] `RUN_BACKUP_BEFORE_MIGRATION=true` or unset for production deploy.

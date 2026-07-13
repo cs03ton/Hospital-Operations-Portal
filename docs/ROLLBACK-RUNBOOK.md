@@ -35,11 +35,11 @@ bash deploy/04-crosscheck.sh
 cd /opt/hop
 ROLLBACK_REF=<previous-release-tag> \
 ROLLBACK_CONFIRM=I_UNDERSTAND_ROLLBACK_WILL_REDEPLOY_APP \
-RESTORE_CONFIRM=I_UNDERSTAND_THIS_WILL_OVERWRITE_HOP \
+RESTORE_CONFIRMATION=RESTORE_HOP_DATABASE \
 RESTORE_DATABASE=true \
 RESTORE_STORAGE=true \
-DB_DUMP_PATH=/opt/hop/backups/db/hop_db_YYYYMMDD_HHMMSS.dump \
-STORAGE_ARCHIVE_PATH=/opt/hop/backups/storage/hop_storage_YYYYMMDD_HHMMSS.tar.gz \
+DB_DUMP_PATH=/opt/hop/backups/postgres/hopdb_YYYYMMDD_HHMMSS.backup \
+STORAGE_ARCHIVE_PATH=/opt/hop/backups/storage/hop_uploads_YYYYMMDD_HHMMSS.tar.gz \
 bash deploy/rollback.sh
 ```
 
@@ -48,8 +48,8 @@ bash deploy/rollback.sh
 ```bash
 RESTORE_DATABASE=false \
 RESTORE_STORAGE=true \
-RESTORE_CONFIRM=I_UNDERSTAND_THIS_WILL_OVERWRITE_HOP \
-STORAGE_ARCHIVE_PATH=/opt/hop/backups/storage/hop_storage_YYYYMMDD_HHMMSS.tar.gz \
+RESTORE_CONFIRMATION=RESTORE_HOP_DATABASE \
+STORAGE_ARCHIVE_PATH=/opt/hop/backups/storage/hop_uploads_YYYYMMDD_HHMMSS.tar.gz \
 bash scripts/backup/restore-hop.sh
 ```
 
@@ -58,8 +58,8 @@ bash scripts/backup/restore-hop.sh
 ```bash
 RESTORE_DATABASE=true \
 RESTORE_STORAGE=false \
-RESTORE_CONFIRM=I_UNDERSTAND_THIS_WILL_OVERWRITE_HOP \
-DB_DUMP_PATH=/opt/hop/backups/db/hop_db_YYYYMMDD_HHMMSS.dump \
+RESTORE_CONFIRMATION=RESTORE_HOP_DATABASE \
+DB_DUMP_PATH=/opt/hop/backups/postgres/hopdb_YYYYMMDD_HHMMSS.backup \
 bash scripts/backup/restore-hop.sh
 ```
 

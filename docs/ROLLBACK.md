@@ -32,9 +32,9 @@ export BACKUP_MODE=docker
 export DB_NAME="${POSTGRES_DB}"
 export DB_USER="${POSTGRES_USER}"
 export DB_PASSWORD="${POSTGRES_PASSWORD}"
-export DB_DUMP_PATH=/opt/hop/backups/db/hop_db_YYYYMMDD_HHMMSS.dump
-export STORAGE_ARCHIVE_PATH=/opt/hop/backups/storage/hop_storage_YYYYMMDD_HHMMSS.tar.gz
-export RESTORE_CONFIRM=I_UNDERSTAND_THIS_WILL_OVERWRITE_HOP
+export DB_DUMP_PATH=/opt/hop/backups/postgres/hopdb_YYYYMMDD_HHMMSS.backup
+export STORAGE_ARCHIVE_PATH=/opt/hop/backups/storage/hop_uploads_YYYYMMDD_HHMMSS.tar.gz
+export RESTORE_CONFIRMATION=RESTORE_HOP_DATABASE
 scripts/backup/restore-hop.sh
 ```
 

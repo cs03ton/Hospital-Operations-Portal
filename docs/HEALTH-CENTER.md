@@ -23,7 +23,7 @@
 | Disk | used/free/total และ percent ใช้งาน |
 | CPU | processor count และ load average ถ้าระบบรองรับ |
 | RAM | total/used/available และ percent ใช้งาน |
-| Backup | backup ล่าสุด, restore-test evidence, directory, file size |
+| Backup | backup ล่าสุด, restore-test evidence, directory, file size, database backup ใน `postgres/` |
 | Version | app version, environment, git commit ถ้ามี |
 
 ## Status Standard
@@ -83,6 +83,8 @@ GIT_COMMIT=<release commit>
 - [ ] LINE enabled/configured แสดงแบบ masked/safe
 - [ ] Disk, CPU, RAM แสดงได้
 - [ ] Backup ล่าสุดแสดงได้จาก `BACKUP_ROOT`
+- [ ] Database backup ล่าสุดอยู่ที่ `/opt/hop/backups/postgres/hopdb_YYYYMMDD_HHMMSS.backup`
+- [ ] Storage backup ล่าสุดอยู่ที่ `/opt/hop/backups/storage/hop_uploads_YYYYMMDD_HHMMSS.tar.gz`
 - [ ] Restore-test evidence แสดงได้ถ้ามีไฟล์ evidence ใน backup folder
 
 เอกสารนี้เป็นส่วนหนึ่งของโครงการ Hospital Operations Portal (HOP) โรงพยาบาลนาหมื่น

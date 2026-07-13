@@ -29,14 +29,14 @@ DB_PORT="${DB_PORT:-5432}"
 DB_NAME="${DB_NAME:?DB_NAME is required}"
 DB_USER="${DB_USER:?DB_USER is required}"
 DB_PASSWORD="${DB_PASSWORD:-}"
-BACKUP_ROOT="${BACKUP_ROOT:-${PROJECT_ROOT}/backups}"
+BACKUP_ROOT="${BACKUP_ROOT:-/opt/hop/backups}"
 STORAGE_PATH="${UPLOADS_PATH:-${STORAGE_PATH:-${PROJECT_ROOT}/storage}}"
 BACKUP_RETENTION_DAYS="${BACKUP_RETENTION_DAYS:-7}"
 POSTGRES_CONTAINER="${POSTGRES_CONTAINER:-hop-prod-postgres}"
 STORAGE_DOCKER_VOLUME="${STORAGE_DOCKER_VOLUME:-hop_prod_storage}"
 LOCK_FILE="${LOCK_FILE:-/tmp/hop-backup.lock}"
 
-db_dir="${BACKUP_ROOT}/db"
+db_dir="${BACKUP_ROOT}/postgres"
 storage_dir="${BACKUP_ROOT}/storage"
 log_dir="${BACKUP_ROOT}/logs"
 run_dir="${BACKUP_ROOT}/${timestamp}"
@@ -94,19 +94,19 @@ cleanup_old_backups() {
   validate_positive_integer "$BACKUP_RETENTION_DAYS" "BACKUP_RETENTION_DAYS"
   log "Applying retention: ${BACKUP_RETENTION_DAYS} days"
   if [ "$DRY_RUN" = "true" ]; then
-    find "$db_dir" -type f -name 'hop_db_*.dump' -mtime +"$BACKUP_RETENTION_DAYS" -print >>"$log_file" 2>&1 || true
+    find "$db_dir" -type f \( -name 'hopdb_*.backup' -o -name 'hop_db_*.dump' \) -mtime +"$BACKUP_RETENTION_DAYS" -print >>"$log_file" 2>&1 || true
     find "$storage_dir" -type f \( -name 'hop_storage_*.tar.gz' -o -name 'hop_uploads_*.tar.gz' \) -mtime +"$BACKUP_RETENTION_DAYS" -print >>"$log_file" 2>&1 || true
     find "$log_dir" -type f \( -name 'backup_*.log' -o -name 'restore_*.log' \) -mtime +"$BACKUP_RETENTION_DAYS" -print >>"$log_file" 2>&1 || true
     return
   fi
 
-  find "$db_dir" -type f -name 'hop_db_*.dump' -mtime +"$BACKUP_RETENTION_DAYS" -print -delete >>"$log_file" 2>&1 || true
+  find "$db_dir" -type f \( -name 'hopdb_*.backup' -o -name 'hop_db_*.dump' \) -mtime +"$BACKUP_RETENTION_DAYS" -print -delete >>"$log_file" 2>&1 || true
   find "$storage_dir" -type f \( -name 'hop_storage_*.tar.gz' -o -name 'hop_uploads_*.tar.gz' \) -mtime +"$BACKUP_RETENTION_DAYS" -print -delete >>"$log_file" 2>&1 || true
   find "$log_dir" -type f \( -name 'backup_*.log' -o -name 'restore_*.log' \) -mtime +"$BACKUP_RETENTION_DAYS" -print -delete >>"$log_file" 2>&1 || true
 }
 
 backup_database_host() {
-  local output_file="$db_dir/hop_db_${timestamp}.dump"
+  local output_file="$db_dir/hopdb_${timestamp}.backup"
   log "Backing up PostgreSQL database in host mode to ${output_file}"
   if [ "$DRY_RUN" = "true" ]; then
     log "DRY-RUN: pg_dump custom archive would be written to ${output_file}"
@@ -131,7 +131,7 @@ backup_database_host() {
 }
 
 backup_database_docker() {
-  local output_file="$db_dir/hop_db_${timestamp}.dump"
+  local output_file="$db_dir/hopdb_${timestamp}.backup"
   log "Backing up PostgreSQL database from container ${POSTGRES_CONTAINER} to ${output_file}"
   if [ "$DRY_RUN" = "true" ]; then
     log "DRY-RUN: docker pg_dump custom archive would be written to ${output_file}"

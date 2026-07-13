@@ -25,7 +25,7 @@ Backup ครอบคลุม:
 - รูปโปรไฟล์
 - PDF templates/generated files ถ้าอยู่ใต้ storage path เดียวกัน
 
-> หมายเหตุ: โครงสร้างปลายทางยังใช้ `db/` และ `storage/` เพื่อรักษาความเข้ากันได้กับ deploy/rollback runbook เดิมของโปรเจกต์
+> หมายเหตุ: โครงสร้างปลายทางใช้ `postgres/` และ `storage/` เพื่อรักษาความเข้ากันได้กับ deploy/rollback runbook เดิมของโปรเจกต์
 
 ## 3. สิ่งที่ยังไม่ถูก Backup
 
@@ -61,7 +61,7 @@ Docker mode:
 |---|---|---|
 | `BACKUP_ENV_FILE` | `/etc/hop/backup.env` ถ้ามี | env file ที่สคริปต์จะ source |
 | `BACKUP_MODE` | `host` | `host` หรือ `docker` |
-| `BACKUP_ROOT` | `<project>/backups` | root directory สำหรับ backup |
+| `BACKUP_ROOT` | `/opt/hop/backups` | root directory สำหรับ backup |
 | `BACKUP_RETENTION_DAYS` | `7` | จำนวนวันที่เก็บ backup |
 | `DB_HOST` | `localhost` | PostgreSQL host |
 | `DB_PORT` | `5432` | PostgreSQL port |
@@ -77,7 +77,7 @@ Docker mode:
 แนะนำ production:
 
 ```bash
-sudo install -d -m 700 /etc/hop /var/backups/hop /var/log/hop
+sudo install -d -m 700 /etc/hop /opt/hop/backups /var/log/hop
 sudo cp scripts/backup/backup.env.example /etc/hop/backup.env
 sudo chmod 600 /etc/hop/backup.env
 sudo nano /etc/hop/backup.env
@@ -128,24 +128,24 @@ tail -f /var/log/hop/backup.log
 ## 9. วิธีตรวจสอบ Log และไฟล์ Backup
 
 ```bash
-find /var/backups/hop -maxdepth 3 -type f -ls
+find /opt/hop/backups -maxdepth 3 -type f -ls
 df -h
-pg_restore --list /var/backups/hop/db/hop_db_YYYYMMDD_HHMMSS.dump | head
-tar -tzf /var/backups/hop/storage/hop_uploads_YYYYMMDD_HHMMSS.tar.gz | head
+pg_restore --list /opt/hop/backups/postgres/hopdb_YYYYMMDD_HHMMSS.backup | head
+tar -tzf /opt/hop/backups/storage/hop_uploads_YYYYMMDD_HHMMSS.tar.gz | head
 ```
 
 โครงสร้าง backup:
 
 ```text
 backups/
-├── db/
-│   └── hop_db_YYYYMMDD_HHMMSS.dump
+├── postgres/
+│   └── hopdb_YYYYMMDD_HHMMSS.backup
 ├── storage/
 │   └── hop_uploads_YYYYMMDD_HHMMSS.tar.gz
 ├── logs/
 │   └── backup_YYYYMMDD_HHMMSS.log
 └── YYYYMMDD_HHMMSS/
-    ├── hop_db_YYYYMMDD_HHMMSS.dump
+    ├── hopdb_YYYYMMDD_HHMMSS.backup
     └── hop_uploads_YYYYMMDD_HHMMSS.tar.gz
 ```
 
@@ -163,7 +163,7 @@ BACKUP_ENV_FILE=/etc/hop/backup.env sudo -E /opt/hop/scripts/backup/restore-hop.
 BACKUP_ENV_FILE=/etc/hop/backup.env sudo -E /opt/hop/scripts/backup/restore-hop.sh
 ```
 
-ระบบจะเลือก `hop_db_*.dump` ล่าสุด และหา storage archive timestamp เดียวกันโดยอัตโนมัติ
+ระบบจะเลือก `hopdb_*.backup` ล่าสุด และหา storage archive timestamp เดียวกันโดยอัตโนมัติ
 
 ## 12. วิธี Restore แบบไม่ถามยืนยัน
 
@@ -180,8 +180,8 @@ sudo -E /opt/hop/scripts/backup/restore-hop.sh --yes
 ```bash
 BACKUP_ENV_FILE=/etc/hop/backup.env \
 sudo -E /opt/hop/scripts/backup/restore-hop.sh \
-  --dump /var/backups/hop/db/hop_db_20260713_020000.dump \
-  --storage /var/backups/hop/storage/hop_uploads_20260713_020000.tar.gz
+  --dump /opt/hop/backups/postgres/hopdb_20260713_020000.backup \
+  --storage /opt/hop/backups/storage/hop_uploads_20260713_020000.tar.gz
 ```
 
 ## 14. วิธีทดสอบ Disaster Recovery
@@ -201,8 +201,8 @@ sudo -E /opt/hop/scripts/backup/restore-hop.sh \
 
 ```bash
 df -h
-du -sh /var/backups/hop
-find /var/backups/hop -type f -maxdepth 3 -ls
+du -sh /opt/hop/backups
+find /opt/hop/backups -type f -maxdepth 3 -ls
 ```
 
 ## 16. วิธีเปลี่ยน Retention
@@ -247,7 +247,7 @@ sudo crontab -l
 | Backup file 0 byte | `pg_dump` ล้มเหลว | ดู log และแก้ DB connection |
 | `pg_restore --list failed` | dump เสียหรือไม่ใช่ custom format | ใช้ backup รอบอื่น |
 | Storage restore skipped | ไม่มี archive timestamp เดียวกัน | ตรวจ `backups/storage` |
-| Permission denied | สิทธิ์ directory/log ไม่พอ | ปรับ owner/permission ของ `/var/backups/hop`, `/var/log/hop` |
+| Permission denied | สิทธิ์ directory/log ไม่พอ | ปรับ owner/permission ของ `/opt/hop/backups`, `/var/log/hop` |
 
 ## 20. Security Notes
 

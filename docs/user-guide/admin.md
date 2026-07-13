@@ -90,14 +90,28 @@
 ## 💾 Backup/Restore
 
 1. ตรวจ `จัดการระบบ` > `Backup Center`
-2. ตรวจเวลาสำรองข้อมูลล่าสุด
-3. ทดสอบ restore รายเดือนตาม checklist
+2. ตรวจเวลาสำรองข้อมูลล่าสุด และชื่อไฟล์ database backup
+3. ชื่อไฟล์ database ต้องอยู่ในรูปแบบ `hopdb_YYYYMMDD_HHMMSS.backup`
+4. path มาตรฐานของ database backup คือ `/opt/hop/backups/postgres`
+5. ตรวจว่า storage backup อยู่ที่ `/opt/hop/backups/storage`
+6. ทดสอบ restore รายเดือนตาม checklist
+
+### ✅ Checklist Backup Center
+
+- [ ] สถานะ Backup ไม่เป็น `Unhealthy`
+- [ ] พบไฟล์ล่าสุดใน `/opt/hop/backups/postgres`
+- [ ] ไฟล์ database มีขนาดมากกว่า 0 byte
+- [ ] พบไฟล์ storage `hop_uploads_YYYYMMDD_HHMMSS.tar.gz`
+- [ ] log backup รอบล่าสุดไม่มี error
+- [ ] มีหลักฐาน restore test ล่าสุด
+- [ ] ไม่มี secret/token/password แสดงในหน้า Backup Center หรือ log
 
 ## 🚀 Deploy Checklist
 
 - [ ] ตรวจ `.env` และ secret management
 - [ ] ตรวจ database migration
 - [ ] สำรองข้อมูลก่อน deploy
+- [ ] บันทึกชื่อไฟล์ backup เช่น `hopdb_20260709_142201.backup`
 - [ ] ทดสอบ login, dashboard, leave workflow, PDF และ LINE
 - [ ] ตรวจ Health Center หลัง deploy
 

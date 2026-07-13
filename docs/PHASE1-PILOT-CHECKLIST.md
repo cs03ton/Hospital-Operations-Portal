@@ -107,6 +107,8 @@ Use this checklist before deploying HOP to the first real department.
 ## Backup and Rollback
 
 - [ ] Production backup completed with `scripts/backup/backup-hop.sh`.
+- [ ] Database backup file exists under `/opt/hop/backups/postgres/hopdb_YYYYMMDD_HHMMSS.backup`.
+- [ ] Storage backup file exists under `/opt/hop/backups/storage/hop_uploads_YYYYMMDD_HHMMSS.tar.gz`.
 - [ ] Production restore command reviewed with `scripts/backup/restore-hop.sh`.
 - [ ] Restore workflow is rehearsed on a non-production database.
 - [ ] Uploaded file storage backup is available.
