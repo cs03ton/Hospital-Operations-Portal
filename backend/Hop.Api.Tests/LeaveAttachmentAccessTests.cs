@@ -1,6 +1,8 @@
 using System.Security.Claims;
+using Hop.Api.Authorization;
 using Hop.Api.Controllers;
 using Hop.Api.Data;
+using Hop.Api.DTOs;
 using Hop.Api.Interfaces;
 using Hop.Api.Models;
 using Hop.Api.Services;
@@ -139,6 +141,165 @@ public class LeaveAttachmentAccessTests
         Assert.IsType<ForbidResult>(result);
     }
 
+    [Fact]
+    public async Task PreviewAttachment_AllowsCurrentApproverAndStreamsInline()
+    {
+        await using var db = CreateDbContext();
+        var ownerId = Guid.NewGuid();
+        var approverId = Guid.NewGuid();
+        var leaveRequest = CreateLeaveRequest(ownerId, "Pending");
+        leaveRequest.CurrentApproverId = approverId;
+        leaveRequest.Approvals.Add(new LeaveApproval
+        {
+            Id = Guid.NewGuid(),
+            LeaveRequestId = leaveRequest.Id,
+            ApproverId = approverId,
+            Status = "Pending",
+            StepOrder = 1,
+            RequiredPermissionCode = LeavePermissions.ApproveCurrentStep
+        });
+        var attachment = CreateAttachment(leaveRequest, ownerId);
+        db.LeaveRequests.Add(leaveRequest);
+        db.LeaveAttachments.Add(attachment);
+        SeedPermissionUser(db, approverId, "Approver", LeavePermissions.ViewPendingApproval);
+        await db.SaveChangesAsync();
+        var controller = new LeaveAttachmentsController(db, new NoopAuditLogService(), new FakeAttachmentStorageService(), new LeaveRequestAccessService(db));
+        controller.ControllerContext = new ControllerContext { HttpContext = CreateHttpContext(approverId) };
+
+        var result = await controller.PreviewAttachment(leaveRequest.Id, attachment.Id);
+
+        var fileResult = Assert.IsType<PhysicalFileResult>(result);
+        Assert.Equal("application/pdf", fileResult.ContentType);
+        Assert.StartsWith("inline;", controller.Response.Headers.ContentDisposition.ToString());
+    }
+
+    [Fact]
+    public async Task PreviewAttachment_AllowsSupportedImage()
+    {
+        await using var db = CreateDbContext();
+        var ownerId = Guid.NewGuid();
+        var leaveRequest = CreateLeaveRequest(ownerId, "Draft");
+        var attachment = CreateAttachment(leaveRequest, ownerId);
+        attachment.FileName = "medical.png";
+        attachment.ContentType = "image/png";
+        db.LeaveRequests.Add(leaveRequest);
+        db.LeaveAttachments.Add(attachment);
+        SeedPermissionUser(db, ownerId, "Staff", LeavePermissions.ViewOwn);
+        await db.SaveChangesAsync();
+        var controller = new LeaveAttachmentsController(db, new NoopAuditLogService(), new FakeAttachmentStorageService(), new LeaveRequestAccessService(db));
+        controller.ControllerContext = new ControllerContext { HttpContext = CreateHttpContext(ownerId) };
+
+        var result = await controller.PreviewAttachment(leaveRequest.Id, attachment.Id);
+
+        var fileResult = Assert.IsType<PhysicalFileResult>(result);
+        Assert.Equal("image/png", fileResult.ContentType);
+    }
+
+    [Fact]
+    public async Task PreviewAttachment_BlocksUnsupportedFileType()
+    {
+        await using var db = CreateDbContext();
+        var ownerId = Guid.NewGuid();
+        var leaveRequest = CreateLeaveRequest(ownerId, "Draft");
+        var attachment = CreateAttachment(leaveRequest, ownerId);
+        attachment.FileName = "archive.zip";
+        attachment.ContentType = "application/zip";
+        db.LeaveRequests.Add(leaveRequest);
+        db.LeaveAttachments.Add(attachment);
+        SeedPermissionUser(db, ownerId, "Staff", LeavePermissions.ViewOwn);
+        await db.SaveChangesAsync();
+        var controller = new LeaveAttachmentsController(db, new NoopAuditLogService(), new FakeAttachmentStorageService(), new LeaveRequestAccessService(db));
+        controller.ControllerContext = new ControllerContext { HttpContext = CreateHttpContext(ownerId) };
+
+        var result = await controller.PreviewAttachment(leaveRequest.Id, attachment.Id);
+
+        var badRequest = Assert.IsType<BadRequestObjectResult>(result);
+        var response = Assert.IsType<ApiResponse<string>>(badRequest.Value);
+        Assert.Equal("ไม่รองรับการแสดงตัวอย่างไฟล์ประเภทนี้", response.Message);
+    }
+
+    [Fact]
+    public async Task PreviewAttachment_ForbidsUnrelatedUser()
+    {
+        await using var db = CreateDbContext();
+        var ownerId = Guid.NewGuid();
+        var otherUserId = Guid.NewGuid();
+        var leaveRequest = CreateLeaveRequest(ownerId, "Draft");
+        var attachment = CreateAttachment(leaveRequest, ownerId);
+        db.LeaveRequests.Add(leaveRequest);
+        db.LeaveAttachments.Add(attachment);
+        await db.SaveChangesAsync();
+        var controller = new LeaveAttachmentsController(db, new NoopAuditLogService(), new FakeAttachmentStorageService(), new LeaveRequestAccessService(db));
+        controller.ControllerContext = new ControllerContext { HttpContext = CreateHttpContext(otherUserId) };
+
+        var result = await controller.PreviewAttachment(leaveRequest.Id, attachment.Id);
+
+        Assert.IsType<ForbidResult>(result);
+    }
+
+    [Fact]
+    public async Task DeleteAttachment_AllowsRequesterInReturnedForRevision()
+    {
+        await using var db = CreateDbContext();
+        var ownerId = Guid.NewGuid();
+        var leaveRequest = CreateLeaveRequest(ownerId, "ReturnedForRevision");
+        var attachment = CreateAttachment(leaveRequest, ownerId);
+        db.LeaveRequests.Add(leaveRequest);
+        db.LeaveAttachments.Add(attachment);
+        SeedPermissionUser(db, ownerId, "Staff", LeavePermissions.EditOwn);
+        await db.SaveChangesAsync();
+        var controller = new LeaveAttachmentsController(db, new NoopAuditLogService(), new FakeAttachmentStorageService(), new LeaveRequestAccessService(db));
+        controller.ControllerContext = new ControllerContext { HttpContext = CreateHttpContext(ownerId) };
+
+        var result = await controller.DeleteAttachment(attachment.Id);
+
+        Assert.IsType<NoContentResult>(result);
+        Assert.Empty(db.LeaveAttachments);
+    }
+
+    [Fact]
+    public async Task DeleteAttachment_BlocksRequesterWhenRequestIsPending()
+    {
+        await using var db = CreateDbContext();
+        var ownerId = Guid.NewGuid();
+        var leaveRequest = CreateLeaveRequest(ownerId, "Pending");
+        var attachment = CreateAttachment(leaveRequest, ownerId);
+        db.LeaveRequests.Add(leaveRequest);
+        db.LeaveAttachments.Add(attachment);
+        SeedPermissionUser(db, ownerId, "Staff", LeavePermissions.EditOwn);
+        await db.SaveChangesAsync();
+        var controller = new LeaveAttachmentsController(db, new NoopAuditLogService(), new FakeAttachmentStorageService(), new LeaveRequestAccessService(db));
+        controller.ControllerContext = new ControllerContext { HttpContext = CreateHttpContext(ownerId) };
+
+        var result = await controller.DeleteAttachment(attachment.Id);
+
+        var badRequest = Assert.IsType<BadRequestObjectResult>(result);
+        var response = Assert.IsType<ApiResponse<string>>(badRequest.Value);
+        Assert.Contains("ลบไฟล์แนบได้เฉพาะ", response.Message);
+    }
+
+    [Fact]
+    public async Task DeleteAttachment_ForbidsCurrentApprover()
+    {
+        await using var db = CreateDbContext();
+        var ownerId = Guid.NewGuid();
+        var approverId = Guid.NewGuid();
+        var leaveRequest = CreateLeaveRequest(ownerId, "Pending");
+        leaveRequest.CurrentApproverId = approverId;
+        var attachment = CreateAttachment(leaveRequest, ownerId);
+        db.LeaveRequests.Add(leaveRequest);
+        db.LeaveAttachments.Add(attachment);
+        SeedPermissionUser(db, ownerId, "Staff", LeavePermissions.EditOwn);
+        SeedPermissionUser(db, approverId, "Approver", LeavePermissions.ViewPendingApproval);
+        await db.SaveChangesAsync();
+        var controller = new LeaveAttachmentsController(db, new NoopAuditLogService(), new FakeAttachmentStorageService(), new LeaveRequestAccessService(db));
+        controller.ControllerContext = new ControllerContext { HttpContext = CreateHttpContext(approverId) };
+
+        var result = await controller.DeleteAttachment(attachment.Id);
+
+        Assert.IsType<ForbidResult>(result);
+    }
+
     private static DefaultHttpContext CreateHttpContext(Guid userId)
     {
         var context = new DefaultHttpContext();
@@ -173,6 +334,35 @@ public class LeaveAttachmentAccessTests
         db.Permissions.Add(permission);
         db.UserRoles.Add(new UserRole { UserId = userId, RoleId = role.Id, User = user, Role = role });
         db.RolePermissions.Add(new RolePermission { RoleId = role.Id, PermissionId = permission.Id, Role = role, Permission = permission });
+    }
+
+    private static LeaveRequest CreateLeaveRequest(Guid ownerId, string status)
+    {
+        return new LeaveRequest
+        {
+            Id = Guid.NewGuid(),
+            UserId = ownerId,
+            LeaveTypeId = Guid.NewGuid(),
+            StartDate = new DateOnly(2026, 6, 18),
+            EndDate = new DateOnly(2026, 6, 18),
+            TotalDays = 1,
+            Reason = "Leave",
+            Status = status
+        };
+    }
+
+    private static LeaveAttachment CreateAttachment(LeaveRequest leaveRequest, Guid ownerId)
+    {
+        return new LeaveAttachment
+        {
+            Id = Guid.NewGuid(),
+            LeaveRequestId = leaveRequest.Id,
+            LeaveRequest = leaveRequest,
+            FileName = "sample.pdf",
+            FilePath = "leave-attachments/sample.pdf",
+            UploadedByUserId = ownerId,
+            ContentType = "application/pdf"
+        };
     }
 
     private sealed class NoopAuditLogService : IAuditLogService

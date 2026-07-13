@@ -1,26 +1,36 @@
 import ArrowBackOutlinedIcon from "@mui/icons-material/ArrowBackOutlined";
 import CancelOutlinedIcon from "@mui/icons-material/CancelOutlined";
 import CheckCircleOutlineOutlinedIcon from "@mui/icons-material/CheckCircleOutlineOutlined";
+import DeleteOutlineOutlinedIcon from "@mui/icons-material/DeleteOutlineOutlined";
 import DownloadOutlinedIcon from "@mui/icons-material/DownloadOutlined";
+import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 import HighlightOffOutlinedIcon from "@mui/icons-material/HighlightOffOutlined";
+import ReplayOutlinedIcon from "@mui/icons-material/ReplayOutlined";
+import ReplyOutlinedIcon from "@mui/icons-material/ReplyOutlined";
 import SendOutlinedIcon from "@mui/icons-material/SendOutlined";
 import UploadFileOutlinedIcon from "@mui/icons-material/UploadFileOutlined";
-import { Alert, Box, Button, Card, CardContent, Chip, Grid, Stack, TableBody, TableCell, TableHead, TableRow, TextField, Typography } from "@mui/material";
+import VisibilityOutlinedIcon from "@mui/icons-material/VisibilityOutlined";
+import { Alert, Box, Button, Card, CardContent, Chip, Dialog, DialogActions, DialogContent, DialogTitle, Grid, Stack, TableBody, TableCell, TableHead, TableRow, TextField, Typography } from "@mui/material";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { isAxiosError } from "axios";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   approveLeaveRequest,
   cancelLeaveRequest,
+  deleteLeaveAttachment,
   downloadLeaveAttachment,
   downloadLeaveRequestPdf,
   getLeaveApprovals,
   getLeaveAttachments,
   getLeaveRequest,
+  previewLeaveAttachment,
   rejectLeaveRequest,
+  resubmitLeaveRequest,
+  returnLeaveRequestForRevision,
   submitLeaveRequest,
   uploadLeaveAttachment,
+  type LeaveAttachment,
 } from "../api/leaveApi";
 import { ActionTooltip } from "../components/common/ActionTooltip";
 import { DataTableCard } from "../components/common/DataTableCard";
@@ -28,6 +38,7 @@ import { EmptyState } from "../components/common/EmptyState";
 import { InfoCard } from "../components/common/InfoCard";
 import { LoadingState } from "../components/common/LoadingState";
 import { ApprovalWorkflowTimeline } from "../components/leave/ApprovalWorkflowTimeline";
+import { AttachmentPreviewDialog } from "../components/leave/AttachmentPreviewDialog";
 import { LeaveTrackingCard } from "../components/leave/LeaveTrackingCard";
 import { PageHeader } from "../components/PageHeader";
 import { useAuth } from "../context/AuthContext";
@@ -44,7 +55,11 @@ export function LeaveRequestDetailPage() {
   const { user } = useAuth();
   const { showError, showSuccess } = useNotification();
   const [remark, setRemark] = useState("");
+  const [revisionReason, setRevisionReason] = useState("");
+  const [isReturnDialogOpen, setIsReturnDialogOpen] = useState(false);
   const [file, setFile] = useState<File | null>(null);
+  const [previewAttachment, setPreviewAttachment] = useState<LeaveAttachment | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
   const maxUploadMb = Number(import.meta.env.VITE_MAX_UPLOAD_SIZE_MB ?? 5);
 
@@ -63,9 +78,26 @@ export function LeaveRequestDetailPage() {
   };
 
   const submitMutation = useMutation({ mutationFn: () => submitLeaveRequest(id!), onSuccess: async () => { showSuccess("ส่งคำขอลาเข้าสู่กระบวนการอนุมัติเรียบร้อยแล้ว"); await invalidate(); } });
+  const resubmitMutation = useMutation({ mutationFn: () => resubmitLeaveRequest(id!), onSuccess: async () => { showSuccess("ส่งคำขอลาใหม่เข้าสู่กระบวนการอนุมัติเรียบร้อยแล้ว"); await invalidate(); } });
   const cancelMutation = useMutation({ mutationFn: () => cancelLeaveRequest(id!), onSuccess: async () => { showSuccess("ยกเลิกคำขอลาเรียบร้อยแล้ว"); await invalidate(); } });
   const approveMutation = useMutation({ mutationFn: () => approveLeaveRequest(id!, remark), onSuccess: async () => { showSuccess("อนุมัติคำขอลาเรียบร้อยแล้ว"); await invalidate(); } });
   const rejectMutation = useMutation({ mutationFn: () => rejectLeaveRequest(id!, remark), onSuccess: async () => { showSuccess("ไม่อนุมัติคำขอลาเรียบร้อยแล้ว"); await invalidate(); } });
+  const returnMutation = useMutation({
+    mutationFn: () => returnLeaveRequestForRevision(id!, revisionReason),
+    onSuccess: async () => {
+      setRevisionReason("");
+      setIsReturnDialogOpen(false);
+      showSuccess("ตีกลับคำขอรอให้ผู้ขอแก้ไขเรียบร้อยแล้ว");
+      await invalidate();
+    },
+  });
+  const deleteAttachmentMutation = useMutation({
+    mutationFn: (attachmentId: string) => deleteLeaveAttachment(attachmentId),
+    onSuccess: async () => {
+      showSuccess("ลบไฟล์แนบเรียบร้อยแล้ว");
+      await invalidate();
+    },
+  });
   const uploadMutation = useMutation({
     mutationFn: () => uploadLeaveAttachment(id!, file!),
     onSuccess: async () => {
@@ -74,6 +106,46 @@ export function LeaveRequestDetailPage() {
       await invalidate();
     },
   });
+  const previewMutation = useMutation({
+    mutationFn: (attachment: LeaveAttachment) => previewLeaveAttachment(id!, attachment.id),
+    onSuccess: (blob) => {
+      setPreviewUrl((currentUrl) => {
+        if (currentUrl) {
+          window.URL.revokeObjectURL(currentUrl);
+        }
+        return window.URL.createObjectURL(blob);
+      });
+    },
+    onError: (error) => {
+      showError(getApiErrorMessage(error, "ไม่สามารถแสดงตัวอย่างไฟล์แนบได้"));
+    },
+  });
+
+  useEffect(() => {
+    return () => {
+      if (previewUrl) {
+        window.URL.revokeObjectURL(previewUrl);
+      }
+    };
+  }, [previewUrl]);
+
+  function handleClosePreview() {
+    if (previewUrl) {
+      window.URL.revokeObjectURL(previewUrl);
+    }
+    setPreviewUrl(null);
+    setPreviewAttachment(null);
+    previewMutation.reset();
+  }
+
+  function handlePreviewAttachment(attachment: LeaveAttachment) {
+    if (previewUrl) {
+      window.URL.revokeObjectURL(previewUrl);
+      setPreviewUrl(null);
+    }
+    setPreviewAttachment(attachment);
+    previewMutation.mutate(attachment);
+  }
 
   async function handleDownloadAttachment(attachmentId: string, fileName: string) {
     const blob = await downloadLeaveAttachment(attachmentId);
@@ -121,9 +193,12 @@ export function LeaveRequestDetailPage() {
   }
 
   const canSubmit = request.status === "Draft";
-  const canCancel = request.status === "Draft" || request.status === "Pending";
+  const isRequester = Boolean(user?.id && user.id === request.userId);
+  const canResubmit = isRequester && request.status === "ReturnedForRevision";
+  const canCancel = isRequester && (request.status === "Draft" || request.status === "Pending" || request.status === "ReturnedForRevision");
   const canDecide = request.status === "Pending";
   const canCurrentUserDecide = canDecide && Boolean(user?.id && request.currentApproverId && user.id === request.currentApproverId);
+  const canCurrentUserManageAttachments = Boolean(user?.id && user.id === request.userId && (request.status === "Draft" || request.status === "ReturnedForRevision"));
   const statusColor = getLeaveStatusColor(request.status);
   const requestCode = getLeaveRequestCode(request.requestNumber, request.id);
 
@@ -156,6 +231,24 @@ export function LeaveRequestDetailPage() {
                   </Button>
                 </ActionTooltip>
               </PermissionGuard>
+              {canResubmit && (
+                <PermissionGuard permission="LeaveRequest.Create">
+                  <ActionTooltip title="ส่งคำขอลาที่แก้ไขแล้วกลับเข้าสู่กระบวนการอนุมัติ">
+                    <Button variant="contained" startIcon={<ReplayOutlinedIcon />} disabled={resubmitMutation.isPending} onClick={() => resubmitMutation.mutate()}>
+                      ส่งคำขอใหม่
+                    </Button>
+                  </ActionTooltip>
+                </PermissionGuard>
+              )}
+              {canCurrentUserManageAttachments && (
+                <PermissionGuard permission="LeaveRequest.EditOwn">
+                  <ActionTooltip title="แก้ไขข้อมูลคำขอลา">
+                    <Button variant="outlined" startIcon={<EditOutlinedIcon />} onClick={() => navigate(`/leave/${id}/edit`)}>
+                      แก้ไขคำขอ
+                    </Button>
+                  </ActionTooltip>
+                </PermissionGuard>
+              )}
               <PermissionGuard permission="LeaveRequest.CancelOwn">
                 <ActionTooltip title="ยกเลิกคำขอลา">
                   <Button variant="outlined" color="error" startIcon={<CancelOutlinedIcon />} disabled={!canCancel || cancelMutation.isPending} onClick={() => cancelMutation.mutate()}>
@@ -185,16 +278,25 @@ export function LeaveRequestDetailPage() {
           </Grid>
         </InfoCard>
 
-        {(submitMutation.isError || cancelMutation.isError || approveMutation.isError || rejectMutation.isError) && (
+        {(submitMutation.isError || resubmitMutation.isError || cancelMutation.isError || approveMutation.isError || rejectMutation.isError || returnMutation.isError || deleteAttachmentMutation.isError) && (
           <Alert severity="error">
             {getApiErrorMessage(
-              submitMutation.error ?? cancelMutation.error ?? approveMutation.error ?? rejectMutation.error,
+              submitMutation.error ?? resubmitMutation.error ?? cancelMutation.error ?? approveMutation.error ?? rejectMutation.error ?? returnMutation.error ?? deleteAttachmentMutation.error,
               "ดำเนินการคำขอลาไม่สำเร็จ",
             )}
           </Alert>
         )}
 
         <LeaveTrackingCard request={request} />
+
+        {request.status === "ReturnedForRevision" && (
+          <Alert severity="warning">
+            คำขอนี้ถูกตีกลับและรอให้ผู้ขอแก้ไขข้อมูลหรือไฟล์แนบ
+            {request.returnedForRevisionByName ? ` โดย ${request.returnedForRevisionByName}` : ""}
+            {request.returnedForRevisionAt ? ` เมื่อ ${formatThaiDateTime(request.returnedForRevisionAt)}` : ""}
+            {request.revisionReason ? ` เหตุผล: ${request.revisionReason}` : ""}
+          </Alert>
+        )}
 
         <InfoCard title="ข้อมูลคำขอลา" subtitle="รายละเอียดผู้ขอลาและข้อมูลการลาของคำขอนี้">
           <Grid container spacing={3} alignItems="flex-start">
@@ -276,6 +378,9 @@ export function LeaveRequestDetailPage() {
                     <Button variant="outlined" color="error" startIcon={<HighlightOffOutlinedIcon />} disabled={rejectMutation.isPending} onClick={() => rejectMutation.mutate()}>
                       ไม่อนุมัติ
                     </Button>
+                    <Button variant="outlined" color="warning" startIcon={<ReplyOutlinedIcon />} disabled={returnMutation.isPending} onClick={() => setIsReturnDialogOpen(true)}>
+                      ตีกลับรอแก้ไข
+                    </Button>
                   </Stack>
                 </Stack>
               </PermissionGuard>
@@ -288,8 +393,8 @@ export function LeaveRequestDetailPage() {
         {attachments.length ? (
           <DataTableCard
             title="ไฟล์แนบ"
-            subtitle="แนบเอกสารประกอบคำขอลาและดาวน์โหลดไฟล์ที่เกี่ยวข้อง"
-            actions={<AttachmentActions file={file} setFile={setFile} disabled={!file || uploadMutation.isPending} onUpload={() => uploadMutation.mutate()} />}
+            subtitle="แนบเอกสารประกอบคำขอลาและดูตัวอย่างไฟล์ที่เกี่ยวข้อง"
+            actions={canCurrentUserManageAttachments ? <AttachmentActions file={file} setFile={setFile} disabled={!file || uploadMutation.isPending} onUpload={() => uploadMutation.mutate()} /> : undefined}
           >
                 <TableHead>
                   <TableRow>
@@ -297,7 +402,7 @@ export function LeaveRequestDetailPage() {
                     <TableCell>ขนาด</TableCell>
                     <TableCell>ผู้อัปโหลด</TableCell>
                     <TableCell>วันที่</TableCell>
-                    <TableCell align="right">ดาวน์โหลด</TableCell>
+                    <TableCell align="right">จัดการ</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
@@ -308,13 +413,29 @@ export function LeaveRequestDetailPage() {
                       <TableCell>{item.uploadedByName ?? "-"}</TableCell>
                       <TableCell>{formatThaiDateTime(item.createdAt)}</TableCell>
                       <TableCell align="right">
-                        <PermissionGuard permission="LeaveAttachment.Download">
+                        <Stack direction="row" spacing={1} justifyContent="flex-end" flexWrap="wrap" useFlexGap>
+                        <PermissionGuard permissions={["LeaveRequest.ViewOwn", "LeaveRequest.ViewPendingApproval", "LeaveRequest.ViewDepartment", "LeaveRequest.ViewAll"]}>
+                          <ActionTooltip title="ดูตัวอย่างไฟล์แนบ">
+                            <Button size="small" variant="contained" startIcon={<VisibilityOutlinedIcon />} onClick={() => handlePreviewAttachment(item)}>
+                              ดูตัวอย่าง
+                            </Button>
+                          </ActionTooltip>
                           <ActionTooltip title="ดาวน์โหลดไฟล์แนบ">
                             <Button size="small" variant="outlined" startIcon={<DownloadOutlinedIcon />} onClick={() => handleDownloadAttachment(item.id, item.fileName)}>
                               ดาวน์โหลด
                             </Button>
                           </ActionTooltip>
                         </PermissionGuard>
+                        {canCurrentUserManageAttachments && (
+                          <PermissionGuard permission="LeaveRequest.EditOwn">
+                            <ActionTooltip title="ลบไฟล์แนบ">
+                              <Button size="small" variant="outlined" color="error" startIcon={<DeleteOutlineOutlinedIcon />} disabled={deleteAttachmentMutation.isPending} onClick={() => deleteAttachmentMutation.mutate(item.id)}>
+                                ลบ
+                              </Button>
+                            </ActionTooltip>
+                          </PermissionGuard>
+                        )}
+                        </Stack>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -323,14 +444,51 @@ export function LeaveRequestDetailPage() {
         ) : (
           <InfoCard
             title="ไฟล์แนบ"
-            subtitle="แนบเอกสารประกอบคำขอลาและดาวน์โหลดไฟล์ที่เกี่ยวข้อง"
-            actions={<AttachmentActions file={file} setFile={setFile} disabled={!file || uploadMutation.isPending} onUpload={() => uploadMutation.mutate()} />}
+            subtitle="แนบเอกสารประกอบคำขอลาและดูตัวอย่างไฟล์ที่เกี่ยวข้อง"
+            actions={canCurrentUserManageAttachments ? <AttachmentActions file={file} setFile={setFile} disabled={!file || uploadMutation.isPending} onUpload={() => uploadMutation.mutate()} /> : undefined}
           >
             <EmptyState message="ยังไม่มีไฟล์แนบสำหรับคำขอนี้" />
           </InfoCard>
         )}
 
       </Stack>
+
+      <Dialog open={isReturnDialogOpen} onClose={() => setIsReturnDialogOpen(false)} fullWidth maxWidth="sm">
+        <DialogTitle>ตีกลับรอแก้ไข</DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} sx={{ pt: 1 }}>
+            <Alert severity="warning">คำขอนี้จะถูกส่งกลับไปยังผู้ขอ เพื่อให้แก้ไขข้อมูลหรือไฟล์แนบ แล้วส่งคำขอใหม่อีกครั้ง</Alert>
+            <TextField
+              fullWidth
+              multiline
+              minRows={3}
+              label="เหตุผลการตีกลับ"
+              value={revisionReason}
+              onChange={(event) => setRevisionReason(event.target.value)}
+              required
+              error={!revisionReason.trim()}
+              helperText={!revisionReason.trim() ? "กรุณาระบุเหตุผล เช่น กรุณาแนบเอกสารเพิ่มเติม" : "เหตุผลนี้จะแสดงให้ผู้ขอเห็น"}
+            />
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setIsReturnDialogOpen(false)}>ยกเลิก</Button>
+          <Button variant="contained" color="warning" disabled={!revisionReason.trim() || returnMutation.isPending} onClick={() => returnMutation.mutate()}>
+            ยืนยันตีกลับรอแก้ไข
+          </Button>
+        </DialogActions>
+      </Dialog>
+      <AttachmentPreviewDialog
+        open={Boolean(previewAttachment)}
+        fileName={previewAttachment?.fileName}
+        fileSizeBytes={previewAttachment?.fileSizeBytes}
+        contentType={previewAttachment?.contentType}
+        previewUrl={previewUrl}
+        isLoading={previewMutation.isPending}
+        errorMessage={previewMutation.isError ? getApiErrorMessage(previewMutation.error, "ไม่สามารถแสดงตัวอย่างไฟล์แนบได้") : null}
+        onClose={handleClosePreview}
+        onDownload={previewAttachment ? () => handleDownloadAttachment(previewAttachment.id, previewAttachment.fileName) : undefined}
+      />
     </>
   );
 }
@@ -351,7 +509,7 @@ function AttachmentActions({
       <Stack direction={{ xs: "column", sm: "row" }} spacing={1} alignItems={{ xs: "stretch", sm: "center" }} flexWrap="wrap" useFlexGap>
         <Button component="label" variant="outlined" startIcon={<UploadFileOutlinedIcon />}>
           เลือกไฟล์
-          <input hidden type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={(event) => setFile(event.target.files?.[0] ?? null)} />
+          <input hidden type="file" accept=".pdf,.jpg,.jpeg,.png,.webp" onChange={(event) => setFile(event.target.files?.[0] ?? null)} />
         </Button>
         <Typography variant="body2" color="text.secondary" sx={{ maxWidth: { sm: 280 }, overflowWrap: "anywhere" }}>
           {file?.name ?? "ยังไม่ได้เลือกไฟล์"}

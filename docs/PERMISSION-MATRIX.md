@@ -158,7 +158,7 @@ Users without the required backend permission receive HTTP `403`, and denied att
 
 Note: BUG-001 fixed. Director no longer receives implicit `ViewAll` from role name alone.
 
-Backend enforces this through `LeaveRequestAccessService` for leave list, detail, PDF, attachment list, and attachment download.
+Backend enforces this through `LeaveRequestAccessService` for leave list, detail, PDF, attachment list, attachment preview, and attachment download.
 
 ## Phase 1 Route Exposure
 

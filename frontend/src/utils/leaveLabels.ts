@@ -26,6 +26,7 @@ export const leaveTypeLabels: Record<string, string> = {
 export const leaveStatusLabels: Record<string, string> = {
   Draft: "แบบร่าง",
   Pending: "รออนุมัติ",
+  ReturnedForRevision: "ตีกลับรอแก้ไข",
   Approved: "อนุมัติแล้ว",
   Rejected: "ไม่อนุมัติ",
   Cancelled: "ยกเลิก",
@@ -82,6 +83,7 @@ export function getLeaveTypeWithDurationLabel(leaveType?: string | null, duratio
 export function getLeaveStatusColor(status?: string | null): "default" | "warning" | "success" | "error" {
   switch (status) {
     case "Pending":
+    case "ReturnedForRevision":
       return "warning";
     case "Approved":
       return "success";

@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using Hop.Api.Authorization;
 using Hop.Api.Controllers;
 using Hop.Api.Data;
 using Hop.Api.DTOs;
@@ -57,6 +58,106 @@ public class DashboardSummaryTests
         Assert.Equal(7, balances.Single(item => item.LeaveTypeCode == "VACATION_LEAVE").AvailableDays);
         Assert.Equal(4, balances.Single(item => item.LeaveTypeCode == "PERSONAL_LEAVE").AvailableDays);
         Assert.Equal(26.5m, balances.Single(item => item.LeaveTypeCode == "SICK_LEAVE").AvailableDays);
+    }
+
+    [Fact]
+    public async Task GetSummary_CountsReturnedForRevisionAsMyRequestButNotPending()
+    {
+        await using var db = CreateDbContext();
+        var user = new User
+        {
+            Id = Guid.NewGuid(),
+            FullName = "เจ้าหน้าที่ทดสอบ",
+            Username = "staff.dashboard",
+            PasswordHash = "hash",
+            IsActive = true
+        };
+        var leaveType = AddLeaveType(db, "PERSONAL_LEAVE", "ลากิจส่วนตัว");
+        db.Users.Add(user);
+        AddLeaveRequest(db, user.Id, leaveType.Id, DateOnly.FromDateTime(DateTime.UtcNow), 1m, "Draft");
+        AddLeaveRequest(db, user.Id, leaveType.Id, DateOnly.FromDateTime(DateTime.UtcNow), 1m, "Pending");
+        AddLeaveRequest(db, user.Id, leaveType.Id, DateOnly.FromDateTime(DateTime.UtcNow), 1m, "ReturnedForRevision");
+        AddLeaveRequest(db, user.Id, leaveType.Id, DateOnly.FromDateTime(DateTime.UtcNow), 1m, "Approved");
+        await db.SaveChangesAsync();
+
+        var controller = new DashboardController(db);
+        SetUserContext(controller, user.Id);
+
+        var result = await controller.GetSummary();
+
+        var response = Assert.IsType<ApiResponse<DashboardSummaryResponse>>(result.Value);
+        var summary = response.Data!;
+        Assert.Equal(4, summary.MyLeaveRequestsTotal);
+        Assert.Equal(1, summary.MyLeaveRequestsDraft);
+        Assert.Equal(1, summary.MyLeaveRequestsPending);
+        Assert.Equal(1, summary.MyLeaveRequestsReturnedForRevision);
+        Assert.Equal(1, summary.MyLeaveRequestsApproved);
+    }
+
+    [Fact]
+    public async Task GetSummary_DepartmentHeadGetsOwnPendingAndDepartmentRequestsSeparately()
+    {
+        await using var db = CreateDbContext();
+        var department = new Department { Id = Guid.NewGuid(), Name = "Information Technology", IsActive = true };
+        var otherDepartment = new Department { Id = Guid.NewGuid(), Name = "Finance", IsActive = true };
+        var head = new User { Id = Guid.NewGuid(), FullName = "หัวหน้าหน่วยงาน", Username = "head01", PasswordHash = "hash", IsActive = true, DepartmentId = department.Id };
+        var staff = new User { Id = Guid.NewGuid(), FullName = "เจ้าหน้าที่ 01", Username = "staff01", PasswordHash = "hash", IsActive = true, DepartmentId = department.Id };
+        var otherStaff = new User { Id = Guid.NewGuid(), FullName = "เจ้าหน้าที่ต่างหน่วยงาน", Username = "staff.other", PasswordHash = "hash", IsActive = true, DepartmentId = otherDepartment.Id };
+        var leaveType = AddLeaveType(db, "PERSONAL_LEAVE", "ลากิจส่วนตัว");
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        db.Departments.AddRange(department, otherDepartment);
+        db.Users.AddRange(head, staff, otherStaff);
+        GrantRoleWithPermissions(db, head.Id, "DepartmentHead", LeavePermissions.ViewOwn, LeavePermissions.ViewDepartment);
+        AddLeaveRequest(db, head.Id, leaveType.Id, today, 1m, "Pending");
+        AddLeaveRequest(db, head.Id, leaveType.Id, today, 1m, "ReturnedForRevision");
+        AddLeaveRequest(db, staff.Id, leaveType.Id, today, 1m, "Pending");
+        AddLeaveRequest(db, staff.Id, leaveType.Id, today, 1m, "Approved");
+        AddLeaveRequest(db, staff.Id, leaveType.Id, today, 1m, "ReturnedForRevision");
+        AddLeaveRequest(db, otherStaff.Id, leaveType.Id, today, 1m, "Pending");
+        await db.SaveChangesAsync();
+
+        var controller = new DashboardController(db);
+        SetUserContext(controller, head.Id);
+
+        var result = await controller.GetSummary();
+
+        var response = Assert.IsType<ApiResponse<DashboardSummaryResponse>>(result.Value);
+        var summary = response.Data!;
+        Assert.Equal(1, summary.MyPendingRequests?.Count);
+        Assert.Single(summary.MyPendingRequests!.Items);
+        Assert.Equal("หัวหน้าหน่วยงาน", summary.MyPendingRequests.Items[0].RequesterName);
+        Assert.Equal(3, summary.DepartmentRequests?.Count);
+        Assert.All(summary.DepartmentRequests!.Items, item => Assert.Equal("เจ้าหน้าที่ 01", item.RequesterName));
+        Assert.DoesNotContain(summary.DepartmentRequests.Items, item => item.RequesterName == "หัวหน้าหน่วยงาน");
+        Assert.DoesNotContain(summary.DepartmentRequests.Items, item => item.RequesterName == "เจ้าหน้าที่ต่างหน่วยงาน");
+    }
+
+    [Fact]
+    public async Task GetSummary_StaffDoesNotReceiveDepartmentRequestGroup()
+    {
+        await using var db = CreateDbContext();
+        var department = new Department { Id = Guid.NewGuid(), Name = "Information Technology", IsActive = true };
+        var staff = new User { Id = Guid.NewGuid(), FullName = "เจ้าหน้าที่ 01", Username = "staff01", PasswordHash = "hash", IsActive = true, DepartmentId = department.Id };
+        var teammate = new User { Id = Guid.NewGuid(), FullName = "เจ้าหน้าที่ 02", Username = "staff02", PasswordHash = "hash", IsActive = true, DepartmentId = department.Id };
+        var leaveType = AddLeaveType(db, "PERSONAL_LEAVE", "ลากิจส่วนตัว");
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        db.Departments.Add(department);
+        db.Users.AddRange(staff, teammate);
+        GrantRoleWithPermissions(db, staff.Id, "Staff", LeavePermissions.ViewOwn);
+        AddLeaveRequest(db, staff.Id, leaveType.Id, today, 1m, "Pending");
+        AddLeaveRequest(db, teammate.Id, leaveType.Id, today, 1m, "Pending");
+        await db.SaveChangesAsync();
+
+        var controller = new DashboardController(db);
+        SetUserContext(controller, staff.Id);
+
+        var result = await controller.GetSummary();
+
+        var response = Assert.IsType<ApiResponse<DashboardSummaryResponse>>(result.Value);
+        var summary = response.Data!;
+        Assert.Equal(1, summary.MyPendingRequests?.Count);
+        Assert.Equal(0, summary.DepartmentRequests?.Count);
+        Assert.Empty(summary.DepartmentRequests!.Items);
     }
 
     [Fact]
@@ -169,9 +270,46 @@ public class DashboardSummaryTests
         });
     }
 
-    private static void AddLeaveRequest(AppDbContext db, Guid userId, Guid leaveTypeId, DateOnly date, decimal totalDays, string status)
+    private static void GrantRoleWithPermissions(AppDbContext db, Guid userId, string roleName, params string[] permissions)
     {
-        db.LeaveRequests.Add(new LeaveRequest
+        var role = new Role
+        {
+            Id = Guid.NewGuid(),
+            Name = roleName,
+            IsActive = true
+        };
+        db.Roles.Add(role);
+        db.UserRoles.Add(new UserRole
+        {
+            UserId = userId,
+            RoleId = role.Id,
+            Role = role
+        });
+
+        foreach (var code in permissions)
+        {
+            var permission = new Permission
+            {
+                Id = Guid.NewGuid(),
+                Code = code,
+                Name = code,
+                Group = "LeaveRequest",
+                Action = code
+            };
+            db.Permissions.Add(permission);
+            db.RolePermissions.Add(new RolePermission
+            {
+                RoleId = role.Id,
+                PermissionId = permission.Id,
+                Role = role,
+                Permission = permission
+            });
+        }
+    }
+
+    private static LeaveRequest AddLeaveRequest(AppDbContext db, Guid userId, Guid leaveTypeId, DateOnly date, decimal totalDays, string status)
+    {
+        var leaveRequest = new LeaveRequest
         {
             Id = Guid.NewGuid(),
             UserId = userId,
@@ -184,7 +322,9 @@ public class DashboardSummaryTests
             Status = status,
             SubmittedAt = DateTime.UtcNow.AddHours(-8),
             UpdatedAt = status is "Approved" or "Rejected" ? DateTime.UtcNow : null
-        });
+        };
+        db.LeaveRequests.Add(leaveRequest);
+        return leaveRequest;
     }
 
     private static AppDbContext CreateDbContext()

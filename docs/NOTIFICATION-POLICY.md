@@ -55,3 +55,13 @@ Important notification lifecycle events:
 - `Notification.Expired`
 
 The current API writes audit events for read/archive actions. Created/expired events should be written by future notification producer and expiration worker implementations.
+
+## Leave Revision Notifications
+
+| Event | ผู้รับ | ประเภท | รายละเอียด |
+|---|---|---|---|
+| `LeaveReturnedForRevisionToRequester` | ผู้ขอ | Information/High | แจ้งเหตุผลที่คำขอถูกตีกลับรอแก้ไข |
+| `LeaveResubmittedToApprover` | ผู้อนุมัติ step เดิม | ActionRequired/High | แจ้งว่าผู้ขอส่งคำขอที่แก้ไขแล้ว |
+| `LeaveRevisionCancelled` | ผู้ขอ | Information | ยืนยันการยกเลิกคำขอที่ถูกตีกลับรอแก้ไข |
+
+เมื่อคำขอถูกตีกลับรอแก้ไข ระบบต้อง clear notification ประเภท action required ของผู้อนุมัติเดิมออกจากคิวงานรออนุมัติ และเมื่อผู้ขอส่งใหม่ ระบบจะแจ้งกลับไปยังผู้อนุมัติ step เดิม

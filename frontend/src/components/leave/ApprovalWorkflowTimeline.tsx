@@ -104,6 +104,8 @@ function ApprovalStepCard({ approval, isCurrent }: { approval: LeaveApproval; is
           <ApprovalMeta label="สถานะ" value={getApprovalStatusLabel(approval.status)} />
           <ApprovalMeta label="วันที่ดำเนินการ" value={formatThaiDateTime(approval.actionAt)} />
           <ApprovalMeta label="หมายเหตุ" value={approval.remark || "-"} />
+          {approval.returnedAt && <ApprovalMeta label="ตีกลับเมื่อ" value={formatThaiDateTime(approval.returnedAt)} />}
+          {approval.returnReason && <ApprovalMeta label="เหตุผลตีกลับ" value={approval.returnReason} />}
         </Stack>
       </Stack>
     </Box>
@@ -166,6 +168,7 @@ function getApprovalTone(status: string | null | undefined, theme: Theme) {
     case "approve":
       return { main: theme.palette.success.main, contrastText: theme.palette.success.contrastText };
     case "pending":
+    case "returnedforrevision":
       return { main: brandColors.accent, contrastText: brandColors.primaryDark };
     case "rejected":
     case "reject":

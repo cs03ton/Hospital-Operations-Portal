@@ -51,6 +51,12 @@ public record LeaveRequestResponse(
     string TrackingMessage,
     DateTime CreatedAt,
     DateTime? SubmittedAt,
+    DateTime? ReturnedForRevisionAt,
+    Guid? ReturnedForRevisionByUserId,
+    string? ReturnedForRevisionByName,
+    string? RevisionReason,
+    int RevisionCount,
+    DateTime? LastResubmittedAt,
     DateTime? UpdatedAt
 );
 
@@ -87,6 +93,8 @@ public record LeavePolicyPreviewResponse(
 
 public record LeaveDecisionRequest(string? Remark);
 
+public record LeaveReturnForRevisionRequest(string Reason);
+
 public record LeaveOverrideDecisionRequest(string Reason);
 
 public record LineApprovalActionOpenedRequest(string Action);
@@ -115,7 +123,9 @@ public record LeaveApprovalResponse(
     string RequiredPermissionCode,
     string? Remark,
     DateTime CreatedAt,
-    DateTime? ActionAt
+    DateTime? ActionAt,
+    DateTime? ReturnedAt,
+    string? ReturnReason
 );
 
 public record LeaveBalanceResponse(

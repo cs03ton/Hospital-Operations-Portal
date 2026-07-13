@@ -15,10 +15,16 @@ public class LeaveRequest
     public Guid? CurrentApproverId { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? SubmittedAt { get; set; }
+    public DateTime? ReturnedForRevisionAt { get; set; }
+    public Guid? ReturnedForRevisionByUserId { get; set; }
+    public string? RevisionReason { get; set; }
+    public int RevisionCount { get; set; }
+    public DateTime? LastResubmittedAt { get; set; }
     public DateTime? UpdatedAt { get; set; }
 
     public User? User { get; set; }
     public User? CurrentApprover { get; set; }
+    public User? ReturnedForRevisionByUser { get; set; }
     public LeaveType? LeaveType { get; set; }
     public ICollection<LeaveAttachment> Attachments { get; set; } = [];
     public ICollection<LeaveApproval> Approvals { get; set; } = [];

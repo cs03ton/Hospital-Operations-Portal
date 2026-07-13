@@ -50,7 +50,9 @@ public class LeaveApprovalsController(AppDbContext db, ILeaveRequestAccessServic
                 item.RequiredPermissionCode,
                 item.Remark,
                 item.CreatedAt,
-                item.ActionAt
+                item.ActionAt,
+                item.ReturnedAt,
+                item.ReturnReason
             ))
             .ToListAsync();
 

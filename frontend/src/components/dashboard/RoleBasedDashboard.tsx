@@ -8,14 +8,17 @@ import NotificationsActiveOutlinedIcon from "@mui/icons-material/NotificationsAc
 import SecurityOutlinedIcon from "@mui/icons-material/SecurityOutlined";
 import SettingsSuggestOutlinedIcon from "@mui/icons-material/SettingsSuggestOutlined";
 import TrendingUpOutlinedIcon from "@mui/icons-material/TrendingUpOutlined";
-import { Box, Button, Card, CardContent, Grid, Skeleton, Stack, Typography } from "@mui/material";
+import { Box, Button, Card, CardContent, Chip, Grid, Skeleton, Stack, Typography } from "@mui/material";
 import { alpha, useTheme } from "@mui/material/styles";
 import type { SvgIconComponent } from "@mui/icons-material";
 import { Link as RouterLink } from "react-router-dom";
 import type { ReactNode } from "react";
-import type { DashboardLeaveBalance, DashboardSummary } from "../../api/adminApi";
+import type { DashboardLeaveBalance, DashboardLeaveRequestGroup, DashboardLeaveRequestItem, DashboardSummary } from "../../api/adminApi";
 import { MyLeaveSummaryCard } from "../leave/MyLeaveSummaryCard";
 import { brandColors } from "../../theme/theme";
+import { formatThaiDate } from "../../utils/dateFormat";
+import { getLeaveStatusColor, getLeaveStatusLabel, getLeaveTypeLabel } from "../../utils/leaveLabels";
+import { getLeaveRequestCode } from "../../utils/leaveTrackingLabels";
 
 export type DashboardRole = "Staff" | "DepartmentHead" | "Director" | "Admin" | "SuperAdmin";
 
@@ -34,7 +37,7 @@ type DashboardWidgetDefinition = {
 
 const roleLayouts: Record<DashboardRole, string[]> = {
   Staff: ["welcome", "leaveBalance", "myLeaveRequests", "myPendingRequests", "recentNotifications", "myLeaveCalendar"],
-  DepartmentHead: ["welcome", "leaveBalance", "myLeaveRequests", "myPendingRequests", "myLeaveCalendar", "pendingApproval", "teamLeaveToday", "teamCalendar", "teamLeaveStats", "employeesNearLeaveLimit"],
+  DepartmentHead: ["welcome", "leaveBalance", "myLeaveRequests", "headLeaveRequestGroups", "myLeaveCalendar", "pendingApproval", "teamLeaveToday", "teamCalendar", "teamLeaveStats", "employeesNearLeaveLimit"],
   Director: ["welcome", "hospitalLeaveSummary", "departmentComparison", "monthlyLeaveStats", "approvalQueue", "executiveCalendar", "leaveTrend"],
   Admin: ["welcome", "userSummary", "departmentSummary", "leaveTypeSummary", "approvalRules", "pendingApprovalOverview", "notificationQueue", "auditLog", "holidayManagement", "systemHealth", "backgroundJobs", "storageUsage", "backupStatus", "versionInfo"],
   SuperAdmin: ["welcome", "userSummary", "departmentSummary", "leaveTypeSummary", "approvalRules", "pendingApprovalOverview", "notificationQueue", "auditLog", "holidayManagement", "systemHealth", "backgroundJobs", "storageUsage", "backupStatus", "versionInfo", "securityEvents", "failedLogin", "permissionDenied", "lineDelivery", "databaseStatus", "apiHealth", "queueMonitoring"],
@@ -77,7 +80,7 @@ const widgetRegistry: Record<string, DashboardWidgetDefinition> = {
     size: { xs: 12 },
     render: ({ data, isLoading }) => <CoreLeaveBalanceWidget balances={data?.myCoreLeaveBalances ?? []} isLoading={isLoading} />,
   },
-  myPendingRequests: metricWidget("myPendingRequests", "คำขอของฉันที่รออนุมัติ", "คำขอลาที่อยู่ในกระบวนการ", FactCheckOutlinedIcon, (data) => data.myLeaveRequestsPending, "warning.main", "/leave"),
+  myPendingRequests: metricWidget("myPendingRequests", "คำขอลาของฉันที่รออนุมัติ", "คำขอลาที่อยู่ในกระบวนการ", FactCheckOutlinedIcon, (data) => data.myLeaveRequestsPending, "warning.main", "/leave?scope=mine&status=pending"),
   pendingApproval: metricWidget("pendingApproval", "งานรออนุมัติของฉัน", "แสดงเฉพาะคำขอลาที่ถึงคิวผู้ใช้งานปัจจุบัน", ApprovalOutlinedIcon, (data) => data.pendingApprovals, "warning.main", "/leave/pending-approvals"),
   pendingApprovalOverview: metricWidget("pendingApprovalOverview", "ภาพรวมคำขอรออนุมัติ", "จำนวนคำขอที่ยังอยู่ในกระบวนการอนุมัติทั้งระบบ", ApprovalOutlinedIcon, (data) => data.totalPendingLeaveRequests, "warning.main"),
   teamLeaveToday: metricWidget("teamLeaveToday", "เจ้าหน้าที่ลาวันนี้", "คำขอที่อนุมัติและครอบคลุมวันนี้", CalendarMonthOutlinedIcon, (data) => data.staffOnLeaveToday, "success.main", "/leave/calendar"),
@@ -98,11 +101,13 @@ const widgetRegistry: Record<string, DashboardWidgetDefinition> = {
   systemHealth: statusWidget("systemHealth", "System Health", "สถานะระบบโดยรวม", (data) => data.apiHealth === "Healthy" && data.databaseStatus === "Healthy" ? "Healthy" : "Warning"),
   myLeaveRequests: {
     id: "myLeaveRequests",
-    size: { xs: 12, lg: 6 },
+    size: { xs: 12 },
     render: ({ data, isLoading }) => (
       <MyLeaveSummaryCard
         total={data?.myLeaveRequestsTotal ?? 0}
+        draft={data?.myLeaveRequestsDraft ?? 0}
         pending={data?.myLeaveRequestsPending ?? 0}
+        returnedForRevision={data?.myLeaveRequestsReturnedForRevision ?? 0}
         approved={data?.myLeaveRequestsApproved ?? 0}
         rejected={data?.myLeaveRequestsRejected ?? 0}
         cancelled={data?.myLeaveRequestsCancelled ?? 0}
@@ -110,10 +115,21 @@ const widgetRegistry: Record<string, DashboardWidgetDefinition> = {
       />
     ),
   },
+  headLeaveRequestGroups: {
+    id: "headLeaveRequestGroups",
+    size: { xs: 12 },
+    render: ({ data, isLoading }) => (
+      <HeadLeaveRequestGroups
+        myPending={data?.myPendingRequests ?? emptyLeaveRequestGroup}
+        department={data?.departmentRequests ?? emptyLeaveRequestGroup}
+        isLoading={isLoading}
+      />
+    ),
+  },
   myLeaveCalendar: placeholderWidget("myLeaveCalendar", "ปฏิทินลาของฉัน", "ดูปฏิทินการลาที่เกี่ยวข้องกับคุณ", CalendarMonthOutlinedIcon, "/leave/calendar"),
   recentNotifications: placeholderWidget("recentNotifications", "แจ้งเตือนล่าสุด", "ไม่มีรายการแจ้งเตือนใหม่", NotificationsActiveOutlinedIcon),
   teamCalendar: placeholderWidget("teamCalendar", "ปฏิทินทีม", "ดูภาพรวมการลาของทีม", CalendarMonthOutlinedIcon, "/leave/calendar"),
-  teamLeaveStats: trendWidget("teamLeaveStats", "สถิติการลาของทีม"),
+  teamLeaveStats: trendWidget("teamLeaveStats", "สถิติการลาของทีม", { xs: 12, md: 4 }),
   employeesNearLeaveLimit: placeholderWidget("employeesNearLeaveLimit", "เจ้าหน้าที่ใกล้ใช้สิทธิ์เต็ม", "ยังไม่มีข้อมูลที่ต้องติดตาม", TrendingUpOutlinedIcon),
   hospitalLeaveSummary: trendWidget("hospitalLeaveSummary", "ภาพรวมการลาทั้งโรงพยาบาล"),
   departmentComparison: placeholderWidget("departmentComparison", "เปรียบเทียบรายหน่วยงาน", "พร้อมต่อยอดเป็นกราฟเปรียบเทียบ", TrendingUpOutlinedIcon),
@@ -239,6 +255,131 @@ function formatDays(value: number) {
   return value.toLocaleString("th-TH", { maximumFractionDigits: 1 });
 }
 
+function HeadLeaveRequestGroups({
+  myPending,
+  department,
+  isLoading,
+}: {
+  myPending: DashboardLeaveRequestGroup;
+  department: DashboardLeaveRequestGroup;
+  isLoading: boolean;
+}) {
+  return (
+    <Grid container spacing={2}>
+      <Grid item xs={12} lg={6}>
+        <LeaveRequestGroupPanel
+          title="คำขอลาของฉันที่รออนุมัติ"
+          subtitle="คำขอของคุณเองที่ยังอยู่ในกระบวนการอนุมัติ"
+          emptyText="ไม่มีคำขอลาของคุณที่กำลังรออนุมัติ"
+          group={myPending}
+          isLoading={isLoading}
+          actionTo="/leave?scope=mine&status=pending"
+        />
+      </Grid>
+      <Grid item xs={12} lg={6}>
+        <LeaveRequestGroupPanel
+          title="คำขอลาของหน่วยงาน"
+          subtitle="คำขอของเจ้าหน้าที่ในหน่วยงานเดียวกัน ไม่นับคำขอของคุณเอง"
+          emptyText="ยังไม่มีคำขอลาของหน่วยงาน"
+          group={department}
+          isLoading={isLoading}
+          actionTo="/leave?scope=department"
+          showRequester
+        />
+      </Grid>
+    </Grid>
+  );
+}
+
+function LeaveRequestGroupPanel({
+  title,
+  subtitle,
+  emptyText,
+  group,
+  isLoading,
+  actionTo,
+  showRequester = false,
+}: {
+  title: string;
+  subtitle: string;
+  emptyText: string;
+  group: DashboardLeaveRequestGroup;
+  isLoading: boolean;
+  actionTo: string;
+  showRequester?: boolean;
+}) {
+  return (
+    <DashboardPanel title={title} subtitle={subtitle} icon={FactCheckOutlinedIcon} actionTo={actionTo}>
+      <Stack spacing={1.5}>
+        <Stack direction="row" justifyContent="space-between" alignItems="center">
+          <Typography variant="body2" color="text.secondary">ทั้งหมด</Typography>
+          {isLoading ? <Skeleton width={64} /> : <Typography variant="h5" fontWeight={900}>{group.count.toLocaleString("th-TH")} รายการ</Typography>}
+        </Stack>
+        {isLoading ? (
+          <Stack spacing={1}>
+            {[0, 1, 2].map((item) => <Skeleton key={item} variant="rounded" height={82} />)}
+          </Stack>
+        ) : group.items.length ? (
+          <Stack spacing={1}>
+            {group.items.map((item) => (
+              <LeaveRequestMiniItem key={item.id} item={item} showRequester={showRequester} />
+            ))}
+          </Stack>
+        ) : (
+          <Box sx={(theme) => ({
+            border: `1px dashed ${alpha(theme.palette.primary.main, 0.24)}`,
+            borderRadius: 2,
+            p: 2,
+            bgcolor: alpha(theme.palette.primary.main, 0.035),
+          })}>
+            <Typography color="text.secondary">{emptyText}</Typography>
+          </Box>
+        )}
+      </Stack>
+    </DashboardPanel>
+  );
+}
+
+function LeaveRequestMiniItem({ item, showRequester }: { item: DashboardLeaveRequestItem; showRequester: boolean }) {
+  return (
+    <Box
+      component={RouterLink}
+      to={`/leave/${item.id}`}
+      sx={(theme) => ({
+        display: "block",
+        border: `1px solid ${alpha(theme.palette.primary.main, 0.12)}`,
+        borderRadius: 2,
+        p: 1.25,
+        color: "inherit",
+        textDecoration: "none",
+        transition: theme.transitions.create(["border-color", "background-color", "transform"], { duration: theme.transitions.duration.shortest }),
+        "&:hover": {
+          bgcolor: alpha(theme.palette.primary.main, 0.035),
+          borderColor: alpha(theme.palette.primary.main, 0.28),
+          transform: "translateY(-1px)",
+        },
+      })}
+    >
+      <Stack spacing={0.75}>
+        <Stack direction={{ xs: "column", sm: "row" }} justifyContent="space-between" spacing={0.75}>
+          <Box sx={{ minWidth: 0 }}>
+            <Typography fontWeight={800} noWrap>{getLeaveRequestCode(item.requestNumber, item.id)}</Typography>
+            <Typography variant="body2" color="text.secondary" noWrap>
+              {getLeaveTypeLabel(item.leaveTypeName ?? "-")} · {formatDays(item.totalDays)} วัน
+            </Typography>
+          </Box>
+          <Chip size="small" label={getLeaveStatusLabel(item.status)} color={getLeaveStatusColor(item.status)} sx={{ alignSelf: { xs: "flex-start", sm: "center" } }} />
+        </Stack>
+        <Stack direction={{ xs: "column", sm: "row" }} spacing={{ xs: 0.25, sm: 1.5 }} color="text.secondary">
+          {showRequester && <Typography variant="caption">ผู้ขอ: {item.requesterName || "-"}</Typography>}
+          <Typography variant="caption">{formatThaiDate(item.startDate)} - {formatThaiDate(item.endDate)}</Typography>
+          <Typography variant="caption">ผู้อนุมัติปัจจุบัน: {item.currentApproverName || "-"}</Typography>
+        </Stack>
+      </Stack>
+    </Box>
+  );
+}
+
 function placeholderWidget(id: string, title: string, message: string, icon: SvgIconComponent, to?: string): DashboardWidgetDefinition {
   return {
     id,
@@ -251,10 +392,10 @@ function placeholderWidget(id: string, title: string, message: string, icon: Svg
   };
 }
 
-function trendWidget(id: string, title: string): DashboardWidgetDefinition {
+function trendWidget(id: string, title: string, size: WidgetSize = { xs: 12, lg: 6 }): DashboardWidgetDefinition {
   return {
     id,
-    size: { xs: 12, lg: 6 },
+    size,
     render: ({ data, isLoading }) => (
       <DashboardPanel title={title} subtitle="แนวโน้มการลาในช่วงเวลาปัจจุบัน" icon={TrendingUpOutlinedIcon}>
         <Stack spacing={1.5}>
@@ -336,7 +477,9 @@ const emptyDashboard: DashboardSummary = {
   myRemainingLeaveDays: 0,
   myCoreLeaveBalances: [],
   myLeaveRequestsTotal: 0,
+  myLeaveRequestsDraft: 0,
   myLeaveRequestsPending: 0,
+  myLeaveRequestsReturnedForRevision: 0,
   myLeaveRequestsApproved: 0,
   myLeaveRequestsRejected: 0,
   myLeaveRequestsCancelled: 0,
@@ -353,4 +496,8 @@ const emptyDashboard: DashboardSummary = {
   apiHealth: "Unknown",
   databaseStatus: "Unknown",
   applicationVersion: "-",
+  myPendingRequests: { count: 0, items: [] },
+  departmentRequests: { count: 0, items: [] },
 };
+
+const emptyLeaveRequestGroup: DashboardLeaveRequestGroup = { count: 0, items: [] };

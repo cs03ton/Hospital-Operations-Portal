@@ -109,7 +109,9 @@ export type DashboardSummary = {
   myRemainingLeaveDays: number;
   myCoreLeaveBalances: DashboardLeaveBalance[];
   myLeaveRequestsTotal: number;
+  myLeaveRequestsDraft: number;
   myLeaveRequestsPending: number;
+  myLeaveRequestsReturnedForRevision: number;
   myLeaveRequestsApproved: number;
   myLeaveRequestsRejected: number;
   myLeaveRequestsCancelled: number;
@@ -126,6 +128,8 @@ export type DashboardSummary = {
   apiHealth: string;
   databaseStatus: string;
   applicationVersion: string;
+  myPendingRequests: DashboardLeaveRequestGroup;
+  departmentRequests: DashboardLeaveRequestGroup;
 };
 
 export type DashboardLeaveBalance = {
@@ -135,6 +139,24 @@ export type DashboardLeaveBalance = {
   usedDays: number;
   pendingDays: number;
   availableDays: number;
+};
+
+export type DashboardLeaveRequestGroup = {
+  count: number;
+  items: DashboardLeaveRequestItem[];
+};
+
+export type DashboardLeaveRequestItem = {
+  id: string;
+  requestNumber?: string | null;
+  requesterName: string;
+  leaveTypeName?: string | null;
+  startDate: string;
+  endDate: string;
+  totalDays: number;
+  status: string;
+  currentApproverName?: string | null;
+  createdAt: string;
 };
 
 export type HealthComponent = {

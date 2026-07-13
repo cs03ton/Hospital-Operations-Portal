@@ -90,6 +90,127 @@ public class Phase1CriticalLeaveWorkflowTests
     }
 
     [Fact]
+    public async Task ReturnForRevision_ReleasesPendingBalanceAndNotifiesRequester()
+    {
+        await using var db = CreateDbContext();
+        var fixture = await SeedPendingLeaveAsync(db);
+        var notifications = new CaptureNotificationPublisher();
+        var controller = CreateController(db, fixture.Head.Id, notifications);
+
+        var result = await controller.ReturnForRevision(fixture.LeaveRequest.Id, new LeaveReturnForRevisionRequest("กรุณาแนบเอกสารเพิ่มเติม"));
+
+        Assert.IsType<ApiResponse<LeaveRequestResponse>>(result.Value);
+        var returned = await db.LeaveRequests.Include(item => item.Approvals).SingleAsync(item => item.Id == fixture.LeaveRequest.Id);
+        var balance = await db.LeaveBalances.SingleAsync(item => item.UserId == fixture.Staff.Id && item.LeaveTypeId == fixture.LeaveType.Id);
+        Assert.Equal("ReturnedForRevision", returned.Status);
+        Assert.Null(returned.CurrentApproverId);
+        Assert.Equal("กรุณาแนบเอกสารเพิ่มเติม", returned.RevisionReason);
+        Assert.Equal(1, returned.RevisionCount);
+        Assert.Equal(0, balance.PendingDays);
+        Assert.Contains(returned.Approvals, item =>
+            item.ApproverId == fixture.Head.Id &&
+            item.Status == "ReturnedForRevision" &&
+            item.ReturnReason == "กรุณาแนบเอกสารเพิ่มเติม" &&
+            item.ReturnedAt is not null);
+        Assert.Contains(notifications.Events, item => item.EventName == "LeaveReturnedForRevision" && item.RecipientUserId == fixture.Staff.Id);
+    }
+
+    [Fact]
+    public async Task ResubmitAfterRevision_ReturnsToSameApprovalStepAndReservesBalanceAgain()
+    {
+        await using var db = CreateDbContext();
+        var fixture = await SeedPendingLeaveAsync(db);
+        var notifications = new CaptureNotificationPublisher();
+        var headController = CreateController(db, fixture.Head.Id, notifications);
+        await headController.ReturnForRevision(fixture.LeaveRequest.Id, new LeaveReturnForRevisionRequest("กรุณาแก้ไข"));
+
+        var staffController = CreateController(db, fixture.Staff.Id, notifications);
+        var result = await staffController.ResubmitLeaveRequest(fixture.LeaveRequest.Id);
+
+        Assert.IsType<ApiResponse<LeaveRequestResponse>>(result.Value);
+        var resubmitted = await db.LeaveRequests.Include(item => item.Approvals).SingleAsync(item => item.Id == fixture.LeaveRequest.Id);
+        var balance = await db.LeaveBalances.SingleAsync(item => item.UserId == fixture.Staff.Id && item.LeaveTypeId == fixture.LeaveType.Id);
+        Assert.Equal("Pending", resubmitted.Status);
+        Assert.Equal(fixture.Head.Id, resubmitted.CurrentApproverId);
+        Assert.NotNull(resubmitted.LastResubmittedAt);
+        Assert.Equal(2, balance.PendingDays);
+        Assert.Contains(resubmitted.Approvals, item => item.ApproverId == fixture.Head.Id && item.Status == "Pending" && item.ReturnedAt is not null);
+        Assert.Contains(resubmitted.Approvals, item => item.ApproverId == fixture.Director.Id && item.Status == "Waiting");
+        Assert.Contains(notifications.Events, item => item.EventName == "LeaveResubmitted" && item.RecipientUserId == fixture.Head.Id);
+    }
+
+    [Fact]
+    public async Task ResubmitAfterRevision_ForbidsNonRequesterWithThaiMessage()
+    {
+        await using var db = CreateDbContext();
+        var fixture = await SeedPendingLeaveAsync(db);
+        var notifications = new CaptureNotificationPublisher();
+        var headController = CreateController(db, fixture.Head.Id, notifications);
+        await headController.ReturnForRevision(fixture.LeaveRequest.Id, new LeaveReturnForRevisionRequest("กรุณาแก้ไข"));
+
+        var approverController = CreateController(db, fixture.Head.Id, notifications);
+        var result = await approverController.ResubmitLeaveRequest(fixture.LeaveRequest.Id);
+
+        var forbidden = Assert.IsType<ObjectResult>(result.Result);
+        Assert.Equal(StatusCodes.Status403Forbidden, forbidden.StatusCode);
+        var response = Assert.IsType<ApiResponse<LeaveRequestResponse>>(forbidden.Value);
+        Assert.Equal("เฉพาะผู้ขอคำขอเท่านั้นที่สามารถส่งคำขอใหม่ได้", response.Message);
+    }
+
+    [Fact]
+    public async Task ResubmitAfterRevision_ForbidsAdminWhenNotRequester()
+    {
+        await using var db = CreateDbContext();
+        var fixture = await SeedPendingLeaveAsync(db);
+        var notifications = new CaptureNotificationPublisher();
+        var headController = CreateController(db, fixture.Head.Id, notifications);
+        await headController.ReturnForRevision(fixture.LeaveRequest.Id, new LeaveReturnForRevisionRequest("กรุณาแก้ไข"));
+
+        var adminController = CreateController(db, Guid.NewGuid(), notifications);
+        var result = await adminController.ResubmitLeaveRequest(fixture.LeaveRequest.Id);
+
+        var forbidden = Assert.IsType<ObjectResult>(result.Result);
+        Assert.Equal(StatusCodes.Status403Forbidden, forbidden.StatusCode);
+    }
+
+    [Fact]
+    public async Task ResubmitAfterRevision_BlocksWrongStatus()
+    {
+        await using var db = CreateDbContext();
+        var fixture = await SeedPendingLeaveAsync(db);
+        var controller = CreateController(db, fixture.Staff.Id, new CaptureNotificationPublisher());
+
+        var result = await controller.ResubmitLeaveRequest(fixture.LeaveRequest.Id);
+
+        var badRequest = Assert.IsType<BadRequestObjectResult>(result.Result);
+        var response = Assert.IsType<ApiResponse<LeaveRequestResponse>>(badRequest.Value);
+        Assert.Equal("ส่งใหม่ได้เฉพาะคำขอที่ถูกตีกลับรอแก้ไขเท่านั้น", response.Message);
+    }
+
+    [Fact]
+    public async Task CancelReturnedRequest_ClosesRevisionStateWithoutChangingUsedBalance()
+    {
+        await using var db = CreateDbContext();
+        var fixture = await SeedPendingLeaveAsync(db);
+        var notifications = new CaptureNotificationPublisher();
+        var headController = CreateController(db, fixture.Head.Id, notifications);
+        await headController.ReturnForRevision(fixture.LeaveRequest.Id, new LeaveReturnForRevisionRequest("กรุณาแก้ไข"));
+
+        var staffController = CreateController(db, fixture.Staff.Id, notifications);
+        var result = await staffController.CancelLeaveRequest(fixture.LeaveRequest.Id);
+
+        Assert.IsType<ApiResponse<LeaveRequestResponse>>(result.Value);
+        var cancelled = await db.LeaveRequests.Include(item => item.Approvals).SingleAsync(item => item.Id == fixture.LeaveRequest.Id);
+        var balance = await db.LeaveBalances.SingleAsync(item => item.UserId == fixture.Staff.Id && item.LeaveTypeId == fixture.LeaveType.Id);
+        Assert.Equal("Cancelled", cancelled.Status);
+        Assert.Null(cancelled.CurrentApproverId);
+        Assert.Equal(0, balance.PendingDays);
+        Assert.Equal(0, balance.UsedDays);
+        Assert.Contains(cancelled.Approvals, item => item.ApproverId == fixture.Head.Id && item.Status == "Cancelled");
+        Assert.Contains(notifications.Events, item => item.EventName == "LeaveRevisionCancelled");
+    }
+
+    [Fact]
     public async Task ApproveFlow_ForbidsApproverWhoIsNotCurrentStep()
     {
         await using var db = CreateDbContext();

@@ -171,6 +171,11 @@ CREATE TABLE IF NOT EXISTS leave_requests (
     current_approver_id UUID REFERENCES users(id),
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     submitted_at TIMESTAMPTZ,
+    returned_for_revision_at TIMESTAMPTZ,
+    returned_for_revision_by_user_id UUID REFERENCES users(id),
+    revision_reason VARCHAR(1000),
+    revision_count INTEGER NOT NULL DEFAULT 0,
+    last_resubmitted_at TIMESTAMPTZ,
     updated_at TIMESTAMPTZ
 );
 
@@ -261,7 +266,9 @@ CREATE TABLE IF NOT EXISTS leave_approvals (
     required_permission_code VARCHAR(150) NOT NULL DEFAULT 'LeaveManagement.Approve',
     remark TEXT,
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-    action_at TIMESTAMPTZ
+    action_at TIMESTAMPTZ,
+    returned_at TIMESTAMPTZ,
+    return_reason VARCHAR(1000)
 );
 
 CREATE TABLE IF NOT EXISTS leave_balance_adjustments (

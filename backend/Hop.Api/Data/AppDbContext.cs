@@ -319,6 +319,11 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             entity.Property(item => item.CurrentApproverId).HasColumnName("current_approver_id");
             entity.Property(item => item.CreatedAt).HasColumnName("created_at");
             entity.Property(item => item.SubmittedAt).HasColumnName("submitted_at");
+            entity.Property(item => item.ReturnedForRevisionAt).HasColumnName("returned_for_revision_at");
+            entity.Property(item => item.ReturnedForRevisionByUserId).HasColumnName("returned_for_revision_by_user_id");
+            entity.Property(item => item.RevisionReason).HasColumnName("revision_reason").HasMaxLength(1000);
+            entity.Property(item => item.RevisionCount).HasColumnName("revision_count").HasDefaultValue(0);
+            entity.Property(item => item.LastResubmittedAt).HasColumnName("last_resubmitted_at");
             entity.Property(item => item.UpdatedAt).HasColumnName("updated_at");
             entity.HasIndex(item => item.RequestNumber).IsUnique();
             entity.HasIndex(item => new { item.UserId, item.Status });
@@ -328,6 +333,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             entity.HasOne(item => item.CurrentApprover)
                 .WithMany()
                 .HasForeignKey(item => item.CurrentApproverId);
+            entity.HasOne(item => item.ReturnedForRevisionByUser)
+                .WithMany()
+                .HasForeignKey(item => item.ReturnedForRevisionByUserId);
             entity.HasOne(item => item.LeaveType)
                 .WithMany(leaveType => leaveType.LeaveRequests)
                 .HasForeignKey(item => item.LeaveTypeId);
@@ -367,6 +375,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             entity.Property(item => item.Remark).HasColumnName("remark");
             entity.Property(item => item.CreatedAt).HasColumnName("created_at");
             entity.Property(item => item.ActionAt).HasColumnName("action_at");
+            entity.Property(item => item.ReturnedAt).HasColumnName("returned_at");
+            entity.Property(item => item.ReturnReason).HasColumnName("return_reason").HasMaxLength(1000);
             entity.HasIndex(item => new { item.LeaveRequestId, item.StepOrder });
             entity.HasOne(item => item.LeaveRequest)
                 .WithMany(leaveRequest => leaveRequest.Approvals)

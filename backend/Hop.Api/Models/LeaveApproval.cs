@@ -14,6 +14,8 @@ public class LeaveApproval
     public string? Remark { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? ActionAt { get; set; }
+    public DateTime? ReturnedAt { get; set; }
+    public string? ReturnReason { get; set; }
 
     public LeaveRequest? LeaveRequest { get; set; }
     public User? Approver { get; set; }

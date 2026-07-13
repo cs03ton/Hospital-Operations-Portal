@@ -89,10 +89,18 @@ public class DashboardController(
             ? db.LeaveRequests.Where(item => false)
             : db.LeaveRequests.Where(item => item.UserId == userId);
         var myLeaveRequestsTotal = await myLeaveQuery.CountAsync();
+        var myLeaveRequestsDraft = await myLeaveQuery.CountAsync(item => item.Status == "Draft");
         var myLeaveRequestsPending = await myLeaveQuery.CountAsync(item => item.Status == "Pending");
+        var myLeaveRequestsReturnedForRevision = await myLeaveQuery.CountAsync(item => item.Status == "ReturnedForRevision");
         var myLeaveRequestsApproved = await myLeaveQuery.CountAsync(item => item.Status == "Approved");
         var myLeaveRequestsRejected = await myLeaveQuery.CountAsync(item => item.Status == "Rejected");
         var myLeaveRequestsCancelled = await myLeaveQuery.CountAsync(item => item.Status == "Cancelled");
+        var myPendingRequests = userId is null
+            ? EmptyLeaveRequestGroup()
+            : await LoadMyPendingLeaveRequests(userId.Value);
+        var departmentRequests = userId is null
+            ? EmptyLeaveRequestGroup()
+            : await LoadDepartmentLeaveRequests(userId.Value, canViewTeamDashboard);
         var totalLeaveTypes = canViewAdminDashboard ? await db.LeaveTypes.CountAsync(item => item.IsActive) : 0;
         var totalApprovalRules = canViewAdminDashboard ? await db.ApprovalChains.CountAsync(item => item.IsActive) : 0;
         var totalHolidaysThisYear = canViewAdminDashboard ? await db.LeaveHolidays.CountAsync(item => item.IsActive && item.HolidayDate.Year == today.Year) : 0;
@@ -121,7 +129,9 @@ public class DashboardController(
             staffOnLeaveThisMonth,
             MyRemainingLeaveDays: 0,
             myLeaveRequestsTotal,
+            myLeaveRequestsDraft,
             myLeaveRequestsPending,
+            myLeaveRequestsReturnedForRevision,
             myLeaveRequestsApproved,
             myLeaveRequestsRejected,
             myLeaveRequestsCancelled,
@@ -138,7 +148,9 @@ public class DashboardController(
             "Healthy",
             databaseStatus,
             applicationVersion,
-            myCoreLeaveBalances
+            myCoreLeaveBalances,
+            myPendingRequests,
+            departmentRequests
         ));
     }
 
@@ -329,6 +341,80 @@ public class DashboardController(
                     FiscalYearHelper.CalculateAvailableDays(entitled, carriedOver, used, pending, adjusted));
             })
             .ToList();
+    }
+
+    private async Task<DashboardLeaveRequestGroupResponse> LoadMyPendingLeaveRequests(Guid userId)
+    {
+        var query = LoadDashboardLeaveRequests()
+            .Where(item => item.UserId == userId && item.Status == "Pending")
+            .OrderByDescending(item => item.CreatedAt);
+
+        return await BuildLeaveRequestGroup(query);
+    }
+
+    private async Task<DashboardLeaveRequestGroupResponse> LoadDepartmentLeaveRequests(Guid userId, bool canViewTeamDashboard)
+    {
+        if (!canViewTeamDashboard)
+        {
+            return EmptyLeaveRequestGroup();
+        }
+
+        var departmentId = await db.Users
+            .AsNoTracking()
+            .Where(item => item.Id == userId)
+            .Select(item => item.DepartmentId)
+            .FirstOrDefaultAsync();
+
+        if (departmentId is null)
+        {
+            return EmptyLeaveRequestGroup();
+        }
+
+        var departmentStatuses = new[] { "Pending", "Approved", "ReturnedForRevision", "Rejected", "Cancelled" };
+        var query = LoadDashboardLeaveRequests()
+            .Where(item =>
+                item.UserId != userId &&
+                item.User != null &&
+                item.User.DepartmentId == departmentId &&
+                departmentStatuses.Contains(item.Status))
+            .OrderByDescending(item => item.CreatedAt);
+
+        return await BuildLeaveRequestGroup(query);
+    }
+
+    private async Task<DashboardLeaveRequestGroupResponse> BuildLeaveRequestGroup(IQueryable<LeaveRequest> query)
+    {
+        var count = await query.CountAsync();
+        var items = await query
+            .Take(5)
+            .Select(item => new DashboardLeaveRequestItemResponse(
+                item.Id,
+                item.RequestNumber,
+                item.User != null ? item.User.FullName : "-",
+                item.LeaveType != null ? item.LeaveType.Name : null,
+                item.StartDate,
+                item.EndDate,
+                item.TotalDays,
+                item.Status,
+                item.CurrentApprover != null ? item.CurrentApprover.FullName : null,
+                item.CreatedAt))
+            .ToListAsync();
+
+        return new DashboardLeaveRequestGroupResponse(count, items);
+    }
+
+    private IQueryable<LeaveRequest> LoadDashboardLeaveRequests()
+    {
+        return db.LeaveRequests
+            .AsNoTracking()
+            .Include(item => item.User)
+            .Include(item => item.LeaveType)
+            .Include(item => item.CurrentApprover);
+    }
+
+    private static DashboardLeaveRequestGroupResponse EmptyLeaveRequestGroup()
+    {
+        return new DashboardLeaveRequestGroupResponse(0, Array.Empty<DashboardLeaveRequestItemResponse>());
     }
 
     private async Task<bool> CanAccessExecutiveDashboard(Guid userId)

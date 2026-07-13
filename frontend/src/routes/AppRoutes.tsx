@@ -172,6 +172,7 @@ export function AppRoutes() {
           <Route path="/line/leave-approval/:id" element={withPermission(<LineLeaveApprovalPage />, "LeaveApproval.ApproveCurrentStep")} />
           <Route path="/leave/types" element={<LeaveTypeGuard />} />
           <Route path="/leave/balances" element={withPermission(<LeaveBalancePage />, "LeaveRequest.ViewOwn")} />
+          <Route path="/leave/:id/edit" element={withPermission(<LeaveRequestFormPage />, "LeaveRequest.EditOwn")} />
           <Route path="/leave/:id" element={withAnyPermission(<LeaveRequestDetailPage />, leaveViewPermissions)} />
           <Route path="/reports/leaves" element={withPermission(<LeaveReportsPage />, "ReportManagement.View")} />
           <Route path="/reports/leave-analytics" element={withAnyPermissionOrRole(<LeaveAnalyticsPage />, ["LeaveAnalytics.View", "ReportManagement.View"], ["Director", "Admin", "SuperAdmin"])} />

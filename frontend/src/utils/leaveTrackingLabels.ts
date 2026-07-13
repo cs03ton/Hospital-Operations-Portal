@@ -18,6 +18,8 @@ export function getTrackingStatusLabel(request: Pick<LeaveRequest, "status" | "c
       return "แบบร่าง";
     case "Pending":
       return request.currentApproverName ? `รออนุมัติจาก ${request.currentApproverName}` : "ส่งคำขอแล้ว";
+    case "ReturnedForRevision":
+      return "ตีกลับรอแก้ไข";
     case "Approved":
       return "อนุมัติแล้ว";
     case "Rejected":
@@ -46,6 +48,10 @@ export function getTrackingStepLabel(request: Pick<LeaveRequest, "status" | "cur
     return "สิ้นสุดด้วยการไม่อนุมัติ";
   }
 
+  if (request.status === "ReturnedForRevision") {
+    return "ผู้ขอแก้ไขคำขอ";
+  }
+
   if (request.status === "Cancelled") {
     return "ยกเลิกคำขอ";
   }
@@ -61,6 +67,10 @@ export function getTrackingMessage(request: Pick<LeaveRequest, "id" | "requestNu
   const requestCode = getLeaveRequestCode(request.requestNumber, request.id);
   if (request.status === "Pending" && request.currentApproverName) {
     return `คำขอลา ${requestCode} รออนุมัติจาก ${request.currentApproverName}`;
+  }
+
+  if (request.status === "ReturnedForRevision") {
+    return "คำขอนี้ถูกตีกลับและรอให้ผู้ขอแก้ไขข้อมูลหรือไฟล์แนบ";
   }
 
   return `คำขอลา ${requestCode} อยู่ในสถานะ ${getTrackingStepLabel(request)}`;

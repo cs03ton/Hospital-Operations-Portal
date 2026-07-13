@@ -24,6 +24,23 @@ API ต่อไปนี้ใช้ rule เดียวกัน:
 
 ถ้าผู้ใช้ไม่มีสิทธิ์ ระบบต้องตอบ `403 Forbidden` และบันทึก audit event ผ่าน `Authorization.Denied`
 
+### List Scope Query
+
+`GET /api/leave-requests` รองรับ scope สำหรับ navigation จาก dashboard:
+
+| Query | ความหมาย | Backend Enforcement |
+| --- | --- | --- |
+| `scope=mine` | แสดงเฉพาะคำขอของผู้ใช้ปัจจุบัน | เพิ่มเงื่อนไข `UserId = currentUserId` |
+| `scope=department` | แสดงคำขอของคนในหน่วยงานเดียวกัน | ต้องมี `LeaveRequest.ViewDepartment`, `LeaveRequest.ViewAll`, หรือ visibility equivalent และต้องไม่รวมคำขอของตัวเอง |
+
+รองรับ status alias เพื่อให้ URL อ่านง่าย:
+
+- `status=pending` → `Pending`
+- `status=returned` → `ReturnedForRevision`
+- `status=approved` → `Approved`
+- `status=rejected` → `Rejected`
+- `status=cancelled` → `Cancelled`
+
 ## Permission Mapping
 
 ระบบยังรองรับ granular permissions:
@@ -40,6 +57,19 @@ Rule สำคัญ:
 - `Admin` และ `SuperAdmin` ไม่ได้ `ViewAll` จากชื่อ role เพียงอย่างเดียว ต้องมี permission explicit
 - `LeaveRequest.ViewAll` และ `LeaveSupport.ViewAll` เป็น permission ที่อนุญาตให้เห็นคำขอลาทั้งหมด
 - `DepartmentHead` เห็น Staff ในหน่วยงานเดียวกันและคำขอของตัวเอง
+
+## Dashboard Rule for Department Head
+
+Dashboard ของหัวหน้าหน่วยงานแยกข้อมูลเป็น 2 กลุ่มเพื่อป้องกันการนับซ้ำ:
+
+1. `คำขอลาของฉันที่รออนุมัติ`
+   - ใช้เฉพาะคำขอของหัวหน้าคนนั้นเอง
+   - นับเฉพาะ `Pending`
+   - ไม่นับ `ReturnedForRevision`, `Approved`, `Rejected`, `Cancelled`
+2. `คำขอลาของหน่วยงาน`
+   - ใช้คำขอของผู้ใช้ในหน่วยงานเดียวกัน
+   - ไม่รวมคำขอของหัวหน้าเอง
+   - ไม่แสดงคำขอจากหน่วยงานอื่น
 
 ## BUG-001 Fix
 

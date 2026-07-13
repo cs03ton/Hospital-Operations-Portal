@@ -2,8 +2,8 @@ import AddCircleOutlineOutlinedIcon from "@mui/icons-material/AddCircleOutlineOu
 import VisibilityOutlinedIcon from "@mui/icons-material/VisibilityOutlined";
 import { Box, Button, Card, CardContent, Chip, Grid, IconButton, MenuItem, Stack, Table, TableBody, TableCell, TableHead, TablePagination, TableRow, TextField } from "@mui/material";
 import { useQuery } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
-import { Link as RouterLink } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
+import { Link as RouterLink, useSearchParams } from "react-router-dom";
 import { getDepartments } from "../api/adminApi";
 import { getLeaveRequestsPaged, getLeaveTypes, type LeaveRequestQuery } from "../api/leaveApi";
 import { AppDatePicker } from "../components/common/AppDatePicker";
@@ -14,25 +14,37 @@ import { formatThaiDate } from "../utils/dateFormat";
 import { getLeaveStatusColor, getLeaveStatusLabel, getLeaveTypeLabel, getLeaveTypeWithDurationLabel } from "../utils/leaveLabels";
 import { getLeaveRequestCode, getTrackingStatusLabel, getTrackingStepLabel } from "../utils/leaveTrackingLabels";
 
+type LeaveListFilters = {
+  leaveTypeId: string;
+  status: string;
+  scope: string;
+  departmentId: string;
+  fromDate: string;
+  toDate: string;
+  userId: string;
+};
+
 export function LeaveManagementPage() {
   const { user } = useAuth();
   const { hasAnyPermission } = usePermission();
+  const [searchParams, setSearchParams] = useSearchParams();
   const canRequestLeave = user?.role !== "Admin" && user?.role !== "SuperAdmin";
   const canFilterDepartments = hasAnyPermission(["DepartmentManagement.View", "LeaveRequest.ViewAll"]);
-  const [filters, setFilters] = useState({
-    leaveTypeId: "",
-    status: "",
-    departmentId: "",
-    fromDate: "",
-    toDate: "",
-    userId: "",
-  });
+  const canUseDepartmentScope = hasAnyPermission(["LeaveRequest.ViewDepartment", "LeaveRequest.ViewAll", "LeaveSupport.ViewAll"]);
+  const [filters, setFilters] = useState<LeaveListFilters>(() => readFiltersFromSearchParams(searchParams));
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(10);
+
+  useEffect(() => {
+    setFilters(readFiltersFromSearchParams(searchParams));
+    setPage(0);
+  }, [searchParams]);
+
   const queryFilters = useMemo<LeaveRequestQuery>(
     () => ({
       leaveTypeId: filters.leaveTypeId || undefined,
       status: filters.status || undefined,
+      scope: filters.scope || undefined,
       departmentId: canFilterDepartments ? filters.departmentId || undefined : undefined,
       fromDate: filters.fromDate || undefined,
       toDate: filters.toDate || undefined,
@@ -59,9 +71,10 @@ export function LeaveManagementPage() {
   }, [data]);
   const visibleData = data?.items ?? [];
 
-  function updateFilters(nextFilters: typeof filters) {
+  function updateFilters(nextFilters: LeaveListFilters) {
     setFilters(nextFilters);
     setPage(0);
+    setSearchParams(buildSearchParams(nextFilters), { replace: false });
   }
 
   return (
@@ -108,9 +121,18 @@ export function LeaveManagementPage() {
                 <MenuItem value="">ทุกสถานะ</MenuItem>
                 <MenuItem value="Draft">แบบร่าง</MenuItem>
                 <MenuItem value="Pending">รออนุมัติ</MenuItem>
+                <MenuItem value="ReturnedForRevision">ส่งกลับแก้ไข</MenuItem>
                 <MenuItem value="Approved">อนุมัติแล้ว</MenuItem>
                 <MenuItem value="Rejected">ไม่อนุมัติ</MenuItem>
                 <MenuItem value="Cancelled">ยกเลิก</MenuItem>
+              </TextField>
+            </Grid>
+            <Grid item xs={12} sm={6} md={2}>
+              <TextField select fullWidth size="small" label="ขอบเขตรายการ" value={filters.scope} onChange={(event) => updateFilters({ ...filters, scope: event.target.value })}>
+                <MenuItem value="">ตามสิทธิ์ของฉัน</MenuItem>
+                <MenuItem value="mine">คำขอของฉัน</MenuItem>
+                {canUseDepartmentScope && <MenuItem value="department">คำขอของหน่วยงาน</MenuItem>}
+                {!canUseDepartmentScope && filters.scope === "department" && <MenuItem value="department" disabled>คำขอของหน่วยงาน</MenuItem>}
               </TextField>
             </Grid>
             {canFilterDepartments && (
@@ -221,4 +243,82 @@ export function LeaveManagementPage() {
       </Card>
     </>
   );
+}
+
+function readFiltersFromSearchParams(searchParams: URLSearchParams): LeaveListFilters {
+  return {
+    leaveTypeId: searchParams.get("leaveTypeId") ?? "",
+    status: normalizeStatusParam(searchParams.get("status")),
+    scope: normalizeScopeParam(searchParams.get("scope")),
+    departmentId: searchParams.get("departmentId") ?? "",
+    fromDate: searchParams.get("fromDate") ?? "",
+    toDate: searchParams.get("toDate") ?? "",
+    userId: searchParams.get("userId") ?? "",
+  };
+}
+
+function buildSearchParams(filters: LeaveListFilters) {
+  const next = new URLSearchParams();
+  setIfPresent(next, "leaveTypeId", filters.leaveTypeId);
+  setIfPresent(next, "status", toStatusQueryValue(filters.status));
+  setIfPresent(next, "scope", filters.scope);
+  setIfPresent(next, "departmentId", filters.departmentId);
+  setIfPresent(next, "fromDate", filters.fromDate);
+  setIfPresent(next, "toDate", filters.toDate);
+  setIfPresent(next, "userId", filters.userId);
+  return next;
+}
+
+function setIfPresent(params: URLSearchParams, key: string, value: string) {
+  if (value) {
+    params.set(key, value);
+  }
+}
+
+function normalizeStatusParam(value: string | null) {
+  if (!value) return "";
+  switch (value.toLowerCase()) {
+    case "draft":
+      return "Draft";
+    case "pending":
+      return "Pending";
+    case "returned":
+    case "returnedforrevision":
+    case "returned_for_revision":
+      return "ReturnedForRevision";
+    case "approved":
+      return "Approved";
+    case "rejected":
+      return "Rejected";
+    case "cancelled":
+    case "canceled":
+      return "Cancelled";
+    default:
+      return value;
+  }
+}
+
+function toStatusQueryValue(value: string) {
+  switch (value) {
+    case "Draft":
+      return "draft";
+    case "Pending":
+      return "pending";
+    case "ReturnedForRevision":
+      return "returned";
+    case "Approved":
+      return "approved";
+    case "Rejected":
+      return "rejected";
+    case "Cancelled":
+      return "cancelled";
+    default:
+      return value;
+  }
+}
+
+function normalizeScopeParam(value: string | null) {
+  if (!value) return "";
+  const normalized = value.toLowerCase();
+  return normalized === "mine" || normalized === "department" ? normalized : "";
 }

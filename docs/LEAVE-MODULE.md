@@ -14,11 +14,14 @@ Phase 2 starts the Leave Management API and Thai frontend workflow.
 - `POST /api/leave-requests`
 - `PUT /api/leave-requests/{id}`
 - `POST /api/leave-requests/{id}/submit`
+- `POST /api/leave-requests/{id}/resubmit`
 - `POST /api/leave-requests/{id}/cancel`
 - `POST /api/leave-requests/{id}/approve`
 - `POST /api/leave-requests/{id}/reject`
+- `POST /api/leave-requests/{id}/return-for-revision`
 - `GET /api/leave-requests/{id}/attachments`
 - `POST /api/leave-requests/{id}/attachments`
+- `GET /api/leave-requests/{id}/attachments/{attachmentId}/preview`
 - `GET /api/leave-attachments/{id}/download`
 - `DELETE /api/leave-attachments/{id}`
 - `GET /api/leave-balances/me`
@@ -55,6 +58,7 @@ Phase 2 starts the Leave Management API and Thai frontend workflow.
 
 - Draft
 - Pending
+- ReturnedForRevision
 - Approved
 - Rejected
 - Cancelled
@@ -67,13 +71,16 @@ Phase 2 starts the Leave Management API and Thai frontend workflow.
 - `LeaveRequest.Create`
 - `LeaveRequest.Update`
 - `LeaveRequest.Submit`
+- `LeaveRequest.Resubmitted`
 - `LeaveRequest.Cancel`
+- `LeaveRequest.ReturnedForRevision`
 - `LeaveRequest.PdfGenerated`
 - `LeaveRequest.Approved`
 - `LeaveRequest.Rejected`
-- `LeaveAttachment.Upload`
-- `LeaveAttachment.Download`
-- `LeaveAttachment.Delete`
+- `LeaveAttachment.Uploaded`
+- `LeaveAttachment.Previewed`
+- `LeaveAttachment.Downloaded`
+- `LeaveAttachment.Deleted`
 - `ApprovalChain.Create`
 - `ApprovalChain.Edit`
 - `ApprovalChain.Delete`

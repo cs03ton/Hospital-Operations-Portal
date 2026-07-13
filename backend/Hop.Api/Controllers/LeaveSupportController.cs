@@ -93,7 +93,9 @@ public class LeaveSupportController(AppDbContext db) : ControllerBase
                 item.RequiredPermissionCode,
                 item.Remark,
                 item.CreatedAt,
-                item.ActionAt))
+                item.ActionAt,
+                item.ReturnedAt,
+                item.ReturnReason))
             .ToList();
         var overrideLogs = await db.ApprovalOverrideLogs
             .AsNoTracking()

@@ -25,7 +25,7 @@ public sealed class LeaveAttachmentStorageService(IConfiguration configuration) 
             throw new InvalidOperationException($"File exceeds the configured size limit of {maxSizeMb} MB.");
         }
 
-        var allowedExtensions = (configuration["LeaveAttachments:AllowedExtensions"] ?? ".pdf,.jpg,.jpeg,.png")
+        var allowedExtensions = (configuration["LeaveAttachments:AllowedExtensions"] ?? ".pdf,.jpg,.jpeg,.png,.webp")
             .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             .Select(extension => extension.StartsWith('.') ? extension.ToLowerInvariant() : $".{extension.ToLowerInvariant()}")
             .ToHashSet();

@@ -39,6 +39,7 @@ public class LeaveRequestsController(
         [FromQuery] DateOnly? fromDate,
         [FromQuery] DateOnly? toDate,
         [FromQuery(Name = "userId")] Guid? filterUserId,
+        [FromQuery] string? scope,
         [FromQuery] int? page,
         [FromQuery] int? pageSize)
     {
@@ -54,7 +55,41 @@ public class LeaveRequestsController(
 
         if (!string.IsNullOrWhiteSpace(status))
         {
-            query = query.Where(item => item.Status == status.Trim());
+            var normalizedStatus = NormalizeLeaveStatus(status);
+            query = query.Where(item => item.Status == normalizedStatus);
+        }
+
+        if (!string.IsNullOrWhiteSpace(scope))
+        {
+            var normalizedScope = scope.Trim().ToLowerInvariant();
+            if (normalizedScope == "mine")
+            {
+                if (currentUserId is null)
+                {
+                    return Forbid();
+                }
+
+                query = query.Where(item => item.UserId == currentUserId);
+            }
+            else if (normalizedScope == "department")
+            {
+                if (currentUserId is null || (!visibility.ViewDepartment && !visibility.ViewAll))
+                {
+                    return Forbid();
+                }
+
+                if (visibility.DepartmentId is null)
+                {
+                    query = query.Where(_ => false);
+                }
+                else
+                {
+                    query = query.Where(item =>
+                        item.UserId != currentUserId &&
+                        item.User != null &&
+                        item.User.DepartmentId == visibility.DepartmentId);
+                }
+            }
         }
 
         if (departmentId is not null)
@@ -103,6 +138,20 @@ public class LeaveRequestsController(
             .ToListAsync();
 
         return ApiResponse<object>.Ok(items);
+    }
+
+    private static string NormalizeLeaveStatus(string status)
+    {
+        return status.Trim().ToLowerInvariant() switch
+        {
+            "draft" => "Draft",
+            "pending" => "Pending",
+            "returned" or "returnedforrevision" or "returned_for_revision" => "ReturnedForRevision",
+            "approved" => "Approved",
+            "rejected" => "Rejected",
+            "cancelled" or "canceled" => "Cancelled",
+            _ => status.Trim()
+        };
     }
 
     [HttpGet("{id:guid}")]
@@ -304,9 +353,9 @@ public class LeaveRequestsController(
             return Forbid();
         }
 
-        if (leaveRequest.Status != "Draft")
+        if (!CanRequesterModifyDraftOrRevision(leaveRequest))
         {
-            return BadRequest(ApiResponse<LeaveRequestResponse>.Fail("แก้ไขได้เฉพาะคำขอที่เป็นแบบร่างเท่านั้น"));
+            return BadRequest(ApiResponse<LeaveRequestResponse>.Fail("แก้ไขได้เฉพาะคำขอที่เป็นแบบร่างหรือคำขอที่ถูกตีกลับรอแก้ไขเท่านั้น"));
         }
 
         leaveRequest.LeaveTypeId = request.LeaveTypeId;
@@ -407,11 +456,71 @@ public class LeaveRequestsController(
         return ApiResponse<LeaveRequestResponse>.Ok(ToResponse(updated));
     }
 
+    [HttpPost("{id:guid}/resubmit")]
+    [RequirePermission(LeavePermissions.Create)]
+    public async Task<ActionResult<ApiResponse<LeaveRequestResponse>>> ResubmitLeaveRequest(Guid id)
+    {
+        var leaveRequest = await db.LeaveRequests
+            .Include(item => item.User)
+            .Include(item => item.LeaveType)
+            .Include(item => item.Approvals)
+            .FirstOrDefaultAsync(item => item.Id == id);
+        if (leaveRequest is null)
+        {
+            return NotFound(ApiResponse<LeaveRequestResponse>.Fail("Leave request not found."));
+        }
+
+        if (leaveRequest.UserId != GetCurrentUserId())
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, ApiResponse<LeaveRequestResponse>.Fail("เฉพาะผู้ขอคำขอเท่านั้นที่สามารถส่งคำขอใหม่ได้"));
+        }
+
+        if (leaveRequest.Status != "ReturnedForRevision")
+        {
+            return BadRequest(ApiResponse<LeaveRequestResponse>.Fail("ส่งใหม่ได้เฉพาะคำขอที่ถูกตีกลับรอแก้ไขเท่านั้น"));
+        }
+
+        var returnedApproval = leaveRequest.Approvals
+            .OrderBy(item => item.StepOrder)
+            .FirstOrDefault(item => item.Status == "ReturnedForRevision");
+        if (returnedApproval is null)
+        {
+            return BadRequest(ApiResponse<LeaveRequestResponse>.Fail("ไม่พบขั้นตอนที่ตีกลับรอแก้ไข"));
+        }
+
+        var validation = await leaveValidationService.ValidateSubmitAsync(leaveRequest);
+        if (!validation.IsValid)
+        {
+            return BadRequest(ApiResponse<LeaveRequestResponse>.Fail(validation.Message ?? "ไม่สามารถส่งคำขอลาใหม่ได้"));
+        }
+
+        leaveRequest.TotalDays = validation.CalculatedDays;
+        leaveRequest.Status = "Pending";
+        leaveRequest.CurrentApproverId = returnedApproval.ApproverId;
+        leaveRequest.SubmittedAt ??= DateTime.UtcNow;
+        leaveRequest.LastResubmittedAt = DateTime.UtcNow;
+        leaveRequest.UpdatedAt = DateTime.UtcNow;
+
+        returnedApproval.Status = "Pending";
+        returnedApproval.ActionAt = null;
+        returnedApproval.Remark = null;
+
+        await UpdatePendingBalance(leaveRequest, leaveRequest.TotalDays);
+        await db.SaveChangesAsync();
+        await auditLogService.WriteAsync(GetCurrentUserId(), "LeaveRequest.Resubmitted", "LeaveRequest", leaveRequest.Id.ToString(), "Resubmitted leave request after revision.", "Success", HttpContext);
+        await leaveNotificationEventPublisher.PublishAsync("LeaveResubmitted", leaveRequest.Id, leaveRequest.CurrentApproverId, HttpContext.RequestAborted);
+
+        var updated = await LoadLeaveRequests().SingleAsync(item => item.Id == id);
+        return ApiResponse<LeaveRequestResponse>.Ok(ToResponse(updated));
+    }
+
     [HttpPost("{id:guid}/cancel")]
     [RequirePermission(LeavePermissions.CancelOwn)]
     public async Task<ActionResult<ApiResponse<LeaveRequestResponse>>> CancelLeaveRequest(Guid id)
     {
-        var leaveRequest = await db.LeaveRequests.FirstOrDefaultAsync(item => item.Id == id);
+        var leaveRequest = await db.LeaveRequests
+            .Include(item => item.Approvals)
+            .FirstOrDefaultAsync(item => item.Id == id);
         if (leaveRequest is null)
         {
             return NotFound(ApiResponse<LeaveRequestResponse>.Fail("Leave request not found."));
@@ -428,6 +537,7 @@ public class LeaveRequestsController(
         }
 
         var pendingApproverId = leaveRequest.CurrentApproverId;
+        var wasReturnedForRevision = leaveRequest.Status == "ReturnedForRevision";
         if (leaveRequest.Status == "Pending")
         {
             await UpdatePendingBalance(leaveRequest, -leaveRequest.TotalDays);
@@ -436,9 +546,17 @@ public class LeaveRequestsController(
         leaveRequest.Status = "Cancelled";
         leaveRequest.CurrentApproverId = null;
         leaveRequest.UpdatedAt = DateTime.UtcNow;
+        if (wasReturnedForRevision)
+        {
+            foreach (var approval in leaveRequest.Approvals.Where(item => item.Status == "ReturnedForRevision"))
+            {
+                approval.Status = "Cancelled";
+                approval.Remark ??= "Cancelled by requester after revision was requested.";
+            }
+        }
         await db.SaveChangesAsync();
-        await auditLogService.WriteAsync(GetCurrentUserId(), "LeaveRequest.Cancel", "LeaveRequest", leaveRequest.Id.ToString(), "Cancelled leave request.", "Success", HttpContext);
-        await leaveNotificationEventPublisher.PublishAsync("LeaveCancelled", leaveRequest.Id, pendingApproverId, HttpContext.RequestAborted);
+        await auditLogService.WriteAsync(GetCurrentUserId(), "LeaveRequest.Cancelled", "LeaveRequest", leaveRequest.Id.ToString(), "Cancelled leave request.", "Success", HttpContext);
+        await leaveNotificationEventPublisher.PublishAsync(wasReturnedForRevision ? "LeaveRevisionCancelled" : "LeaveCancelled", leaveRequest.Id, pendingApproverId, HttpContext.RequestAborted);
         var cancelled = await LoadLeaveRequests().SingleAsync(item => item.Id == id);
 
         return ApiResponse<LeaveRequestResponse>.Ok(ToResponse(cancelled));
@@ -458,11 +576,92 @@ public class LeaveRequestsController(
         return await Decide(id, "Rejected", request.Remark);
     }
 
+    [HttpPost("{id:guid}/return-for-revision")]
+    [RequirePermission(LeavePermissions.ApproveCurrentStep)]
+    public async Task<ActionResult<ApiResponse<LeaveRequestResponse>>> ReturnForRevision(Guid id, LeaveReturnForRevisionRequest request)
+    {
+        var approverId = GetCurrentUserId();
+        if (approverId is null)
+        {
+            return Unauthorized(ApiResponse<LeaveRequestResponse>.Fail("Invalid access token."));
+        }
+
+        if (string.IsNullOrWhiteSpace(request.Reason))
+        {
+            return BadRequest(ApiResponse<LeaveRequestResponse>.Fail("กรุณาระบุเหตุผลการตีกลับรอแก้ไข"));
+        }
+
+        var leaveRequest = await db.LeaveRequests
+            .Include(item => item.Approvals)
+            .FirstOrDefaultAsync(item => item.Id == id);
+        if (leaveRequest is null)
+        {
+            return NotFound(ApiResponse<LeaveRequestResponse>.Fail("Leave request not found."));
+        }
+
+        if (leaveRequest.Status != "Pending")
+        {
+            return BadRequest(ApiResponse<LeaveRequestResponse>.Fail("ตีกลับได้เฉพาะคำขอที่รออนุมัติเท่านั้น"));
+        }
+
+        var approval = leaveRequest.Approvals
+            .OrderBy(item => item.StepOrder)
+            .FirstOrDefault(item => item.Status == "Pending");
+        if (approval is null)
+        {
+            return BadRequest(ApiResponse<LeaveRequestResponse>.Fail("ไม่พบขั้นตอนอนุมัติที่รอดำเนินการ"));
+        }
+
+        if (leaveRequest.UserId == approverId)
+        {
+            await auditLogService.WriteAsync(
+                approverId,
+                "SelfApprovalBlocked",
+                "LeaveRequest",
+                leaveRequest.Id.ToString(),
+                $"Blocked self return-for-revision for approval step {approval.StepOrder}.",
+                "Denied",
+                HttpContext);
+            return Forbid();
+        }
+
+        if (approval.ApproverId != approverId || !await HasPermissionAsync(approval.RequiredPermissionCode))
+        {
+            return Forbid();
+        }
+
+        var reason = request.Reason.Trim();
+        var now = DateTime.UtcNow;
+        approval.Status = "ReturnedForRevision";
+        approval.Remark = reason;
+        approval.ReturnReason = reason;
+        approval.ReturnedAt = now;
+        approval.ActionAt = now;
+
+        leaveRequest.Status = "ReturnedForRevision";
+        leaveRequest.CurrentApproverId = null;
+        leaveRequest.ReturnedForRevisionAt = now;
+        leaveRequest.ReturnedForRevisionByUserId = approverId;
+        leaveRequest.RevisionReason = reason;
+        leaveRequest.RevisionCount += 1;
+        leaveRequest.UpdatedAt = now;
+
+        await UpdatePendingBalance(leaveRequest, -leaveRequest.TotalDays);
+        await db.SaveChangesAsync();
+        await auditLogService.WriteAsync(approverId, "LeaveRequest.ReturnedForRevision", "LeaveRequest", leaveRequest.Id.ToString(), $"Returned for revision. Reason: {reason}", "Success", HttpContext);
+        await leaveNotificationEventPublisher.PublishAsync("LeaveReturnedForRevision", leaveRequest.Id, leaveRequest.UserId, HttpContext.RequestAborted);
+
+        var updated = await LoadLeaveRequests().SingleAsync(item => item.Id == id);
+        return ApiResponse<LeaveRequestResponse>.Ok(ToResponse(updated));
+    }
+
     [HttpPost("{id:guid}/line-action-opened")]
     [RequireAnyPermission(LeavePermissions.ViewOwn, LeavePermissions.ViewPendingApproval, LeavePermissions.ViewDepartment, LeavePermissions.ViewAll, LeavePermissions.SupportViewAll)]
     public async Task<ActionResult<ApiResponse<bool>>> RecordLineActionOpened(Guid id, LineApprovalActionOpenedRequest request)
     {
-        var leaveRequest = await db.LeaveRequests.FirstOrDefaultAsync(item => item.Id == id);
+        var leaveRequest = await db.LeaveRequests
+            .Include(item => item.Approvals)
+            .FirstOrDefaultAsync(item => item.Id == id);
         if (leaveRequest is null)
         {
             return NotFound(ApiResponse<bool>.Fail("Leave request not found."));
@@ -554,6 +753,11 @@ public class LeaveRequestsController(
             return Forbid();
         }
 
+        if (!CanRequesterModifyDraftOrRevision(leaveRequest))
+        {
+            return BadRequest(ApiResponse<LeaveAttachmentResponse>.Fail("จัดการไฟล์แนบได้เฉพาะคำขอแบบร่างหรือคำขอที่ถูกตีกลับรอแก้ไขเท่านั้น"));
+        }
+
         try
         {
             var scanResult = await fileScanningService.ScanAsync(file, HttpContext.RequestAborted);
@@ -568,7 +772,7 @@ public class LeaveRequestsController(
             var attachment = await attachmentStorage.SaveAsync(id, GetCurrentUserId()!.Value, file);
             db.LeaveAttachments.Add(attachment);
             await db.SaveChangesAsync();
-            await auditLogService.WriteAsync(GetCurrentUserId(), "LeaveAttachment.Upload", "LeaveRequest", id.ToString(), $"Uploaded attachment {attachment.FileName}.", "Success", HttpContext);
+            await auditLogService.WriteAsync(GetCurrentUserId(), "LeaveAttachment.Uploaded", "LeaveRequest", id.ToString(), $"Uploaded attachment {attachment.FileName}.", "Success", HttpContext);
 
             var created = await db.LeaveAttachments
                 .Include(item => item.UploadedByUser)
@@ -801,6 +1005,7 @@ public class LeaveRequestsController(
             .Include(item => item.CurrentApprover)
                 .ThenInclude(user => user!.UserRoles)
                     .ThenInclude(userRole => userRole.Role)
+            .Include(item => item.ReturnedForRevisionByUser)
             .Include(item => item.Approvals)
                 .ThenInclude(approval => approval.Approver);
     }
@@ -859,6 +1064,11 @@ public class LeaveRequestsController(
     private async Task<bool> CanEditLeaveRequest(LeaveRequest leaveRequest)
     {
         return leaveRequest.UserId == GetCurrentUserId() && await HasPermissionAsync(LeavePermissions.EditOwn);
+    }
+
+    private static bool CanRequesterModifyDraftOrRevision(LeaveRequest leaveRequest)
+    {
+        return leaveRequest.Status is "Draft" or "ReturnedForRevision";
     }
 
     private async Task<bool> HasPermissionAsync(string permissionCode)
@@ -932,6 +1142,12 @@ public class LeaveRequestsController(
             trackingMessage,
             item.CreatedAt,
             item.SubmittedAt,
+            item.ReturnedForRevisionAt,
+            item.ReturnedForRevisionByUserId,
+            item.ReturnedForRevisionByUser?.FullName,
+            item.RevisionReason,
+            item.RevisionCount,
+            item.LastResubmittedAt,
             item.UpdatedAt
         );
     }
@@ -944,6 +1160,7 @@ public class LeaveRequestsController(
             "Pending" when !string.IsNullOrWhiteSpace(currentApproverName) => $"รออนุมัติจาก {currentApproverName}",
             "Pending" when !string.IsNullOrWhiteSpace(currentStepName) => $"รอ{currentStepName}",
             "Pending" => "ส่งคำขอแล้ว",
+            "ReturnedForRevision" => "ตีกลับรอแก้ไข",
             "Approved" => "อนุมัติแล้ว",
             "Rejected" => "ไม่อนุมัติ",
             "Cancelled" => "ยกเลิกแล้ว",
@@ -962,6 +1179,7 @@ public class LeaveRequestsController(
             "Pending" when !string.IsNullOrWhiteSpace(currentApproverName) =>
                 $"คำขอลา {requestCode} รออนุมัติจาก {currentApproverName}",
             "Pending" => $"คำขอลา {requestCode} ส่งคำขอแล้วและอยู่ระหว่างรออนุมัติ",
+            "ReturnedForRevision" => $"คำขอลา {requestCode} ถูกตีกลับรอแก้ไข กรุณาแก้ไขข้อมูลหรือไฟล์แนบแล้วส่งคำขอใหม่",
             "Approved" => $"คำขอลา {requestCode} ได้รับการอนุมัติแล้ว",
             "Rejected" => $"คำขอลา {requestCode} ถูกไม่อนุมัติ",
             "Cancelled" => $"คำขอลา {requestCode} ถูกยกเลิกแล้ว",

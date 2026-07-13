@@ -43,7 +43,9 @@ public record DashboardSummaryResponse(
     int StaffOnLeaveThisMonth,
     decimal MyRemainingLeaveDays,
     int MyLeaveRequestsTotal,
+    int MyLeaveRequestsDraft,
     int MyLeaveRequestsPending,
+    int MyLeaveRequestsReturnedForRevision,
     int MyLeaveRequestsApproved,
     int MyLeaveRequestsRejected,
     int MyLeaveRequestsCancelled,
@@ -60,7 +62,9 @@ public record DashboardSummaryResponse(
     string ApiHealth,
     string DatabaseStatus,
     string ApplicationVersion,
-    IReadOnlyList<DashboardLeaveBalanceResponse>? MyCoreLeaveBalances = null
+    IReadOnlyList<DashboardLeaveBalanceResponse>? MyCoreLeaveBalances = null,
+    DashboardLeaveRequestGroupResponse? MyPendingRequests = null,
+    DashboardLeaveRequestGroupResponse? DepartmentRequests = null
 );
 
 public record DashboardLeaveBalanceResponse(
@@ -70,6 +74,24 @@ public record DashboardLeaveBalanceResponse(
     decimal UsedDays,
     decimal PendingDays,
     decimal AvailableDays
+);
+
+public record DashboardLeaveRequestGroupResponse(
+    int Count,
+    IReadOnlyList<DashboardLeaveRequestItemResponse> Items
+);
+
+public record DashboardLeaveRequestItemResponse(
+    Guid Id,
+    string? RequestNumber,
+    string RequesterName,
+    string? LeaveTypeName,
+    DateOnly StartDate,
+    DateOnly EndDate,
+    decimal TotalDays,
+    string Status,
+    string? CurrentApproverName,
+    DateTime CreatedAt
 );
 
 public record ExecutiveDashboardResponse(

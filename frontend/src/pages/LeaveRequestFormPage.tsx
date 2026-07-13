@@ -4,9 +4,9 @@ import { isAxiosError } from "axios";
 import dayjs from "dayjs";
 import { useEffect } from "react";
 import { Controller, useForm } from "react-hook-form";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { getMyProfile } from "../api/profileApi";
-import { createLeaveRequest, getLeaveHolidays, getLeaveTypes, previewLeavePolicy, type SaveLeaveRequest } from "../api/leaveApi";
+import { createLeaveRequest, getLeaveHolidays, getLeaveRequest, getLeaveTypes, previewLeavePolicy, updateLeaveRequest, type SaveLeaveRequest } from "../api/leaveApi";
 import { AppDatePicker } from "../components/common/AppDatePicker";
 import { PageHeader } from "../components/PageHeader";
 import { appConfig } from "../config/appConfig";
@@ -16,10 +16,13 @@ import { getLeaveTypeLabel } from "../utils/leaveLabels";
 
 export function LeaveRequestFormPage() {
   const navigate = useNavigate();
+  const { id } = useParams();
+  const isEditMode = Boolean(id);
   const { showSuccess } = useNotification();
   const { data: leaveTypes = [] } = useQuery({ queryKey: ["leave-types"], queryFn: getLeaveTypes });
+  const { data: editingRequest } = useQuery({ queryKey: ["leave-requests", id], queryFn: () => getLeaveRequest(id!), enabled: isEditMode });
   const { data: profile } = useQuery({ queryKey: ["me", "profile"], queryFn: getMyProfile });
-  const { control, register, handleSubmit, watch, setValue, formState: { errors } } = useForm<SaveLeaveRequest>({
+  const { control, register, handleSubmit, watch, setValue, reset, formState: { errors } } = useForm<SaveLeaveRequest>({
     defaultValues: { durationType: "FULL_DAY", totalDays: 1, reason: "" },
   });
   const startDate = watch("startDate");
@@ -59,30 +62,47 @@ export function LeaveRequestFormPage() {
   const policyNotes = policyPreview?.policyNotes ?? [];
   const hasPolicyError = policyErrors.length > 0 || policyPreview?.canSubmit === false;
   useEffect(() => {
+    if (!editingRequest) {
+      return;
+    }
+
+    reset({
+      leaveTypeId: editingRequest.leaveTypeId,
+      startDate: editingRequest.startDate,
+      endDate: editingRequest.endDate,
+      durationType: editingRequest.durationType,
+      totalDays: editingRequest.totalDays,
+      reason: editingRequest.reason,
+    });
+  }, [editingRequest, reset]);
+  useEffect(() => {
     setValue("totalDays", isHalfDay ? 0.5 : 1);
     if (isHalfDay && startDate) {
       setValue("endDate", startDate, { shouldValidate: true });
     }
   }, [isHalfDay, setValue, startDate]);
   const mutation = useMutation({
-    mutationFn: (values: SaveLeaveRequest) => createLeaveRequest({
-      ...values,
-      endDate: isHalfDay ? values.startDate : values.endDate,
-      totalDays: isHalfDay ? 0.5 : Number(values.totalDays || 1),
-    }),
+    mutationFn: (values: SaveLeaveRequest) => {
+      const payload = {
+        ...values,
+        endDate: isHalfDay ? values.startDate : values.endDate,
+        totalDays: isHalfDay ? 0.5 : Number(values.totalDays || 1),
+      };
+      return isEditMode ? updateLeaveRequest(id!, payload) : createLeaveRequest(payload);
+    },
     onSuccess: (data) => {
-      showSuccess("เพิ่มคำขอลาสำเร็จเรียบร้อยแล้ว โปรดรออนุมัติ");
+      showSuccess(isEditMode ? "บันทึกการแก้ไขคำขอลาเรียบร้อยแล้ว" : "เพิ่มคำขอลาสำเร็จเรียบร้อยแล้ว โปรดรออนุมัติ");
       navigate(`/leave/${data.id}`);
     },
   });
 
   return (
     <>
-      <PageHeader title="สร้างคำขอลา" subtitle="บันทึกคำขอลาเป็นแบบร่างก่อนส่งอนุมัติ" />
+      <PageHeader title={isEditMode ? "แก้ไขคำขอลา" : "สร้างคำขอลา"} subtitle={isEditMode ? "แก้ไขข้อมูลคำขอที่ยังเป็นแบบร่างหรือถูกตีกลับรอแก้ไข" : "บันทึกคำขอลาเป็นแบบร่างก่อนส่งอนุมัติ"} />
       <Card>
         <CardContent>
           <Stack component="form" spacing={2} onSubmit={handleSubmit((values) => mutation.mutate(values))}>
-            {mutation.isError && <Alert severity="error">{getApiErrorMessage(mutation.error, "สร้างคำขอลาไม่สำเร็จ")}</Alert>}
+            {mutation.isError && <Alert severity="error">{getApiErrorMessage(mutation.error, isEditMode ? "บันทึกการแก้ไขคำขอลาไม่สำเร็จ" : "สร้างคำขอลาไม่สำเร็จ")}</Alert>}
             {leaveTypeId && (
               <Alert severity={hasPolicyError ? "warning" : "info"}>
                 {isPolicyPreviewLoading ? (
@@ -185,8 +205,8 @@ export function LeaveRequestFormPage() {
             </Typography>
             <TextField label="เหตุผล" multiline minRows={4} error={Boolean(errors.reason)} helperText={errors.reason?.message} {...register("reason", { required: "กรุณากรอกเหตุผล" })} />
             <Stack direction="row" spacing={1.5}>
-              <Button type="submit" variant="contained" disabled={mutation.isPending || hasPolicyError || hasHolidayInRange}>บันทึกแบบร่าง</Button>
-              <Button variant="outlined" onClick={() => navigate("/leave")}>ยกเลิก</Button>
+              <Button type="submit" variant="contained" disabled={mutation.isPending || hasPolicyError || hasHolidayInRange}>{isEditMode ? "บันทึกการแก้ไข" : "บันทึกแบบร่าง"}</Button>
+              <Button variant="outlined" onClick={() => navigate(isEditMode ? `/leave/${id}` : "/leave")}>ยกเลิก</Button>
             </Stack>
           </Stack>
         </CardContent>

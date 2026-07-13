@@ -18,7 +18,8 @@ Dashboard widgets are reusable UI blocks.
 |---|---|
 | Welcome | Role-specific greeting |
 | Leave Balance | My remaining leave days |
-| My Leave Requests | Personal leave request summary |
+| My Leave Requests | Personal leave request summary with draft, pending, returned-for-revision, approved, rejected, cancelled, and total counts |
+| Head Leave Request Groups | Department Head split view for own pending requests and department requests |
 | Pending Approval | Current user's pending approval queue |
 | Pending Approval Overview | Admin/SuperAdmin operational count of leave requests still pending |
 | Team Calendar | Link to leave calendar |
@@ -34,6 +35,19 @@ Dashboard widgets are reusable UI blocks.
 ## Permission Behavior
 
 Widgets can be present in a role layout without exposing unrestricted data. The backend summary endpoint calculates sensitive metrics only for roles/permissions that should see them. Admin and SuperAdmin use an overview widget, not the personal "งานรออนุมัติของฉัน" queue.
+
+Returned-for-revision requests count as the requester's own request total and as the separate “ตีกลับรอแก้ไข” bucket. They do not count as pending approval for approver queues.
+
+## Department Head Request Groups
+
+`Head Leave Request Groups` uses backend grouped data from `GET /api/dashboard/summary`.
+
+| Group | Data Rule | Empty State | Navigation |
+|---|---|---|---|
+| คำขอลาของฉันที่รออนุมัติ | `userId = currentUserId` and `status = Pending` | ไม่มีคำขอลาของคุณที่กำลังรออนุมัติ | `/leave?scope=mine&status=pending` |
+| คำขอลาของหน่วยงาน | Same department, exclude current user, statuses `Pending`, `ReturnedForRevision`, `Approved`, `Rejected`, `Cancelled` | ยังไม่มีคำขอลาของหน่วยงาน | `/leave?scope=department` |
+
+The department group must not be built by frontend filtering alone. Backend scope and department visibility are enforced before data is returned.
 
 ## UI Standard
 

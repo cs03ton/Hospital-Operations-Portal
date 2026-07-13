@@ -123,6 +123,44 @@ public class LeaveNotificationEventPublisher(
                     null,
                     cancellationToken);
                 break;
+
+            case "LeaveReturnedForRevision":
+                await ClearActionRequiredAsync(leaveRequest.Id, null, cancellationToken);
+                await CreateRequesterNotificationAsync(
+                    leaveRequest,
+                    "LeaveReturnedForRevisionToRequester",
+                    $"คำขอลา {RequestCode(leaveRequest)} ถูกตีกลับรอแก้ไข",
+                    $"เหตุผล: {Blank(leaveRequest.RevisionReason)} กรุณาแก้ไขข้อมูลหรือไฟล์แนบ แล้วส่งคำขอใหม่อีกครั้ง",
+                    "High",
+                    $"คำขอลาของคุณถูกตีกลับรอแก้ไข\nเลขที่คำขอ: {RequestCode(leaveRequest)}\nเหตุผล: {Blank(leaveRequest.RevisionReason)}\nกรุณาแก้ไขข้อมูลหรือไฟล์แนบ แล้วส่งคำขอใหม่อีกครั้ง",
+                    cancellationToken);
+                break;
+
+            case "LeaveResubmitted":
+                if (recipientUserId is not null)
+                {
+                    await CreateApproverNotificationAsync(
+                        leaveRequest,
+                        recipientUserId.Value,
+                        "LeaveResubmittedToApprover",
+                        $"คำขอลา {RequestCode(leaveRequest)} ถูกส่งใหม่",
+                        $"{leaveRequest.User?.FullName ?? "-"} ส่งคำขอที่แก้ไขแล้วกลับมาให้พิจารณา",
+                        LeaveLineFlexMessageTemplates.BuildPendingApprovalCard(leaveRequest, lineConfiguration.PublicAppUrl, avatar),
+                        cancellationToken);
+                }
+                break;
+
+            case "LeaveRevisionCancelled":
+                await ClearActionRequiredAsync(leaveRequest.Id, null, cancellationToken);
+                await CreateRequesterNotificationAsync(
+                    leaveRequest,
+                    "LeaveRevisionCancelled",
+                    $"ยกเลิกคำขอลา {RequestCode(leaveRequest)} แล้ว",
+                    "ยกเลิกคำขอลาที่ถูกตีกลับรอแก้ไขเรียบร้อยแล้ว",
+                    "Information",
+                    null,
+                    cancellationToken);
+                break;
         }
     }
 

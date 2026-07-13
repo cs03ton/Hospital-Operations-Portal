@@ -38,12 +38,28 @@ Shows:
 Shows:
 
 - Welcome
+- My Leave Balance
+- My Leave Requests
+- My Pending Leave Requests
+- Department Leave Requests
+- My Leave Calendar
 - Team Leave Today
 - Pending Approvals
 - Team Calendar
 - Team Leave Statistics
 - Employees Near Leave Limit
-- My Leave Requests
+
+Department Head dashboard is ordered from personal work to team work:
+
+1. `คำขอลาของฉันที่รออนุมัติ`
+   - Shows only the head's own leave requests with `Pending` status.
+   - Excludes `Approved`, `Rejected`, `Cancelled`, and `ReturnedForRevision`.
+   - CTA opens `/leave?scope=mine&status=pending`.
+2. `คำขอลาของหน่วยงาน`
+   - Shows leave requests from users in the same department.
+   - Excludes the current head's own requests to avoid duplicate counting.
+   - Includes `Pending`, `ReturnedForRevision`, `Approved`, `Rejected`, and `Cancelled`.
+   - CTA opens `/leave?scope=department`.
 
 ## Director
 

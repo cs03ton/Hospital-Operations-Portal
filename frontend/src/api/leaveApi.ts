@@ -41,6 +41,12 @@ export type LeaveRequest = {
   trackingMessage: string;
   createdAt: string;
   submittedAt?: string | null;
+  returnedForRevisionAt?: string | null;
+  returnedForRevisionByUserId?: string | null;
+  returnedForRevisionByName?: string | null;
+  revisionReason?: string | null;
+  revisionCount: number;
+  lastResubmittedAt?: string | null;
   updatedAt?: string | null;
 };
 
@@ -100,6 +106,8 @@ export type LeaveApproval = {
   remark?: string | null;
   createdAt: string;
   actionAt?: string | null;
+  returnedAt?: string | null;
+  returnReason?: string | null;
 };
 
 export type LeaveBalance = {
@@ -402,6 +410,7 @@ export type ApprovalDelegation = {
 export type LeaveRequestQuery = {
   leaveTypeId?: string;
   status?: string;
+  scope?: "mine" | "department" | string;
   departmentId?: string;
   fromDate?: string;
   toDate?: string;
@@ -742,6 +751,11 @@ export async function submitLeaveRequest(id: string) {
   return response.data.data;
 }
 
+export async function resubmitLeaveRequest(id: string) {
+  const response = await httpClient.post<ApiResponse<LeaveRequest>>(`/api/leave-requests/${id}/resubmit`);
+  return response.data.data;
+}
+
 export async function cancelLeaveRequest(id: string) {
   const response = await httpClient.post<ApiResponse<LeaveRequest>>(`/api/leave-requests/${id}/cancel`);
   return response.data.data;
@@ -754,6 +768,11 @@ export async function approveLeaveRequest(id: string, remark?: string) {
 
 export async function rejectLeaveRequest(id: string, remark?: string) {
   const response = await httpClient.post<ApiResponse<LeaveRequest>>(`/api/leave-requests/${id}/reject`, { remark });
+  return response.data.data;
+}
+
+export async function returnLeaveRequestForRevision(id: string, reason: string) {
+  const response = await httpClient.post<ApiResponse<LeaveRequest>>(`/api/leave-requests/${id}/return-for-revision`, { reason });
   return response.data.data;
 }
 
@@ -784,6 +803,13 @@ export async function deleteLeaveAttachment(id: string) {
 
 export async function downloadLeaveAttachment(id: string) {
   const response = await httpClient.get(`/api/leave-attachments/${id}/download`, {
+    responseType: "blob",
+  });
+  return response.data as Blob;
+}
+
+export async function previewLeaveAttachment(leaveRequestId: string, attachmentId: string) {
+  const response = await httpClient.get(`/api/leave-requests/${leaveRequestId}/attachments/${attachmentId}/preview`, {
     responseType: "blob",
   });
   return response.data as Blob;

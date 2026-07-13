@@ -22,6 +22,11 @@
 - 💾 Backup Center
 - 📚 Documentation Center
 - 🔑 Self-service password change
+- 📎 Attachment preview สำหรับไฟล์แนบคำขอลา
+- 🟠 Returned-for-revision workflow แสดงผลเป็น `ตีกลับรอแก้ไข`
+- 📊 Dashboard แยกจำนวนคำขอ `ตีกลับรอแก้ไข` ของผู้ขอออกจากงานรออนุมัติ
+- 🧑‍💼 Head Dashboard แยก `คำขอลาของฉันที่รออนุมัติ` และ `คำขอลาของหน่วยงาน`
+- 🔎 รายการคำขอลารองรับตัวกรองขอบเขต `คำขอของฉัน` และ `คำขอของหน่วยงาน`
 - 🎨 ปรับปรุง UI spacing และ card layout
 - 📲 ปรับปรุง LINE Operations Center และ Flex Message Debug
 

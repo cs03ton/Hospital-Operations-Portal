@@ -4,6 +4,7 @@ const approvalStatusLabels: Record<string, string> = {
   approved: "อนุมัติแล้ว",
   approve: "อนุมัติแล้ว",
   pending: "รออนุมัติ",
+  returnedforrevision: "ตีกลับรอแก้ไข",
   rejected: "ไม่อนุมัติ",
   reject: "ไม่อนุมัติ",
   cancelled: "ยกเลิกแล้ว",
@@ -32,6 +33,7 @@ export function getApprovalStatusColor(status?: string | null): "default" | "war
     case "approve":
       return "success";
     case "pending":
+    case "returnedforrevision":
       return "warning";
     case "rejected":
     case "reject":
@@ -52,6 +54,7 @@ export function getApprovalStatusIcon(status?: string | null): ApprovalStatusIco
     case "approve":
       return "check";
     case "pending":
+    case "returnedforrevision":
       return "clock";
     case "rejected":
     case "reject":

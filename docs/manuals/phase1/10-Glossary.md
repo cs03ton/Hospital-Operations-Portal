@@ -11,9 +11,11 @@
 7. [Approval Chain](#approval-chain)
 8. [Attachment](#attachment)
 9. [PDF Export](#pdf-export)
-10. [LINE Notification](#line-notification)
-11. [Session](#session)
-12. [Password Policy](#password-policy)
+10. [Attachment Preview](#attachment-preview)
+11. [Returned for Revision](#returned-for-revision)
+12. [LINE Notification](#line-notification)
+13. [Session](#session)
+14. [Password Policy](#password-policy)
 
 ## Role
 
@@ -75,6 +77,18 @@ Approval Chain คือสายอนุมัติ เช่น คำขอ
 ## Attachment
 
 Attachment คือไฟล์แนบในคำขอลา เช่น ใบรับรองแพทย์ หนังสือเชิญ หรือเอกสารประกอบ
+
+## Attachment Preview
+
+Attachment Preview คือการดูตัวอย่างไฟล์แนบในระบบโดยไม่ต้องดาวน์โหลดเป็นค่าเริ่มต้น รองรับ PDF และรูปภาพประเภท JPG/JPEG, PNG และ WEBP
+
+> **Note:** หากไฟล์ไม่รองรับ preview ระบบจะแจ้งว่าไม่รองรับการแสดงตัวอย่างไฟล์ประเภทนี้
+
+## Returned for Revision
+
+Returned for Revision คือสถานะ `ตีกลับรอแก้ไข` หมายถึงผู้อนุมัติส่งคำขอกลับให้ผู้ขอแก้ไขข้อมูลหรือไฟล์แนบ ก่อนส่งเข้าสู่กระบวนการอนุมัติอีกครั้ง
+
+> **Note:** สถานะนี้ไม่ใช่การไม่อนุมัติ ผู้ขอสามารถแก้ไขและกด `ส่งคำขอใหม่` ได้
 
 ## PDF Export
 

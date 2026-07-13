@@ -19,8 +19,9 @@ public class LeaveAttachmentsController(
     ILeaveRequestAccessService leaveRequestAccessService) : ControllerBase
 {
     [HttpGet("{id:guid}/download")]
+    [HttpGet("/api/leave-requests/{leaveRequestId:guid}/attachments/{id:guid}/download")]
     [RequireAnyPermission(LeavePermissions.ViewOwn, LeavePermissions.ViewPendingApproval, LeavePermissions.ViewDepartment, LeavePermissions.ViewAll, LeavePermissions.SupportViewAll)]
-    public async Task<IActionResult> DownloadAttachment(Guid id)
+    public async Task<IActionResult> DownloadAttachment(Guid id, Guid? leaveRequestId = null)
     {
         var attachment = await db.LeaveAttachments
             .AsNoTracking()
@@ -31,6 +32,11 @@ public class LeaveAttachmentsController(
         if (attachment is null)
         {
             return NotFound(ApiResponse<string>.Fail("Attachment not found."));
+        }
+
+        if (leaveRequestId is not null && attachment.LeaveRequestId != leaveRequestId)
+        {
+            return NotFound(ApiResponse<string>.Fail("Attachment not found for this leave request."));
         }
 
         var userId = GetCurrentUserId();
@@ -54,13 +60,60 @@ public class LeaveAttachmentsController(
             return NotFound(ApiResponse<string>.Fail("Attachment file not found."));
         }
 
-        await auditLogService.WriteAsync(userId, "LeaveAttachment.Download", "LeaveAttachment", attachment.Id.ToString(), $"Downloaded attachment {attachment.FileName}.", "Success", HttpContext);
+        await auditLogService.WriteAsync(userId, "LeaveAttachment.Downloaded", "LeaveAttachment", attachment.Id.ToString(), $"Downloaded attachment {attachment.FileName}.", "Success", HttpContext);
         return PhysicalFile(fileInfo.FullName, attachment.ContentType ?? "application/octet-stream", attachment.FileName);
     }
 
+    [HttpGet("/api/leave-requests/{leaveRequestId:guid}/attachments/{id:guid}/preview")]
+    [RequireAnyPermission(LeavePermissions.ViewOwn, LeavePermissions.ViewPendingApproval, LeavePermissions.ViewDepartment, LeavePermissions.ViewAll, LeavePermissions.SupportViewAll)]
+    public async Task<IActionResult> PreviewAttachment(Guid leaveRequestId, Guid id)
+    {
+        var attachment = await db.LeaveAttachments
+            .AsNoTracking()
+            .Include(item => item.LeaveRequest)
+                .ThenInclude(item => item!.Approvals)
+            .FirstOrDefaultAsync(item => item.Id == id && item.LeaveRequestId == leaveRequestId);
+
+        if (attachment is null)
+        {
+            return NotFound(ApiResponse<string>.Fail("Attachment not found for this leave request."));
+        }
+
+        var userId = GetCurrentUserId();
+        if (!await leaveRequestAccessService.CanAccessLeaveRequestAsync(attachment.LeaveRequest!, userId))
+        {
+            return Forbid();
+        }
+
+        if (!IsPreviewSupported(attachment))
+        {
+            return BadRequest(ApiResponse<string>.Fail("ไม่รองรับการแสดงตัวอย่างไฟล์ประเภทนี้"));
+        }
+
+        FileInfo fileInfo;
+        try
+        {
+            fileInfo = attachmentStorage.GetFileInfo(attachment);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(ApiResponse<string>.Fail(ex.Message));
+        }
+
+        if (!fileInfo.Exists)
+        {
+            return NotFound(ApiResponse<string>.Fail("Attachment file not found."));
+        }
+
+        Response.Headers.ContentDisposition = $"inline; filename*=UTF-8''{Uri.EscapeDataString(attachment.FileName)}";
+        await auditLogService.WriteAsync(userId, "LeaveAttachment.Previewed", "LeaveAttachment", attachment.Id.ToString(), $"Previewed attachment {attachment.FileName}.", "Success", HttpContext);
+        return PhysicalFile(fileInfo.FullName, attachment.ContentType ?? ResolveContentTypeFromFileName(attachment.FileName), enableRangeProcessing: true);
+    }
+
     [HttpDelete("{id:guid}")]
+    [HttpDelete("/api/leave-requests/{leaveRequestId:guid}/attachments/{id:guid}")]
     [RequirePermission(LeavePermissions.EditOwn)]
-    public async Task<IActionResult> DeleteAttachment(Guid id)
+    public async Task<IActionResult> DeleteAttachment(Guid id, Guid? leaveRequestId = null)
     {
         var attachment = await db.LeaveAttachments
             .Include(item => item.LeaveRequest)
@@ -71,16 +124,27 @@ public class LeaveAttachmentsController(
             return NotFound(ApiResponse<string>.Fail("Attachment not found."));
         }
 
+        if (leaveRequestId is not null && attachment.LeaveRequestId != leaveRequestId)
+        {
+            return NotFound(ApiResponse<string>.Fail("Attachment not found for this leave request."));
+        }
+
         var userId = GetCurrentUserId();
-        if (attachment.LeaveRequest?.UserId != userId || !await HasPermission(userId, LeavePermissions.EditOwn))
+        var leaveRequest = attachment.LeaveRequest;
+        if (leaveRequest is null || leaveRequest.UserId != userId || !await HasPermission(userId, LeavePermissions.EditOwn))
         {
             return Forbid();
+        }
+
+        if (leaveRequest.Status is not ("Draft" or "ReturnedForRevision"))
+        {
+            return BadRequest(ApiResponse<string>.Fail("ลบไฟล์แนบได้เฉพาะคำขอแบบร่างหรือคำขอที่ถูกตีกลับรอแก้ไขเท่านั้น"));
         }
 
         await attachmentStorage.DeleteAsync(attachment);
         db.LeaveAttachments.Remove(attachment);
         await db.SaveChangesAsync();
-        await auditLogService.WriteAsync(userId, "LeaveAttachment.Delete", "LeaveAttachment", attachment.Id.ToString(), $"Deleted attachment {attachment.FileName}.", "Success", HttpContext);
+        await auditLogService.WriteAsync(userId, "LeaveAttachment.Deleted", "LeaveAttachment", attachment.Id.ToString(), $"Deleted attachment {attachment.FileName}.", "Success", HttpContext);
 
         return NoContent();
     }
@@ -103,6 +167,30 @@ public class LeaveAttachmentsController(
             .SelectMany(item => item.Role!.RolePermissions)
             .AnyAsync(item => item.Permission != null && item.Permission.IsActive &&
                 permissionCodes.Contains(item.Permission.Code));
+    }
+
+    private static bool IsPreviewSupported(LeaveAttachment attachment)
+    {
+        var contentType = attachment.ContentType?.Trim().ToLowerInvariant();
+        if (contentType is "application/pdf" or "image/jpeg" or "image/jpg" or "image/png" or "image/webp")
+        {
+            return true;
+        }
+
+        var extension = Path.GetExtension(attachment.FileName).ToLowerInvariant();
+        return extension is ".pdf" or ".jpg" or ".jpeg" or ".png" or ".webp";
+    }
+
+    private static string ResolveContentTypeFromFileName(string fileName)
+    {
+        return Path.GetExtension(fileName).ToLowerInvariant() switch
+        {
+            ".pdf" => "application/pdf",
+            ".jpg" or ".jpeg" => "image/jpeg",
+            ".png" => "image/png",
+            ".webp" => "image/webp",
+            _ => "application/octet-stream"
+        };
     }
 
     private Guid? GetCurrentUserId()

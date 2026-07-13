@@ -1,22 +1,26 @@
 import AssignmentOutlinedIcon from "@mui/icons-material/AssignmentOutlined";
-import { Box, Button, Card, CardContent, Grid, Stack, Typography } from "@mui/material";
+import { Box, Button, Card, CardContent, Stack, Typography } from "@mui/material";
 import { alpha } from "@mui/material/styles";
 import { Link as RouterLink } from "react-router-dom";
 import { brandColors } from "../../theme/theme";
 
 type MyLeaveSummaryCardProps = {
   total: number;
+  draft: number;
   pending: number;
+  returnedForRevision: number;
   approved: number;
   rejected: number;
   cancelled: number;
   isLoading?: boolean;
 };
 
-export function MyLeaveSummaryCard({ total, pending, approved, rejected, cancelled, isLoading }: MyLeaveSummaryCardProps) {
+export function MyLeaveSummaryCard({ total, draft, pending, returnedForRevision, approved, rejected, cancelled, isLoading }: MyLeaveSummaryCardProps) {
   const items = [
     { label: "ทั้งหมด", value: total, color: "primary.main" },
+    { label: "แบบร่าง", value: draft, color: "text.secondary" },
     { label: "รออนุมัติ", value: pending, color: "warning.main" },
+    { label: "ตีกลับรอแก้ไข", value: returnedForRevision, color: "warning.dark" },
     { label: "อนุมัติแล้ว", value: approved, color: "success.main" },
     { label: "ไม่อนุมัติ", value: rejected, color: "error.main" },
     { label: "ยกเลิกแล้ว", value: cancelled, color: "text.secondary" },
@@ -41,20 +45,62 @@ export function MyLeaveSummaryCard({ total, pending, approved, rejected, cancell
             ดูรายละเอียด
           </Button>
         </Stack>
-        <Grid container spacing={1.5} sx={{ mt: 1 }}>
+        <Box
+          sx={{
+            display: "grid",
+            gridTemplateColumns: {
+              xs: "repeat(2, minmax(0, 1fr))",
+              sm: "repeat(3, minmax(0, 1fr))",
+              md: "repeat(4, minmax(0, 1fr))",
+              lg: "repeat(7, minmax(0, 1fr))",
+            },
+            gap: 1.25,
+            mt: 2,
+            alignItems: "stretch",
+          }}
+        >
           {items.map((item) => (
-            <Grid item xs={6} sm={4} md={2.4} key={item.label}>
-              <Box sx={{ p: 1.25, border: 1, borderColor: "divider", borderRadius: 2, bgcolor: "background.default" }}>
-                <Typography variant="caption" color="text.secondary">
-                  {item.label}
-                </Typography>
-                <Typography variant="h5" sx={{ color: item.color, fontWeight: 800 }}>
-                  {isLoading ? "-" : item.value.toLocaleString("th-TH")}
-                </Typography>
-              </Box>
-            </Grid>
+            <Box
+              key={item.label}
+              sx={(theme) => ({
+                minHeight: 104,
+                p: 1.25,
+                border: `1px solid ${alpha(theme.palette.primary.main, 0.12)}`,
+                borderRadius: 2.25,
+                bgcolor: alpha(theme.palette.background.default, 0.72),
+                display: "flex",
+                flexDirection: "column",
+                justifyContent: "space-between",
+                boxShadow: `0 10px 22px ${alpha(theme.palette.primary.dark, 0.04)}`,
+              })}
+            >
+              <Typography
+                variant="caption"
+                color="text.secondary"
+                sx={{
+                  minHeight: 34,
+                  lineHeight: 1.35,
+                  display: "flex",
+                  alignItems: "flex-start",
+                  wordBreak: "keep-all",
+                }}
+              >
+                {item.label}
+              </Typography>
+              <Typography
+                variant="h5"
+                sx={{
+                  color: item.color,
+                  fontWeight: 900,
+                  lineHeight: 1,
+                  fontVariantNumeric: "tabular-nums",
+                }}
+              >
+                {isLoading ? "-" : item.value.toLocaleString("th-TH")}
+              </Typography>
+            </Box>
           ))}
-        </Grid>
+        </Box>
       </CardContent>
     </Card>
   );
