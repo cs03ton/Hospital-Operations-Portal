@@ -898,6 +898,283 @@ namespace Hop.Api.Migrations
                     b.ToTable("leave_balance_snapshots", (string)null);
                 });
 
+            modelBuilder.Entity("Hop.Api.Models.LeaveBalanceTransaction", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<decimal>("AmountDays")
+                        .HasColumnType("numeric")
+                        .HasColumnName("amount_days");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid?>("CreatedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by_user_id");
+
+                    b.Property<int>("FiscalYear")
+                        .HasColumnType("integer")
+                        .HasColumnName("fiscal_year");
+
+                    b.Property<Guid>("LeaveTypeId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("leave_type_id");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("reason");
+
+                    b.Property<Guid>("ReferenceId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("reference_id");
+
+                    b.Property<string>("ReferenceType")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("reference_type");
+
+                    b.Property<string>("TransactionType")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)")
+                        .HasColumnName("transaction_type");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedByUserId");
+
+                    b.HasIndex("LeaveTypeId");
+
+                    b.HasIndex("ReferenceType", "ReferenceId", "TransactionType")
+                        .IsUnique();
+
+                    b.HasIndex("UserId", "LeaveTypeId", "FiscalYear");
+
+                    b.ToTable("leave_balance_transactions", (string)null);
+                });
+
+            modelBuilder.Entity("Hop.Api.Models.LeaveCancellationApproval", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTime?>("ActionAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("action_at");
+
+                    b.Property<Guid?>("ApprovalChainId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("approval_chain_id");
+
+                    b.Property<Guid?>("ApprovalChainStepId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("approval_chain_step_id");
+
+                    b.Property<Guid>("ApproverId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("approver_id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("LeaveCancellationRequestId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("leave_cancellation_request_id");
+
+                    b.Property<string>("Remark")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("remark");
+
+                    b.Property<string>("RequiredPermissionCode")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("required_permission_code");
+
+                    b.Property<string>("ReturnReason")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("return_reason");
+
+                    b.Property<DateTime?>("ReturnedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("returned_at");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("status");
+
+                    b.Property<string>("StepName")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("step_name");
+
+                    b.Property<int>("StepOrder")
+                        .HasColumnType("integer")
+                        .HasColumnName("step_order");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ApprovalChainId");
+
+                    b.HasIndex("ApprovalChainStepId");
+
+                    b.HasIndex("ApproverId");
+
+                    b.HasIndex("LeaveCancellationRequestId", "StepOrder")
+                        .IsUnique();
+
+                    b.ToTable("leave_cancellation_approvals", (string)null);
+                });
+
+            modelBuilder.Entity("Hop.Api.Models.LeaveCancellationRequest", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid?>("ApprovalChainId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("approval_chain_id");
+
+                    b.Property<DateTime?>("ApprovedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("approved_at");
+
+                    b.Property<DateTime?>("BalanceRestoredAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("balance_restored_at");
+
+                    b.Property<string>("CancellationRequestNumber")
+                        .IsRequired()
+                        .HasMaxLength(24)
+                        .HasColumnType("character varying(24)")
+                        .HasColumnName("cancellation_request_number");
+
+                    b.Property<DateTime?>("CancelledAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("cancelled_at");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid?>("CreatedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by_user_id");
+
+                    b.Property<Guid?>("CurrentApproverId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("current_approver_id");
+
+                    b.Property<DateTime?>("LastResubmittedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("last_resubmitted_at");
+
+                    b.Property<Guid>("LeaveTypeId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("leave_type_id");
+
+                    b.Property<decimal>("OriginalLeaveDays")
+                        .HasColumnType("numeric")
+                        .HasColumnName("original_leave_days");
+
+                    b.Property<Guid>("OriginalLeaveRequestId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("original_leave_request_id");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("reason");
+
+                    b.Property<DateTime?>("RejectedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("rejected_at");
+
+                    b.Property<Guid>("RequesterUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("requester_user_id");
+
+                    b.Property<DateTime?>("ReturnedForRevisionAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("returned_for_revision_at");
+
+                    b.Property<Guid?>("ReturnedForRevisionByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("returned_for_revision_by_user_id");
+
+                    b.Property<int>("RevisionCount")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0)
+                        .HasColumnName("revision_count");
+
+                    b.Property<string>("RevisionReason")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("revision_reason");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("status");
+
+                    b.Property<DateTime?>("SubmittedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("submitted_at");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ApprovalChainId");
+
+                    b.HasIndex("CancellationRequestNumber")
+                        .IsUnique();
+
+                    b.HasIndex("CreatedByUserId");
+
+                    b.HasIndex("CurrentApproverId");
+
+                    b.HasIndex("LeaveTypeId");
+
+                    b.HasIndex("OriginalLeaveRequestId")
+                        .IsUnique()
+                        .HasFilter("\"status\" IN ('Draft', 'Pending', 'ReturnedForRevision')");
+
+                    b.HasIndex("ReturnedForRevisionByUserId");
+
+                    b.HasIndex("Status");
+
+                    b.HasIndex("RequesterUserId", "Status");
+
+                    b.ToTable("leave_cancellation_requests", (string)null);
+                });
+
             modelBuilder.Entity("Hop.Api.Models.LeaveHoliday", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2247,6 +2524,113 @@ namespace Hop.Api.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("Hop.Api.Models.LeaveBalanceTransaction", b =>
+                {
+                    b.HasOne("Hop.Api.Models.User", "CreatedByUser")
+                        .WithMany()
+                        .HasForeignKey("CreatedByUserId");
+
+                    b.HasOne("Hop.Api.Models.LeaveType", "LeaveType")
+                        .WithMany()
+                        .HasForeignKey("LeaveTypeId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Hop.Api.Models.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("CreatedByUser");
+
+                    b.Navigation("LeaveType");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("Hop.Api.Models.LeaveCancellationApproval", b =>
+                {
+                    b.HasOne("Hop.Api.Models.ApprovalChain", "ApprovalChain")
+                        .WithMany()
+                        .HasForeignKey("ApprovalChainId");
+
+                    b.HasOne("Hop.Api.Models.ApprovalChainStep", "ApprovalChainStep")
+                        .WithMany()
+                        .HasForeignKey("ApprovalChainStepId");
+
+                    b.HasOne("Hop.Api.Models.User", "Approver")
+                        .WithMany()
+                        .HasForeignKey("ApproverId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Hop.Api.Models.LeaveCancellationRequest", "LeaveCancellationRequest")
+                        .WithMany("Approvals")
+                        .HasForeignKey("LeaveCancellationRequestId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ApprovalChain");
+
+                    b.Navigation("ApprovalChainStep");
+
+                    b.Navigation("Approver");
+
+                    b.Navigation("LeaveCancellationRequest");
+                });
+
+            modelBuilder.Entity("Hop.Api.Models.LeaveCancellationRequest", b =>
+                {
+                    b.HasOne("Hop.Api.Models.ApprovalChain", "ApprovalChain")
+                        .WithMany()
+                        .HasForeignKey("ApprovalChainId");
+
+                    b.HasOne("Hop.Api.Models.User", "CreatedByUser")
+                        .WithMany()
+                        .HasForeignKey("CreatedByUserId");
+
+                    b.HasOne("Hop.Api.Models.User", "CurrentApprover")
+                        .WithMany()
+                        .HasForeignKey("CurrentApproverId");
+
+                    b.HasOne("Hop.Api.Models.LeaveType", "LeaveType")
+                        .WithMany()
+                        .HasForeignKey("LeaveTypeId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Hop.Api.Models.LeaveRequest", "OriginalLeaveRequest")
+                        .WithMany()
+                        .HasForeignKey("OriginalLeaveRequestId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Hop.Api.Models.User", "RequesterUser")
+                        .WithMany()
+                        .HasForeignKey("RequesterUserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Hop.Api.Models.User", "ReturnedForRevisionByUser")
+                        .WithMany()
+                        .HasForeignKey("ReturnedForRevisionByUserId");
+
+                    b.Navigation("ApprovalChain");
+
+                    b.Navigation("CreatedByUser");
+
+                    b.Navigation("CurrentApprover");
+
+                    b.Navigation("LeaveType");
+
+                    b.Navigation("OriginalLeaveRequest");
+
+                    b.Navigation("RequesterUser");
+
+                    b.Navigation("ReturnedForRevisionByUser");
+                });
+
             modelBuilder.Entity("Hop.Api.Models.LeavePolicyRule", b =>
                 {
                     b.HasOne("Hop.Api.Models.LeaveType", "LeaveType")
@@ -2425,6 +2809,11 @@ namespace Hop.Api.Migrations
             modelBuilder.Entity("Hop.Api.Models.ApprovalChain", b =>
                 {
                     b.Navigation("Steps");
+                });
+
+            modelBuilder.Entity("Hop.Api.Models.LeaveCancellationRequest", b =>
+                {
+                    b.Navigation("Approvals");
                 });
 
             modelBuilder.Entity("Hop.Api.Models.LeaveRequest", b =>

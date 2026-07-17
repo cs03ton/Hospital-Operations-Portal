@@ -227,18 +227,23 @@ public class NotificationsController(IPendingApprovalNotificationService notific
             $"approval-{item.RequestId}",
             "ApprovalPending",
             item.RequestId,
-            $"คำขอลา {item.RequestNumber ?? "-"} รออนุมัติขั้นที่ {item.CurrentStep}",
+            $"{GetPendingApprovalTitlePrefix(item.SourceType)} {item.RequestNumber ?? "-"} รออนุมัติขั้นที่ {item.CurrentStep}",
             $"{item.EmployeeName ?? "-"} · {item.LeaveType ?? "-"} · {item.StartDate:dd/MM/yyyy}-{item.EndDate:dd/MM/yyyy} · ส่งเมื่อ {FormatDateTime(item.SubmittedAt)}",
             item.SubmittedAt ?? DateTime.UtcNow,
             true,
-            $"/leave/{item.RequestId}",
+            string.IsNullOrWhiteSpace(item.DetailPath) ? $"/leave/{item.RequestId}" : item.DetailPath,
             "Leave",
             item.Priority,
             "ActionRequired",
             "Approver",
-            "LeaveRequest",
+            item.SourceType,
             item.RequestId.ToString()
         )).ToList();
+    }
+
+    private static string GetPendingApprovalTitlePrefix(string sourceType)
+    {
+        return sourceType == "LeaveCancellationRequest" ? "คำขอยกเลิกใบลา" : "คำขอลา";
     }
 
     private async Task<IReadOnlyList<LeaveNotificationItemResponse>> GetOwnerLeaveNotificationsAsync(Guid userId, CancellationToken cancellationToken)

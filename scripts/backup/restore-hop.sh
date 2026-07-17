@@ -97,7 +97,24 @@ storage_dir="${BACKUP_ROOT}/storage"
 log_dir="${BACKUP_ROOT}/logs"
 timestamp="$(date +%Y%m%d_%H%M%S)"
 log_file="${LOG_FILE:-${log_dir}/restore_${timestamp}.log}"
+requested_log_file="$log_file"
 mkdir -p "$log_dir"
+
+prepare_log_file() {
+  local requested_dir
+  requested_dir="$(dirname "$requested_log_file")"
+  if mkdir -p "$requested_dir" 2>/dev/null && touch "$requested_log_file" 2>/dev/null; then
+    log_file="$requested_log_file"
+    return
+  fi
+
+  log_file="${log_dir}/restore_${timestamp}.log"
+  mkdir -p "$log_dir"
+  touch "$log_file"
+  printf '%s %s\n' "$(date -Is)" "WARN: Cannot write configured LOG_FILE=${requested_log_file}; using ${log_file}" >>"$log_file"
+}
+
+prepare_log_file
 
 log() {
   printf '%s %s\n' "$(date -Is)" "$*" | tee -a "$log_file"

@@ -161,6 +161,41 @@ public class DashboardSummaryTests
     }
 
     [Fact]
+    public async Task GetSummary_ReturnsLeaveCancellationSummaryForCurrentUser()
+    {
+        await using var db = CreateDbContext();
+        var staff = new User { Id = Guid.NewGuid(), FullName = "เจ้าหน้าที่ 01", Username = "staff01", PasswordHash = "hash", IsActive = true };
+        var otherStaff = new User { Id = Guid.NewGuid(), FullName = "เจ้าหน้าที่ 02", Username = "staff02", PasswordHash = "hash", IsActive = true };
+        var leaveType = AddLeaveType(db, "VACATION_LEAVE", "ลาพักผ่อน");
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        db.Users.AddRange(staff, otherStaff);
+        GrantRoleWithPermissions(db, staff.Id, "Staff", LeavePermissions.CancellationViewOwn);
+        var approvedLeave = AddLeaveRequest(db, staff.Id, leaveType.Id, today, 1m, "CancelledAfterApproval");
+        var pendingLeave = AddLeaveRequest(db, staff.Id, leaveType.Id, today, 0.5m, "Approved");
+        var otherLeave = AddLeaveRequest(db, otherStaff.Id, leaveType.Id, today, 1m, "Approved");
+        AddCancellation(db, approvedLeave, staff.Id, leaveType.Id, LeaveCancellationStatuses.Approved, 1m);
+        AddCancellation(db, pendingLeave, staff.Id, leaveType.Id, LeaveCancellationStatuses.Pending, 0.5m);
+        AddCancellation(db, otherLeave, otherStaff.Id, leaveType.Id, LeaveCancellationStatuses.Pending, 1m);
+        await db.SaveChangesAsync();
+
+        var controller = new DashboardController(db);
+        SetUserContext(controller, staff.Id);
+
+        var result = await controller.GetSummary();
+
+        var response = Assert.IsType<ApiResponse<DashboardSummaryResponse>>(result.Value);
+        var summary = response.Data!.LeaveCancellationSummary!;
+        Assert.Equal(2, summary.Total);
+        Assert.Equal(1, summary.Pending);
+        Assert.Equal(1, summary.Approved);
+        Assert.Equal(1m, summary.RestoredDaysThisYear);
+        Assert.Equal(1m, summary.RestoredDaysTotal);
+        Assert.Equal(100m, summary.ApprovalRate);
+        Assert.Equal(2, summary.RecentRequests.Count);
+        Assert.All(summary.RecentRequests.Items, item => Assert.Equal("LeaveCancellationRequest", item.SourceType));
+    }
+
+    [Fact]
     public async Task GetExecutiveDashboard_CountsUniqueApprovedLeaveUsersToday()
     {
         await using var db = CreateDbContext();
@@ -325,6 +360,32 @@ public class DashboardSummaryTests
         };
         db.LeaveRequests.Add(leaveRequest);
         return leaveRequest;
+    }
+
+    private static LeaveCancellationRequest AddCancellation(AppDbContext db, LeaveRequest originalLeave, Guid userId, Guid leaveTypeId, string status, decimal days)
+    {
+        var now = DateTime.UtcNow;
+        var cancellation = new LeaveCancellationRequest
+        {
+            Id = Guid.NewGuid(),
+            CancellationRequestNumber = $"LVC-{now:yyyyMM}-{db.LeaveCancellationRequests.Local.Count + 1:000}",
+            OriginalLeaveRequestId = originalLeave.Id,
+            OriginalLeaveRequest = originalLeave,
+            RequesterUserId = userId,
+            LeaveTypeId = leaveTypeId,
+            OriginalLeaveDays = days,
+            Reason = "test cancellation",
+            Status = status,
+            CurrentApproverId = status == LeaveCancellationStatuses.Pending ? Guid.NewGuid() : null,
+            CreatedAt = now.AddDays(-1),
+            SubmittedAt = now.AddHours(-6),
+            UpdatedAt = status is LeaveCancellationStatuses.Approved or LeaveCancellationStatuses.Rejected ? now : null,
+            ApprovedAt = status == LeaveCancellationStatuses.Approved ? now : null,
+            RejectedAt = status == LeaveCancellationStatuses.Rejected ? now : null,
+            BalanceRestoredAt = status == LeaveCancellationStatuses.Approved ? now : null
+        };
+        db.LeaveCancellationRequests.Add(cancellation);
+        return cancellation;
     }
 
     private static AppDbContext CreateDbContext()

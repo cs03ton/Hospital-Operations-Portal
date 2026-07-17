@@ -986,6 +986,7 @@ public sealed class LeavePdfService(IWebHostEnvironment environment, IConfigurat
             "Approved" => "อนุมัติแล้ว",
             "Rejected" => "ไม่อนุมัติ",
             "Cancelled" => "ยกเลิก",
+            "CancelledAfterApproval" => "ยกเลิกหลังอนุมัติ",
             "Waiting" => "รอดำเนินการ",
             "Skipped" => "ข้ามขั้นตอน",
             _ => status

@@ -1,5 +1,19 @@
 # Notification Policy
 
+## Leave Cancellation Notifications
+
+คำขอยกเลิกใบลาสร้าง notification แยกจากคำขอลาปกติ เพื่อให้ผู้ใช้งานเห็นบริบทชัดเจนว่าเป็นการขอยกเลิกใบลาที่อนุมัติแล้ว
+
+| Event | ผู้รับ | ประเภท |
+|---|---|---|
+| `LeaveCancellationSubmitted` | ผู้อนุมัติปัจจุบัน | Action Required |
+| `LeaveCancellationCompleted` | ผู้ขอยกเลิกใบลา | Information |
+| `LeaveCancellationRejected` | ผู้ขอยกเลิกใบลา | Information |
+| `LeaveCancellationReturned` | ผู้ขอยกเลิกใบลา | Action Required |
+| `LeaveCancellationCancelled` | ผู้ขอยกเลิกใบลา / ผู้เกี่ยวข้อง | Information |
+
+LINE notification เป็น best-effort ถ้าส่ง LINE ไม่สำเร็จ workflow หลักต้องไม่ล้มเหลว
+
 ## Priority
 
 | Priority | Use Case |

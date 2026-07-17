@@ -12,6 +12,7 @@ public record AdminHealthResponse(
     MemoryHealthResponse Memory,
     CpuHealthResponse Cpu,
     BackupHealthResponse Backup,
+    LeaveCancellationHealthResponse LeaveCancellation,
     string Version,
     string Environment,
     DateTime CurrentTimeServer,
@@ -90,6 +91,15 @@ public record BackupHealthResponse(
     string? BackupDirectory = null,
     long? LatestBackupSizeBytes = null,
     string? LatestBackupFile = null
+);
+
+public record LeaveCancellationHealthResponse(
+    string Status,
+    int PendingApproval,
+    int FailedNotification,
+    int FailedReferenceIntegrity,
+    int FailedBalanceRestore,
+    string? Message = null
 );
 
 public record SafeErrorResponse(

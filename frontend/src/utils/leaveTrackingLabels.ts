@@ -26,6 +26,8 @@ export function getTrackingStatusLabel(request: Pick<LeaveRequest, "status" | "c
       return "ไม่อนุมัติ";
     case "Cancelled":
       return "ยกเลิกแล้ว";
+    case "CancelledAfterApproval":
+      return "ยกเลิกหลังอนุมัติ";
     default:
       return request.status;
   }
@@ -54,6 +56,10 @@ export function getTrackingStepLabel(request: Pick<LeaveRequest, "status" | "cur
 
   if (request.status === "Cancelled") {
     return "ยกเลิกคำขอ";
+  }
+
+  if (request.status === "CancelledAfterApproval") {
+    return "ยกเลิกใบลาหลังอนุมัติ";
   }
 
   return request.currentStepName || "-";

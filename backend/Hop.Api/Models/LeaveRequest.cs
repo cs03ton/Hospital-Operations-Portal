@@ -28,4 +28,5 @@ public class LeaveRequest
     public LeaveType? LeaveType { get; set; }
     public ICollection<LeaveAttachment> Attachments { get; set; } = [];
     public ICollection<LeaveApproval> Approvals { get; set; } = [];
+    public ICollection<LeaveCancellationRequest> CancellationRequests { get; set; } = [];
 }

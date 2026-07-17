@@ -55,6 +55,19 @@ The frontend role layout is UX only. Sensitive data is also gated by the backend
 
 Unauthorized dashboard fields are returned as safe defaults such as `0` or `Restricted`.
 
+## Role Layout Ordering
+
+Dashboard content is ordered from the user's own work to wider operational or executive views.
+
+| Role | Layout Direction |
+|---|---|
+| Staff | Personal leave balance, personal leave requests, leave cancellation requests, and calendar |
+| Department Head | Personal leave requests first, then team/department work and approval queue |
+| Director | Personal leave and cancellation summaries first, then executive comparison/trend widgets, with hospital-wide summary lower on the page |
+| Admin/SuperAdmin | Personal/support leave summaries first, then admin control-center, health, LINE, backup, audit, and security widgets |
+
+Leave cancellation requests are displayed as a separate widget from normal leave requests. This prevents cancellation workflow counts and restored days from being mixed into normal leave request KPI.
+
 ## Dashboard Hub Modules
 
 `/dashboard` is the dashboard portal. Each module card is configured in `dashboardModules.ts` with:
@@ -80,6 +93,12 @@ Permission: LeaveAnalytics.View or ReportManagement.View
 ```
 
 It is intentionally separate from `/dashboard/executive` so changes to analytics filters and charts do not affect Executive Dashboard behavior.
+
+## Report vs Analytics Navigation
+
+- `/reports/leaves` is the operational leave report for list review, export, and cancellation report follow-up.
+- `/reports/leave-analytics` is the analytical dashboard for trends, department comparison, heatmap, and executive insight.
+- Director, Admin, and SuperAdmin can access these views through role policy or explicit permissions. Staff and Department Head require explicit permissions.
 
 ## Extending Dashboard
 

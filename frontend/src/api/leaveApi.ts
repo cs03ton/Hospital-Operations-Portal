@@ -48,6 +48,9 @@ export type LeaveRequest = {
   revisionCount: number;
   lastResubmittedAt?: string | null;
   updatedAt?: string | null;
+  cancellationRequestId?: string | null;
+  cancellationRequestNumber?: string | null;
+  cancellationStatus?: string | null;
 };
 
 export type SaveLeaveRequest = {
@@ -108,6 +111,69 @@ export type LeaveApproval = {
   actionAt?: string | null;
   returnedAt?: string | null;
   returnReason?: string | null;
+};
+
+export type LeaveCancellationRequest = {
+  id: string;
+  cancellationRequestNumber: string;
+  originalLeaveRequestId: string;
+  originalRequestNumber?: string | null;
+  requesterUserId: string;
+  requesterName?: string | null;
+  leaveTypeId: string;
+  leaveTypeName?: string | null;
+  originalStartDate?: string | null;
+  originalEndDate?: string | null;
+  originalLeaveDays: number;
+  reason: string;
+  status: string;
+  currentApproverId?: string | null;
+  currentApproverName?: string | null;
+  currentStepName?: string | null;
+  createdAt: string;
+  submittedAt?: string | null;
+  approvedAt?: string | null;
+  rejectedAt?: string | null;
+  cancelledAt?: string | null;
+  returnedForRevisionAt?: string | null;
+  balanceRestoredAt?: string | null;
+  revisionReason?: string | null;
+  revisionCount: number;
+  updatedAt?: string | null;
+};
+
+export type LeaveCancellationApproval = {
+  id: string;
+  leaveCancellationRequestId: string;
+  approverId: string;
+  approverName?: string | null;
+  approvalChainId?: string | null;
+  approvalChainStepId?: string | null;
+  stepOrder: number;
+  stepName?: string | null;
+  status: string;
+  requiredPermissionCode: string;
+  remark?: string | null;
+  createdAt: string;
+  actionAt?: string | null;
+  returnedAt?: string | null;
+  returnReason?: string | null;
+};
+
+export type LeaveCancellationEligibility = {
+  originalLeaveRequestId: string;
+  originalRequestNumber?: string | null;
+  canCreate: boolean;
+  message?: string | null;
+  originalLeaveDays: number;
+  alreadyCancelled: boolean;
+  hasActiveCancellation: boolean;
+};
+
+export type CreateLeaveCancellationRequest = {
+  originalLeaveRequestId: string;
+  reason: string;
+  submit?: boolean;
 };
 
 export type LeaveBalance = {
@@ -598,6 +664,8 @@ export type PendingApprovalNotification = {
   submittedAt?: string | null;
   currentStep: number;
   priority: string;
+  sourceType?: string | null;
+  detailPath?: string | null;
 };
 
 export type LeaveNotificationItem = {
@@ -728,6 +796,71 @@ export async function getLeaveRequestsPaged(params: LeaveRequestQuery) {
 
 export async function getLeaveRequest(id: string) {
   const response = await httpClient.get<ApiResponse<LeaveRequest>>(`/api/leave-requests/${id}`);
+  return response.data.data;
+}
+
+export async function getLeaveCancellationEligibility(leaveRequestId: string) {
+  const response = await httpClient.get<ApiResponse<LeaveCancellationEligibility>>(`/api/leave-cancellation-requests/eligibility/${leaveRequestId}`);
+  return response.data.data;
+}
+
+export async function getLeaveCancellationRequests(params?: {
+  page?: number;
+  pageSize?: number;
+  status?: string;
+  scope?: string;
+  leaveTypeId?: string;
+  requesterId?: string;
+  userId?: string;
+  fromDate?: string;
+  toDate?: string;
+}) {
+  const response = await httpClient.get<ApiResponse<PagedResponse<LeaveCancellationRequest>>>("/api/leave-cancellation-requests", { params });
+  return response.data.data;
+}
+
+export async function getLeaveCancellationRequest(id: string) {
+  const response = await httpClient.get<ApiResponse<LeaveCancellationRequest>>(`/api/leave-cancellation-requests/${id}`);
+  return response.data.data;
+}
+
+export async function getLeaveCancellationApprovals(id: string) {
+  const response = await httpClient.get<ApiResponse<LeaveCancellationApproval[]>>(`/api/leave-cancellation-requests/${id}/approvals`);
+  return response.data.data;
+}
+
+export async function createLeaveCancellationRequest(payload: CreateLeaveCancellationRequest) {
+  const response = await httpClient.post<ApiResponse<LeaveCancellationRequest>>("/api/leave-cancellation-requests", payload);
+  return response.data.data;
+}
+
+export async function updateLeaveCancellationRequest(id: string, payload: { reason: string }) {
+  const response = await httpClient.put<ApiResponse<LeaveCancellationRequest>>(`/api/leave-cancellation-requests/${id}`, payload);
+  return response.data.data;
+}
+
+export async function submitLeaveCancellationRequest(id: string) {
+  const response = await httpClient.post<ApiResponse<LeaveCancellationRequest>>(`/api/leave-cancellation-requests/${id}/submit`);
+  return response.data.data;
+}
+
+export async function cancelLeaveCancellationRequest(id: string) {
+  const response = await httpClient.post<ApiResponse<LeaveCancellationRequest>>(`/api/leave-cancellation-requests/${id}/cancel`);
+  return response.data.data;
+}
+
+export async function approveLeaveCancellationRequest(id: string, remark?: string) {
+  const response = await httpClient.post<ApiResponse<LeaveCancellationRequest>>(`/api/leave-cancellation-requests/${id}/approve`, { remark });
+  return response.data.data;
+}
+
+export async function rejectLeaveCancellationRequest(id: string, remark?: string) {
+  const response = await httpClient.post<ApiResponse<LeaveCancellationRequest>>(`/api/leave-cancellation-requests/${id}/reject`, { remark });
+  return response.data.data;
+}
+
+export async function returnLeaveCancellationForRevision(id: string, reason: string) {
+  const response = await httpClient.post<ApiResponse<LeaveCancellationRequest>>(`/api/leave-cancellation-requests/${id}/return-for-revision`, { reason });
   return response.data.data;
 }
 

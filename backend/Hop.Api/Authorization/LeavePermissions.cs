@@ -20,6 +20,14 @@ public static class LeavePermissions
     public const string RolloverBalances = "LeaveBalance.Rollover";
     public const string ManageHolidays = "LeaveAdmin.ManageHolidays";
     public const string ManageApprovalChains = "LeaveAdmin.ManageApprovalChains";
+    public const string CancellationViewOwn = "LeaveCancellation.ViewOwn";
+    public const string CancellationCreate = "LeaveCancellation.Create";
+    public const string CancellationSubmit = "LeaveCancellation.Submit";
+    public const string CancellationCancelOwn = "LeaveCancellation.CancelOwn";
+    public const string CancellationApproveCurrentStep = "LeaveCancellation.ApproveCurrentStep";
+    public const string CancellationViewDepartment = "LeaveCancellation.ViewDepartment";
+    public const string CancellationViewAll = "LeaveCancellation.ViewAll";
+    public const string CancellationManage = "LeaveCancellation.Manage";
 
     public static readonly string[] ViewAny =
     [
@@ -28,5 +36,14 @@ public static class LeavePermissions
         ViewDepartment,
         ViewAll,
         SupportViewAll
+    ];
+
+    public static readonly string[] CancellationViewAny =
+    [
+        CancellationViewOwn,
+        CancellationApproveCurrentStep,
+        CancellationViewDepartment,
+        CancellationViewAll,
+        CancellationManage
     ];
 }

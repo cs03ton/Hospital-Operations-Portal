@@ -1007,7 +1007,8 @@ public class LeaveRequestsController(
                     .ThenInclude(userRole => userRole.Role)
             .Include(item => item.ReturnedForRevisionByUser)
             .Include(item => item.Approvals)
-                .ThenInclude(approval => approval.Approver);
+                .ThenInclude(approval => approval.Approver)
+            .Include(item => item.CancellationRequests);
     }
 
     private IQueryable<LeaveRequest> LoadLeaveRequestsForMutation()
@@ -1119,6 +1120,11 @@ public class LeaveRequestsController(
         var currentStepName = currentApproval?.StepName;
         var currentStatusLabel = GetCurrentStatusLabel(item.Status, currentStepName, item.CurrentApprover?.FullName);
         var trackingMessage = GetTrackingMessage(item.Status, item.RequestNumber, item.Id, currentStepName, item.CurrentApprover?.FullName);
+        var cancellationReference = item.CancellationRequests
+            .OrderByDescending(request => request.ApprovedAt ?? request.SubmittedAt ?? request.CreatedAt)
+            .FirstOrDefault(request => request.Status == LeaveCancellationStatuses.Approved ||
+                request.Status == LeaveCancellationStatuses.Pending ||
+                request.Status == LeaveCancellationStatuses.ReturnedForRevision);
 
         return new LeaveRequestResponse(
             item.Id,
@@ -1148,7 +1154,10 @@ public class LeaveRequestsController(
             item.RevisionReason,
             item.RevisionCount,
             item.LastResubmittedAt,
-            item.UpdatedAt
+            item.UpdatedAt,
+            cancellationReference?.Id,
+            cancellationReference?.CancellationRequestNumber,
+            cancellationReference?.Status
         );
     }
 
@@ -1164,6 +1173,7 @@ public class LeaveRequestsController(
             "Approved" => "อนุมัติแล้ว",
             "Rejected" => "ไม่อนุมัติ",
             "Cancelled" => "ยกเลิกแล้ว",
+            "CancelledAfterApproval" => "ยกเลิกหลังอนุมัติ",
             _ => status
         };
     }
@@ -1183,6 +1193,7 @@ public class LeaveRequestsController(
             "Approved" => $"คำขอลา {requestCode} ได้รับการอนุมัติแล้ว",
             "Rejected" => $"คำขอลา {requestCode} ถูกไม่อนุมัติ",
             "Cancelled" => $"คำขอลา {requestCode} ถูกยกเลิกแล้ว",
+            "CancelledAfterApproval" => $"คำขอลา {requestCode} ถูกยกเลิกหลังอนุมัติแล้ว",
             _ => $"คำขอลา {requestCode} สถานะ {status}"
         };
     }

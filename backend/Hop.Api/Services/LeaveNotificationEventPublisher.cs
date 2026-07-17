@@ -132,7 +132,7 @@ public class LeaveNotificationEventPublisher(
                     $"คำขอลา {RequestCode(leaveRequest)} ถูกตีกลับรอแก้ไข",
                     $"เหตุผล: {Blank(leaveRequest.RevisionReason)} กรุณาแก้ไขข้อมูลหรือไฟล์แนบ แล้วส่งคำขอใหม่อีกครั้ง",
                     "High",
-                    $"คำขอลาของคุณถูกตีกลับรอแก้ไข\nเลขที่คำขอ: {RequestCode(leaveRequest)}\nเหตุผล: {Blank(leaveRequest.RevisionReason)}\nกรุณาแก้ไขข้อมูลหรือไฟล์แนบ แล้วส่งคำขอใหม่อีกครั้ง",
+                    LeaveLineFlexMessageTemplates.BuildReturnedForRevisionCard(leaveRequest, lineConfiguration.PublicAppUrl, avatar),
                     cancellationToken);
                 break;
 
@@ -158,7 +158,7 @@ public class LeaveNotificationEventPublisher(
                     $"ยกเลิกคำขอลา {RequestCode(leaveRequest)} แล้ว",
                     "ยกเลิกคำขอลาที่ถูกตีกลับรอแก้ไขเรียบร้อยแล้ว",
                     "Information",
-                    null,
+                    LeaveLineFlexMessageTemplates.BuildRevisionCancelledCard(leaveRequest, lineConfiguration.PublicAppUrl, avatar),
                     cancellationToken);
                 break;
         }

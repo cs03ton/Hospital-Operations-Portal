@@ -39,6 +39,9 @@ chmod +x /opt/hop/scripts/backup/backup-hop.sh /opt/hop/scripts/backup/restore-h
 | `STORAGE_PATH` | No | Host storage folder, production usually `/opt/hop/uploads` |
 | `BACKUP_RETENTION_DAYS` | No | Retention in days, default `7` |
 | `BACKUP_MODE` | No | `host` or `docker`, default `host` |
+| `BACKUP_OWNER` | No | Owner applied to generated backup files, recommended `hop:hop` for bare-metal production |
+| `BACKUP_DIR_MODE` | No | Directory permission mode, default `750` |
+| `BACKUP_FILE_MODE` | No | Backup file permission mode, default `640` |
 | `POSTGRES_CONTAINER` | Docker | PostgreSQL container name, default `hop-prod-postgres` |
 | `STORAGE_DOCKER_VOLUME` | Docker | Storage Docker volume name, default `hop_prod_storage` |
 
@@ -114,6 +117,9 @@ export DB_PASSWORD='set-this-from-secret-manager'
 export BACKUP_ROOT=/opt/hop/backups
 export STORAGE_PATH=/opt/hop/uploads
 export BACKUP_MODE=host
+export BACKUP_OWNER=hop:hop
+export BACKUP_DIR_MODE=750
+export BACKUP_FILE_MODE=640
 
 /opt/hop/scripts/backup/backup-hop.sh
 ```
@@ -259,6 +265,10 @@ BACKUP_MODE=docker
 POSTGRES_CONTAINER=hop-prod-postgres
 STORAGE_DOCKER_VOLUME=hop_prod_storage
 BACKUP_RETENTION_DAYS=30
+BACKUP_OWNER=hop:hop
+BACKUP_DIR_MODE=750
+BACKUP_FILE_MODE=640
+LOG_FILE=/var/log/hop/backup.log
 ```
 
 For bare-metal runtime, use:
@@ -272,6 +282,34 @@ Load secret separately in cron instead of committing it:
 ```cron
 0 2 * * * . /etc/hop/backup.env; export DB_PASSWORD="$(cat /run/secrets/hop_db_password)"; /opt/hop/scripts/backup/backup-hop.sh >> /var/log/hop-backup.log 2>&1
 ```
+
+Before enabling cron, create the log directory for the runtime user:
+
+```bash
+sudo install -d -m 750 -o hop -g hop /opt/hop/backups
+sudo install -d -m 750 -o hop -g hop /opt/hop/backups/postgres /opt/hop/backups/storage /opt/hop/backups/logs
+sudo install -d -m 750 -o hop -g hop /var/log/hop
+sudo touch /var/log/hop/backup.log
+sudo chown hop:hop /var/log/hop/backup.log
+sudo chmod 640 /var/log/hop/backup.log
+```
+
+If an earlier cron job created backups as `root:root`, fix existing file access once:
+
+```bash
+sudo chown -R hop:hop /opt/hop/backups
+sudo find /opt/hop/backups -type d -exec chmod 750 {} \;
+sudo find /opt/hop/backups -type f -exec chmod 640 {} \;
+sudo -u hop ls -lh /opt/hop/backups/postgres
+```
+
+If `/var/log/hop` is not writable, either fix permissions or set:
+
+```text
+LOG_FILE=/opt/hop/backups/logs/backup.log
+```
+
+The backup script falls back to `BACKUP_ROOT/logs/backup_*.log` when the configured `LOG_FILE` cannot be written.
 
 ## Systemd Timer Example
 

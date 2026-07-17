@@ -35,19 +35,59 @@ BACKUP_RETENTION_DAYS="${BACKUP_RETENTION_DAYS:-7}"
 POSTGRES_CONTAINER="${POSTGRES_CONTAINER:-hop-prod-postgres}"
 STORAGE_DOCKER_VOLUME="${STORAGE_DOCKER_VOLUME:-hop_prod_storage}"
 LOCK_FILE="${LOCK_FILE:-/tmp/hop-backup.lock}"
+BACKUP_OWNER="${BACKUP_OWNER:-}"
+BACKUP_DIR_MODE="${BACKUP_DIR_MODE:-750}"
+BACKUP_FILE_MODE="${BACKUP_FILE_MODE:-640}"
 
 db_dir="${BACKUP_ROOT}/postgres"
 storage_dir="${BACKUP_ROOT}/storage"
 log_dir="${BACKUP_ROOT}/logs"
 run_dir="${BACKUP_ROOT}/${timestamp}"
 log_file="${LOG_FILE:-${log_dir}/backup_${timestamp}.log}"
+requested_log_file="$log_file"
 
 mkdir -p "$db_dir" "$storage_dir" "$log_dir" "$run_dir" "$(dirname "$LOCK_FILE")"
-chmod 700 "$BACKUP_ROOT" "$db_dir" "$storage_dir" "$log_dir" "$run_dir" 2>/dev/null || true
+chmod "$BACKUP_DIR_MODE" "$BACKUP_ROOT" "$db_dir" "$storage_dir" "$log_dir" "$run_dir" 2>/dev/null || true
+
+apply_permissions() {
+  local path="$1"
+  [ -e "$path" ] || return
+  if [ -n "$BACKUP_OWNER" ]; then
+    chown "$BACKUP_OWNER" "$path" 2>/dev/null || log "WARN: Cannot chown ${path} to ${BACKUP_OWNER}"
+  fi
+  if [ -d "$path" ]; then
+    chmod "$BACKUP_DIR_MODE" "$path" 2>/dev/null || true
+  else
+    chmod "$BACKUP_FILE_MODE" "$path" 2>/dev/null || true
+  fi
+}
+
+prepare_log_file() {
+  local requested_dir
+  requested_dir="$(dirname "$requested_log_file")"
+  if mkdir -p "$requested_dir" 2>/dev/null && touch "$requested_log_file" 2>/dev/null; then
+    log_file="$requested_log_file"
+    return
+  fi
+
+  log_file="${log_dir}/backup_${timestamp}.log"
+  mkdir -p "$log_dir"
+  touch "$log_file"
+  printf '%s %s\n' "$(date -Is)" "WARN: Cannot write configured LOG_FILE=${requested_log_file}; using ${log_file}" >>"$log_file"
+}
+
+prepare_log_file
 
 log() {
   printf '%s %s\n' "$(date -Is)" "$*" | tee -a "$log_file"
 }
+
+apply_permissions "$BACKUP_ROOT"
+apply_permissions "$db_dir"
+apply_permissions "$storage_dir"
+apply_permissions "$log_dir"
+apply_permissions "$run_dir"
+apply_permissions "$log_file"
 
 fail() {
   log "ERROR: $*"
@@ -94,13 +134,13 @@ cleanup_old_backups() {
   validate_positive_integer "$BACKUP_RETENTION_DAYS" "BACKUP_RETENTION_DAYS"
   log "Applying retention: ${BACKUP_RETENTION_DAYS} days"
   if [ "$DRY_RUN" = "true" ]; then
-    find "$db_dir" -type f \( -name 'hopdb_*.backup' -o -name 'hop_db_*.dump' \) -mtime +"$BACKUP_RETENTION_DAYS" -print >>"$log_file" 2>&1 || true
+    find "$db_dir" -type f \( -name 'hopdb_*.backup' -o -name 'hop_db_*.backup' -o -name 'hop_db_*.dump' \) -mtime +"$BACKUP_RETENTION_DAYS" -print >>"$log_file" 2>&1 || true
     find "$storage_dir" -type f \( -name 'hop_storage_*.tar.gz' -o -name 'hop_uploads_*.tar.gz' \) -mtime +"$BACKUP_RETENTION_DAYS" -print >>"$log_file" 2>&1 || true
     find "$log_dir" -type f \( -name 'backup_*.log' -o -name 'restore_*.log' \) -mtime +"$BACKUP_RETENTION_DAYS" -print >>"$log_file" 2>&1 || true
     return
   fi
 
-  find "$db_dir" -type f \( -name 'hopdb_*.backup' -o -name 'hop_db_*.dump' \) -mtime +"$BACKUP_RETENTION_DAYS" -print -delete >>"$log_file" 2>&1 || true
+  find "$db_dir" -type f \( -name 'hopdb_*.backup' -o -name 'hop_db_*.backup' -o -name 'hop_db_*.dump' \) -mtime +"$BACKUP_RETENTION_DAYS" -print -delete >>"$log_file" 2>&1 || true
   find "$storage_dir" -type f \( -name 'hop_storage_*.tar.gz' -o -name 'hop_uploads_*.tar.gz' \) -mtime +"$BACKUP_RETENTION_DAYS" -print -delete >>"$log_file" 2>&1 || true
   find "$log_dir" -type f \( -name 'backup_*.log' -o -name 'restore_*.log' \) -mtime +"$BACKUP_RETENTION_DAYS" -print -delete >>"$log_file" 2>&1 || true
 }
@@ -128,6 +168,8 @@ backup_database_host() {
   fi
   assert_non_empty_file "$output_file"
   cp "$output_file" "$run_dir/"
+  apply_permissions "$output_file"
+  apply_permissions "$run_dir/$(basename "$output_file")"
 }
 
 backup_database_docker() {
@@ -155,6 +197,8 @@ backup_database_docker() {
   fi
   assert_non_empty_file "$output_file"
   cp "$output_file" "$run_dir/"
+  apply_permissions "$output_file"
+  apply_permissions "$run_dir/$(basename "$output_file")"
 }
 
 backup_storage_host() {
@@ -180,6 +224,8 @@ backup_storage_host() {
   fi
   assert_non_empty_file "$output_file"
   cp "$output_file" "$run_dir/"
+  apply_permissions "$output_file"
+  apply_permissions "$run_dir/$(basename "$output_file")"
 }
 
 backup_storage_docker() {
@@ -201,12 +247,14 @@ backup_storage_docker() {
   fi
   assert_non_empty_file "$output_file"
   cp "$output_file" "$run_dir/"
+  apply_permissions "$output_file"
+  apply_permissions "$run_dir/$(basename "$output_file")"
 }
 
 main() {
   validate_positive_integer "$BACKUP_RETENTION_DAYS" "BACKUP_RETENTION_DAYS"
   log "Starting HOP backup"
-  log "Mode=${BACKUP_MODE}; DB=${DB_HOST}:${DB_PORT}/${DB_NAME}; BackupRoot=${BACKUP_ROOT}; StoragePath=${STORAGE_PATH}; RetentionDays=${BACKUP_RETENTION_DAYS}; DryRun=${DRY_RUN}"
+  log "Mode=${BACKUP_MODE}; DB=${DB_HOST}:${DB_PORT}/${DB_NAME}; BackupRoot=${BACKUP_ROOT}; DatabaseBackupDir=${db_dir}; StoragePath=${STORAGE_PATH}; StorageBackupDir=${storage_dir}; RetentionDays=${BACKUP_RETENTION_DAYS}; DryRun=${DRY_RUN}"
 
   case "$BACKUP_MODE" in
     host)

@@ -23,42 +23,89 @@ public class LineWebhookController(
         using var reader = new StreamReader(Request.Body, Encoding.UTF8);
         var body = await reader.ReadToEndAsync(cancellationToken);
         var signature = Request.Headers["X-Line-Signature"].FirstOrDefault();
+        logger.LogInformation("LINE webhook received. BodyLength={BodyLength} HasSignature={HasSignature}", body.Length, !string.IsNullOrWhiteSpace(signature));
 
         if (!VerifySignature(body, signature))
         {
-            logger.LogWarning("LINE webhook signature verification failed. HasSecret={HasSecret}", lineConfiguration.HasChannelSecret);
+            logger.LogWarning("LINE webhook signature invalid. HasSecret={HasSecret}", lineConfiguration.HasChannelSecret);
             return Unauthorized(ApiResponse<string>.Fail("Invalid LINE signature."));
         }
 
+        logger.LogInformation("LINE webhook signature valid.");
+
         var results = new List<LineWebhookHandleResult>();
-        using var document = JsonDocument.Parse(body);
-        if (!document.RootElement.TryGetProperty("events", out var events) || events.ValueKind != JsonValueKind.Array)
+        JsonDocument document;
+        try
         {
-            return ApiResponse<IReadOnlyList<LineWebhookHandleResult>>.Ok(results);
+            document = JsonDocument.Parse(body);
+        }
+        catch (JsonException ex)
+        {
+            logger.LogWarning(ex, "LINE webhook malformed JSON.");
+            return BadRequest(ApiResponse<string>.Fail("Malformed LINE webhook JSON."));
         }
 
-        foreach (var lineEvent in events.EnumerateArray())
+        using (document)
         {
-            var eventType = lineEvent.TryGetProperty("type", out var typeProperty) ? typeProperty.GetString() : null;
-            var lineUserId = lineEvent.TryGetProperty("source", out var source) &&
-                source.TryGetProperty("userId", out var userIdProperty)
-                    ? userIdProperty.GetString()
-                    : null;
+            var destination = document.RootElement.TryGetProperty("destination", out var destinationProperty)
+                ? destinationProperty.GetString()
+                : null;
 
-            if (string.IsNullOrWhiteSpace(eventType) || string.IsNullOrWhiteSpace(lineUserId))
+            if (!document.RootElement.TryGetProperty("events", out var events) || events.ValueKind != JsonValueKind.Array)
             {
-                continue;
+                logger.LogInformation("LINE webhook accepted without events array. Destination={Destination}", MaskLineId(destination));
+                return ApiResponse<IReadOnlyList<LineWebhookHandleResult>>.Ok(results);
             }
 
-            var result = eventType switch
+            var eventCount = events.GetArrayLength();
+            logger.LogInformation("LINE webhook parsed. Destination={Destination} EventCount={EventCount}", MaskLineId(destination), eventCount);
+
+            if (eventCount == 0)
             {
-                "follow" => await lineUserBindingService.HandleFollowAsync(lineUserId, cancellationToken),
-                "unfollow" => await lineUserBindingService.HandleUnfollowAsync(lineUserId, cancellationToken),
-                "message" => await HandleMessageEvent(lineEvent, lineUserId, cancellationToken),
-                _ => new LineWebhookHandleResult(eventType, null, "Ignored", false, "Unsupported LINE webhook event.")
-            };
-            results.Add(result);
+                logger.LogInformation("LINE webhook verification request detected. Destination={Destination} EventCount=0", MaskLineId(destination));
+                return ApiResponse<IReadOnlyList<LineWebhookHandleResult>>.Ok(results);
+            }
+
+            foreach (var lineEvent in events.EnumerateArray())
+            {
+                var eventType = lineEvent.TryGetProperty("type", out var typeProperty) ? typeProperty.GetString() : null;
+                var lineUserId = lineEvent.TryGetProperty("source", out var source) &&
+                    source.TryGetProperty("userId", out var userIdProperty)
+                        ? userIdProperty.GetString()
+                        : null;
+
+                if (string.IsNullOrWhiteSpace(eventType) || string.IsNullOrWhiteSpace(lineUserId))
+                {
+                    logger.LogInformation("LINE webhook event ignored because type or user id is missing. EventType={EventType}", eventType);
+                    continue;
+                }
+
+                try
+                {
+                    var result = eventType switch
+                    {
+                        "follow" => await lineUserBindingService.HandleFollowAsync(lineUserId, cancellationToken),
+                        "unfollow" => await lineUserBindingService.HandleUnfollowAsync(lineUserId, cancellationToken),
+                        "message" => await HandleMessageEvent(lineEvent, lineUserId, cancellationToken),
+                        _ => new LineWebhookHandleResult(eventType, null, "Ignored", false, "Unsupported LINE webhook event.")
+                    };
+                    results.Add(result);
+                    logger.LogInformation(
+                        "LINE webhook event processed. EventType={EventType} LineUserId={LineUserId} Status={Status} Bound={Bound}",
+                        eventType,
+                        MaskLineId(lineUserId),
+                        result.Status,
+                        result.Bound);
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError(ex, "LINE webhook event processing failed. EventType={EventType} LineUserId={LineUserId}", eventType, MaskLineId(lineUserId));
+                    results.Add(new LineWebhookHandleResult(eventType, MaskLineId(lineUserId), "Failed", false, "Webhook event processing failed."));
+                }
+            }
         }
+
+        logger.LogInformation("LINE webhook processing completed. ProcessedCount={ProcessedCount}", results.Count);
 
         return ApiResponse<IReadOnlyList<LineWebhookHandleResult>>.Ok(results);
     }
@@ -91,5 +138,21 @@ public class LineWebhookController(
         return CryptographicOperations.FixedTimeEquals(
             Encoding.UTF8.GetBytes(expected),
             Encoding.UTF8.GetBytes(signature));
+    }
+
+    private static string? MaskLineId(string? lineUserId)
+    {
+        if (string.IsNullOrWhiteSpace(lineUserId))
+        {
+            return null;
+        }
+
+        var trimmed = lineUserId.Trim();
+        if (trimmed.Length <= 10)
+        {
+            return "***";
+        }
+
+        return $"{trimmed[..5]}...{trimmed[^4..]}";
     }
 }

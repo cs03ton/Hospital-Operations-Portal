@@ -26,6 +26,30 @@
 | Backup | backup ล่าสุด, restore-test evidence, directory, file size, database backup ใน `postgres/` |
 | Version | app version, environment, git commit ถ้ามี |
 
+## Backup Status Source
+
+Health Center ใช้ `BACKUP_ROOT` หรือ `Backup__RootPath` เป็น root directory และตรวจสถานะ Backup จากไฟล์ database backup ใน:
+
+```text
+BACKUP_ROOT/postgres/hopdb_YYYYMMDD_HHMMSS.backup
+```
+
+โดยจะแสดง `Backup Directory` เป็น path ของโฟลเดอร์ `postgres` เพื่อให้รู้ชัดว่า health check กำลังตรวจ database backup จากจุดใด
+
+ส่วน log ของ Backup Center อ่านจาก:
+
+```text
+BACKUP_ROOT/logs/backup_YYYYMMDD*.log
+```
+
+และ storage backup ใช้ตรวจประกอบจาก:
+
+```text
+BACKUP_ROOT/storage/hop_uploads_YYYYMMDD_HHMMSS.tar.gz
+```
+
+> **Note:** ไม่ควรเปลี่ยน database backup กลับไปใช้ `/opt/hop/backups/db` เพราะมาตรฐานปัจจุบันคือ `/opt/hop/backups/postgres`
+
 ## Status Standard
 
 | Status | ความหมาย | Action |

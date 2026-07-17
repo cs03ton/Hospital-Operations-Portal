@@ -103,6 +103,14 @@ public static class DevelopmentDataSeeder
         ("LeaveBalance.Rollover", "ยกยอดวันลา", "LeaveBalance", "Rollover"),
         ("LeaveAdmin.ManageHolidays", "จัดการวันหยุดราชการ", "LeaveAdmin", "ManageHolidays"),
         ("LeaveAdmin.ManageApprovalChains", "จัดการกฎการอนุมัติวันลา", "LeaveAdmin", "ManageApprovalChains"),
+        ("LeaveCancellation.ViewOwn", "ดูคำขอยกเลิกใบลาของตนเอง", "LeaveCancellation", "ViewOwn"),
+        ("LeaveCancellation.Create", "สร้างคำขอยกเลิกใบลา", "LeaveCancellation", "Create"),
+        ("LeaveCancellation.Submit", "ส่งคำขอยกเลิกใบลา", "LeaveCancellation", "Submit"),
+        ("LeaveCancellation.CancelOwn", "ยกเลิกคำขอยกเลิกใบลาของตนเอง", "LeaveCancellation", "CancelOwn"),
+        ("LeaveCancellation.ApproveCurrentStep", "อนุมัติคำขอยกเลิกใบลาขั้นตอนปัจจุบัน", "LeaveCancellation", "ApproveCurrentStep"),
+        ("LeaveCancellation.ViewDepartment", "ดูคำขอยกเลิกใบลาในหน่วยงาน", "LeaveCancellation", "ViewDepartment"),
+        ("LeaveCancellation.ViewAll", "ดูคำขอยกเลิกใบลาทั้งหมด", "LeaveCancellation", "ViewAll"),
+        ("LeaveCancellation.Manage", "จัดการคำขอยกเลิกใบลา", "LeaveCancellation", "Manage"),
         ("System.Health.View", "ดู Health Center", "System", "HealthView"),
         ("System.Backup.View", "ดู Backup Center", "SystemBackup", "View"),
         ("System.Backup.Run", "ตรวจสอบและบันทึก Backup", "SystemBackup", "Run"),
@@ -355,13 +363,19 @@ public static class DevelopmentDataSeeder
             await GrantPermissionIds(db, superAdminRole.Id, allPermissionIds);
             await RevokePermissions(db, superAdminRole.Id, "LeaveRequest.Create");
             await RevokePermissions(db, adminRole.Id, "LeaveRequest.Create");
+            await RevokePermissions(db, superAdminRole.Id, "LeaveCancellation.Create", "LeaveCancellation.Submit", "LeaveCancellation.CancelOwn");
+            await RevokePermissions(db, adminRole.Id, "LeaveCancellation.Create", "LeaveCancellation.Submit", "LeaveCancellation.CancelOwn");
             await GrantPermissions(db, staffRole.Id,
                 "Dashboard.View",
                 "Documentation.View",
                 "LeaveRequest.ViewOwn",
                 "LeaveRequest.Create",
                 "LeaveRequest.EditOwn",
-                "LeaveRequest.CancelOwn");
+                "LeaveRequest.CancelOwn",
+                "LeaveCancellation.ViewOwn",
+                "LeaveCancellation.Create",
+                "LeaveCancellation.Submit",
+                "LeaveCancellation.CancelOwn");
             await GrantPermissions(db, departmentHeadRole.Id,
                 "Dashboard.View",
                 "Documentation.View",
@@ -371,7 +385,13 @@ public static class DevelopmentDataSeeder
                 "LeaveRequest.Create",
                 "LeaveRequest.EditOwn",
                 "LeaveRequest.CancelOwn",
-                "LeaveApproval.ApproveCurrentStep");
+                "LeaveApproval.ApproveCurrentStep",
+                "LeaveCancellation.ViewOwn",
+                "LeaveCancellation.Create",
+                "LeaveCancellation.Submit",
+                "LeaveCancellation.CancelOwn",
+                "LeaveCancellation.ApproveCurrentStep",
+                "LeaveCancellation.ViewDepartment");
             await GrantPermissions(db, directorRole.Id,
                 "Dashboard.View",
                 "Documentation.View",
@@ -384,11 +404,18 @@ public static class DevelopmentDataSeeder
                 "LeaveRequest.Create",
                 "LeaveRequest.EditOwn",
                 "LeaveRequest.CancelOwn",
-                "LeaveApproval.ApproveCurrentStep");
+                "LeaveApproval.ApproveCurrentStep",
+                "LeaveCancellation.ViewOwn",
+                "LeaveCancellation.Create",
+                "LeaveCancellation.Submit",
+                "LeaveCancellation.CancelOwn",
+                "LeaveCancellation.ApproveCurrentStep");
             await GrantPermissions(db, leaveAdminRole.Id,
                 "Dashboard.View",
                 "Documentation.View",
                 "LeaveRequest.ViewDepartment",
+                "LeaveCancellation.ViewDepartment",
+                "LeaveCancellation.Manage",
                 "LeaveAdmin.ManageTypes",
                 "LeaveAdmin.ManageBalances",
                 "LeaveBalance.Rollover",
@@ -421,6 +448,10 @@ public static class DevelopmentDataSeeder
                 "LeaveRequest.ViewPendingApproval",
                 "LeaveRequest.ViewDepartment",
                 "LeaveApproval.ApproveCurrentStep",
+                "LeaveCancellation.ViewOwn",
+                "LeaveCancellation.ViewDepartment",
+                "LeaveCancellation.ViewAll",
+                "LeaveCancellation.Manage",
                 "LeaveApproval.Delegate",
                 "LeaveApprovalDelegation.Manage",
                 "LeaveApprovalEscalation.Manage",

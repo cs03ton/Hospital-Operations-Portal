@@ -28,6 +28,7 @@ public sealed class HealthCenterService(
         var memory = CheckMemory();
         var cpu = CheckCpu();
         var backup = CheckBackup();
+        var leaveCancellation = await CheckLeaveCancellationAsync(cancellationToken);
         var version = typeof(Program).Assembly.GetName().Version?.ToString() ?? "1.0.0";
         var overallStatus = CalculateOverallStatus([
             api.Status,
@@ -38,7 +39,8 @@ public sealed class HealthCenterService(
             disk.Status,
             memory.Status,
             cpu.Status,
-            backup.Status
+            backup.Status,
+            leaveCancellation.Status
         ]);
 
         return new AdminHealthResponse(
@@ -53,6 +55,7 @@ public sealed class HealthCenterService(
             memory,
             cpu,
             backup,
+            leaveCancellation,
             version,
             environment.EnvironmentName,
             DateTime.UtcNow,
@@ -253,7 +256,10 @@ public sealed class HealthCenterService(
 
     public BackupHealthResponse CheckBackup()
     {
-        var backupRoot = configuration["Backup:RootPath"] ?? configuration["BACKUP_ROOT"] ?? "backups";
+        var backupRoot = configuration["Backup:RootPath"] ?? configuration["BACKUP_ROOT"] ?? "/opt/hop/backups";
+        var postgresBackupDirectory = Path.Combine(backupRoot, "postgres");
+        var storageBackupDirectory = Path.Combine(backupRoot, "storage");
+        var logDirectory = Path.Combine(backupRoot, "logs");
         try
         {
             if (!Directory.Exists(backupRoot))
@@ -261,17 +267,30 @@ public sealed class HealthCenterService(
                 return new BackupHealthResponse(GetMissingBackupStatus(), null, "ยังไม่พบโฟลเดอร์ backup", BackupDirectory: backupRoot);
             }
 
-            var files = Directory
-                .EnumerateFiles(backupRoot, "*", SearchOption.AllDirectories)
+            if (!Directory.Exists(postgresBackupDirectory))
+            {
+                return new BackupHealthResponse(
+                    GetMissingBackupStatus(),
+                    null,
+                    "ยังไม่พบโฟลเดอร์ database backup: postgres",
+                    BackupDirectory: postgresBackupDirectory);
+            }
+
+            var databaseBackups = Directory
+                .EnumerateFiles(postgresBackupDirectory, "*", SearchOption.TopDirectoryOnly)
                 .Select(path => new FileInfo(path))
-                .Where(file => !file.Name.EndsWith(".log", StringComparison.OrdinalIgnoreCase))
+                .Where(IsDatabaseBackupFile)
                 .OrderByDescending(file => file.LastWriteTimeUtc)
                 .ToList();
 
-            var latest = files.FirstOrDefault();
+            var latest = databaseBackups.FirstOrDefault();
             if (latest is null)
             {
-                return new BackupHealthResponse(GetMissingBackupStatus(), null, "ยังไม่พบไฟล์ backup", BackupDirectory: backupRoot);
+                return new BackupHealthResponse(
+                    GetMissingBackupStatus(),
+                    null,
+                    "ยังไม่พบไฟล์ database backup ในโฟลเดอร์ postgres",
+                    BackupDirectory: postgresBackupDirectory);
             }
 
             var lastBackup = latest.LastWriteTimeUtc;
@@ -282,24 +301,113 @@ public sealed class HealthCenterService(
                     ? "Warning"
                     : "Unhealthy";
 
-            var restoreTest = files
-                .Where(file => file.Name.Contains("restore", StringComparison.OrdinalIgnoreCase))
-                .OrderByDescending(file => file.LastWriteTimeUtc)
-                .FirstOrDefault()?.LastWriteTimeUtc;
+            var restoreTest = Directory.Exists(logDirectory)
+                ? Directory
+                    .EnumerateFiles(logDirectory, "*restore*", SearchOption.TopDirectoryOnly)
+                    .Select(path => new FileInfo(path))
+                    .OrderByDescending(file => file.LastWriteTimeUtc)
+                    .FirstOrDefault()?.LastWriteTimeUtc
+                : null;
+
+            var latestStorage = Directory.Exists(storageBackupDirectory)
+                ? Directory
+                    .EnumerateFiles(storageBackupDirectory, "hop_uploads_*.tar.gz", SearchOption.TopDirectoryOnly)
+                    .Select(path => new FileInfo(path))
+                    .OrderByDescending(file => file.LastWriteTimeUtc)
+                    .FirstOrDefault()
+                : null;
+
+            var message = status == "Healthy"
+                ? $"database backup ล่าสุดอยู่ที่ postgres/{latest.Name}"
+                : $"database backup ล่าสุดเกินช่วงเวลาที่แนะนำ: postgres/{latest.Name}";
+            if (latestStorage is null)
+            {
+                message += "; ยังไม่พบ storage backup ล่าสุด";
+            }
 
             return new BackupHealthResponse(
                 status,
                 lastBackup,
-                status == "Healthy" ? null : "backup ล่าสุดเกินช่วงเวลาที่แนะนำ",
+                message,
                 restoreTest,
-                backupRoot,
+                postgresBackupDirectory,
                 latest.Length,
                 latest.Name);
         }
+        catch (Exception ex)
+        {
+            return new BackupHealthResponse("Warning", null, $"ไม่สามารถตรวจสอบ backup ได้: {DescribeFileSystemError(ex)}", BackupDirectory: postgresBackupDirectory);
+        }
+    }
+
+    private async Task<LeaveCancellationHealthResponse> CheckLeaveCancellationAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            var pendingApproval = await db.LeaveCancellationRequests
+                .AsNoTracking()
+                .CountAsync(item => item.Status == "Pending" && item.CurrentApproverId != null, cancellationToken);
+            var failedNotification = await db.LineDeliveryLogs
+                .AsNoTracking()
+                .CountAsync(item => item.EventName != null &&
+                    item.EventName.StartsWith("LeaveCancellation") &&
+                    item.Status == "Failed", cancellationToken);
+            var failedReferenceIntegrity = await db.LeaveCancellationRequests
+                .AsNoTracking()
+                .CountAsync(item => item.OriginalLeaveRequest == null, cancellationToken);
+            var failedBalanceRestore = await db.LeaveCancellationRequests
+                .AsNoTracking()
+                .CountAsync(item => item.Status == "Approved" && item.BalanceRestoredAt == null, cancellationToken);
+            var status = failedReferenceIntegrity > 0 || failedBalanceRestore > 0
+                ? "Unhealthy"
+                : failedNotification > 0
+                    ? "Warning"
+                    : "Healthy";
+            var message = status switch
+            {
+                "Unhealthy" => "พบคำขอยกเลิกใบลาที่ reference หรือการคืนยอดไม่สมบูรณ์",
+                "Warning" => "พบการแจ้งเตือนคำขอยกเลิกใบลาล้มเหลว",
+                _ => null
+            };
+
+            return new LeaveCancellationHealthResponse(
+                status,
+                pendingApproval,
+                failedNotification,
+                failedReferenceIntegrity,
+                failedBalanceRestore,
+                message);
+        }
         catch (Exception)
         {
-            return new BackupHealthResponse("Warning", null, "ไม่สามารถตรวจสอบ backup ได้", BackupDirectory: backupRoot);
+            return new LeaveCancellationHealthResponse(
+                "Warning",
+                0,
+                0,
+                0,
+                0,
+                "ไม่สามารถตรวจสอบสถานะคำขอยกเลิกใบลาได้");
         }
+    }
+
+    private static string DescribeFileSystemError(Exception ex)
+    {
+        return ex switch
+        {
+            UnauthorizedAccessException => "ไม่มีสิทธิ์อ่านโฟลเดอร์ backup",
+            DirectoryNotFoundException => "ไม่พบโฟลเดอร์ backup",
+            IOException io when !string.IsNullOrWhiteSpace(io.Message) => io.Message,
+            _ => "กรุณาตรวจสอบ path และสิทธิ์ของไฟล์ backup บน server"
+        };
+    }
+
+    private static bool IsDatabaseBackupFile(FileInfo file)
+    {
+        return file.Name.StartsWith("hopdb_", StringComparison.OrdinalIgnoreCase) &&
+                file.Name.EndsWith(".backup", StringComparison.OrdinalIgnoreCase) ||
+            file.Name.StartsWith("hop_db_", StringComparison.OrdinalIgnoreCase) &&
+                (file.Name.EndsWith(".backup", StringComparison.OrdinalIgnoreCase) ||
+                 file.Name.EndsWith(".dump", StringComparison.OrdinalIgnoreCase));
     }
 
     private async Task<QueueHealthResponse> CheckQueueAsync(CancellationToken cancellationToken)

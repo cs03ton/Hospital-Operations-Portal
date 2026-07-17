@@ -14,35 +14,61 @@ namespace Hop.Api.Controllers;
 [Authorize]
 public class LeaveReportsController(AppDbContext db, IAuditLogService auditLogService) : ControllerBase
 {
+    private const string AnalyticsPermission = "LeaveAnalytics.View";
+    private const string ReportViewPermission = "ReportManagement.View";
+    private const string ReportExportPermission = "ReportManagement.Export";
+    private static readonly HashSet<string> ReportRoles = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "Director",
+        "Admin",
+        "SuperAdmin"
+    };
+
     [HttpGet]
-    [RequirePermission("ReportManagement.View")]
     public async Task<ActionResult<ApiResponse<LeaveReportResponse>>> GetReport(
         [FromQuery] DateOnly? from,
         [FromQuery] DateOnly? to,
         [FromQuery] Guid? departmentId,
-        [FromQuery] Guid? leaveTypeId)
+        [FromQuery] Guid? leaveTypeId,
+        CancellationToken cancellationToken = default)
     {
+        var currentUserId = GetCurrentUserId();
+        if (currentUserId is null || !await CanAccessReport(currentUserId.Value, cancellationToken))
+        {
+            return Forbid();
+        }
+
         return ApiResponse<LeaveReportResponse>.Ok(await BuildReport(from, to, departmentId, leaveTypeId));
     }
 
     [HttpGet("export-excel")]
-    [RequirePermission("ReportManagement.Export")]
-    public async Task<IActionResult> ExportExcel([FromQuery] DateOnly? from, [FromQuery] DateOnly? to, [FromQuery] Guid? departmentId, [FromQuery] Guid? leaveTypeId)
+    public async Task<IActionResult> ExportExcel([FromQuery] DateOnly? from, [FromQuery] DateOnly? to, [FromQuery] Guid? departmentId, [FromQuery] Guid? leaveTypeId, CancellationToken cancellationToken = default)
     {
+        var currentUserId = GetCurrentUserId();
+        if (currentUserId is null || !await CanExportReport(currentUserId.Value, cancellationToken))
+        {
+            return Forbid();
+        }
+
         var report = await BuildReport(from, to, departmentId, leaveTypeId);
         var bytes = BuildExcelWorkbook(report);
-        await auditLogService.WriteAsync(GetCurrentUserId(), "LeaveReport.ExportExcel", "LeaveReport", null, "Exported leave report Excel.", "Success", HttpContext);
+        await auditLogService.WriteAsync(currentUserId, "LeaveReport.ExportExcel", "LeaveReport", null, "Exported leave report Excel.", "Success", HttpContext);
         return File(bytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "leave-report.xlsx");
     }
 
     [HttpGet("export-pdf")]
-    [RequirePermission("ReportManagement.Export")]
-    public async Task<IActionResult> ExportPdf([FromQuery] DateOnly? from, [FromQuery] DateOnly? to, [FromQuery] Guid? departmentId, [FromQuery] Guid? leaveTypeId)
+    public async Task<IActionResult> ExportPdf([FromQuery] DateOnly? from, [FromQuery] DateOnly? to, [FromQuery] Guid? departmentId, [FromQuery] Guid? leaveTypeId, CancellationToken cancellationToken = default)
     {
+        var currentUserId = GetCurrentUserId();
+        if (currentUserId is null || !await CanExportReport(currentUserId.Value, cancellationToken))
+        {
+            return Forbid();
+        }
+
         var report = await BuildReport(from, to, departmentId, leaveTypeId);
         var pages = BuildPdfPages(report);
 
-        await auditLogService.WriteAsync(GetCurrentUserId(), "LeaveReport.ExportPdf", "LeaveReport", null, "Exported leave report PDF.", "Success", HttpContext);
+        await auditLogService.WriteAsync(currentUserId, "LeaveReport.ExportPdf", "LeaveReport", null, "Exported leave report PDF.", "Success", HttpContext);
         return File(SimplePdfWriter.CreateA4Pages(pages, logo: null), "application/pdf", "leave-report.pdf");
     }
 
@@ -219,5 +245,46 @@ public class LeaveReportsController(AppDbContext db, IAuditLogService auditLogSe
     {
         var value = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
         return Guid.TryParse(value, out var userId) ? userId : null;
+    }
+
+    private async Task<bool> CanAccessReport(Guid userId, CancellationToken cancellationToken)
+    {
+        if (await HasAnyRoleAsync(userId, ReportRoles, cancellationToken))
+        {
+            return true;
+        }
+
+        return await HasAnyPermissionAsync(userId, [ReportViewPermission, AnalyticsPermission], cancellationToken);
+    }
+
+    private async Task<bool> CanExportReport(Guid userId, CancellationToken cancellationToken)
+    {
+        if (await HasAnyRoleAsync(userId, ReportRoles, cancellationToken))
+        {
+            return true;
+        }
+
+        return await HasAnyPermissionAsync(userId, [ReportExportPermission], cancellationToken);
+    }
+
+    private Task<bool> HasAnyRoleAsync(Guid userId, IReadOnlySet<string> roleNames, CancellationToken cancellationToken)
+    {
+        return db.UserRoles
+            .AsNoTracking()
+            .Include(item => item.Role)
+            .Where(item => item.UserId == userId && item.Role != null && item.Role.IsActive)
+            .AnyAsync(item => item.Role != null && roleNames.Contains(item.Role.Name), cancellationToken);
+    }
+
+    private Task<bool> HasAnyPermissionAsync(Guid userId, IReadOnlyList<string> permissionCodes, CancellationToken cancellationToken)
+    {
+        return db.RolePermissions
+            .AsNoTracking()
+            .Include(item => item.Permission)
+            .Where(item => item.Role != null && item.Role.UserRoles.Any(userRole => userRole.UserId == userId))
+            .AnyAsync(item =>
+                item.Permission != null &&
+                permissionCodes.Contains(item.Permission.Code),
+                cancellationToken);
     }
 }

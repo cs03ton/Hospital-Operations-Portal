@@ -23,6 +23,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<LeaveRequest> LeaveRequests => Set<LeaveRequest>();
     public DbSet<LeaveAttachment> LeaveAttachments => Set<LeaveAttachment>();
     public DbSet<LeaveApproval> LeaveApprovals => Set<LeaveApproval>();
+    public DbSet<LeaveCancellationRequest> LeaveCancellationRequests => Set<LeaveCancellationRequest>();
+    public DbSet<LeaveCancellationApproval> LeaveCancellationApprovals => Set<LeaveCancellationApproval>();
+    public DbSet<LeaveBalanceTransaction> LeaveBalanceTransactions => Set<LeaveBalanceTransaction>();
     public DbSet<ApprovalChain> ApprovalChains => Set<ApprovalChain>();
     public DbSet<ApprovalChainStep> ApprovalChainSteps => Set<ApprovalChainStep>();
     public DbSet<ApprovalDelegation> ApprovalDelegations => Set<ApprovalDelegation>();
@@ -392,6 +395,121 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             entity.HasOne(item => item.ApprovalChainStep)
                 .WithMany()
                 .HasForeignKey(item => item.ApprovalChainStepId);
+        });
+
+        modelBuilder.Entity<LeaveCancellationRequest>(entity =>
+        {
+            entity.ToTable("leave_cancellation_requests");
+            entity.Property(item => item.Id).HasColumnName("id");
+            entity.Property(item => item.CancellationRequestNumber).HasColumnName("cancellation_request_number").HasMaxLength(24);
+            entity.Property(item => item.OriginalLeaveRequestId).HasColumnName("original_leave_request_id");
+            entity.Property(item => item.RequesterUserId).HasColumnName("requester_user_id");
+            entity.Property(item => item.LeaveTypeId).HasColumnName("leave_type_id");
+            entity.Property(item => item.OriginalLeaveDays).HasColumnName("original_leave_days");
+            entity.Property(item => item.Reason).HasColumnName("reason").HasMaxLength(1000);
+            entity.Property(item => item.Status).HasColumnName("status").HasMaxLength(40);
+            entity.Property(item => item.ApprovalChainId).HasColumnName("approval_chain_id");
+            entity.Property(item => item.CurrentApproverId).HasColumnName("current_approver_id");
+            entity.Property(item => item.CreatedAt).HasColumnName("created_at");
+            entity.Property(item => item.UpdatedAt).HasColumnName("updated_at");
+            entity.Property(item => item.CreatedByUserId).HasColumnName("created_by_user_id");
+            entity.Property(item => item.SubmittedAt).HasColumnName("submitted_at");
+            entity.Property(item => item.ApprovedAt).HasColumnName("approved_at");
+            entity.Property(item => item.RejectedAt).HasColumnName("rejected_at");
+            entity.Property(item => item.CancelledAt).HasColumnName("cancelled_at");
+            entity.Property(item => item.ReturnedForRevisionAt).HasColumnName("returned_for_revision_at");
+            entity.Property(item => item.ReturnedForRevisionByUserId).HasColumnName("returned_for_revision_by_user_id");
+            entity.Property(item => item.RevisionReason).HasColumnName("revision_reason").HasMaxLength(1000);
+            entity.Property(item => item.RevisionCount).HasColumnName("revision_count").HasDefaultValue(0);
+            entity.Property(item => item.LastResubmittedAt).HasColumnName("last_resubmitted_at");
+            entity.Property(item => item.BalanceRestoredAt).HasColumnName("balance_restored_at");
+            entity.HasIndex(item => item.CancellationRequestNumber).IsUnique();
+            entity.HasIndex(item => item.OriginalLeaveRequestId);
+            entity.HasIndex(item => new { item.RequesterUserId, item.Status });
+            entity.HasIndex(item => item.Status);
+            entity.HasIndex(item => item.OriginalLeaveRequestId)
+                .HasFilter("\"status\" IN ('Draft', 'Pending', 'ReturnedForRevision')")
+                .IsUnique();
+            entity.HasOne(item => item.OriginalLeaveRequest)
+                .WithMany(request => request.CancellationRequests)
+                .HasForeignKey(item => item.OriginalLeaveRequestId);
+            entity.HasOne(item => item.RequesterUser)
+                .WithMany()
+                .HasForeignKey(item => item.RequesterUserId);
+            entity.HasOne(item => item.LeaveType)
+                .WithMany()
+                .HasForeignKey(item => item.LeaveTypeId);
+            entity.HasOne(item => item.ApprovalChain)
+                .WithMany()
+                .HasForeignKey(item => item.ApprovalChainId);
+            entity.HasOne(item => item.CurrentApprover)
+                .WithMany()
+                .HasForeignKey(item => item.CurrentApproverId);
+            entity.HasOne(item => item.CreatedByUser)
+                .WithMany()
+                .HasForeignKey(item => item.CreatedByUserId);
+            entity.HasOne(item => item.ReturnedForRevisionByUser)
+                .WithMany()
+                .HasForeignKey(item => item.ReturnedForRevisionByUserId);
+        });
+
+        modelBuilder.Entity<LeaveCancellationApproval>(entity =>
+        {
+            entity.ToTable("leave_cancellation_approvals");
+            entity.Property(item => item.Id).HasColumnName("id");
+            entity.Property(item => item.LeaveCancellationRequestId).HasColumnName("leave_cancellation_request_id");
+            entity.Property(item => item.ApproverId).HasColumnName("approver_id");
+            entity.Property(item => item.ApprovalChainId).HasColumnName("approval_chain_id");
+            entity.Property(item => item.ApprovalChainStepId).HasColumnName("approval_chain_step_id");
+            entity.Property(item => item.StepOrder).HasColumnName("step_order");
+            entity.Property(item => item.Status).HasColumnName("status").HasMaxLength(40);
+            entity.Property(item => item.StepName).HasColumnName("step_name").HasMaxLength(200);
+            entity.Property(item => item.RequiredPermissionCode).HasColumnName("required_permission_code").HasMaxLength(120);
+            entity.Property(item => item.Remark).HasColumnName("remark").HasMaxLength(1000);
+            entity.Property(item => item.CreatedAt).HasColumnName("created_at");
+            entity.Property(item => item.ActionAt).HasColumnName("action_at");
+            entity.Property(item => item.ReturnedAt).HasColumnName("returned_at");
+            entity.Property(item => item.ReturnReason).HasColumnName("return_reason").HasMaxLength(1000);
+            entity.HasIndex(item => new { item.LeaveCancellationRequestId, item.StepOrder }).IsUnique();
+            entity.HasOne(item => item.LeaveCancellationRequest)
+                .WithMany(request => request.Approvals)
+                .HasForeignKey(item => item.LeaveCancellationRequestId);
+            entity.HasOne(item => item.Approver)
+                .WithMany()
+                .HasForeignKey(item => item.ApproverId);
+            entity.HasOne(item => item.ApprovalChain)
+                .WithMany()
+                .HasForeignKey(item => item.ApprovalChainId);
+            entity.HasOne(item => item.ApprovalChainStep)
+                .WithMany()
+                .HasForeignKey(item => item.ApprovalChainStepId);
+        });
+
+        modelBuilder.Entity<LeaveBalanceTransaction>(entity =>
+        {
+            entity.ToTable("leave_balance_transactions");
+            entity.Property(item => item.Id).HasColumnName("id");
+            entity.Property(item => item.UserId).HasColumnName("user_id");
+            entity.Property(item => item.LeaveTypeId).HasColumnName("leave_type_id");
+            entity.Property(item => item.FiscalYear).HasColumnName("fiscal_year");
+            entity.Property(item => item.TransactionType).HasColumnName("transaction_type").HasMaxLength(80);
+            entity.Property(item => item.AmountDays).HasColumnName("amount_days");
+            entity.Property(item => item.ReferenceType).HasColumnName("reference_type").HasMaxLength(120);
+            entity.Property(item => item.ReferenceId).HasColumnName("reference_id");
+            entity.Property(item => item.Reason).HasColumnName("reason").HasMaxLength(1000);
+            entity.Property(item => item.CreatedAt).HasColumnName("created_at");
+            entity.Property(item => item.CreatedByUserId).HasColumnName("created_by_user_id");
+            entity.HasIndex(item => new { item.ReferenceType, item.ReferenceId, item.TransactionType }).IsUnique();
+            entity.HasIndex(item => new { item.UserId, item.LeaveTypeId, item.FiscalYear });
+            entity.HasOne(item => item.User)
+                .WithMany()
+                .HasForeignKey(item => item.UserId);
+            entity.HasOne(item => item.LeaveType)
+                .WithMany()
+                .HasForeignKey(item => item.LeaveTypeId);
+            entity.HasOne(item => item.CreatedByUser)
+                .WithMany()
+                .HasForeignKey(item => item.CreatedByUserId);
         });
 
         modelBuilder.Entity<ApprovalChain>(entity =>

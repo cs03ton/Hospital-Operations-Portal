@@ -461,5 +461,10 @@ public class Phase1CriticalLeaveWorkflowTests
         {
             return Task.FromResult("LV-202606-999");
         }
+
+        public Task<string> GenerateCancellationAsync(DateTime createdAtUtc, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult("LVC-202606-999");
+        }
     }
 }

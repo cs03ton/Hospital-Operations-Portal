@@ -56,6 +56,52 @@ public class LeaveRequestNumberTests
         Assert.Equal("LV-202607-001", result);
     }
 
+    [Fact]
+    public async Task GenerateCancellationAsync_IncrementsCancellationSequenceWithinSameMonth()
+    {
+        await using var db = CreateDbContext();
+        db.LeaveCancellationRequests.Add(new LeaveCancellationRequest
+        {
+            Id = Guid.NewGuid(),
+            CancellationRequestNumber = "LVC-202607-003",
+            OriginalLeaveRequestId = Guid.NewGuid(),
+            RequesterUserId = Guid.NewGuid(),
+            LeaveTypeId = Guid.NewGuid(),
+            OriginalLeaveDays = 1,
+            Reason = "Existing cancellation",
+            Status = LeaveCancellationStatuses.Draft
+        });
+        await db.SaveChangesAsync();
+        var service = new LeaveRequestNumberService(db);
+
+        var result = await service.GenerateCancellationAsync(new DateTime(2026, 7, 17, 2, 0, 0, DateTimeKind.Utc));
+
+        Assert.Equal("LVC-202607-004", result);
+    }
+
+    [Fact]
+    public async Task GenerateCancellationAsync_ResetsCancellationSequenceForNewMonth()
+    {
+        await using var db = CreateDbContext();
+        db.LeaveCancellationRequests.Add(new LeaveCancellationRequest
+        {
+            Id = Guid.NewGuid(),
+            CancellationRequestNumber = "LVC-202607-009",
+            OriginalLeaveRequestId = Guid.NewGuid(),
+            RequesterUserId = Guid.NewGuid(),
+            LeaveTypeId = Guid.NewGuid(),
+            OriginalLeaveDays = 1,
+            Reason = "Existing cancellation",
+            Status = LeaveCancellationStatuses.Draft
+        });
+        await db.SaveChangesAsync();
+        var service = new LeaveRequestNumberService(db);
+
+        var result = await service.GenerateCancellationAsync(new DateTime(2026, 8, 1, 2, 0, 0, DateTimeKind.Utc));
+
+        Assert.Equal("LVC-202608-001", result);
+    }
+
     private static AppDbContext CreateDbContext()
     {
         var options = new DbContextOptionsBuilder<AppDbContext>()

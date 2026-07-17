@@ -150,7 +150,7 @@ Frontend routes are declared in `frontend/src/routes/AppRoutes.tsx`:
 
 | Finding | Evidence | Impact |
 |---|---|---|
-| Director role description says executive/reporting access, but seed does not grant `ReportManagement.View` | `DevelopmentDataSeeder.cs:43`, `DevelopmentDataSeeder.cs:371-378`, `menuConfig.ts:59`, `AppRoutes.tsx:116` | `/reports/leaves` hidden/denied for Director; Executive Dashboard screenshot blocked until seed/role decision |
+| Director report access is now allowed by executive/reporting policy | `LeaveReportsController.cs`, `menuConfig.ts`, `AppRoutes.tsx` | `/reports/leaves` is accessible for Director/Admin/SuperAdmin or explicit `ReportManagement.View` / `LeaveAnalytics.View` |
 | HR manual expects reports, but `LeaveAdmin` seed does not grant `ReportManagement.View` or `ReportManagement.Export` | `DevelopmentDataSeeder.cs:379-386`, `menuConfig.ts:59`, `AppRoutes.tsx:116` | HR Leave Report and Export Report screenshots are blocked/seed required |
 | HR manual mentions support/help workflows, but `LeaveAdmin` seed lacks `LeaveSupport.ViewAll` | `DevelopmentDataSeeder.cs:379-386`, `menuConfig.ts:58`, `AppRoutes.tsx:98` | `/admin/leave-support` hidden/denied for LeaveAdmin |
 | SuperAdmin route can access pending approvals by permission, but menu hides it for Admin/SuperAdmin | `menuConfig.ts:49`, `DevelopmentDataSeeder.cs:349-355` | Hidden menu but direct route likely allowed; document as intentional or adjust if unwanted |
@@ -165,7 +165,7 @@ Frontend routes are declared in `frontend/src/routes/AppRoutes.tsx`:
 
 Blocked catalog items:
 
-- Director Executive Dashboard/Leave Report: seed lacks `ReportManagement.View`
+- Director Executive Dashboard/Leave Report: accessible by role policy or explicit report/analytics permission
 - HR Leave Report: seed lacks `ReportManagement.View`
 - HR Export Report: seed lacks `ReportManagement.Export`
 
@@ -180,7 +180,7 @@ Seed Required examples:
 
 | Priority | Action | Owner |
 |---|---|---|
-| High | Confirm whether `Director` should receive `ReportManagement.View` for executive dashboard/report screenshots | Product/Authorization owner |
+| Done | Director report access policy updated for executive/reporting screenshots | Product/Authorization owner |
 | High | Confirm whether `LeaveAdmin`/HR should receive `ReportManagement.View` and `ReportManagement.Export` | Product/Authorization owner |
 | Medium | Confirm whether `LeaveAdmin` should receive `LeaveSupport.ViewAll` | Product/Authorization owner |
 | Medium | Decide whether SuperAdmin pending approval direct route should remain allowed while menu is hidden | Security/Product owner |

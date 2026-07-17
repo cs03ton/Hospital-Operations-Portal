@@ -19,6 +19,7 @@ import MeetingRoomOutlinedIcon from "@mui/icons-material/MeetingRoomOutlined";
 import MenuBookOutlinedIcon from "@mui/icons-material/MenuBookOutlined";
 import NotificationsActiveOutlinedIcon from "@mui/icons-material/NotificationsActiveOutlined";
 import RequestQuoteOutlinedIcon from "@mui/icons-material/RequestQuoteOutlined";
+import BlockOutlinedIcon from "@mui/icons-material/BlockOutlined";
 import SecurityOutlinedIcon from "@mui/icons-material/SecurityOutlined";
 import SettingsSuggestOutlinedIcon from "@mui/icons-material/SettingsSuggestOutlined";
 import WarehouseOutlinedIcon from "@mui/icons-material/WarehouseOutlined";
@@ -64,6 +65,7 @@ export const navigationModules: NavigationModule[] = [
       { label: "แดชบอร์ดการลา", path: "/dashboard/leave", icon: DashboardOutlinedIcon, permission: "Dashboard.View", activePatterns: ["/dashboard/leave"] },
       { label: "งานรออนุมัติของฉัน", path: "/leave/pending-approvals", icon: FactCheckOutlinedIcon, permission: "LeaveRequest.ViewPendingApproval", activePatterns: ["/leave/pending-approvals"], hiddenForRoles: ["Admin", "SuperAdmin"] },
       { label: "รายการคำขอลา", path: "/leave", icon: EventAvailableOutlinedIcon, permissions: leaveViewPermissions, activePatterns: ["/leave", "/leave/:id"] },
+      { label: "คำขอยกเลิกใบลา", path: "/leave/cancellations", icon: BlockOutlinedIcon, permissions: ["LeaveCancellation.ViewOwn", "LeaveCancellation.ApproveCurrentStep", "LeaveCancellation.ViewDepartment", "LeaveCancellation.ViewAll", "LeaveCancellation.Manage"], activePatterns: ["/leave/cancellations", "/leave/cancellations/:id"] },
       { label: "ปฏิทินการลา", path: "/leave/calendar", icon: CalendarMonthOutlinedIcon, permissions: leaveViewPermissions, activePatterns: ["/leave/calendar"] },
       { label: "วันลาคงเหลือ", path: "/leave/balances", icon: AccountBalanceWalletOutlinedIcon, permission: "LeaveRequest.ViewOwn", activePatterns: ["/leave/balances"], hiddenForRoles: ["Admin", "SuperAdmin"] },
       { label: "จัดการวันลาคงเหลือ", path: "/admin/leave-balances", icon: AccountBalanceWalletOutlinedIcon, permission: "LeaveAdmin.ManageBalances" },
@@ -73,7 +75,7 @@ export const navigationModules: NavigationModule[] = [
       { label: "วันหยุดราชการ", path: "/admin/leave-holidays", icon: EventBusyOutlinedIcon, permission: "LeaveAdmin.ManageHolidays" },
       { label: "ช่วยเหลือระบบลา", path: "/admin/leave-support", icon: ManageSearchOutlinedIcon, permission: "LeaveSupport.ViewAll" },
       { label: "วิเคราะห์การลา", path: "/reports/leave-analytics", icon: BarChartOutlinedIcon, permissions: ["LeaveAnalytics.View", "ReportManagement.View"], allowedRoles: ["Director", "Admin", "SuperAdmin"] },
-      { label: "รายงานการลา", path: "/reports/leaves", icon: BarChartOutlinedIcon, permission: "ReportManagement.View" },
+      { label: "รายงานการลา", path: "/reports/leaves", icon: BarChartOutlinedIcon, permissions: ["ReportManagement.View", "LeaveAnalytics.View"], allowedRoles: ["Director", "Admin", "SuperAdmin"] },
     ],
   },
   {

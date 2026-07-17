@@ -167,6 +167,41 @@ public class AdminHealthAndErrorTests
     }
 
     [Fact]
+    public void CheckBackup_UsesPostgresDirectoryAsDatabaseBackupSource()
+    {
+        using var db = CreateDbContext("health-backup-postgres");
+        var backupRoot = Path.Combine(Path.GetTempPath(), $"hop-backup-root-{Guid.NewGuid():N}");
+        var postgresDirectory = Path.Combine(backupRoot, "postgres");
+        var storageDirectory = Path.Combine(backupRoot, "storage");
+        Directory.CreateDirectory(postgresDirectory);
+        Directory.CreateDirectory(storageDirectory);
+        var backupFile = Path.Combine(postgresDirectory, "hopdb_20260717_104612.backup");
+        File.WriteAllText(backupFile, "postgres backup");
+        File.WriteAllText(Path.Combine(storageDirectory, "hop_uploads_20260717_104612.tar.gz"), "storage backup");
+
+        try
+        {
+            var configuration = CreateConfiguration(new Dictionary<string, string?>
+            {
+                ["Backup:RootPath"] = backupRoot,
+                ["Line:Enabled"] = "false"
+            });
+            var service = CreateService(db, configuration, "Production");
+
+            var backup = service.CheckBackup();
+
+            Assert.Equal("Healthy", backup.Status);
+            Assert.Equal(postgresDirectory, backup.BackupDirectory);
+            Assert.Equal("hopdb_20260717_104612.backup", backup.LatestBackupFile);
+            Assert.Contains("postgres/hopdb_20260717_104612.backup", backup.Message);
+        }
+        finally
+        {
+            SafeDeleteDirectory(backupRoot);
+        }
+    }
+
+    [Fact]
     public void CheckStorage_WhenPathIsNotWritable_ReturnsUnhealthy()
     {
         var storageFile = Path.Combine(Path.GetTempPath(), $"hop-storage-file-{Guid.NewGuid():N}.tmp");

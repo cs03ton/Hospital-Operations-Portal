@@ -56,6 +56,29 @@ Production bare-metal ใช้ path หลัก:
 /opt/hop/backups/postgres/hopdb_20260709_142201.backup
 ```
 
+## Path ที่ระบบตรวจสอบ
+
+| ส่วน | Path ที่ backend ใช้ |
+|---|---|
+| Backup Center history | `BACKUP_ROOT/postgres/hopdb_*.backup` และ `BACKUP_ROOT/storage/hop_uploads_*.tar.gz` |
+| Backup Status ใน Health Center | `BACKUP_ROOT/postgres/hopdb_*.backup` เป็นตัวชี้หลัก |
+| Log summary ของ backup | `BACKUP_ROOT/logs/backup_YYYYMMDD*.log` |
+| Restore log | `BACKUP_ROOT/logs/restore_YYYYMMDD*.log` |
+
+ค่า production ที่แนะนำ:
+
+```text
+BACKUP_ROOT=/opt/hop/backups
+```
+
+ดังนั้น database backup ควรอยู่ที่:
+
+```text
+/opt/hop/backups/postgres
+```
+
+ไม่ควรเปลี่ยนกลับไปใช้ `/opt/hop/backups/db` เพราะจะทำให้ Health Center และ Backup Center อ่านสถานะไม่ตรงกัน
+
 ## Tabs ในหน้า Backup Center
 
 | Tab | รายละเอียด |

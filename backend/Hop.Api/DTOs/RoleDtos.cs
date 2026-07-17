@@ -49,6 +49,7 @@ public record DashboardSummaryResponse(
     int MyLeaveRequestsApproved,
     int MyLeaveRequestsRejected,
     int MyLeaveRequestsCancelled,
+    int MyLeaveCancellationRequestsPending,
     int TotalLeaveTypes,
     int TotalApprovalRules,
     int TotalHolidaysThisYear,
@@ -64,7 +65,9 @@ public record DashboardSummaryResponse(
     string ApplicationVersion,
     IReadOnlyList<DashboardLeaveBalanceResponse>? MyCoreLeaveBalances = null,
     DashboardLeaveRequestGroupResponse? MyPendingRequests = null,
-    DashboardLeaveRequestGroupResponse? DepartmentRequests = null
+    DashboardLeaveRequestGroupResponse? DepartmentRequests = null,
+    DashboardLeaveRequestGroupResponse? MyRecentLeaveRequests = null,
+    DashboardLeaveCancellationSummaryResponse? LeaveCancellationSummary = null
 );
 
 public record DashboardLeaveBalanceResponse(
@@ -91,7 +94,43 @@ public record DashboardLeaveRequestItemResponse(
     decimal TotalDays,
     string Status,
     string? CurrentApproverName,
-    DateTime CreatedAt
+    DateTime CreatedAt,
+    string SourceType = "LeaveRequest",
+    string? DetailPath = null
+);
+
+public record DashboardLeaveCancellationSummaryResponse(
+    int Total,
+    int Pending,
+    int Approved,
+    int Rejected,
+    int Cancelled,
+    int ReturnedForRevision,
+    int Draft,
+    int PendingApprovalsForMe,
+    int ApprovedToday,
+    int RejectedToday,
+    decimal RestoredDaysThisYear,
+    decimal RestoredDaysTotal,
+    decimal? AverageApprovalHours,
+    decimal ApprovalRate,
+    decimal RejectionRate,
+    IReadOnlyList<DashboardLeaveCancellationTrendResponse> MonthlyTrend,
+    IReadOnlyList<DashboardLeaveCancellationBreakdownResponse> ByLeaveType,
+    IReadOnlyList<DashboardLeaveCancellationBreakdownResponse> ByDepartment,
+    DashboardLeaveRequestGroupResponse RecentRequests
+);
+
+public record DashboardLeaveCancellationTrendResponse(
+    string Month,
+    int RequestCount,
+    decimal RestoredDays
+);
+
+public record DashboardLeaveCancellationBreakdownResponse(
+    string Name,
+    int RequestCount,
+    decimal RestoredDays
 );
 
 public record ExecutiveDashboardResponse(

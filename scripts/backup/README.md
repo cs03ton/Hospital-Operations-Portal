@@ -78,6 +78,7 @@ Docker mode:
 
 ```bash
 sudo install -d -m 700 /etc/hop /opt/hop/backups /var/log/hop
+sudo chown -R hop:hop /opt/hop/backups /var/log/hop
 sudo cp scripts/backup/backup.env.example /etc/hop/backup.env
 sudo chmod 600 /etc/hop/backup.env
 sudo nano /etc/hop/backup.env
@@ -123,6 +124,51 @@ sudo crontab -l
 systemctl status cron
 tail -f /var/log/hop-backup-cron.log
 tail -f /var/log/hop/backup.log
+```
+
+ถ้าเห็น error แบบนี้:
+
+```text
+tee: /var/log/hop/backup.log: No such file or directory
+```
+
+แปลว่า `LOG_FILE=/var/log/hop/backup.log` ถูกตั้งไว้ แต่ยังไม่มี directory หรือ user ที่รัน cron เขียนไม่ได้ ให้แก้ด้วย:
+
+```bash
+sudo install -d -m 750 -o hop -g hop /var/log/hop
+sudo touch /var/log/hop/backup.log
+sudo chown hop:hop /var/log/hop/backup.log
+sudo chmod 640 /var/log/hop/backup.log
+```
+
+หรือเปลี่ยน `/etc/hop/backup.env` ให้ใช้ log ใต้ backup root:
+
+```env
+LOG_FILE=/opt/hop/backups/logs/backup.log
+```
+
+สคริปต์รุ่นล่าสุดจะ fallback ไปที่ `BACKUP_ROOT/logs/backup_*.log` ให้อัตโนมัติถ้า `LOG_FILE` เขียนไม่ได้
+
+ถ้าไฟล์ database backup ยังไปลง `/opt/hop/backups/db` แทน `/opt/hop/backups/postgres` แปลว่า server ยังรันสคริปต์รุ่นเก่าหรือ cron ชี้ผิดไฟล์ ให้ตรวจด้วย:
+
+```bash
+sudo crontab -l
+grep -n 'db_dir=' /opt/hop/scripts/backup/backup-hop.sh
+grep -n 'DatabaseBackupDir' /opt/hop/scripts/backup/backup-hop.sh
+```
+
+ค่าที่ถูกต้องต้องเห็น:
+
+```text
+db_dir="${BACKUP_ROOT}/postgres"
+DatabaseBackupDir=${db_dir}
+```
+
+จากนั้น deploy/sync `scripts/backup/backup-hop.sh` รุ่นล่าสุดขึ้น `/opt/hop/scripts/backup/backup-hop.sh` แล้วทดสอบ:
+
+```bash
+sudo BACKUP_ENV_FILE=/etc/hop/backup.env /opt/hop/scripts/backup/backup-hop.sh --dry-run
+sudo BACKUP_ENV_FILE=/etc/hop/backup.env /opt/hop/scripts/backup/backup-hop.sh
 ```
 
 ## 9. วิธีตรวจสอบ Log และไฟล์ Backup
@@ -247,6 +293,7 @@ sudo crontab -l
 | Backup file 0 byte | `pg_dump` ล้มเหลว | ดู log และแก้ DB connection |
 | `pg_restore --list failed` | dump เสียหรือไม่ใช่ custom format | ใช้ backup รอบอื่น |
 | Storage restore skipped | ไม่มี archive timestamp เดียวกัน | ตรวจ `backups/storage` |
+| `tee: /var/log/hop/backup.log: No such file or directory` | ไม่มี log directory หรือสิทธิ์เขียน log ไม่พอ | สร้าง `/var/log/hop` และปรับ owner หรือใช้ `LOG_FILE=/opt/hop/backups/logs/backup.log` |
 | Permission denied | สิทธิ์ directory/log ไม่พอ | ปรับ owner/permission ของ `/opt/hop/backups`, `/var/log/hop` |
 
 ## 20. Security Notes

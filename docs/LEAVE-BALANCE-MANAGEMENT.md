@@ -36,6 +36,18 @@
 คงเหลือใช้ได้ = สิทธิ์ประจำปี + ยกมาจากปีก่อน + ปรับปรุง - ใช้ไปแล้ว - รออนุมัติ
 ```
 
+## การคืนยอดจากคำขอยกเลิกใบลา
+
+เมื่อใบลาที่อนุมัติแล้วถูกยกเลิกผ่าน workflow `Leave Cancellation Request` ระบบจะคืนยอดหลัง final approval เท่านั้น
+
+```text
+usedDays = usedDays - originalLeaveDays
+```
+
+ใบลาเดิมจะเปลี่ยนสถานะเป็น `CancelledAfterApproval` และมี transaction ชนิด `LeaveCancellationRestore` ใน `leave_balance_transactions` เพื่อกันการคืนยอดซ้ำ
+
+อ่านรายละเอียด workflow ได้ที่ `docs/LEAVE-CANCELLATION-WORKFLOW.md`
+
 ## Filter
 
 สามารถกรองข้อมูลด้วย:

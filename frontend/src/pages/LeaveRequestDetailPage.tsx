@@ -1,4 +1,5 @@
 import ArrowBackOutlinedIcon from "@mui/icons-material/ArrowBackOutlined";
+import BlockOutlinedIcon from "@mui/icons-material/BlockOutlined";
 import CancelOutlinedIcon from "@mui/icons-material/CancelOutlined";
 import CheckCircleOutlineOutlinedIcon from "@mui/icons-material/CheckCircleOutlineOutlined";
 import DeleteOutlineOutlinedIcon from "@mui/icons-material/DeleteOutlineOutlined";
@@ -23,6 +24,7 @@ import {
   downloadLeaveRequestPdf,
   getLeaveApprovals,
   getLeaveAttachments,
+  getLeaveCancellationEligibility,
   getLeaveRequest,
   previewLeaveAttachment,
   rejectLeaveRequest,
@@ -66,6 +68,11 @@ export function LeaveRequestDetailPage() {
   const { data: request } = useQuery({ queryKey: ["leave-requests", id], queryFn: () => getLeaveRequest(id!), enabled: Boolean(id) });
   const { data: attachments = [] } = useQuery({ queryKey: ["leave-requests", id, "attachments"], queryFn: () => getLeaveAttachments(id!), enabled: Boolean(id) });
   const { data: approvals = [] } = useQuery({ queryKey: ["leave-requests", id, "approvals"], queryFn: () => getLeaveApprovals(id!), enabled: Boolean(id) });
+  const { data: cancellationEligibility } = useQuery({
+    queryKey: ["leave-cancellation-eligibility", id],
+    queryFn: () => getLeaveCancellationEligibility(id!),
+    enabled: Boolean(id) && request?.status === "Approved" && request.userId === user?.id,
+  });
 
   const invalidate = async () => {
     await queryClient.invalidateQueries({ queryKey: ["leave-requests"] });
@@ -224,6 +231,23 @@ export function LeaveRequestDetailPage() {
                   </Button>
                 </ActionTooltip>
               </PermissionGuard>
+              {request.status === "Approved" && request.userId === user?.id && (
+                <PermissionGuard permission="LeaveCancellation.Create">
+                  <ActionTooltip title={cancellationEligibility?.canCreate ? "สร้างคำขอยกเลิกใบลา" : cancellationEligibility?.message ?? "ตรวจสอบสิทธิ์การยกเลิกใบลา"}>
+                    <span>
+                      <Button
+                        variant="outlined"
+                        color="warning"
+                        startIcon={<BlockOutlinedIcon />}
+                        disabled={cancellationEligibility ? !cancellationEligibility.canCreate : true}
+                        onClick={() => navigate(`/leave/cancellations/create?leaveRequestId=${request.id}`)}
+                      >
+                        ขอยกเลิกใบลา
+                      </Button>
+                    </span>
+                  </ActionTooltip>
+                </PermissionGuard>
+              )}
               <PermissionGuard permission="LeaveRequest.Create">
                 <ActionTooltip title="ส่งคำขอลาเพื่ออนุมัติ">
                   <Button variant="contained" startIcon={<SendOutlinedIcon />} disabled={!canSubmit || submitMutation.isPending} onClick={() => submitMutation.mutate()}>
@@ -287,7 +311,54 @@ export function LeaveRequestDetailPage() {
           </Alert>
         )}
 
+        {request.status === "CancelledAfterApproval" && request.cancellationRequestId && (
+          <Alert
+            severity="info"
+            action={
+              <Button color="inherit" size="small" onClick={() => navigate(`/leave/cancellations/${request.cancellationRequestId}`)}>
+                เปิดคำขอยกเลิก
+              </Button>
+            }
+          >
+            ใบลานี้ถูกยกเลิกหลังอนุมัติแล้ว อ้างอิงคำขอยกเลิกใบลา {request.cancellationRequestNumber ?? "-"}
+          </Alert>
+        )}
+
         <LeaveTrackingCard request={request} />
+
+        {request.status === "Approved" && request.userId === user?.id && (
+          <PermissionGuard permission="LeaveCancellation.ViewOwn">
+            <InfoCard title="ข้อมูลการยกเลิก" subtitle="สร้างคำขอยกเลิกใบลาโดยอ้างอิงใบลาที่อนุมัติแล้ว ระบบจะเปลี่ยนสถานะใบลาเดิมและคืนยอดหลังอนุมัติครบทุกขั้น">
+              {cancellationEligibility ? (
+                <Grid container spacing={1.5}>
+                  <Grid item xs={12} sm={6} md={4}>
+                    <DetailItem label="จำนวนวันที่จะคืนยอด" value={`${cancellationEligibility.originalLeaveDays.toLocaleString("th-TH", { maximumFractionDigits: 1 })} วัน`} />
+                  </Grid>
+                  <Grid item xs={12} sm={6} md={4}>
+                    <DetailItem label="เคยยกเลิกแล้ว" value={cancellationEligibility.alreadyCancelled ? "ใช่" : "ไม่"} />
+                  </Grid>
+                  <Grid item xs={12} sm={6} md={4}>
+                    <DetailItem label="มีคำขอรอดำเนินการ" value={cancellationEligibility.hasActiveCancellation ? "ใช่" : "ไม่"} />
+                  </Grid>
+                  {!cancellationEligibility.canCreate && (
+                    <Grid item xs={12}>
+                      <Alert severity="info">{cancellationEligibility.message}</Alert>
+                    </Grid>
+                  )}
+                  {cancellationEligibility.canCreate && (
+                    <Grid item xs={12}>
+                      <Button variant="contained" color="warning" startIcon={<BlockOutlinedIcon />} onClick={() => navigate(`/leave/cancellations/create?leaveRequestId=${request.id}`)}>
+                        ขอยกเลิกใบลา
+                      </Button>
+                    </Grid>
+                  )}
+                </Grid>
+              ) : (
+                <Typography color="text.secondary">กำลังตรวจสอบข้อมูลการยกเลิกใบลา...</Typography>
+              )}
+            </InfoCard>
+          </PermissionGuard>
+        )}
 
         {request.status === "ReturnedForRevision" && (
           <Alert severity="warning">
@@ -522,7 +593,7 @@ function AttachmentActions({
   );
 }
 
-function DetailItem({ label, value, chipColor }: { label: string; value: string; chipColor?: "default" | "warning" | "success" | "error" }) {
+function DetailItem({ label, value, chipColor }: { label: string; value: string; chipColor?: "default" | "warning" | "success" | "error" | "info" }) {
   return (
     <Box>
       <Typography variant="caption" color="text.secondary" fontWeight={700}>

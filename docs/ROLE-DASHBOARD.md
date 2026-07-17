@@ -29,6 +29,7 @@ Shows:
 - Welcome
 - My Leave Balance
 - My Leave Requests
+- Leave Cancellation Summary
 - My Pending Requests
 - Recent Notifications
 - My Leave Calendar
@@ -40,6 +41,7 @@ Shows:
 - Welcome
 - My Leave Balance
 - My Leave Requests
+- Leave Cancellation Summary
 - My Pending Leave Requests
 - Department Leave Requests
 - My Leave Calendar
@@ -66,13 +68,22 @@ Department Head dashboard is ordered from personal work to team work:
 Shows:
 
 - Welcome
-- Hospital Leave Summary
+- My Leave Requests
+- Leave Cancellation Summary
 - Department Comparison
 - Monthly Leave Statistics
 - Approval Queue
 - Executive Calendar
 - Leave Trend Chart
+- Hospital Leave Summary at the lower full-width section
 - Executive Dashboard at `/dashboard/executive` when granted `Dashboard.Executive.View` or `LeaveDashboard.ViewExecutiveSummary`
+
+Director dashboard is ordered from personal/actionable work to executive overview:
+
+1. Personal leave request summary
+2. Leave cancellation request summary
+3. Department comparison, monthly statistics, approval queue, executive calendar, and trend widgets
+4. Hospital-wide leave summary at the lower section
 
 ## Executive Dashboard
 
@@ -95,6 +106,8 @@ Admin uses a dedicated Control Center at `/admin/dashboard` and keeps CRUD in ma
 Shows:
 
 - Welcome
+- My Leave Requests
+- Leave Cancellation Summary
 - User Summary
 - Department Summary
 - Leave Type Summary
@@ -129,6 +142,7 @@ Shows Admin widgets plus:
 
 Admin and SuperAdmin do not use the personal leave balance menu. They can still see admin/support widgets according to permissions.
 Admin and SuperAdmin do not show the "งานรออนุมัติของฉัน" widget because they are not normal approval queue users by default.
+Admin and SuperAdmin can see leave request and leave cancellation summary widgets for monitoring/support according to backend permissions, but they still cannot create leave requests by default.
 Staff and Department Head do not see Executive Dashboard unless the permission is explicitly assigned.
 
 ## Admin Dashboard vs User Management

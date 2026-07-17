@@ -54,7 +54,7 @@ export function LeaveTrackingCard({ request }: LeaveTrackingCardProps) {
 }
 
 function getCompletedAtLabel(request: LeaveRequest) {
-  if (!["Approved", "Rejected", "Cancelled"].includes(request.status)) {
+  if (!["Approved", "Rejected", "Cancelled", "CancelledAfterApproval"].includes(request.status)) {
     return "-";
   }
 

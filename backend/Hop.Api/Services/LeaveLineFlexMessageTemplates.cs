@@ -66,6 +66,41 @@ public static class LeaveLineFlexMessageTemplates
         return BuildResultCard(request, publicAppUrl, avatar, "คำขอลาถูกยกเลิก", "ยกเลิกแล้ว", CancelledGray);
     }
 
+    public static string BuildReturnedForRevisionCard(LeaveRequest request, string publicAppUrl, UserAvatarInfo? avatar = null)
+    {
+        return BuildResultCard(request, publicAppUrl, avatar, "คำขอลาถูกตีกลับ", "ตีกลับรอแก้ไข", "#D97706");
+    }
+
+    public static string BuildRevisionCancelledCard(LeaveRequest request, string publicAppUrl, UserAvatarInfo? avatar = null)
+    {
+        return BuildResultCard(request, publicAppUrl, avatar, "คำขอลาถูกยกเลิก", "ยกเลิกแล้ว", CancelledGray);
+    }
+
+    public static string BuildCancellationSubmittedCard(LeaveCancellationRequest request, string publicAppUrl)
+    {
+        return BuildCancellationCard(request, publicAppUrl, "คำขอยกเลิกใบลารออนุมัติ", "กรุณาพิจารณาอนุมัติคำขอยกเลิกใบลา", "รออนุมัติ", "#C8A96B", true);
+    }
+
+    public static string BuildCancellationApprovedCard(LeaveCancellationRequest request, string publicAppUrl)
+    {
+        return BuildCancellationCard(request, publicAppUrl, "คำขอยกเลิกใบลาอนุมัติแล้ว", "ใบลาเดิมถูกยกเลิกและคืนยอดวันลาแล้ว", "อนุมัติแล้ว", ApproveGreen, false);
+    }
+
+    public static string BuildCancellationRejectedCard(LeaveCancellationRequest request, string publicAppUrl)
+    {
+        return BuildCancellationCard(request, publicAppUrl, "คำขอยกเลิกใบลาไม่อนุมัติ", "คำขอยกเลิกใบลาไม่ได้รับการอนุมัติ", "ไม่อนุมัติ", RejectRed, false);
+    }
+
+    public static string BuildCancellationReturnedCard(LeaveCancellationRequest request, string publicAppUrl)
+    {
+        return BuildCancellationCard(request, publicAppUrl, "คำขอยกเลิกใบลาถูกตีกลับ", "กรุณาแก้ไขและส่งคำขอใหม่อีกครั้ง", "ตีกลับรอแก้ไข", "#D97706", false);
+    }
+
+    public static string BuildCancellationCancelledCard(LeaveCancellationRequest request, string publicAppUrl)
+    {
+        return BuildCancellationCard(request, publicAppUrl, "คำขอยกเลิกใบลาถูกยกเลิก", "คำขอยกเลิกใบลาถูกยกเลิกแล้ว", "ยกเลิกแล้ว", CancelledGray, false);
+    }
+
     private static string BuildPendingCard(LeaveRequest request, string publicAppUrl, UserAvatarInfo? avatar, string header, string status, string statusColor)
     {
         var detailUrl = BuildUrl(publicAppUrl, $"/leave/{request.Id}");
@@ -106,6 +141,42 @@ public static class LeaveLineFlexMessageTemplates
         return BuildPayload(request, publicAppUrl, avatar, header, subtitle, status, statusColor, footerContents, false);
     }
 
+    private static string BuildCancellationCard(
+        LeaveCancellationRequest request,
+        string publicAppUrl,
+        string header,
+        string subtitle,
+        string status,
+        string statusColor,
+        bool includeApprovalProgress)
+    {
+        var detailUrl = BuildUrl(publicAppUrl, $"/leave/cancellations/{request.Id}");
+        var footerContents = new List<object>
+        {
+            ActionButton("ดูรายละเอียด", detailUrl, DetailBlue)
+        };
+
+        return BuildPayload(
+            RequestCode(request),
+            request.RequesterUser,
+            request.RequesterUser?.Department?.Name,
+            request.LeaveType?.Name,
+            request.OriginalLeaveRequest?.StartDate ?? DateOnly.FromDateTime(request.CreatedAt),
+            request.OriginalLeaveRequest?.EndDate ?? DateOnly.FromDateTime(request.CreatedAt),
+            request.OriginalLeaveDays,
+            request.Reason,
+            publicAppUrl,
+            null,
+            header,
+            subtitle,
+            status,
+            statusColor,
+            footerContents,
+            includeApprovalProgress,
+            request.Approvals.Select(item => new ApprovalSnapshot(item.StepOrder, item.StepName, item.Status)),
+            "คำขอยกเลิกใบลา");
+    }
+
     private static string BuildPayload(
         LeaveRequest request,
         string publicAppUrl,
@@ -117,22 +188,64 @@ public static class LeaveLineFlexMessageTemplates
         List<object> footerContents,
         bool includeApprovalProgress)
     {
-        var currentStep = request.Approvals
+        return BuildPayload(
+            RequestCode(request),
+            request.User,
+            request.User?.Department?.Name,
+            request.LeaveType?.Name,
+            request.StartDate,
+            request.EndDate,
+            request.TotalDays,
+            request.Reason,
+            publicAppUrl,
+            avatar,
+            header,
+            subtitle,
+            status,
+            statusColor,
+            footerContents,
+            includeApprovalProgress,
+            request.Approvals.Select(item => new ApprovalSnapshot(item.StepOrder, item.StepName, item.Status)),
+            "คำขอลา");
+    }
+
+    private static string BuildPayload(
+        string requestCode,
+        User? requester,
+        string? departmentName,
+        string? leaveTypeName,
+        DateOnly startDate,
+        DateOnly endDate,
+        decimal totalDays,
+        string? reason,
+        string publicAppUrl,
+        UserAvatarInfo? avatar,
+        string header,
+        string subtitle,
+        string status,
+        string statusColor,
+        List<object> footerContents,
+        bool includeApprovalProgress,
+        IEnumerable<ApprovalSnapshot> approvals,
+        string requestCategory)
+    {
+        var approvalList = approvals.ToList();
+        var currentStep = approvalList
             .OrderBy(item => item.StepOrder)
             .FirstOrDefault(item => item.Status == "Pending")?.StepName ?? "-";
         var bodyContents = new List<object>
         {
-            InfoRow("📋", "เลขที่คำขอ", RequestCode(request), Gold),
-            InfoRow("👤", "ผู้ขอ", request.User?.FullName ?? "-", TextPrimary),
-            InfoRow("🏢", "หน่วยงาน", request.User?.Department?.Name ?? "-", TextPrimary),
-            InfoRow("🏷️", "ประเภทการลา", request.LeaveType?.Name ?? "-", TextPrimary),
-            InfoRow("📅", "วันที่ลา", $"{FormatDate(request.StartDate)} ถึง {FormatDate(request.EndDate)}", TextPrimary),
-            InfoRow("🕒", "จำนวนวัน", $"{request.TotalDays:0.##} วัน", TextPrimary)
+            InfoRow("เลขที่คำขอ", requestCode, Gold),
+            InfoRow("ผู้ขอ", requester?.FullName ?? "-", TextPrimary),
+            InfoRow("หน่วยงาน", departmentName ?? "-", TextPrimary),
+            InfoRow("ประเภทการลา", leaveTypeName ?? "-", TextPrimary),
+            InfoRow("วันที่ลา", $"{FormatDate(startDate)} ถึง {FormatDate(endDate)}", TextPrimary),
+            InfoRow("จำนวนวัน", $"{totalDays:0.##} วัน", TextPrimary)
         };
 
-        if (!string.IsNullOrWhiteSpace(request.Reason) && status != "อนุมัติแล้ว")
+        if (!string.IsNullOrWhiteSpace(reason) && status != "อนุมัติแล้ว")
         {
-            bodyContents.Add(InfoRow("📝", status == "ไม่อนุมัติ" ? "เหตุผล" : "เหตุผล", Truncate(request.Reason, 120), TextPrimary));
+            bodyContents.Add(InfoRow("เหตุผล", Truncate(reason, 120), TextPrimary));
         }
 
         bodyContents.Add(StatusPanel(status, statusColor, includeApprovalProgress ? currentStep : null));
@@ -150,12 +263,12 @@ public static class LeaveLineFlexMessageTemplates
                 new
                 {
                     type = "flex",
-                    altText = $"{header} {RequestCode(request)}",
+                    altText = $"{header} {requestCode}",
                     contents = new
                     {
                         type = "bubble",
                         size = "mega",
-                        hero = HeaderSection(request, header, subtitle, statusColor, avatar),
+                        hero = HeaderSection(requester, requestCode, header, subtitle, statusColor, avatar, requestCategory),
                         body = new
                         {
                             type = "box",
@@ -181,7 +294,7 @@ public static class LeaveLineFlexMessageTemplates
         return JsonSerializer.Serialize(payload);
     }
 
-    private static object HeaderSection(LeaveRequest request, string title, string subtitle, string accentColor, UserAvatarInfo? avatar)
+    private static object HeaderSection(User? requester, string requestCode, string title, string subtitle, string accentColor, UserAvatarInfo? avatar, string requestCategory)
     {
         return new
         {
@@ -199,7 +312,7 @@ public static class LeaveLineFlexMessageTemplates
                     spacing = "md",
                     contents = new object[]
                     {
-                        Avatar(request.User, avatar),
+                        Avatar(requester, avatar),
                         new
                         {
                             type = "box",
@@ -219,7 +332,7 @@ public static class LeaveLineFlexMessageTemplates
                     type = "separator",
                     color = accentColor == RejectRed ? "#FCA5A5" : Gold
                 },
-                Text($"เลขที่คำขอ {RequestCode(request)}", "#FDE68A", "sm", "bold", wrap: true)
+                Text($"เลขที่คำขอ {requestCode}", "#FDE68A", "md", "bold", wrap: true)
             }
         };
     }
@@ -267,7 +380,7 @@ public static class LeaveLineFlexMessageTemplates
         };
     }
 
-    private static object InfoRow(string icon, string label, string value, string valueColor)
+    private static object InfoRow(string label, string value, string valueColor)
     {
         return new
         {
@@ -276,7 +389,7 @@ public static class LeaveLineFlexMessageTemplates
             spacing = "sm",
             contents = new object[]
             {
-                Text(icon, Gold, "md", "regular", 1),
+                Text("...", Gold, "sm", "bold", 1),
                 Text(label, TextMuted, "sm", "regular", 4),
                 Text(":", Gold, "sm", "bold", 1),
                 Text(value, valueColor, "sm", "bold", 7, true)
@@ -405,6 +518,11 @@ public static class LeaveLineFlexMessageTemplates
         return request.RequestNumber ?? request.Id.ToString("N")[..8].ToUpperInvariant();
     }
 
+    private static string RequestCode(LeaveCancellationRequest request)
+    {
+        return request.CancellationRequestNumber ?? request.Id.ToString("N")[..8].ToUpperInvariant();
+    }
+
     private static string FormatDate(DateOnly date)
     {
         return $"{date.Day:00}/{date.Month:00}/{date.Year + 543}";
@@ -464,4 +582,6 @@ public static class LeaveLineFlexMessageTemplates
             ? "-"
             : value.Length <= maxLength ? value : $"{value[..maxLength]}...";
     }
+
+    private sealed record ApprovalSnapshot(int StepOrder, string? StepName, string Status);
 }

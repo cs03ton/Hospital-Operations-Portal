@@ -115,6 +115,7 @@ export type DashboardSummary = {
   myLeaveRequestsApproved: number;
   myLeaveRequestsRejected: number;
   myLeaveRequestsCancelled: number;
+  myLeaveCancellationRequestsPending: number;
   totalLeaveTypes: number;
   totalApprovalRules: number;
   totalHolidaysThisYear: number;
@@ -130,6 +131,8 @@ export type DashboardSummary = {
   applicationVersion: string;
   myPendingRequests: DashboardLeaveRequestGroup;
   departmentRequests: DashboardLeaveRequestGroup;
+  myRecentLeaveRequests: DashboardLeaveRequestGroup;
+  leaveCancellationSummary?: DashboardLeaveCancellationSummary | null;
 };
 
 export type DashboardLeaveBalance = {
@@ -157,6 +160,42 @@ export type DashboardLeaveRequestItem = {
   status: string;
   currentApproverName?: string | null;
   createdAt: string;
+  sourceType?: string | null;
+  detailPath?: string | null;
+};
+
+export type DashboardLeaveCancellationSummary = {
+  total: number;
+  pending: number;
+  approved: number;
+  rejected: number;
+  cancelled: number;
+  returnedForRevision: number;
+  draft: number;
+  pendingApprovalsForMe: number;
+  approvedToday: number;
+  rejectedToday: number;
+  restoredDaysThisYear: number;
+  restoredDaysTotal: number;
+  averageApprovalHours?: number | null;
+  approvalRate: number;
+  rejectionRate: number;
+  monthlyTrend: DashboardLeaveCancellationTrend[];
+  byLeaveType: DashboardLeaveCancellationBreakdown[];
+  byDepartment: DashboardLeaveCancellationBreakdown[];
+  recentRequests: DashboardLeaveRequestGroup;
+};
+
+export type DashboardLeaveCancellationTrend = {
+  month: string;
+  requestCount: number;
+  restoredDays: number;
+};
+
+export type DashboardLeaveCancellationBreakdown = {
+  name: string;
+  requestCount: number;
+  restoredDays: number;
 };
 
 export type HealthComponent = {
@@ -232,6 +271,15 @@ export type BackupHealth = {
   latestBackupFile?: string | null;
 };
 
+export type LeaveCancellationHealth = {
+  status: string;
+  pendingApproval: number;
+  failedNotification: number;
+  failedReferenceIntegrity: number;
+  failedBalanceRestore: number;
+  message?: string | null;
+};
+
 export type AdminHealth = {
   overallStatus: string;
   checkedAt: string;
@@ -244,6 +292,7 @@ export type AdminHealth = {
   memory: MemoryHealth;
   cpu: CpuHealth;
   backup: BackupHealth;
+  leaveCancellation: LeaveCancellationHealth;
   version: string;
   environment: string;
   currentTimeServer: string;

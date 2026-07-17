@@ -50,6 +50,7 @@ export function AdminHealthPage() {
         <HealthCard title="RAM" icon={MemoryOutlinedIcon} status={data?.memory.status} message={data?.memory.usedPercent == null ? data?.memory.message : `ใช้งาน ${formatNumber(data.memory.usedPercent)}%`} progress={data?.memory.usedPercent} isLoading={isLoading} />
         <HealthCard title="Backup" icon={BackupOutlinedIcon} status={data?.backup.status} message={data?.backup.lastBackupAt ? `ล่าสุด ${formatThaiDateTime(data.backup.lastBackupAt)}` : data?.backup.message} isLoading={isLoading} />
         <HealthCard title="Queue / Worker" icon={SettingsSuggestOutlinedIcon} status={data?.queue.status} message={buildQueueMessage(data)} isLoading={isLoading} />
+        <HealthCard title="Leave Cancellation" icon={SettingsSuggestOutlinedIcon} status={data?.leaveCancellation.status} message={buildLeaveCancellationHealthMessage(data)} isLoading={isLoading} />
       </HealthStatusGrid>
 
       <Paper sx={{ borderRadius: 3, border: `1px solid ${brandColors.border}`, overflow: "hidden" }}>
@@ -130,6 +131,18 @@ function buildQueueMessage(data?: AdminHealth) {
     data.queue.message,
   ].filter(Boolean);
   return parts.join(" · ");
+}
+
+function buildLeaveCancellationHealthMessage(data?: AdminHealth) {
+  if (!data?.leaveCancellation) return undefined;
+  const health = data.leaveCancellation;
+  return [
+    `รออนุมัติ ${health.pendingApproval.toLocaleString("th-TH")}`,
+    `LINE failed ${health.failedNotification.toLocaleString("th-TH")}`,
+    `reference issue ${health.failedReferenceIntegrity.toLocaleString("th-TH")}`,
+    `restore issue ${health.failedBalanceRestore.toLocaleString("th-TH")}`,
+    health.message,
+  ].filter(Boolean).join(" · ");
 }
 
 function HealthCard({ title, icon: Icon, status, message, progress, isLoading }: { title: string; icon: SvgIconComponent; status?: string; message?: string | null; progress?: number | null; isLoading: boolean }) {
@@ -273,6 +286,7 @@ function DiagnosticsDetails({ data }: { data?: AdminHealth }) {
       <DetailRow label="Git Commit" value={data?.gitCommit ?? "-"} />
       <DetailRow label="Checked At" value={formatThaiDateTime(data?.checkedAt)} />
       <DetailRow label="API Message" value={data?.api.message ?? "-"} />
+      <DetailRow label="Leave Cancellation Queue" value={buildLeaveCancellationHealthMessage(data) ?? "-"} status={data?.leaveCancellation.status} />
       <DetailRow label="Storage Writable" value={data?.storage.writable ? "ใช่" : "ไม่ใช่"} status={data?.storage.writable ? "Healthy" : "Unhealthy"} />
       <DetailRow label="Disk Free" value={data?.disk.freeGb == null ? "-" : `${formatNumber(data.disk.freeGb)} GB`} />
       <DetailRow label="CPU Note" value={data?.cpu.message ?? "-"} />

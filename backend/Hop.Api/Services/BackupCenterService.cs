@@ -391,7 +391,11 @@ public sealed class BackupCenterService(
         var backupRoot = ResolveBackupRoot();
         var postgresDir = Path.Combine(backupRoot, "postgres");
         var storageDir = Path.Combine(backupRoot, "storage");
-        foreach (var file in EnumerateBackupFiles(postgresDir, BackupTypes.Database).Concat(EnumerateBackupFiles(storageDir, BackupTypes.Storage)))
+        var files = EnumerateBackupFiles(postgresDir, BackupTypes.Database)
+            .Concat(EnumerateBackupFiles(storageDir, BackupTypes.Storage))
+            .ToList();
+
+        foreach (var file in files)
         {
             if (await db.BackupRuns.AnyAsync(item => item.FilePath == file.Path, cancellationToken))
             {
@@ -421,16 +425,28 @@ public sealed class BackupCenterService(
     {
         if (!Directory.Exists(directory))
         {
+            logger.LogWarning("Backup directory does not exist: {Directory}", directory);
             yield break;
         }
 
         var patterns = type == BackupTypes.Database
-            ? ["hopdb_*.backup", "hop_db_*.dump"]
+            ? ["hopdb_*.backup", "hop_db_*.backup", "hop_db_*.dump"]
             : new[] { "hop_uploads_*.tar.gz", "hop_storage_*.tar.gz" };
 
         foreach (var pattern in patterns)
         {
-            foreach (var path in Directory.EnumerateFiles(directory, pattern, SearchOption.TopDirectoryOnly))
+            IEnumerable<string> paths;
+            try
+            {
+                paths = Directory.EnumerateFiles(directory, pattern, SearchOption.TopDirectoryOnly).ToList();
+            }
+            catch (Exception ex) when (ex is UnauthorizedAccessException or IOException or DirectoryNotFoundException)
+            {
+                logger.LogWarning(ex, "Cannot enumerate backup directory {Directory} with pattern {Pattern}", directory, pattern);
+                continue;
+            }
+
+            foreach (var path in paths)
             {
                 yield return (Path.GetFullPath(path), type);
             }

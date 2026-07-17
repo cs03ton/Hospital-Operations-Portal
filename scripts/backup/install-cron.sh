@@ -19,6 +19,17 @@ fail() {
 [ -x "$BACKUP_SCRIPT" ] || fail "Backup script is not executable: chmod +x $BACKUP_SCRIPT"
 [ -f "$BACKUP_ENV_FILE" ] || fail "Backup env file not found: $BACKUP_ENV_FILE"
 
+mkdir -p "$(dirname "$CRON_LOG_FILE")"
+touch "$CRON_LOG_FILE" || fail "Cannot write cron log file: $CRON_LOG_FILE"
+
+if grep -E '^LOG_FILE=' "$BACKUP_ENV_FILE" >/dev/null 2>&1; then
+  configured_log_file="$(grep -E '^LOG_FILE=' "$BACKUP_ENV_FILE" | tail -1 | cut -d= -f2-)"
+  if [ -n "$configured_log_file" ]; then
+    mkdir -p "$(dirname "$configured_log_file")" 2>/dev/null || true
+    touch "$configured_log_file" 2>/dev/null || printf 'WARN: Cannot write configured LOG_FILE=%s. backup-hop.sh will fall back to BACKUP_ROOT/logs.\n' "$configured_log_file" >&2
+  fi
+fi
+
 backup_abs="$(cd "$(dirname "$BACKUP_SCRIPT")" && pwd)/$(basename "$BACKUP_SCRIPT")"
 cron_line="${CRON_SCHEDULE} BACKUP_ENV_FILE=${BACKUP_ENV_FILE} ${backup_abs} >> ${CRON_LOG_FILE} 2>&1 ${CRON_MARKER}"
 

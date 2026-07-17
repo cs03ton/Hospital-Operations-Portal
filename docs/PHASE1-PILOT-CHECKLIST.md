@@ -1,5 +1,18 @@
 # Phase 1 Pilot Checklist
 
+## Leave Cancellation Workflow
+
+- [ ] ทดสอบสร้างคำขอยกเลิกใบลาจากใบลาที่อนุมัติแล้ว
+- [ ] ทดสอบใบลา Pending สร้างคำขอยกเลิกไม่ได้
+- [ ] ทดสอบ user อื่นสร้างจากใบลาคนอื่นไม่ได้
+- [ ] ทดสอบส่งอนุมัติผ่าน approval chain เดิม
+- [ ] ทดสอบผู้อนุมัติอนุมัติได้เฉพาะ current step
+- [ ] ทดสอบ reject/cancel แล้ว balance ไม่เปลี่ยน
+- [ ] ทดสอบ final approve แล้วใบลาเดิมเป็น `CancelledAfterApproval`
+- [ ] ทดสอบ final approve แล้ว `usedDays` ลดลงตามจำนวนวันลาเดิม
+- [ ] ทดสอบ ledger `LeaveCancellationRestore` ถูกสร้างครั้งเดียว
+- [ ] ทดสอบ notification และ LINE ไม่ทำให้ workflow หลักล้มเหลวถ้าส่งไม่สำเร็จ
+
 Use this checklist before deploying HOP to the first real department.
 
 ## Infrastructure

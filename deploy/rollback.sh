@@ -35,7 +35,7 @@ Set this environment variable to continue:
   ROLLBACK_CONFIRM=${CONFIRM_TEXT}
 
 Optional restore flags:
-  RESTORE_DATABASE=true DB_DUMP_PATH=/opt/hop/backups/db/<dump>.dump
+  RESTORE_DATABASE=true DB_DUMP_PATH=/opt/hop/backups/postgres/hopdb_YYYYMMDD_HHMMSS.backup
   RESTORE_STORAGE=true STORAGE_ARCHIVE_PATH=/opt/hop/backups/storage/<storage>.tar.gz
   RESTORE_CONFIRM=I_UNDERSTAND_THIS_WILL_OVERWRITE_HOP
 EOF

@@ -24,6 +24,9 @@ import { LeaveHolidayManagementPage } from "../pages/LeaveHolidayManagementPage"
 import { LeaveCalendarPage } from "../pages/LeaveCalendarPage";
 import { LeaveRequestDetailPage } from "../pages/LeaveRequestDetailPage";
 import { LeaveRequestFormPage } from "../pages/LeaveRequestFormPage";
+import { LeaveCancellationCreatePage } from "../pages/LeaveCancellationCreatePage";
+import { LeaveCancellationDetailPage } from "../pages/LeaveCancellationDetailPage";
+import { LeaveCancellationListPage } from "../pages/LeaveCancellationListPage";
 import { LeaveTypeManagementPage } from "../pages/LeaveTypeManagementPage";
 import { LoginPage } from "../pages/LoginPage";
 import { LeaveReportsPage } from "../pages/LeaveReportsPage";
@@ -52,6 +55,14 @@ const leaveViewPermissions = [
   "LeaveRequest.ViewPendingApproval",
   "LeaveRequest.ViewDepartment",
   "LeaveRequest.ViewAll",
+];
+
+const leaveCancellationViewPermissions = [
+  "LeaveCancellation.ViewOwn",
+  "LeaveCancellation.ApproveCurrentStep",
+  "LeaveCancellation.ViewDepartment",
+  "LeaveCancellation.ViewAll",
+  "LeaveCancellation.Manage",
 ];
 
 const documentationViewerRoles = ["Staff", "DepartmentHead", "Director", "LeaveAdmin", "Admin", "SuperAdmin"];
@@ -169,12 +180,15 @@ export function AppRoutes() {
           <Route path="/leave/create" element={<LeaveCreateGuard />} />
           <Route path="/leave/pending-approvals" element={withPermission(<PendingApprovalsPage />, "LeaveRequest.ViewPendingApproval")} />
           <Route path="/leave/calendar" element={withAnyPermission(<LeaveCalendarPage />, leaveViewPermissions)} />
+          <Route path="/leave/cancellations" element={withAnyPermission(<LeaveCancellationListPage />, leaveCancellationViewPermissions)} />
+          <Route path="/leave/cancellations/create" element={withPermission(<LeaveCancellationCreatePage />, "LeaveCancellation.Create")} />
+          <Route path="/leave/cancellations/:id" element={withAnyPermission(<LeaveCancellationDetailPage />, leaveCancellationViewPermissions)} />
           <Route path="/line/leave-approval/:id" element={withPermission(<LineLeaveApprovalPage />, "LeaveApproval.ApproveCurrentStep")} />
           <Route path="/leave/types" element={<LeaveTypeGuard />} />
           <Route path="/leave/balances" element={withPermission(<LeaveBalancePage />, "LeaveRequest.ViewOwn")} />
           <Route path="/leave/:id/edit" element={withPermission(<LeaveRequestFormPage />, "LeaveRequest.EditOwn")} />
           <Route path="/leave/:id" element={withAnyPermission(<LeaveRequestDetailPage />, leaveViewPermissions)} />
-          <Route path="/reports/leaves" element={withPermission(<LeaveReportsPage />, "ReportManagement.View")} />
+          <Route path="/reports/leaves" element={withAnyPermissionOrRole(<LeaveReportsPage />, ["ReportManagement.View", "LeaveAnalytics.View"], ["Director", "Admin", "SuperAdmin"])} />
           <Route path="/reports/leave-analytics" element={withAnyPermissionOrRole(<LeaveAnalyticsPage />, ["LeaveAnalytics.View", "ReportManagement.View"], ["Director", "Admin", "SuperAdmin"])} />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Route>

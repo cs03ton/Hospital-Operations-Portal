@@ -66,9 +66,11 @@ export function PendingApprovalsPage() {
     const keyword = filters.keyword.trim().toLowerCase();
     return data.filter((item) => {
       const haystack = [
+        item.requestNumber,
         item.employeeName,
         item.leaveType,
         getLeaveTypeLabel(item.leaveType),
+        getPendingSourceLabel(item.sourceType),
         item.currentStep.toString(),
         priorityLabels[item.priority] ?? item.priority,
       ]
@@ -188,6 +190,7 @@ export function PendingApprovalsPage() {
                   <TableHead>
                     <TableRow>
                       <TableCell>ผู้ขอลา</TableCell>
+                      <TableCell>ประเภทคำขอ</TableCell>
                       <TableCell>ประเภทลา</TableCell>
                       <TableCell>วันที่ลา</TableCell>
                       <TableCell>วันที่ส่งคำขอ</TableCell>
@@ -228,9 +231,14 @@ export function PendingApprovalsPage() {
 }
 
 function PendingApprovalRow({ item }: { item: PendingApprovalNotification }) {
+  const detailPath = item.detailPath || (item.sourceType === "LeaveCancellationRequest" ? `/leave/cancellations/${item.requestId}` : `/leave/${item.requestId}`);
+
   return (
     <TableRow hover>
       <TableCell>{item.employeeName ?? "-"}</TableCell>
+      <TableCell>
+        <Chip size="small" variant="outlined" label={getPendingSourceLabel(item.sourceType)} />
+      </TableCell>
       <TableCell>{getLeaveTypeLabel(item.leaveType)}</TableCell>
       <TableCell>
         {formatThaiDate(item.startDate)} - {formatThaiDate(item.endDate)}
@@ -241,14 +249,18 @@ function PendingApprovalRow({ item }: { item: PendingApprovalNotification }) {
         <Chip size="small" color={getPriorityColor(item.priority)} label={priorityLabels[item.priority] ?? item.priority} />
       </TableCell>
       <TableCell align="right">
-        <Tooltip title="ดูรายละเอียดคำขอลา">
-          <IconButton component={RouterLink} to={`/leave/${item.requestId}`} aria-label="ดูรายละเอียดคำขอลา">
+        <Tooltip title={`ดูรายละเอียด${getPendingSourceLabel(item.sourceType)}`}>
+          <IconButton component={RouterLink} to={detailPath} aria-label={`ดูรายละเอียด${getPendingSourceLabel(item.sourceType)}`}>
             <VisibilityOutlinedIcon />
           </IconButton>
         </Tooltip>
       </TableCell>
     </TableRow>
   );
+}
+
+function getPendingSourceLabel(sourceType?: string | null) {
+  return sourceType === "LeaveCancellationRequest" ? "คำขอยกเลิกใบลา" : "คำขอลา";
 }
 
 function getPriorityColor(priority: string): "default" | "warning" | "error" | "info" {

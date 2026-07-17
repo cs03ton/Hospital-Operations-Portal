@@ -18,7 +18,8 @@ Dashboard widgets are reusable UI blocks.
 |---|---|
 | Welcome | Role-specific greeting |
 | Leave Balance | My remaining leave days |
-| My Leave Requests | Personal leave request summary with draft, pending, returned-for-revision, approved, rejected, cancelled, and total counts |
+| My Leave Requests | Personal leave request summary with draft, pending, returned-for-revision, approved, rejected, cancelled, latest requests, and approval/rejection metrics |
+| Leave Cancellation Summary | Leave cancellation request summary with total, pending, approved, rejected, returned, restored days, latest requests, and approval performance |
 | Head Leave Request Groups | Department Head split view for own pending requests and department requests |
 | Pending Approval | Current user's pending approval queue |
 | Pending Approval Overview | Admin/SuperAdmin operational count of leave requests still pending |
@@ -36,7 +37,24 @@ Dashboard widgets are reusable UI blocks.
 
 Widgets can be present in a role layout without exposing unrestricted data. The backend summary endpoint calculates sensitive metrics only for roles/permissions that should see them. Admin and SuperAdmin use an overview widget, not the personal "งานรออนุมัติของฉัน" queue.
 
+Admin, SuperAdmin, and Director can still see leave request and leave cancellation summary widgets when the backend grants dashboard/report visibility. These widgets are for tracking and monitoring only. They do not grant leave creation or normal approval privileges by themselves.
+
 Returned-for-revision requests count as the requester's own request total and as the separate “ตีกลับรอแก้ไข” bucket. They do not count as pending approval for approver queues.
+
+## Leave Cancellation Summary
+
+`Leave Cancellation Summary` is displayed separately from normal leave requests so cancellation workflow metrics do not inflate ordinary leave-request KPI.
+
+| Metric | Meaning |
+|---|---|
+| ทั้งหมด | All leave cancellation requests in the user's permitted scope |
+| รออนุมัติ | Cancellation requests waiting for an approval step |
+| อนุมัติแล้ว | Cancellation requests approved through all steps |
+| ไม่อนุมัติ | Cancellation requests rejected by an approver |
+| ตีกลับ | Cancellation requests returned for revision |
+| คืนวันลาแล้ว | Total leave days restored after final approval |
+
+The widget should be placed next to or immediately after `My Leave Requests` in role layouts so users read normal leave requests first, then leave cancellation requests.
 
 ## Department Head Request Groups
 

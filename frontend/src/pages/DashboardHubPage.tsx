@@ -89,21 +89,18 @@ export function DashboardHubPage() {
 
                     <Box
                       sx={{
-                        p: 1.5,
-                        borderRadius: 2,
-                        bgcolor: alpha(theme.palette.primary.main, 0.045),
-                        border: `1px solid ${alpha(theme.palette.primary.main, 0.12)}`,
+                        display: "grid",
+                        gridTemplateColumns: module.key === "leave" ? { xs: "1fr", sm: "repeat(2, minmax(0, 1fr))" } : "1fr",
+                        gap: 1.25,
                       }}
                     >
-                      <Typography variant="caption" color="text.secondary">
-                        {metricLabel}
-                      </Typography>
-                      {isLoading ? (
-                        <Skeleton width={96} height={36} />
-                      ) : (
-                        <Typography variant="h5" fontWeight={900} color="primary.main">
-                          {typeof metric === "number" ? metric.toLocaleString("th-TH") : metric}
-                        </Typography>
+                      <ModuleMetricBox label={metricLabel} value={metric} isLoading={isLoading} />
+                      {module.key === "leave" && (
+                        <ModuleMetricBox
+                          label="คำขอยกเลิกใบลา"
+                          value={data?.myLeaveCancellationRequestsPending ?? 0}
+                          isLoading={isLoading}
+                        />
                       )}
                     </Box>
 
@@ -141,6 +138,35 @@ export function DashboardHubPage() {
       <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 2.5 }}>
         ระบบที่แสดงทั้งหมด {visibleModules.length.toLocaleString("th-TH")} จาก {dashboardModules.length.toLocaleString("th-TH")} โมดูล
       </Typography>
+    </Box>
+  );
+}
+
+function ModuleMetricBox({ label, value, isLoading }: { label: string; value: number | string; isLoading: boolean }) {
+  const theme = useTheme();
+  return (
+    <Box
+      sx={{
+        p: 1.5,
+        minHeight: 104,
+        borderRadius: 2,
+        bgcolor: alpha(theme.palette.primary.main, 0.045),
+        border: `1px solid ${alpha(theme.palette.primary.main, 0.12)}`,
+        display: "flex",
+        flexDirection: "column",
+        justifyContent: "center",
+      }}
+    >
+      <Typography variant="caption" color="text.secondary">
+        {label}
+      </Typography>
+      {isLoading ? (
+        <Skeleton width={96} height={36} />
+      ) : (
+        <Typography variant="h5" fontWeight={900} color="primary.main">
+          {typeof value === "number" ? value.toLocaleString("th-TH") : value}
+        </Typography>
+      )}
     </Box>
   );
 }

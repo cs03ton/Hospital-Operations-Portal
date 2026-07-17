@@ -28,4 +28,26 @@ public sealed class LeaveRequestNumberService(AppDbContext db) : ILeaveRequestNu
 
         return $"{prefix}{nextSequence:000}";
     }
+
+    public async Task<string> GenerateCancellationAsync(DateTime createdAtUtc, CancellationToken cancellationToken = default)
+    {
+        var month = createdAtUtc.ToString("yyyyMM", CultureInfo.InvariantCulture);
+        var prefix = $"LVC-{month}-";
+
+        var latestNumber = await db.LeaveCancellationRequests
+            .Where(item => item.CancellationRequestNumber.StartsWith(prefix))
+            .OrderByDescending(item => item.CancellationRequestNumber)
+            .Select(item => item.CancellationRequestNumber)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        var nextSequence = 1;
+        if (!string.IsNullOrWhiteSpace(latestNumber) &&
+            latestNumber.Length > prefix.Length &&
+            int.TryParse(latestNumber[prefix.Length..], out var currentSequence))
+        {
+            nextSequence = currentSequence + 1;
+        }
+
+        return $"{prefix}{nextSequence:000}";
+    }
 }

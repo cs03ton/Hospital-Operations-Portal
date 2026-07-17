@@ -57,7 +57,10 @@ public record LeaveRequestResponse(
     string? RevisionReason,
     int RevisionCount,
     DateTime? LastResubmittedAt,
-    DateTime? UpdatedAt
+    DateTime? UpdatedAt,
+    Guid? CancellationRequestId = null,
+    string? CancellationRequestNumber = null,
+    string? CancellationStatus = null
 );
 
 public record SaveLeaveRequestRequest(
@@ -113,6 +116,75 @@ public record LeaveAttachmentResponse(
 public record LeaveApprovalResponse(
     Guid Id,
     Guid LeaveRequestId,
+    Guid ApproverId,
+    string? ApproverName,
+    Guid? ApprovalChainId,
+    Guid? ApprovalChainStepId,
+    int StepOrder,
+    string? StepName,
+    string Status,
+    string RequiredPermissionCode,
+    string? Remark,
+    DateTime CreatedAt,
+    DateTime? ActionAt,
+    DateTime? ReturnedAt,
+    string? ReturnReason
+);
+
+public record LeaveCancellationRequestResponse(
+    Guid Id,
+    string CancellationRequestNumber,
+    Guid OriginalLeaveRequestId,
+    string? OriginalRequestNumber,
+    Guid RequesterUserId,
+    string? RequesterName,
+    Guid LeaveTypeId,
+    string? LeaveTypeName,
+    DateOnly? OriginalStartDate,
+    DateOnly? OriginalEndDate,
+    decimal OriginalLeaveDays,
+    string Reason,
+    string Status,
+    Guid? CurrentApproverId,
+    string? CurrentApproverName,
+    string? CurrentStepName,
+    DateTime CreatedAt,
+    DateTime? SubmittedAt,
+    DateTime? ApprovedAt,
+    DateTime? RejectedAt,
+    DateTime? CancelledAt,
+    DateTime? ReturnedForRevisionAt,
+    DateTime? BalanceRestoredAt,
+    string? RevisionReason,
+    int RevisionCount,
+    DateTime? UpdatedAt
+);
+
+public record CreateLeaveCancellationRequest(
+    Guid OriginalLeaveRequestId,
+    string Reason,
+    bool Submit = false
+);
+
+public record UpdateLeaveCancellationRequest(string Reason);
+
+public record LeaveCancellationDecisionRequest(string? Remark);
+
+public record LeaveCancellationReturnForRevisionRequest(string Reason);
+
+public record LeaveCancellationEligibilityResponse(
+    Guid OriginalLeaveRequestId,
+    string? OriginalRequestNumber,
+    bool CanCreate,
+    string? Message,
+    decimal OriginalLeaveDays,
+    bool AlreadyCancelled,
+    bool HasActiveCancellation
+);
+
+public record LeaveCancellationApprovalResponse(
+    Guid Id,
+    Guid LeaveCancellationRequestId,
     Guid ApproverId,
     string? ApproverName,
     Guid? ApprovalChainId,
@@ -588,7 +660,9 @@ public record PendingApprovalNotificationResponse(
     DateOnly EndDate,
     DateTime? SubmittedAt,
     int CurrentStep,
-    string Priority
+    string Priority,
+    string SourceType = "LeaveRequest",
+    string? DetailPath = null
 );
 
 public record LeaveNotificationItemResponse(
