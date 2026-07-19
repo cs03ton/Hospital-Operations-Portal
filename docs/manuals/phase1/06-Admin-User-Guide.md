@@ -173,6 +173,25 @@ Backup Center ใช้สำหรับตรวจสอบว่าระบ
 | Permission | ความหมาย |
 |---|---|
 | `System.Backup.View` | ดู Backup Center |
+
+## การตรวจสอบ Diagnostics Center
+
+Diagnostics Center ใช้เมื่อต้องการตรวจปัญหาเชิงลึกหรือส่งข้อมูลให้ทีม IT โดยไม่เปิดเผยข้อมูลลับ
+
+1. เปิดเมนู `จัดการระบบ`
+2. เลือก `Diagnostics Center`
+3. ตรวจสถานะรวมของระบบในแท็บ `ภาพรวม`
+4. รัน test เฉพาะจุดในแท็บ `Tests`
+5. ค้นหา Reference ID ในแท็บ `Logs`
+6. สร้าง Support Bundle ในแท็บ `Support Bundle` พร้อมระบุเหตุผล
+
+> **Warning:** Support Bundle ต้องไม่ใช้แทนการส่งไฟล์ config จริง ห้ามส่ง token, secret, password หรือ connection string ผ่านช่องทางทั่วไป
+
+| Permission | ใช้สำหรับ |
+|---|---|
+| `System.Diagnostics.View` | เปิด Diagnostics Center และดูข้อมูล |
+| `System.Diagnostics.Run` | รัน Diagnostics Test |
+| `System.Diagnostics.Export` | สร้างและดาวน์โหลด Support Bundle |
 | `System.Backup.Run` | Verify backup |
 | `System.Backup.Restore` | Restore preview และบันทึก restore request |
 | `System.Backup.ManageRetention` | Preview/apply retention policy |

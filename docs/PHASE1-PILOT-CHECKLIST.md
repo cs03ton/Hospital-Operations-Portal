@@ -69,6 +69,11 @@ Use this checklist before deploying HOP to the first real department.
 - [ ] API, database, storage, LINE, queue, disk, CPU, RAM, backup, version, environment, and server time cards are visible.
 - [ ] Health Center tabs show Overview, Infrastructure, LINE, Backup, and Diagnostics.
 - [ ] Staff cannot open `/admin/health`.
+- [ ] Admin/SuperAdmin can open `/admin/diagnostics`.
+- [ ] Permissions `System.Diagnostics.View`, `System.Diagnostics.Run`, and `System.Diagnostics.Export` exist and are assigned to Admin/SuperAdmin.
+- [ ] Diagnostics Center log viewer masks token, password, connection string, LINE UID, email, and phone before display.
+- [ ] Support Bundle can be generated with a reason and downloaded by an authorized user.
+- [ ] Support Bundle zip does not contain real secret/token/password values.
 - [ ] Safe Error Page shows Reference ID and no production stack trace.
 
 ## Documentation Center

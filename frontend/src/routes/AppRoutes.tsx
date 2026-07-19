@@ -6,6 +6,7 @@ import { AuditLogPage } from "../pages/AuditLogPage";
 import { AuditLogExportPage } from "../pages/AuditLogExportPage";
 import { AdminBackupPage } from "../pages/AdminBackupPage";
 import { AdminDashboardPage } from "../pages/AdminDashboardPage";
+import { AdminDiagnosticsPage } from "../pages/AdminDiagnosticsPage";
 import { AdminHealthPage } from "../pages/AdminHealthPage";
 import { DashboardPage } from "../pages/DashboardPage";
 import { DashboardComingSoonPage } from "../pages/DashboardComingSoonPage";
@@ -163,6 +164,7 @@ export function AppRoutes() {
           <Route path="/admin/audit-logs" element={withPermission(<AuditLogPage />, "SystemSettings.View")} />
           <Route path="/admin/audit-logs/export" element={withPermission(<AuditLogExportPage />, "SystemSettings.Export")} />
           <Route path="/admin/health" element={withAnyPermissionOrRole(<AdminHealthPage />, ["System.Health.View"], ["Admin", "SuperAdmin"])} />
+          <Route path="/admin/diagnostics" element={withAnyPermissionOrRole(<AdminDiagnosticsPage />, ["System.Diagnostics.View"], ["Admin", "SuperAdmin"])} />
           <Route path="/admin/backup" element={withAnyPermissionOrRole(<AdminBackupPage />, ["System.Backup.View"], ["SuperAdmin"])} />
           <Route path="/admin/system-settings" element={withPermission(<SystemSettingsPage />, "SystemSettings.View")} />
           <Route path="/admin/line" element={<Navigate to="/admin/line-settings" replace />} />

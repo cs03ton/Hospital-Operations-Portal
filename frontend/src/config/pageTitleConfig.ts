@@ -36,6 +36,7 @@ const pageTitleEntries: PageTitleEntry[] = [
   { path: "/admin/audit-logs/export", title: "ส่งออกบันทึกการใช้งาน", subtitle: "ส่งออกบันทึกเหตุการณ์สำคัญ", exact: true, breadcrumbs: [{ label: "บันทึกการใช้งาน", path: "/admin/audit-logs" }, { label: "ส่งออก" }] },
   { path: "/admin/audit-logs", title: "บันทึกการใช้งาน", subtitle: "ตรวจสอบบันทึกการใช้งานและเหตุการณ์ความปลอดภัย", breadcrumbs: [{ label: "บันทึกการใช้งาน" }] },
   { path: "/admin/health", title: "Health Center", subtitle: "ตรวจสุขภาพ API, Database, Storage, LINE, Server และ Backup", exact: true, breadcrumbs: [{ label: "Health Center" }] },
+  { path: "/admin/diagnostics", title: "Diagnostics Center", subtitle: "ตรวจสอบปัญหาและสร้าง Support Bundle แบบปลอดภัย", exact: true, breadcrumbs: [{ label: "Diagnostics Center" }] },
   { path: "/admin/backup", title: "Backup Center", subtitle: "ตรวจสอบสถานะ backup และ restore test", exact: true, breadcrumbs: [{ label: "Backup Center" }] },
   { path: "/admin/line-settings", title: "ตั้งค่า LINE", subtitle: "ตรวจสอบและทดสอบ LINE Messaging API", breadcrumbs: [{ label: "ตั้งค่า LINE" }] },
   { path: "/admin/approval-chains/create", title: "เพิ่มกฎการอนุมัติวันลา", subtitle: "กำหนด rule และลำดับผู้อนุมัติใหม่", exact: true, breadcrumbs: [{ label: "กฎการอนุมัติวันลา", path: "/admin/approval-chains" }, { label: "เพิ่มกฎการอนุมัติ" }] },

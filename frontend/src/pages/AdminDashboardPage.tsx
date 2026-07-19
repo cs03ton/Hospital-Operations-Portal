@@ -7,10 +7,13 @@ import GroupOutlinedIcon from "@mui/icons-material/GroupOutlined";
 import HealthAndSafetyOutlinedIcon from "@mui/icons-material/HealthAndSafetyOutlined";
 import HistoryOutlinedIcon from "@mui/icons-material/HistoryOutlined";
 import LineAxisOutlinedIcon from "@mui/icons-material/LineAxisOutlined";
+import ManageSearchOutlinedIcon from "@mui/icons-material/ManageSearchOutlined";
+import MenuBookOutlinedIcon from "@mui/icons-material/MenuBookOutlined";
 import NotificationsActiveOutlinedIcon from "@mui/icons-material/NotificationsActiveOutlined";
 import PersonAddAltOutlinedIcon from "@mui/icons-material/PersonAddAltOutlined";
 import SecurityOutlinedIcon from "@mui/icons-material/SecurityOutlined";
 import SettingsSuggestOutlinedIcon from "@mui/icons-material/SettingsSuggestOutlined";
+import TroubleshootOutlinedIcon from "@mui/icons-material/TroubleshootOutlined";
 import WarningAmberOutlinedIcon from "@mui/icons-material/WarningAmberOutlined";
 import { Alert, Box, Button, Card, CardContent, Chip, Grid, Skeleton, Stack, Typography } from "@mui/material";
 import { alpha, useTheme } from "@mui/material/styles";
@@ -96,7 +99,7 @@ export function AdminDashboardPage() {
               <Button component={RouterLink} to="/admin/health" variant="outlined" startIcon={<HealthAndSafetyOutlinedIcon />} sx={{ minWidth: 132 }}>
                 Health Center
               </Button>
-              <Button component={RouterLink} to="/admin/line" variant="outlined" startIcon={<NotificationsActiveOutlinedIcon />} sx={{ minWidth: 112 }}>
+              <Button component={RouterLink} to="/admin/line-settings" variant="outlined" startIcon={<NotificationsActiveOutlinedIcon />} sx={{ minWidth: 112 }}>
                 LINE
               </Button>
             </Stack>
@@ -114,7 +117,7 @@ export function AdminDashboardPage() {
         <SummaryCard title="ผู้ใช้ทั้งหมด" value={data?.users.total} subtitle={`ใช้งาน ${formatNumber(data?.users.active)} · ปิดใช้งาน ${formatNumber(data?.users.inactive)}`} icon={GroupOutlinedIcon} color={brandColors.primary} isLoading={isLoading} to="/admin/users" />
         <SummaryCard title="หน่วยงาน" value={data?.departments.total} subtitle={`ไม่มีหัวหน้า ${formatNumber(data?.departments.withoutHead)} · ไม่มีผู้ใช้ ${formatNumber(data?.departments.withoutUsers)}`} icon={BusinessOutlinedIcon} color={brandColors.secondary} isLoading={isLoading} to="/admin/departments" />
         <SummaryCard title="บทบาทและสิทธิ์" value={data?.roles.total} subtitle={`สิทธิ์ ${formatNumber(data?.roles.permissions)} · Role ไม่มีผู้ใช้ ${formatNumber(data?.roles.unusedRoles)}`} icon={SecurityOutlinedIcon} color={brandColors.info} isLoading={isLoading} to="/admin/roles" />
-        <SummaryCard title="ระบบลา" value={data?.leave.pendingApprovals} subtitle={`คำขอวันนี้ ${formatNumber(data?.leave.todayRequests)} · ยังไม่มี balance ${formatNumber(data?.leave.missingBalances)}`} icon={FactCheckOutlinedIcon} color={brandColors.warning} isLoading={isLoading} to="/leave/pending-approvals" />
+        <SummaryCard title="ระบบลา" value={data?.leave.todayRequests} subtitle={`รออนุมัติ ${formatNumber(data?.leave.pendingApprovals)} · ยังไม่มี balance ${formatNumber(data?.leave.missingBalances)}`} icon={FactCheckOutlinedIcon} color={brandColors.warning} isLoading={isLoading} to="/admin/leave-support" />
       </DashboardGrid>
 
       <DashboardGrid columns={{ xs: "1fr", lg: "5fr 7fr" }}>
@@ -165,7 +168,7 @@ export function AdminDashboardPage() {
       </DashboardGrid>
 
       <DashboardGrid columns={{ xs: "1fr", md: "repeat(2, minmax(0, 1fr))" }}>
-          <DashboardPanel title="สรุป LINE" subtitle="ภาพรวมการเชื่อมต่อ LINE OA และ delivery" icon={LineAxisOutlinedIcon} actionTo="/admin/line" minHeight={300}>
+          <DashboardPanel title="สรุป LINE" subtitle="ภาพรวมการเชื่อมต่อ LINE OA และ delivery" icon={LineAxisOutlinedIcon} actionTo="/admin/line-settings" minHeight={300}>
             <Stack spacing={1.25}>
               <Stack direction="row" justifyContent="space-between">
                 <Typography color="text.secondary">สถานะ LINE</Typography>
@@ -204,33 +207,48 @@ export function AdminDashboardPage() {
           </DashboardPanel>
       </DashboardGrid>
 
-      <DashboardPanel title="ทางลัด" subtitle="ลิงก์ไปหน้าจัดการจริง ไม่ทำ CRUD บน Dashboard" icon={SettingsSuggestOutlinedIcon}>
-        <Grid container spacing={2} alignItems="stretch">
+      <DashboardPanel title="ทางลัดผู้ดูแลระบบ" subtitle="ลิงก์ไปหน้าจัดการและศูนย์ตรวจสอบจริง ไม่ทำ CRUD บน Dashboard" icon={SettingsSuggestOutlinedIcon}>
+        <Box
+          sx={{
+            display: "grid",
+            gridTemplateColumns: {
+              xs: "1fr",
+              sm: "repeat(2, minmax(0, 1fr))",
+              lg: "repeat(4, minmax(0, 1fr))",
+            },
+            gap: 2,
+            width: "100%",
+            pr: { xs: 0, md: 0.25 },
+            "& > *": { minWidth: 0 },
+          }}
+        >
           {quickActions.map((action) => {
             const Icon = action.icon;
             return (
-              <Grid item xs={12} sm={6} md={3} key={action.to}>
-                <Button
-                  component={RouterLink}
-                  to={action.to}
-                  variant="outlined"
-                  fullWidth
-                  startIcon={<Icon />}
-                  sx={{
-                    justifyContent: "flex-start",
-                    py: 1.35,
-                    minHeight: 48,
-                    borderRadius: 2,
-                    borderColor: alpha(theme.palette.primary.main, 0.22),
-                    bgcolor: alpha(theme.palette.background.paper, 0.72),
-                  }}
-                >
-                  {action.label}
-                </Button>
-              </Grid>
+              <Button
+                key={action.to}
+                component={RouterLink}
+                to={action.to}
+                variant="outlined"
+                fullWidth
+                startIcon={<Icon />}
+                sx={{
+                  justifyContent: "flex-start",
+                  py: 1.35,
+                  minHeight: 48,
+                  borderRadius: 2,
+                  borderColor: alpha(theme.palette.primary.main, 0.22),
+                  bgcolor: alpha(theme.palette.background.paper, 0.72),
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {action.label}
+              </Button>
             );
           })}
-        </Grid>
+        </Box>
       </DashboardPanel>
       </Stack>
     </Box>
@@ -242,10 +260,14 @@ const quickActions = [
   { label: "จัดการผู้ใช้", to: "/admin/users", icon: GroupOutlinedIcon },
   { label: "หน่วยงาน", to: "/admin/departments", icon: BusinessOutlinedIcon },
   { label: "บทบาทและสิทธิ์", to: "/admin/roles", icon: SecurityOutlinedIcon },
-  { label: "ตั้งค่า LINE", to: "/admin/line", icon: NotificationsActiveOutlinedIcon },
-  { label: "Health Center", to: "/admin/health", icon: HealthAndSafetyOutlinedIcon },
-  { label: "Backup Center", to: "/admin/backup", icon: BackupOutlinedIcon },
+  { label: "ช่วยเหลือระบบลา", to: "/admin/leave-support", icon: ManageSearchOutlinedIcon },
   { label: "กฎอนุมัติวันลา", to: "/admin/approval-chains", icon: AccountTreeOutlinedIcon },
+  { label: "Health Center", to: "/admin/health", icon: HealthAndSafetyOutlinedIcon },
+  { label: "Diagnostics Center", to: "/admin/diagnostics", icon: TroubleshootOutlinedIcon },
+  { label: "Backup Center", to: "/admin/backup", icon: BackupOutlinedIcon },
+  { label: "ตั้งค่า LINE", to: "/admin/line-settings", icon: NotificationsActiveOutlinedIcon },
+  { label: "บันทึกการใช้งาน", to: "/admin/audit-logs", icon: HistoryOutlinedIcon },
+  { label: "ศูนย์คู่มือ", to: "/docs", icon: MenuBookOutlinedIcon },
 ];
 
 function buildTodoItems(data?: AdminDashboard): TodoItem[] {
@@ -257,7 +279,7 @@ function buildTodoItems(data?: AdminDashboard): TodoItem[] {
     { label: "หน่วยงานที่ยังไม่มีหัวหน้า", count: data.departments.withoutHead, to: "/admin/departments", severity: "warning" },
     { label: "leave balance ที่ยังไม่สร้าง", count: data.leave.missingBalances, to: "/admin/leave-balances", severity: "error" },
     { label: "permission สำคัญที่ยังไม่ได้ assign", count: data.roles.importantPermissionsUnassigned, to: "/admin/roles", severity: "warning" },
-    { label: "LINE delivery failed", count: data.line.lastFailedDeliveryAt ? 1 : 0, to: "/admin/line", severity: "warning" },
+    { label: "LINE delivery failed", count: data.line.lastFailedDeliveryAt ? 1 : 0, to: "/admin/line-settings", severity: "warning" },
     { label: "backup ล่าสุดควรตรวจสอบ", count: data.health.backup.status === "Healthy" ? 0 : 1, to: "/admin/backup", severity: "warning" },
   ];
   return items.filter((item) => item.count > 0);

@@ -22,6 +22,7 @@ import RequestQuoteOutlinedIcon from "@mui/icons-material/RequestQuoteOutlined";
 import BlockOutlinedIcon from "@mui/icons-material/BlockOutlined";
 import SecurityOutlinedIcon from "@mui/icons-material/SecurityOutlined";
 import SettingsSuggestOutlinedIcon from "@mui/icons-material/SettingsSuggestOutlined";
+import TroubleshootOutlinedIcon from "@mui/icons-material/TroubleshootOutlined";
 import WarehouseOutlinedIcon from "@mui/icons-material/WarehouseOutlined";
 import TuneOutlinedIcon from "@mui/icons-material/TuneOutlined";
 import type { SvgIconComponent } from "@mui/icons-material";
@@ -96,6 +97,7 @@ export const navigationModules: NavigationModule[] = [
     enabled: true,
     children: [
       { label: "Health Center", path: "/admin/health", icon: HealthAndSafetyOutlinedIcon, permission: "System.Health.View", allowedRoles: ["Admin", "SuperAdmin"] },
+      { label: "Diagnostics Center", path: "/admin/diagnostics", icon: TroubleshootOutlinedIcon, permission: "System.Diagnostics.View", allowedRoles: ["Admin", "SuperAdmin"] },
       { label: "Backup Center", path: "/admin/backup", icon: BackupOutlinedIcon, permission: "System.Backup.View", allowedRoles: ["SuperAdmin"] },
       { label: "บันทึกการใช้งาน", path: "/admin/audit-logs", icon: HistoryOutlinedIcon, permission: "SystemSettings.View" },
       { label: "ตั้งค่าระบบ", path: "/admin/system-settings", icon: TuneOutlinedIcon, permission: "SystemSettings.View" },

@@ -86,6 +86,22 @@ LINE จะแสดงเฉพาะ `hasAccessToken` และ `hasChannelSec
    - Diagnostics
 6. กด `รีเฟรช` หลังแก้ config หรือ restart service
 
+## Diagnostics Center ที่เกี่ยวข้อง
+
+หาก Health Center แสดง `Warning` หรือ `Unhealthy` ให้เปิด:
+
+```text
+จัดการระบบ > Diagnostics Center
+```
+
+เพื่อรัน test เฉพาะจุด ดู log แบบ redacted และสร้าง Support Bundle สำหรับส่งต่อทีม IT โดยใช้ permission:
+
+```text
+System.Diagnostics.View
+System.Diagnostics.Run
+System.Diagnostics.Export
+```
+
 ## Environment ที่ควรตั้งค่า
 
 ```text
@@ -101,6 +117,7 @@ GIT_COMMIT=<release commit>
 
 - [ ] Admin/SuperAdmin เปิด `/admin/health` ได้
 - [ ] Staff เปิดไม่ได้
+- [ ] Admin/SuperAdmin เปิด `/admin/diagnostics` ได้เมื่อต้องตรวจปัญหาเชิงลึก
 - [ ] API response ไม่มี secret/token/connection string
 - [ ] Database latency แสดงได้
 - [ ] Storage writable แสดงถูกต้อง

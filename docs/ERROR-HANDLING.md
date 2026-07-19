@@ -36,6 +36,8 @@ Unhandled exception. ReferenceId=...
 
 ผู้ดูแลระบบสามารถใช้ Reference ID จากผู้ใช้ไปค้นหา log ได้
 
+ใน Phase 1.5 ผู้ดูแลระบบสามารถใช้ `Diagnostics Center` ที่ `/admin/diagnostics` เพื่อค้นหา log แบบ redacted และดู Recent Errors โดยไม่เปิดเผย secret/token/password
+
 ## Frontend
 
 Frontend ใช้ `ErrorBoundary` ครอบ App
@@ -61,6 +63,7 @@ Production ไม่แสดง stack trace บนหน้าเว็บ
 - [ ] Backend log มี `ReferenceId`
 - [ ] Response header มี `X-Correlation-ID`
 - [ ] Nginx ส่งต่อ `X-Correlation-ID` ไป backend
+- [ ] Diagnostics Center ค้นหา Reference ID ได้โดยข้อมูล log ถูก mask แล้ว
 - [ ] Frontend ErrorBoundary มีปุ่มกลับหน้าหลักและโหลดใหม่
 - [ ] ไม่มี token/password/connection string ใน response
 

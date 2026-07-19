@@ -116,6 +116,9 @@ public static class DevelopmentDataSeeder
         ("System.Backup.Run", "ตรวจสอบและบันทึก Backup", "SystemBackup", "Run"),
         ("System.Backup.Restore", "ดำเนินการ Restore Backup", "SystemBackup", "Restore"),
         ("System.Backup.ManageRetention", "จัดการ Retention Backup", "SystemBackup", "ManageRetention"),
+        ("System.Diagnostics.View", "ดู Diagnostics Center", "SystemDiagnostics", "View"),
+        ("System.Diagnostics.Run", "รัน Diagnostics Test", "SystemDiagnostics", "Run"),
+        ("System.Diagnostics.Export", "สร้างและดาวน์โหลด Support Bundle", "SystemDiagnostics", "Export"),
         ("System.Line.TestSend", "ทดสอบส่งข้อความ LINE", "System", "LineTestSend"),
         ("Documentation.View", "ดูศูนย์คู่มือการใช้งาน", "Documentation", "View"),
         ("Documentation.AdminView", "ดูคู่มือสำหรับผู้ดูแลระบบ", "Documentation", "AdminView"),
@@ -462,6 +465,9 @@ public static class DevelopmentDataSeeder
                 "LeaveAdmin.ManageHolidays",
                 "LeaveAdmin.ManageApprovalChains",
                 "System.Health.View",
+                "System.Diagnostics.View",
+                "System.Diagnostics.Run",
+                "System.Diagnostics.Export",
                 "System.Line.TestSend");
 
             var shouldCreateStandardItUsers = configuration.GetValue<bool?>("Seed:CreateStandardItUsers")

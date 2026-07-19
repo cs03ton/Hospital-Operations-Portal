@@ -39,6 +39,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<LineConnectToken> LineConnectTokens => Set<LineConnectToken>();
     public DbSet<BackupRun> BackupRuns => Set<BackupRun>();
     public DbSet<RestoreRun> RestoreRuns => Set<RestoreRun>();
+    public DbSet<DiagnosticRun> DiagnosticRuns => Set<DiagnosticRun>();
+    public DbSet<SupportBundle> SupportBundles => Set<SupportBundle>();
 
     public override int SaveChanges(bool acceptAllChangesOnSuccess)
     {
@@ -876,6 +878,49 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             entity.HasOne(item => item.PreRestoreBackupRun)
                 .WithMany()
                 .HasForeignKey(item => item.PreRestoreBackupRunId);
+            entity.HasOne(item => item.CreatedByUser)
+                .WithMany()
+                .HasForeignKey(item => item.CreatedByUserId);
+        });
+
+        modelBuilder.Entity<DiagnosticRun>(entity =>
+        {
+            entity.ToTable("diagnostic_runs");
+            entity.Property(item => item.Id).HasColumnName("id");
+            entity.Property(item => item.DiagnosticType).HasColumnName("diagnostic_type").HasMaxLength(80);
+            entity.Property(item => item.Status).HasColumnName("status").HasMaxLength(40);
+            entity.Property(item => item.StartedAt).HasColumnName("started_at");
+            entity.Property(item => item.CompletedAt).HasColumnName("completed_at");
+            entity.Property(item => item.DurationMs).HasColumnName("duration_ms");
+            entity.Property(item => item.ResultSummary).HasColumnName("result_summary").HasMaxLength(2000);
+            entity.Property(item => item.ReferenceId).HasColumnName("reference_id").HasMaxLength(120);
+            entity.Property(item => item.CreatedByUserId).HasColumnName("created_by_user_id");
+            entity.Property(item => item.ErrorMessage).HasColumnName("error_message").HasMaxLength(1000);
+            entity.Property(item => item.CreatedAt).HasColumnName("created_at");
+            entity.HasIndex(item => new { item.DiagnosticType, item.StartedAt });
+            entity.HasIndex(item => item.ReferenceId);
+            entity.HasOne(item => item.CreatedByUser)
+                .WithMany()
+                .HasForeignKey(item => item.CreatedByUserId);
+        });
+
+        modelBuilder.Entity<SupportBundle>(entity =>
+        {
+            entity.ToTable("support_bundles");
+            entity.Property(item => item.Id).HasColumnName("id");
+            entity.Property(item => item.FileName).HasColumnName("file_name").HasMaxLength(260);
+            entity.Property(item => item.FilePath).HasColumnName("file_path").HasMaxLength(1000);
+            entity.Property(item => item.FileSizeBytes).HasColumnName("file_size_bytes");
+            entity.Property(item => item.Checksum).HasColumnName("checksum").HasMaxLength(128);
+            entity.Property(item => item.ExpiresAt).HasColumnName("expires_at");
+            entity.Property(item => item.Reason).HasColumnName("reason").HasMaxLength(1000);
+            entity.Property(item => item.Status).HasColumnName("status").HasMaxLength(40);
+            entity.Property(item => item.CreatedByUserId).HasColumnName("created_by_user_id");
+            entity.Property(item => item.CreatedAt).HasColumnName("created_at");
+            entity.Property(item => item.DownloadedAt).HasColumnName("downloaded_at");
+            entity.Property(item => item.DeletedAt).HasColumnName("deleted_at");
+            entity.HasIndex(item => new { item.Status, item.ExpiresAt });
+            entity.HasIndex(item => item.CreatedAt);
             entity.HasOne(item => item.CreatedByUser)
                 .WithMany()
                 .HasForeignKey(item => item.CreatedByUserId);

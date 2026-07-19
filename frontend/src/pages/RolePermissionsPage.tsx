@@ -38,6 +38,7 @@ const groupLabels: Record<string, string> = {
   RoleManagement: "บทบาทและสิทธิ์",
   SystemSettings: "ตั้งค่าระบบ",
   System: "ระบบ",
+  SystemDiagnostics: "Diagnostics Center",
   ReportManagement: "รายงาน",
   LeaveAnalytics: "วิเคราะห์ข้อมูลการลา",
 };
@@ -60,6 +61,9 @@ const permissionDescriptions: Record<string, string> = {
   "LeaveAdmin.ManageApprovalChains": "จัดการกฎการอนุมัติวันลา",
   "LeaveAnalytics.View": "ดูหน้า Leave Analytics และส่งออกข้อมูลวิเคราะห์การลา",
   "System.Health.View": "ดู Health Center และสถานะระบบสำคัญโดยไม่เปิดเผยข้อมูลลับ",
+  "System.Diagnostics.View": "ดู Diagnostics Center, log ที่ถูก mask และประวัติ support bundle",
+  "System.Diagnostics.Run": "รัน diagnostics test สำหรับระบบย่อยสำคัญ",
+  "System.Diagnostics.Export": "สร้างและดาวน์โหลด Support Bundle สำหรับส่งต่อทีม IT",
   "System.Line.TestSend": "ทดสอบส่งข้อความ LINE และตรวจสอบสถานะ LINE Operations Center",
 };
 

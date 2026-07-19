@@ -300,6 +300,116 @@ export type AdminHealth = {
   timezone?: string | null;
 };
 
+export type DiagnosticServiceStatus = {
+  key: string;
+  label: string;
+  status: string;
+  message?: string | null;
+  latencyMs?: number | null;
+  details?: Record<string, string | null> | null;
+};
+
+export type DiagnosticInfo = {
+  status: string;
+  message?: string | null;
+  timestamp?: string | null;
+  reference?: string | null;
+};
+
+export type DiagnosticsSummary = {
+  checkedAt: string;
+  environment: string;
+  version: string;
+  gitCommit?: string | null;
+  services: Record<string, DiagnosticServiceStatus>;
+  recentErrors: RecentError[];
+  lastDeploy: DiagnosticInfo;
+  lastMigration: DiagnosticInfo;
+};
+
+export type DiagnosticTestResult = {
+  runId: string;
+  diagnosticType: string;
+  status: string;
+  message: string;
+  referenceId: string;
+  durationMs: number;
+};
+
+export type DiagnosticRun = {
+  id: string;
+  diagnosticType: string;
+  status: string;
+  startedAt: string;
+  completedAt?: string | null;
+  durationMs?: number | null;
+  resultSummary?: string | null;
+  referenceId?: string | null;
+  createdBy?: string | null;
+  errorMessage?: string | null;
+};
+
+export type RecentError = {
+  timestamp: string;
+  module: string;
+  message: string;
+  referenceId?: string | null;
+  actor?: string | null;
+  requestPath?: string | null;
+  statusCode?: string | null;
+};
+
+export type DiagnosticsLogQuery = {
+  source?: string;
+  severity?: string;
+  search?: string;
+  page?: number;
+  pageSize?: number;
+};
+
+export type DiagnosticsLogLine = {
+  timestamp?: string | null;
+  severity: string;
+  message: string;
+};
+
+export type DiagnosticsLogResponse = {
+  source: string;
+  page: number;
+  pageSize: number;
+  totalItems: number;
+  totalPages: number;
+  items: DiagnosticsLogLine[];
+};
+
+export type SupportBundleRequest = {
+  includeAppLogs: boolean;
+  includeNginxLogs: boolean;
+  includePostgresLogs: boolean;
+  includeHealth: boolean;
+  includeDeployInfo: boolean;
+  includeMigrationInfo: boolean;
+  includeLineSummary: boolean;
+  includeBackupSummary: boolean;
+  timeRangeHours: number;
+  reason: string;
+};
+
+export type SupportBundle = {
+  id: string;
+  fileName: string;
+  fileSizeBytes: number;
+  checksum?: string | null;
+  expiresAt: string;
+  status: string;
+  createdAt: string;
+  downloadUrl?: string | null;
+  reason?: string | null;
+  createdBy?: string | null;
+  downloadedAt?: string | null;
+  deletedAt?: string | null;
+};
+
 export type BackupRun = {
   id: string;
   backupType: string;
@@ -905,6 +1015,51 @@ export async function getDashboardSummary() {
 export async function getAdminHealth() {
   const response = await httpClient.get<ApiResponse<AdminHealth>>("/api/admin/health");
   return response.data.data;
+}
+
+export async function getDiagnosticsSummary() {
+  const response = await httpClient.get<ApiResponse<DiagnosticsSummary>>("/api/admin/diagnostics/summary");
+  return response.data.data;
+}
+
+export async function runDiagnosticTest(diagnosticType: string) {
+  const response = await httpClient.post<ApiResponse<DiagnosticTestResult>>(`/api/admin/diagnostics/test/${diagnosticType}`);
+  return response.data.data;
+}
+
+export async function getDiagnosticsLogs(params: DiagnosticsLogQuery = {}) {
+  const response = await httpClient.get<ApiResponse<DiagnosticsLogResponse>>("/api/admin/diagnostics/logs", { params });
+  return response.data.data;
+}
+
+export async function getDiagnosticsRecentErrors() {
+  const response = await httpClient.get<ApiResponse<RecentError[]>>("/api/admin/diagnostics/recent-errors");
+  return response.data.data;
+}
+
+export async function getDiagnosticsHistory() {
+  const response = await httpClient.get<ApiResponse<DiagnosticRun[]>>("/api/admin/diagnostics/history");
+  return response.data.data;
+}
+
+export async function createSupportBundle(payload: SupportBundleRequest) {
+  const response = await httpClient.post<ApiResponse<SupportBundle>>("/api/admin/diagnostics/support-bundle", payload);
+  return response.data.data;
+}
+
+export async function getSupportBundles() {
+  const response = await httpClient.get<ApiResponse<SupportBundle[]>>("/api/admin/diagnostics/support-bundles");
+  return response.data.data;
+}
+
+export function getSupportBundleDownloadUrl(id: string) {
+  const baseUrl = httpClient.defaults.baseURL ?? "";
+  return `${baseUrl}/api/admin/diagnostics/support-bundle/${id}/download`;
+}
+
+export async function downloadSupportBundle(id: string) {
+  const response = await httpClient.get(`/api/admin/diagnostics/support-bundle/${id}/download`, { responseType: "blob" });
+  return response.data as Blob;
 }
 
 export async function getBackupOverview() {
