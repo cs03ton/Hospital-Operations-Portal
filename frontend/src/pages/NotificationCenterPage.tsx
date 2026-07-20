@@ -27,6 +27,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { getNotificationCenterItems, markNotificationRead } from "../services/notificationService";
+import { StatusBadge } from "../components/common/StatusBadge";
 import { formatThaiDateTime } from "../utils/dateFormat";
 
 const filterOptions = [
@@ -44,19 +45,6 @@ const categoryOptions = [
   { value: "Backup", label: "ระบบสำรองข้อมูล" },
   { value: "System", label: "ระบบ" },
 ];
-
-const priorityLabels: Record<string, string> = {
-  Critical: "วิกฤต",
-  High: "สูง",
-  Normal: "ปกติ",
-  Information: "ข้อมูล",
-  Success: "สำเร็จ",
-};
-
-const typeLabels: Record<string, string> = {
-  ActionRequired: "ต้องดำเนินการ",
-  Information: "ข้อมูล",
-};
 
 export function NotificationCenterPage() {
   const [page, setPage] = useState(0);
@@ -178,10 +166,10 @@ export function NotificationCenterPage() {
                           </Stack>
                         </TableCell>
                         <TableCell>
-                          <Chip size="small" label={typeLabels[item.notificationType] ?? item.notificationType} color={item.notificationType === "ActionRequired" ? "warning" : "default"} />
+                          <StatusBadge domain="notificationType" status={item.notificationType} />
                         </TableCell>
                         <TableCell>
-                          <Chip size="small" label={priorityLabels[item.priority] ?? item.priority} color={getPriorityColor(item.priority)} />
+                          <StatusBadge domain="notificationPriority" status={item.priority} />
                         </TableCell>
                         <TableCell>{categoryOptions.find((option) => option.value === item.category)?.label ?? item.category}</TableCell>
                         <TableCell>{formatThaiDateTime(item.createdAt)}</TableCell>
@@ -235,14 +223,6 @@ export function NotificationCenterPage() {
       </Card>
     </Stack>
   );
-}
-
-function getPriorityColor(priority: string): "default" | "warning" | "error" | "info" | "success" {
-  if (priority === "Critical") return "error";
-  if (priority === "High") return "warning";
-  if (priority === "Success") return "success";
-  if (priority === "Information") return "info";
-  return "default";
 }
 
 function isGuid(value: string) {

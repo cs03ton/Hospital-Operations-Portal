@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useMemo } from "react";
 import type { ReactNode } from "react";
 import { Navigate } from "react-router-dom";
@@ -23,7 +24,7 @@ const PermissionContext = createContext<PermissionContextValue | null>(null);
 
 export function PermissionProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
-  const permissions = user?.permissions ?? [];
+  const permissions = useMemo(() => user?.permissions ?? [], [user?.permissions]);
 
   const value = useMemo<PermissionContextValue>(() => {
     const permissionSet = new Set(permissions);
@@ -47,7 +48,7 @@ export function PermissionGuard({
   fallback = null,
   redirectTo,
 }: PermissionGuardProps) {
-  const { hasPermission, hasAnyPermission, hasAllPermissions } = usePermission();
+  const { hasAnyPermission, hasAllPermissions } = usePermission();
   const requiredPermissions = permissions ?? (permission ? [permission] : []);
   const allowed =
     requiredPermissions.length === 0 ||

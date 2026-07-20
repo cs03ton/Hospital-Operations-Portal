@@ -76,16 +76,16 @@ export function AppSidebar({
         }),
       })}
     >
-      <Toolbar sx={{ px: isCollapsed && isDesktop ? 1 : 2.5, py: isCollapsed && isDesktop ? 1.5 : 2.25, minHeight: "auto" }}>
+      <Toolbar sx={{ px: isCollapsed && isDesktop ? 1 : 2.5, py: isCollapsed && isDesktop ? 1.5 : 2.5, minHeight: "auto" }}>
         <Tooltip title={isCollapsed && isDesktop ? `${appName} - ${hospitalName}` : ""} placement="right">
-          <Stack spacing={1} alignItems="center" sx={{ width: "100%", textAlign: "center" }}>
+          <Stack spacing={1.1} alignItems="center" sx={{ width: "100%", textAlign: "center" }}>
             <Box
               component="img"
               src={hospitalLogo}
               alt={hospitalName}
               sx={{
-                width: isCollapsed && isDesktop ? 44 : 86,
-                height: isCollapsed && isDesktop ? 44 : 86,
+                width: isCollapsed && isDesktop ? 50 : 112,
+                height: isCollapsed && isDesktop ? 50 : 112,
                 objectFit: "contain",
                 transition: theme.transitions.create(["width", "height"], {
                   duration: theme.transitions.duration.shorter,

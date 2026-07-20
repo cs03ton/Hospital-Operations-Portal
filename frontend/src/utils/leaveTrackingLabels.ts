@@ -1,11 +1,11 @@
 import type { LeaveRequest } from "../api/leaveApi";
 
-export function getLeaveRequestCode(requestNumber?: string | null, _id?: string | null) {
+export function getLeaveRequestCode(requestNumber?: string | null, id?: string | null) {
   if (requestNumber) {
     return requestNumber;
   }
 
-  return "-";
+  return id ? id.slice(0, 8) : "-";
 }
 
 export function getTrackingStatusLabel(request: Pick<LeaveRequest, "status" | "currentStatusLabel" | "currentApproverName" | "currentStepName">) {

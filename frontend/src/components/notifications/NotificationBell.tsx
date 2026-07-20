@@ -8,7 +8,6 @@ import {
   ListItemText,
   Menu,
   Button,
-  Chip,
   Stack,
   Typography,
 } from "@mui/material";
@@ -18,6 +17,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { getNotificationBadge, getNotificationItems } from "../../services/notificationService";
 import { brandColors } from "../../theme/theme";
+import { StatusBadge } from "../common/StatusBadge";
 
 export function NotificationBell() {
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
@@ -92,7 +92,7 @@ export function NotificationBell() {
                     {item.unread && (
                       <Box sx={{ width: 8, height: 8, borderRadius: "50%", bgcolor: brandColors.accent, flexShrink: 0 }} />
                     )}
-                    <Chip size="small" label={priorityLabels[item.priority] ?? item.priority} color={getPriorityColor(item.priority)} />
+                    <StatusBadge domain="notificationPriority" status={item.priority} />
                   </Stack>
                 }
                 secondary={item.message}
@@ -110,20 +110,4 @@ export function NotificationBell() {
       </Menu>
     </>
   );
-}
-
-const priorityLabels: Record<string, string> = {
-  Critical: "วิกฤต",
-  High: "สูง",
-  Normal: "ปกติ",
-  Information: "ข้อมูล",
-  Success: "สำเร็จ",
-};
-
-function getPriorityColor(priority: string): "default" | "warning" | "error" | "info" | "success" {
-  if (priority === "Critical") return "error";
-  if (priority === "High") return "warning";
-  if (priority === "Success") return "success";
-  if (priority === "Information") return "info";
-  return "default";
 }

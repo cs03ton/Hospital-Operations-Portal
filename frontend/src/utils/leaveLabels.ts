@@ -1,3 +1,5 @@
+import { getStatusLabel, getStatusTone } from "./statusLabels";
+
 export const leaveTypeLabels: Record<string, string> = {
   annual: "ลาพักผ่อน",
   vacation_leave: "ลาพักผ่อน",
@@ -49,11 +51,7 @@ export function getLeaveTypeLabel(type?: string | null) {
 }
 
 export function getLeaveStatusLabel(status?: string | null) {
-  if (!status) {
-    return "-";
-  }
-
-  return leaveStatusLabels[status] ?? status;
+  return getStatusLabel("leave", status);
 }
 
 export function getLeaveDurationTypeLabel(durationType?: string | null) {
@@ -82,21 +80,7 @@ export function getLeaveTypeWithDurationLabel(leaveType?: string | null, duratio
 }
 
 export function getLeaveStatusColor(status?: string | null): "default" | "warning" | "success" | "error" | "info" {
-  switch (status) {
-    case "Pending":
-    case "ReturnedForRevision":
-      return "warning";
-    case "Approved":
-      return "success";
-    case "Rejected":
-      return "error";
-    case "CancelledAfterApproval":
-      return "info";
-    case "Cancelled":
-    case "Draft":
-    default:
-      return "default";
-  }
+  return getStatusTone("leave", status);
 }
 
 export function getLeaveTypeColor(type?: string | null) {

@@ -43,6 +43,7 @@ type ManagementDataGridProps<T> = {
   onSortChange: (sort: string, direction: GridSortDirection) => void;
   onPageChange: (page: number) => void;
   onPageSizeChange: (pageSize: number) => void;
+  minTableWidth?: number;
 };
 
 export function ManagementDataGrid<T>({
@@ -62,6 +63,7 @@ export function ManagementDataGrid<T>({
   onSortChange,
   onPageChange,
   onPageSizeChange,
+  minTableWidth = 920,
 }: ManagementDataGridProps<T>) {
   function handleSort(columnKey: string) {
     const nextDirection = sort === columnKey && direction === "asc" ? "desc" : "asc";
@@ -82,8 +84,8 @@ export function ManagementDataGrid<T>({
             {toolbar}
           </Stack>
         )}
-        <TableContainer sx={{ maxHeight: 640 }}>
-          <Table size="small" stickyHeader>
+        <TableContainer sx={{ maxHeight: 640, overflowX: "auto" }}>
+          <Table size="small" stickyHeader sx={{ minWidth: minTableWidth }}>
             <TableHead>
               <TableRow>
                 {columns.map((column) => (
@@ -126,17 +128,28 @@ export function ManagementDataGrid<T>({
             </TableBody>
           </Table>
         </TableContainer>
-        <TablePagination
-          component="div"
-          count={totalItems}
-          page={page - 1}
-          rowsPerPage={pageSize}
-          onPageChange={(_, value) => onPageChange(value + 1)}
-          onRowsPerPageChange={(event) => onPageSizeChange(Number(event.target.value))}
-          rowsPerPageOptions={[10, 20, 50, 100]}
-          labelRowsPerPage="จำนวนต่อหน้า"
-          labelDisplayedRows={({ from, to, count }) => `${from}-${to} จาก ${count}`}
-        />
+        <Box sx={{ overflowX: "auto" }}>
+          <TablePagination
+            component="div"
+            count={totalItems}
+            page={page - 1}
+            rowsPerPage={pageSize}
+            onPageChange={(_, value) => onPageChange(value + 1)}
+            onRowsPerPageChange={(event) => onPageSizeChange(Number(event.target.value))}
+            rowsPerPageOptions={[10, 20, 50, 100]}
+            labelRowsPerPage="จำนวนต่อหน้า"
+            labelDisplayedRows={({ from, to, count }) => `${from}-${to} จาก ${count}`}
+            sx={{
+              minWidth: { xs: 320, sm: "auto" },
+              ".MuiTablePagination-toolbar": {
+                flexWrap: "wrap",
+                rowGap: 1,
+                justifyContent: "flex-end",
+                px: 0,
+              },
+            }}
+          />
+        </Box>
       </CardContent>
     </Card>
   );

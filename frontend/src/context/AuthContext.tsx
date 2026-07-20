@@ -1,4 +1,5 @@
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
+/* eslint-disable react-refresh/only-export-components */
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import * as authApi from "../api/authApi";
 import { isCookieTokenMode, setAuthToken } from "../api/httpClient";
@@ -31,6 +32,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return raw ? normalizeUser(JSON.parse(raw) as AuthUser) : null;
   });
   const [isLoading, setIsLoading] = useState(true);
+
+  const clearSession = useCallback(() => {
+    setAuthToken(null);
+    setAccessToken(null);
+    setRefreshToken(null);
+    setUser(null);
+    localStorage.removeItem(authStorageKeys.accessToken);
+    localStorage.removeItem(authStorageKeys.refreshToken);
+    localStorage.removeItem(authStorageKeys.user);
+  }, []);
 
   useEffect(() => {
     setAuthToken(accessToken);
@@ -71,7 +82,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     loadProfile();
-  }, [accessToken]);
+  }, [accessToken, clearSession]);
 
   useEffect(() => {
     function syncRefreshedSession(event: Event) {
@@ -86,7 +97,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener("hop-auth-refreshed", syncRefreshedSession);
   }, []);
 
-  async function signIn(username: string, password: string) {
+  const signIn = useCallback(async (username: string, password: string) => {
     const result = await authApi.login(username, password);
     setAuthToken(result.accessToken);
     setAccessToken(result.accessToken);
@@ -99,9 +110,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     localStorage.setItem(authStorageKeys.user, JSON.stringify(normalizedUser));
     notifyGlobal("success", "เข้าสู่ระบบสำเร็จ");
-  }
+  }, []);
 
-  async function signOut() {
+  const signOut = useCallback(async () => {
     try {
       if (accessToken) {
         await authApi.logout(refreshToken);
@@ -110,24 +121,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       clearSession();
       notifyGlobal("success", "ออกจากระบบเรียบร้อยแล้ว");
     }
-  }
+  }, [accessToken, clearSession, refreshToken]);
 
-  async function refreshUser() {
+  const refreshUser = useCallback(async () => {
     const profile = await authApi.getCurrentUser();
     const normalizedProfile = normalizeUser(profile);
     setUser(normalizedProfile);
     localStorage.setItem(authStorageKeys.user, JSON.stringify(normalizedProfile));
-  }
-
-  function clearSession() {
-    setAuthToken(null);
-    setAccessToken(null);
-    setRefreshToken(null);
-    setUser(null);
-    localStorage.removeItem(authStorageKeys.accessToken);
-    localStorage.removeItem(authStorageKeys.refreshToken);
-    localStorage.removeItem(authStorageKeys.user);
-  }
+  }, []);
 
   const value = useMemo<AuthContextValue>(
     () => ({
@@ -141,7 +142,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       clearSession,
       refreshUser,
     }),
-    [accessToken, isLoading, refreshToken, user],
+    [accessToken, clearSession, isLoading, refreshToken, refreshUser, signIn, signOut, user],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

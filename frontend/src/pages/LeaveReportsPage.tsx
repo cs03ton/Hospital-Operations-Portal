@@ -1,7 +1,7 @@
 import DownloadOutlinedIcon from "@mui/icons-material/DownloadOutlined";
 import ClearOutlinedIcon from "@mui/icons-material/ClearOutlined";
 import VisibilityOutlinedIcon from "@mui/icons-material/VisibilityOutlined";
-import { Box, Button, Card, CardContent, Grid, MenuItem, Stack, Table, TableBody, TableCell, TableHead, TablePagination, TableRow, TextField, Typography } from "@mui/material";
+import { Box, Button, Card, CardContent, MenuItem, Stack, Table, TableBody, TableCell, TableHead, TablePagination, TableRow, TextField, Typography } from "@mui/material";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { Link as RouterLink } from "react-router-dom";
@@ -27,10 +27,9 @@ export function LeaveReportsPage() {
     queryKey: ["leave-cancellation-report-preview"],
     queryFn: () => getLeaveCancellationRequests({ page: 1, pageSize: 10 }),
   });
-  const leaveRequests = data?.leaveRequests ?? [];
   const visibleLeaveRequests = useMemo(
-    () => leaveRequests.slice(page * pageSize, page * pageSize + pageSize),
-    [leaveRequests, page, pageSize],
+    () => (data?.leaveRequests ?? []).slice(page * pageSize, page * pageSize + pageSize),
+    [data?.leaveRequests, page, pageSize],
   );
 
   function updateFilters(nextFilters: LeaveReportQuery) {
@@ -182,7 +181,7 @@ export function LeaveReportsPage() {
           </Table>
           <TablePagination
             component="div"
-            count={leaveRequests.length}
+            count={data?.leaveRequests.length ?? 0}
             page={page}
             onPageChange={(_, nextPage) => setPage(nextPage)}
             rowsPerPage={pageSize}

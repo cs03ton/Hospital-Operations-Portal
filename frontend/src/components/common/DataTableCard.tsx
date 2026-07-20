@@ -6,9 +6,10 @@ type DataTableCardProps = {
   subtitle?: string;
   actions?: ReactNode;
   children: ReactNode;
+  minTableWidth?: number;
 };
 
-export function DataTableCard({ title, subtitle, actions, children }: DataTableCardProps) {
+export function DataTableCard({ title, subtitle, actions, children, minTableWidth = 720 }: DataTableCardProps) {
   return (
     <Card>
       <CardContent sx={{ p: { xs: 1.5, md: 2 }, "&:last-child": { pb: { xs: 1.5, md: 2 } } }}>
@@ -31,8 +32,8 @@ export function DataTableCard({ title, subtitle, actions, children }: DataTableC
             {actions && <Box sx={{ flexShrink: 0 }}>{actions}</Box>}
           </Stack>
         )}
-        <TableContainer>
-          <Table size="small">{children}</Table>
+        <TableContainer sx={{ overflowX: "auto" }}>
+          <Table size="small" sx={{ minWidth: minTableWidth }}>{children}</Table>
         </TableContainer>
       </CardContent>
     </Card>

@@ -1,0 +1,52 @@
+import { healthcarePalette } from "./palette";
+
+export const hopTokens = {
+  colors: {
+    primary: healthcarePalette.primary,
+    primaryHover: healthcarePalette.primaryDark,
+    primarySoft: healthcarePalette.primaryLight,
+    secondary: healthcarePalette.secondary,
+    accent: healthcarePalette.accent,
+    accentSoft: healthcarePalette.accentSoft,
+    background: healthcarePalette.background,
+    surface: healthcarePalette.surface,
+    border: healthcarePalette.border,
+    textPrimary: healthcarePalette.textPrimary,
+    textSecondary: healthcarePalette.textSecondary,
+    muted: "#98A2B3",
+    success: healthcarePalette.success,
+    warning: healthcarePalette.warning,
+    danger: healthcarePalette.error,
+    info: healthcarePalette.info,
+  },
+  spacing: {
+    xs: 4,
+    sm: 8,
+    md: 12,
+    lg: 16,
+    xl: 20,
+    "2xl": 24,
+    "3xl": 32,
+    "4xl": 40,
+    "5xl": 48,
+  },
+  radius: {
+    small: 8,
+    medium: 12,
+    large: 16,
+    full: 999,
+  },
+  shadow: {
+    subtle: "0 8px 18px rgba(20, 67, 56, 0.06)",
+    card: "0 16px 36px rgba(20, 67, 56, 0.08)",
+    dialog: "0 24px 64px rgba(44, 44, 44, 0.18)",
+  },
+  typography: {
+    pageTitle: { fontSize: 40, fontWeight: 900, lineHeight: 1.15 },
+    sectionTitle: { fontSize: 24, fontWeight: 900, lineHeight: 1.25 },
+    cardTitle: { fontSize: 18, fontWeight: 900, lineHeight: 1.3 },
+    body: { fontSize: 16, fontWeight: 400, lineHeight: 1.6 },
+    caption: { fontSize: 13, fontWeight: 400, lineHeight: 1.5 },
+    helperText: { fontSize: 12, fontWeight: 400, lineHeight: 1.45 },
+  },
+} as const;

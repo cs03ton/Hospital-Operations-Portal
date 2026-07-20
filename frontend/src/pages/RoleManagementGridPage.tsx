@@ -8,7 +8,6 @@ import {
   Card,
   CardContent,
   Checkbox,
-  Chip,
   FormControlLabel,
   IconButton,
   MenuItem,
@@ -17,7 +16,7 @@ import {
   Typography,
 } from "@mui/material";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { Link as RouterLink } from "react-router-dom";
 import {
@@ -35,6 +34,7 @@ import {
 import { ActionTooltip } from "../components/common/ActionTooltip";
 import { ConfirmDeleteDialog } from "../components/common/ConfirmDeleteDialog";
 import { ManagementDataGrid, type GridSortDirection, type ManagementDataGridColumn } from "../components/common/ManagementDataGrid";
+import { StatusBadge } from "../components/common/StatusBadge";
 import { PageHeader } from "../components/PageHeader";
 import { PermissionGuard, usePermission } from "../context/PermissionContext";
 import { useNotification } from "../hooks/useNotification";
@@ -136,6 +136,12 @@ export function RoleManagementGridPage() {
     onError: (error: unknown) => showError(extractErrorMessage(error, "ไม่สามารถลบสิทธิ์ได้")),
   });
 
+  const editRole = useCallback((role: RoleSummary) => {
+    if (!hasPermission("RoleManagement.Edit")) return;
+    setEditingRole(role);
+    reset({ name: role.name, description: role.description ?? "", isActive: role.isActive });
+  }, [hasPermission, reset]);
+
   const roleColumns = useMemo<ManagementDataGridColumn<RoleSummary>[]>(() => [
     { key: "name", label: "Role", sortable: true, render: (role) => getRoleLabel(role.name) },
     { key: "description", label: "Description", render: (role) => role.description ?? "-" },
@@ -145,7 +151,7 @@ export function RoleManagementGridPage() {
       key: "status",
       label: "Status",
       render: (role) => (
-        <Chip size="small" label={role.isActive ? "ใช้งาน" : "ปิดใช้งาน"} color={role.isActive ? "success" : "default"} />
+        <StatusBadge domain="active" status={role.isActive ? "active" : "inactive"} />
       ),
     },
     { key: "createdAt", label: "Created", sortable: true, render: (role) => formatThaiDateTime(role.createdAt) },
@@ -175,7 +181,7 @@ export function RoleManagementGridPage() {
         </Stack>
       ),
     },
-  ], [deleteRoleMutation.isPending]);
+  ], [deleteRoleMutation.isPending, editRole]);
 
   const permissionColumns = useMemo<ManagementDataGridColumn<PermissionSummary>[]>(() => [
     { key: "code", label: "Permission Code", sortable: true, render: (permission) => permission.code },
@@ -185,7 +191,7 @@ export function RoleManagementGridPage() {
     {
       key: "status",
       label: "Status",
-      render: (permission) => <Chip size="small" label={permission.isActive ? "ใช้งาน" : "ปิดใช้งาน"} color={permission.isActive ? "success" : "default"} />,
+      render: (permission) => <StatusBadge domain="active" status={permission.isActive ? "active" : "inactive"} />,
     },
     { key: "createdAt", label: "Created", sortable: true, render: (permission) => formatThaiDateTime(permission.createdAt) },
     {
@@ -208,12 +214,6 @@ export function RoleManagementGridPage() {
     const groups = new Set((permissionsQuery.data?.items ?? []).map((permission) => permission.group));
     return Array.from(groups).sort();
   }, [permissionsQuery.data?.items]);
-
-  function editRole(role: RoleSummary) {
-    if (!hasPermission("RoleManagement.Edit")) return;
-    setEditingRole(role);
-    reset({ name: role.name, description: role.description ?? "", isActive: role.isActive });
-  }
 
   function onSubmit(values: RoleFormValues) {
     saveMutation.mutate({ name: values.name, description: values.description || null, isActive: values.isActive });

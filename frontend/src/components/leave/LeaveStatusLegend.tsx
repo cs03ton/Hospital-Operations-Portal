@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import { Chip, Stack, Typography } from "@mui/material";
 import { getLeaveStatusColor, getLeaveStatusLabel } from "../../utils/leaveLabels";
 

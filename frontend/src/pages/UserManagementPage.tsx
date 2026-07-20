@@ -32,7 +32,7 @@ export function UserManagementPage() {
   return <UserManagementGridPage />;
 }
 
-function LegacyUserManagementPage() {
+export function LegacyUserManagementPage() {
   const queryClient = useQueryClient();
   const { showSuccess } = useNotification();
   const [preview, setPreview] = useState<ApprovalRulePreview | null>(null);

@@ -1,5 +1,6 @@
-import { Alert, Button, Dialog, DialogActions, DialogContent, DialogTitle, Stack, Typography } from "@mui/material";
+import { Alert, Stack, Typography } from "@mui/material";
 import type { DeleteReferenceSummary } from "../../api/adminApi";
+import { ActionDialog } from "./ActionDialog";
 
 type ConfirmDeleteDialogProps = {
   open: boolean;
@@ -27,40 +28,39 @@ export function ConfirmDeleteDialog({
   const visibleReferences = references.filter((item) => item.count > 0);
 
   return (
-    <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
-      <DialogTitle>{title}</DialogTitle>
-      <DialogContent>
-        <Stack spacing={2}>
-          <Typography>
-            คุณต้องการดำเนินการกับ “{itemName || "-"}” ใช่หรือไม่
+    <ActionDialog
+      open={open}
+      title={title}
+      confirmLabel={confirmLabel}
+      confirmColor="error"
+      isLoading={isLoading}
+      onClose={onClose}
+      onConfirm={onConfirm}
+    >
+      <Stack spacing={2}>
+        <Typography>
+          คุณต้องการดำเนินการกับ “{itemName || "-"}” ใช่หรือไม่
+        </Typography>
+        {description && (
+          <Typography variant="body2" color="text.secondary">
+            {description}
           </Typography>
-          {description && (
-            <Typography variant="body2" color="text.secondary">
-              {description}
+        )}
+        {visibleReferences.length > 0 && (
+          <Alert severity="warning">
+            <Typography variant="subtitle2" fontWeight={700}>
+              ระบบตรวจพบข้อมูลอ้างอิง
             </Typography>
-          )}
-          {visibleReferences.length > 0 && (
-            <Alert severity="warning">
-              <Typography variant="subtitle2" fontWeight={700}>
-                ระบบตรวจพบข้อมูลอ้างอิง
-              </Typography>
-              <Stack component="ul" sx={{ m: 0, pl: 2 }}>
-                {visibleReferences.map((reference) => (
-                  <li key={reference.label}>
-                    {reference.label}: {reference.count.toLocaleString("th-TH")} รายการ
-                  </li>
-                ))}
-              </Stack>
-            </Alert>
-          )}
-        </Stack>
-      </DialogContent>
-      <DialogActions>
-        <Button onClick={onClose}>ยกเลิก</Button>
-        <Button color="error" variant="contained" disabled={isLoading} onClick={onConfirm}>
-          {confirmLabel}
-        </Button>
-      </DialogActions>
-    </Dialog>
+            <Stack component="ul" sx={{ m: 0, pl: 2 }}>
+              {visibleReferences.map((reference) => (
+                <li key={reference.label}>
+                  {reference.label}: {reference.count.toLocaleString("th-TH")} รายการ
+                </li>
+              ))}
+            </Stack>
+          </Alert>
+        )}
+      </Stack>
+    </ActionDialog>
   );
 }

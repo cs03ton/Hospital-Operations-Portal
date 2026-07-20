@@ -28,6 +28,7 @@ import { Link as RouterLink } from "react-router-dom";
 import { getMyPendingApprovals, type PendingApprovalNotification } from "../api/leaveApi";
 import { EmptyState } from "../components/common/EmptyState";
 import { LoadingState } from "../components/common/LoadingState";
+import { StatusBadge } from "../components/common/StatusBadge";
 import { formatThaiDate, formatThaiDateTime } from "../utils/dateFormat";
 import { getLeaveTypeLabel } from "../utils/leaveLabels";
 
@@ -246,7 +247,7 @@ function PendingApprovalRow({ item }: { item: PendingApprovalNotification }) {
       <TableCell>{formatThaiDateTime(item.submittedAt)}</TableCell>
       <TableCell>ขั้นที่ {item.currentStep.toLocaleString("th-TH")}</TableCell>
       <TableCell>
-        <Chip size="small" color={getPriorityColor(item.priority)} label={priorityLabels[item.priority] ?? item.priority} />
+        <StatusBadge domain="notificationPriority" status={item.priority} label={priorityLabels[item.priority] ?? undefined} />
       </TableCell>
       <TableCell align="right">
         <Tooltip title={`ดูรายละเอียด${getPendingSourceLabel(item.sourceType)}`}>
@@ -261,17 +262,4 @@ function PendingApprovalRow({ item }: { item: PendingApprovalNotification }) {
 
 function getPendingSourceLabel(sourceType?: string | null) {
   return sourceType === "LeaveCancellationRequest" ? "คำขอยกเลิกใบลา" : "คำขอลา";
-}
-
-function getPriorityColor(priority: string): "default" | "warning" | "error" | "info" {
-  switch (priority) {
-    case "High":
-      return "error";
-    case "Medium":
-      return "warning";
-    case "Normal":
-      return "info";
-    default:
-      return "default";
-  }
 }

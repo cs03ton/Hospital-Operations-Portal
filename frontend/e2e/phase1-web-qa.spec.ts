@@ -238,7 +238,7 @@ async function findAvailableLeaveDate(page: Page) {
 }
 
 function nextBusinessDate(daysFromNow: number) {
-  let date = new Date();
+  const date = new Date();
   date.setDate(date.getDate() + daysFromNow);
   while (date.getDay() === 0 || date.getDay() === 6) {
     date.setDate(date.getDate() + 1);

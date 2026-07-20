@@ -18,6 +18,7 @@ import { resolveApprovalRulePreview, type ApprovalRulePreview } from "../api/lea
 import { ActionTooltip } from "../components/common/ActionTooltip";
 import { ConfirmDeleteDialog } from "../components/common/ConfirmDeleteDialog";
 import { ManagementDataGrid, type GridSortDirection, type ManagementDataGridColumn } from "../components/common/ManagementDataGrid";
+import { StatusBadge } from "../components/common/StatusBadge";
 import { ApprovalRulePreviewDialog } from "../components/leave/ApprovalRulePreviewDialog";
 import { PageHeader } from "../components/PageHeader";
 import { PermissionGuard } from "../context/PermissionContext";
@@ -97,7 +98,7 @@ export function UserManagementGridPage() {
       key: "status",
       label: "Status",
       render: (user) => (
-        <Chip size="small" label={user.isActive ? "ใช้งาน" : "ปิดใช้งาน"} color={user.isActive ? "success" : "default"} />
+        <StatusBadge domain="active" status={user.isActive ? "active" : "inactive"} />
       ),
     },
     {

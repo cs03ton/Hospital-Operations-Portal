@@ -32,7 +32,7 @@ export function DepartmentManagementPage() {
   return <DepartmentManagementGridPage />;
 }
 
-function LegacyDepartmentManagementPage() {
+export function LegacyDepartmentManagementPage() {
   const queryClient = useQueryClient();
   const { showSuccess } = useNotification();
   const [deletingDepartment, setDeletingDepartment] = useState<DepartmentSummary | null>(null);

@@ -9,7 +9,7 @@ import { alpha, useTheme } from "@mui/material/styles";
 import type { SvgIconComponent } from "@mui/icons-material";
 import { useMemo, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { downloadLeaveAnalyticsExcel, getLeaveAnalytics, getLeaveAnalyticsOptions, type LeaveAnalytics, type LeaveAnalyticsDepartmentStack, type LeaveAnalyticsHeatmap, type LeaveAnalyticsLeaveTypeBreakdown, type LeaveAnalyticsMonthlyTrend, type LeaveAnalyticsQuery, type LeaveAnalyticsTableItem } from "../api/leaveApi";
+import { downloadLeaveAnalyticsExcel, getLeaveAnalytics, getLeaveAnalyticsOptions, type LeaveAnalyticsDepartmentStack, type LeaveAnalyticsHeatmap, type LeaveAnalyticsLeaveTypeBreakdown, type LeaveAnalyticsMonthlyTrend, type LeaveAnalyticsQuery, type LeaveAnalyticsTableItem } from "../api/leaveApi";
 import { PageHeader } from "../components/PageHeader";
 import { ActionTooltip } from "../components/common/ActionTooltip";
 import { brandColors } from "../theme/theme";
@@ -35,19 +35,20 @@ export function LeaveAnalyticsPage() {
   const queryParams = useMemo(() => sanitizeFilters(filters), [filters]);
   const { data: options } = useQuery({ queryKey: ["leave-analytics", "options"], queryFn: getLeaveAnalyticsOptions });
   const departments = options?.departments ?? [];
-  const leaveTypes = options?.leaveTypes ?? [];
   const { data, isError, isLoading } = useQuery({
     queryKey: ["leave-analytics", queryParams],
     queryFn: () => getLeaveAnalytics(queryParams),
   });
   const filteredLeaveTypes = useMemo(
-    () => filters.coreOnly ? leaveTypes.filter((item) => coreLeaveCodes.has(item.code)) : leaveTypes,
-    [filters.coreOnly, leaveTypes],
+    () => {
+      const leaveTypes = options?.leaveTypes ?? [];
+      return filters.coreOnly ? leaveTypes.filter((item) => coreLeaveCodes.has(item.code)) : leaveTypes;
+    },
+    [filters.coreOnly, options?.leaveTypes],
   );
-  const items = data?.items ?? [];
   const visibleItems = useMemo(
-    () => items.slice(page * pageSize, page * pageSize + pageSize),
-    [items, page, pageSize],
+    () => (data?.items ?? []).slice(page * pageSize, page * pageSize + pageSize),
+    [data?.items, page, pageSize],
   );
 
   function updateFilters(nextFilters: LeaveAnalyticsQuery) {
@@ -163,7 +164,7 @@ export function LeaveAnalyticsPage() {
           <HeatmapChart rows={data?.heatmap ?? []} isLoading={isLoading} />
         </Grid>
         <Grid item xs={12}>
-          <AnalyticsTable rows={visibleItems} total={items.length} page={page} pageSize={pageSize} onPageChange={setPage} onPageSizeChange={setPageSize} />
+          <AnalyticsTable rows={visibleItems} total={data?.items.length ?? 0} page={page} pageSize={pageSize} onPageChange={setPage} onPageSizeChange={setPageSize} />
         </Grid>
       </Grid>
     </Box>

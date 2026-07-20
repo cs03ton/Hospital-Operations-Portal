@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import AddCircleOutlineOutlinedIcon from "@mui/icons-material/AddCircleOutlineOutlined";
 import VisibilityOutlinedIcon from "@mui/icons-material/VisibilityOutlined";
 import {
@@ -72,7 +73,7 @@ export function LeaveCancellationListPage() {
   });
   const { data: leaveTypes = [] } = useQuery({ queryKey: ["leave-types"], queryFn: getLeaveTypes });
 
-  const visibleData = data?.items ?? [];
+  const visibleData = useMemo(() => data?.items ?? [], [data?.items]);
   const requesterOptions = useMemo(() => {
     const map = new Map<string, string>();
     visibleData.forEach((item) => {

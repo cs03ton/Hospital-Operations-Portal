@@ -1,26 +1,14 @@
 import SendOutlinedIcon from "@mui/icons-material/SendOutlined";
-import { Avatar, Box, Button, Card, CardContent, Chip, MenuItem, Pagination, Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography } from "@mui/material";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Avatar, Box, Button, Card, CardContent, MenuItem, Pagination, Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography } from "@mui/material";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { getLineUserStats, getLineUsers, sendLineUserTestMessage } from "../api/adminApi";
+import { StatusBadge } from "../components/common/StatusBadge";
 import { PageHeader } from "../components/PageHeader";
 import { useNotification } from "../hooks/useNotification";
 import { brandColors } from "../theme/theme";
 
-const statusLabels: Record<string, string> = {
-  Pending: "รอผูกบัญชี",
-  Bound: "เชื่อมต่อแล้ว",
-  Unbound: "ยกเลิกการเชื่อมต่อ",
-};
-
-const statusColors: Record<string, "default" | "success" | "warning"> = {
-  Pending: "warning",
-  Bound: "success",
-  Unbound: "default",
-};
-
 export function LineUsersPage() {
-  const queryClient = useQueryClient();
   const { showError, showSuccess } = useNotification();
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
@@ -137,7 +125,7 @@ export function LineUsersPage() {
                         {item.username && <Typography variant="caption" color="text.secondary">{item.username}</Typography>}
                       </TableCell>
                       <TableCell>
-                        <Chip size="small" color={statusColors[item.status] ?? "default"} label={statusLabels[item.status] ?? item.status} />
+                        <StatusBadge domain="lineBinding" status={item.status} />
                       </TableCell>
                       <TableCell>
                         <Typography>{item.lastEventType ?? "-"}</Typography>

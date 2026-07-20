@@ -111,7 +111,7 @@ export function LeaveCalendarPage() {
     }
 
     return map;
-  }, [filteredData, month, year]);
+  }, [filteredData, selectedMonth]);
   const holidaysByDate = useMemo(() => {
     const map = new Map<string, LeaveHoliday[]>();
     for (const holiday of activeHolidays) {

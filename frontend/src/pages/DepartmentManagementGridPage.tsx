@@ -1,7 +1,7 @@
 import AddOutlinedIcon from "@mui/icons-material/AddOutlined";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
-import { Box, Button, Chip, IconButton, MenuItem, Stack, TextField } from "@mui/material";
+import { Box, Button, IconButton, MenuItem, Stack, TextField } from "@mui/material";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { Link as RouterLink } from "react-router-dom";
@@ -14,6 +14,7 @@ import {
 import { ActionTooltip } from "../components/common/ActionTooltip";
 import { ConfirmDeleteDialog } from "../components/common/ConfirmDeleteDialog";
 import { ManagementDataGrid, type GridSortDirection, type ManagementDataGridColumn } from "../components/common/ManagementDataGrid";
+import { StatusBadge } from "../components/common/StatusBadge";
 import { PageHeader } from "../components/PageHeader";
 import { PermissionGuard } from "../context/PermissionContext";
 import { useNotification } from "../hooks/useNotification";
@@ -55,7 +56,7 @@ export function DepartmentManagementGridPage() {
       key: "status",
       label: "Status",
       render: (department) => (
-        <Chip size="small" label={department.isActive ? "ใช้งาน" : "ปิดใช้งาน"} color={department.isActive ? "success" : "default"} />
+        <StatusBadge domain="active" status={department.isActive ? "active" : "inactive"} />
       ),
     },
     { key: "createdAt", label: "Created", sortable: true, render: (department) => formatThaiDateTime(department.createdAt) },

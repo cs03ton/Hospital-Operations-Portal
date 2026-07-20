@@ -36,7 +36,6 @@ export function LeaveRequestFormPage() {
     .filter((item) => item.isActive)
     .filter((item) => !appConfig.hideIneligibleLeaveTypes || isLeaveTypeEligibleByGender(item.code, profile?.gender));
   const selectedLeaveType = leaveTypes.find((item) => item.id === leaveTypeId);
-  const requestedDays = isHalfDay ? 0.5 : estimateRequestedDays(startDate, endDate);
   const shouldValidateBalance = selectedLeaveType?.requiresBalance !== false;
   const holidayNamesInRange = getHolidayNamesInRange(startDate, isHalfDay ? startDate : endDate, holidays);
   const hasHolidayInRange = holidayNamesInRange.length > 0;
@@ -233,27 +232,6 @@ function getHolidayNamesInRange(startDate?: string, endDate?: string, holidays: 
       return (date.isAfter(start) || date.isSame(start)) && (date.isBefore(end) || date.isSame(end));
     })
     .map((holiday) => holiday.name);
-}
-
-function estimateRequestedDays(startDate?: string, endDate?: string) {
-  if (!startDate || !endDate || !dayjs(startDate).isValid() || !dayjs(endDate).isValid()) {
-    return 0;
-  }
-
-  const start = dayjs(startDate).startOf("day");
-  const end = dayjs(endDate).startOf("day");
-  if (end.isBefore(start)) {
-    return 0;
-  }
-
-  let days = 0;
-  for (let cursor = start; cursor.isBefore(end) || cursor.isSame(end); cursor = cursor.add(1, "day")) {
-    if (cursor.day() !== 0 && cursor.day() !== 6) {
-      days += 1;
-    }
-  }
-
-  return days;
 }
 
 function isLeaveTypeEligibleByGender(code?: string | null, gender?: string | null) {

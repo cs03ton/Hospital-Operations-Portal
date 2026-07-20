@@ -48,7 +48,7 @@ export function RoleManagementPage() {
   return <RoleManagementGridPage />;
 }
 
-function LegacyRoleManagementPage() {
+export function LegacyRoleManagementPage() {
   const queryClient = useQueryClient();
   const { hasPermission } = usePermission();
   const { showSuccess } = useNotification();
