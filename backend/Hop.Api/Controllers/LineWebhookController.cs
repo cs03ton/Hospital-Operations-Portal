@@ -18,16 +18,34 @@ public class LineWebhookController(
     ILogger<LineWebhookController> logger) : ControllerBase
 {
     [HttpPost]
+    [AllowAnonymous]
     public async Task<ActionResult<ApiResponse<IReadOnlyList<LineWebhookHandleResult>>>> Receive(CancellationToken cancellationToken)
     {
-        using var reader = new StreamReader(Request.Body, Encoding.UTF8);
-        var body = await reader.ReadToEndAsync(cancellationToken);
+        using var bodyStream = new MemoryStream();
+        await Request.Body.CopyToAsync(bodyStream, cancellationToken);
+        var bodyBytes = bodyStream.ToArray();
+        var body = Encoding.UTF8.GetString(bodyBytes);
         var signature = Request.Headers["X-Line-Signature"].FirstOrDefault();
-        logger.LogInformation("LINE webhook received. BodyLength={BodyLength} HasSignature={HasSignature}", body.Length, !string.IsNullOrWhiteSpace(signature));
+        logger.LogInformation(
+            "LINE webhook received. BodyLength={BodyLength} HasSignature={HasSignature}",
+            bodyBytes.Length,
+            !string.IsNullOrWhiteSpace(signature));
 
-        if (!VerifySignature(body, signature))
+        if (string.IsNullOrWhiteSpace(signature))
         {
-            logger.LogWarning("LINE webhook signature invalid. HasSecret={HasSecret}", lineConfiguration.HasChannelSecret);
+            logger.LogWarning("LINE webhook signature missing. BodyLength={BodyLength}", bodyBytes.Length);
+            return Unauthorized(ApiResponse<string>.Fail("Invalid LINE signature."));
+        }
+
+        if (!lineConfiguration.HasChannelSecret)
+        {
+            logger.LogError("LINE webhook signature validation cannot run because Channel Secret is not configured.");
+            return Unauthorized(ApiResponse<string>.Fail("Invalid LINE signature."));
+        }
+
+        if (!VerifySignature(bodyBytes, signature))
+        {
+            logger.LogWarning("LINE webhook signature invalid. BodyLength={BodyLength}", bodyBytes.Length);
             return Unauthorized(ApiResponse<string>.Fail("Invalid LINE signature."));
         }
 
@@ -123,21 +141,29 @@ public class LineWebhookController(
         return await lineUserBindingService.HandleMessageAsync(lineUserId, textProperty.GetString() ?? string.Empty, cancellationToken);
     }
 
-    private bool VerifySignature(string body, string? signature)
+    private bool VerifySignature(byte[] bodyBytes, string signature)
     {
-        if (string.IsNullOrWhiteSpace(signature) || string.IsNullOrWhiteSpace(lineConfiguration.ChannelSecret))
+        if (string.IsNullOrWhiteSpace(lineConfiguration.ChannelSecret))
+        {
+            return false;
+        }
+
+        byte[] providedSignature;
+        try
+        {
+            providedSignature = Convert.FromBase64String(signature.Trim());
+        }
+        catch (FormatException)
         {
             return false;
         }
 
         var key = Encoding.UTF8.GetBytes(lineConfiguration.ChannelSecret);
-        var payload = Encoding.UTF8.GetBytes(body);
         using var hmac = new HMACSHA256(key);
-        var hash = hmac.ComputeHash(payload);
-        var expected = Convert.ToBase64String(hash);
-        return CryptographicOperations.FixedTimeEquals(
-            Encoding.UTF8.GetBytes(expected),
-            Encoding.UTF8.GetBytes(signature));
+        var expectedSignature = hmac.ComputeHash(bodyBytes);
+
+        return expectedSignature.Length == providedSignature.Length &&
+            CryptographicOperations.FixedTimeEquals(expectedSignature, providedSignature);
     }
 
     private static string? MaskLineId(string? lineUserId)

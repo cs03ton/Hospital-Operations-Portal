@@ -23,8 +23,42 @@ Production ต้องใช้ HTTPS
 - signature ถูกต้อง: ประมวลผล event
 - signature ไม่ถูกต้อง: ตอบ `401`
 - ไม่มี Channel Secret: ตอบ `401`
+- payload verify จาก LINE ที่มี `events: []` และ signature ถูกต้อง: ตอบ `200`
 
 ห้าม log Channel Secret หรือ Access Token
+
+> Note: endpoint นี้เปิดให้ LINE Platform เรียกแบบไม่ต้องใช้ JWT/Cookie ของผู้ใช้ HOP แต่ยังต้องมี `X-Line-Signature` ที่ถูกต้องเสมอ
+
+## ทดสอบ Webhook Verify
+
+การเรียกแบบไม่มี signature ต้องได้ `401 Unauthorized` ซึ่งเป็นพฤติกรรมที่ถูกต้อง:
+
+```bash
+curl -i -X POST https://hop.namuenhospital.go.th/api/line/webhook \
+  -H "Content-Type: application/json" \
+  --data '{"destination":"Uxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx","events":[]}'
+```
+
+การทดสอบแบบจำลอง LINE Verify ต้องคำนวณ signature จาก raw body เดียวกันกับที่ส่ง:
+
+```bash
+BODY='{"destination":"Uxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx","events":[]}'
+SECRET='<LINE_CHANNEL_SECRET>'
+SIG=$(printf '%s' "$BODY" | openssl dgst -sha256 -hmac "$SECRET" -binary | base64)
+
+curl -i -X POST https://hop.namuenhospital.go.th/api/line/webhook \
+  -H "Content-Type: application/json" \
+  -H "X-Line-Signature: $SIG" \
+  --data "$BODY"
+```
+
+Expected result:
+
+```text
+HTTP/1.1 200 OK
+```
+
+ห้ามนำค่า `SECRET` จริงไปใส่ในเอกสารหรือ commit ลง repository
 
 ## Supported Events
 

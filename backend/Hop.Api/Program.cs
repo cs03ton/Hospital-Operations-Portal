@@ -138,6 +138,20 @@ builder.Services.AddHealthChecks();
 
 var app = builder.Build();
 
+using (var startupScope = app.Services.CreateScope())
+{
+    var startupLineConfiguration = startupScope.ServiceProvider.GetRequiredService<LineConfigurationResolver>();
+    app.Logger.LogInformation(
+        "LINE configuration loaded. Enabled={Enabled}, HasChannelSecret={HasChannelSecret}, HasAccessToken={HasAccessToken}",
+        startupLineConfiguration.Enabled,
+        startupLineConfiguration.HasChannelSecret,
+        startupLineConfiguration.HasAccessToken);
+    if (startupLineConfiguration.Enabled && !startupLineConfiguration.HasChannelSecret)
+    {
+        app.Logger.LogError("LINE webhook verification is enabled but Line__ChannelSecret is not configured.");
+    }
+}
+
 var seedOnStartup = app.Configuration.GetValue<bool?>("Database:SeedOnStartup")
     ?? app.Configuration.GetValue<bool?>("DATABASE_SEED_ON_STARTUP")
     ?? (app.Environment.IsDevelopment() || app.Environment.IsEnvironment("CI"));
