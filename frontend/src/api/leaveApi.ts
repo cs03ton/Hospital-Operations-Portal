@@ -79,9 +79,23 @@ export type LeavePolicyPreview = {
   availableDays: number;
   requestedDays: number;
   canSubmit: boolean;
+  limitStatus?: string | null;
+  employerPaidLimitDays?: number | null;
+  maximumLeaveDays?: number | null;
+  maximumTotalAvailableDays?: number | null;
+  requiresSpecialApproval: boolean;
+  paymentSegments: LeavePaymentSegment[];
   warnings: string[];
   errors: string[];
   policyNotes: string[];
+};
+
+export type LeavePaymentSegment = {
+  days: number;
+  paymentSource: string;
+  paymentStatus: string;
+  label: string;
+  notes?: string | null;
 };
 
 export type LeaveAttachment = {

@@ -1,4 +1,4 @@
-import { Alert, Button, Card, CardContent, FormControl, FormControlLabel, FormHelperText, FormLabel, MenuItem, Radio, RadioGroup, Stack, TextField, Typography } from "@mui/material";
+import { Alert, Box, Button, Card, CardContent, Chip, FormControl, FormControlLabel, FormHelperText, FormLabel, MenuItem, Radio, RadioGroup, Stack, TextField, Typography } from "@mui/material";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { isAxiosError } from "axios";
 import dayjs from "dayjs";
@@ -59,6 +59,7 @@ export function LeaveRequestFormPage() {
   const policyErrors = policyPreview?.errors ?? [];
   const policyWarnings = policyPreview?.warnings ?? [];
   const policyNotes = policyPreview?.policyNotes ?? [];
+  const paymentSegments = policyPreview?.paymentSegments ?? [];
   const hasPolicyError = policyErrors.length > 0 || policyPreview?.canSubmit === false;
   useEffect(() => {
     if (!editingRequest) {
@@ -131,6 +132,30 @@ export function LeaveRequestFormPage() {
             {policyNotes.map((message) => (
               <Alert key={message} severity="info">{message}</Alert>
             ))}
+            {paymentSegments.length > 0 && (
+              <Alert severity={policyPreview?.requiresSpecialApproval ? "warning" : "info"}>
+                <Stack spacing={1}>
+                  <Typography fontWeight={800}>รายละเอียดสิทธิ์ค่าจ้างของคำขอนี้</Typography>
+                  <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                    {paymentSegments.map((segment, index) => (
+                      <Chip
+                        key={`${segment.paymentSource}-${segment.paymentStatus}-${index}`}
+                        size="small"
+                        color={segment.paymentStatus === "Paid" ? "success" : segment.paymentStatus === "Conditional" ? "warning" : "default"}
+                        label={`${segment.label}: ${segment.days.toLocaleString("th-TH")} วัน`}
+                      />
+                    ))}
+                  </Stack>
+                  {policyPreview?.limitStatus && policyPreview.limitStatus !== "within_normal_limit" && (
+                    <Box>
+                      <Typography variant="caption" color="text.secondary">
+                        สถานะเพดานสิทธิ์: {getLimitStatusLabel(policyPreview.limitStatus)}
+                      </Typography>
+                    </Box>
+                  )}
+                </Stack>
+              </Alert>
+            )}
             {hasHolidayInRange && (
               <Alert severity="warning">
                 ไม่สามารถขอลาในวันหยุดได้: {holidayNamesInRange.join(", ")}
@@ -244,6 +269,19 @@ function isLeaveTypeEligibleByGender(code?: string | null, gender?: string | nul
   }
 
   return true;
+}
+
+function getLimitStatusLabel(status: string) {
+  switch (status) {
+    case "within_normal_limit":
+      return "อยู่ในสิทธิ์ปกติ";
+    case "requires_special_approval":
+      return "ต้องอนุมัติพิเศษ";
+    case "exceeds_maximum":
+      return "เกินเพดานสูงสุด";
+    default:
+      return status;
+  }
 }
 
 function getApiErrorMessage(error: unknown, fallback: string) {

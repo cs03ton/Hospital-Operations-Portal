@@ -41,6 +41,7 @@ const groupLabels: Record<string, string> = {
   SystemDiagnostics: "Diagnostics Center",
   ReportManagement: "รายงาน",
   LeaveAnalytics: "วิเคราะห์ข้อมูลการลา",
+  Announcement: "ข่าวสารและประกาศ",
 };
 
 const permissionDescriptions: Record<string, string> = {
@@ -65,6 +66,21 @@ const permissionDescriptions: Record<string, string> = {
   "System.Diagnostics.Run": "รัน diagnostics test สำหรับระบบย่อยสำคัญ",
   "System.Diagnostics.Export": "สร้างและดาวน์โหลด Support Bundle สำหรับส่งต่อทีม IT",
   "System.Line.TestSend": "ทดสอบส่งข้อความ LINE และตรวจสอบสถานะ LINE Operations Center",
+  "Announcement.View": "ดูศูนย์ข่าวสารและประกาศตามกลุ่มเป้าหมายของตนเอง",
+  "Announcement.Acknowledge": "กดรับทราบประกาศที่กำหนดให้ต้องรับทราบ",
+  "Announcement.Manage": "จัดการประกาศทั้งหมด",
+  "Announcement.Create": "สร้างประกาศใหม่",
+  "Announcement.EditOwn": "แก้ไขประกาศที่ตนเองสร้าง",
+  "Announcement.EditAll": "แก้ไขประกาศทั้งหมด",
+  "Announcement.Publish": "เผยแพร่หรือยกเลิกการเผยแพร่ประกาศ",
+  "Announcement.Schedule": "ตั้งเวลาเผยแพร่ประกาศ",
+  "Announcement.Archive": "จัดเก็บประกาศ",
+  "Announcement.Cancel": "ยกเลิกประกาศ",
+  "Announcement.DeleteDraft": "ลบประกาศ",
+  "Announcement.ManageCategories": "จัดการหมวดหมู่ประกาศ",
+  "Announcement.ManageTargets": "จัดการกลุ่มเป้าหมายประกาศ",
+  "Announcement.Analytics.View": "ดูสถิติการอ่านและรับทราบประกาศ",
+  "Announcement.Analytics.ViewUsers": "ดูรายชื่อผู้ใช้ที่อ่านหรือรับทราบประกาศ",
 };
 
 export function RolePermissionsPage() {

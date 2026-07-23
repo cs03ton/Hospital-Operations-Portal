@@ -108,6 +108,9 @@ public sealed class LineConfigurationResolver(
             configuration["LINE:PublicAppUrl"],
             configuration["LINE_PUBLIC_APP_URL"],
             configuration["PUBLIC_APP_URL"],
+            configuration["PublicAppUrl"],
+            configuration["App:PublicAppUrl"],
+            configuration["Application:PublicAppUrl"],
             configuration["PHASE1_FRONTEND_URL"],
             configuration["FRONTEND_URL"]
         };

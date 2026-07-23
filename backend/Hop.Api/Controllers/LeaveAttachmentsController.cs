@@ -20,7 +20,7 @@ public class LeaveAttachmentsController(
 {
     [HttpGet("{id:guid}/download")]
     [HttpGet("/api/leave-requests/{leaveRequestId:guid}/attachments/{id:guid}/download")]
-    [RequireAnyPermission(LeavePermissions.ViewOwn, LeavePermissions.ViewPendingApproval, LeavePermissions.ViewDepartment, LeavePermissions.ViewAll, LeavePermissions.SupportViewAll)]
+    [RequireAnyPermission(LeavePermissions.ViewOwn, LeavePermissions.ViewPendingApproval, LeavePermissions.ApproveCurrentStep, LeavePermissions.ViewDepartment, LeavePermissions.ViewAll, LeavePermissions.SupportViewAll)]
     public async Task<IActionResult> DownloadAttachment(Guid id, Guid? leaveRequestId = null)
     {
         var attachment = await db.LeaveAttachments
@@ -65,7 +65,7 @@ public class LeaveAttachmentsController(
     }
 
     [HttpGet("/api/leave-requests/{leaveRequestId:guid}/attachments/{id:guid}/preview")]
-    [RequireAnyPermission(LeavePermissions.ViewOwn, LeavePermissions.ViewPendingApproval, LeavePermissions.ViewDepartment, LeavePermissions.ViewAll, LeavePermissions.SupportViewAll)]
+    [RequireAnyPermission(LeavePermissions.ViewOwn, LeavePermissions.ViewPendingApproval, LeavePermissions.ApproveCurrentStep, LeavePermissions.ViewDepartment, LeavePermissions.ViewAll, LeavePermissions.SupportViewAll)]
     public async Task<IActionResult> PreviewAttachment(Guid leaveRequestId, Guid id)
     {
         var attachment = await db.LeaveAttachments

@@ -224,7 +224,7 @@ export function LeaveRequestDetailPage() {
                   กลับ
                 </Button>
               </ActionTooltip>
-              <PermissionGuard permissions={["LeaveRequest.ViewOwn", "LeaveRequest.ViewPendingApproval", "LeaveRequest.ViewDepartment", "LeaveRequest.ViewAll"]}>
+              <PermissionGuard permissions={["LeaveRequest.ViewOwn", "LeaveRequest.ViewPendingApproval", "LeaveApproval.ApproveCurrentStep", "LeaveRequest.ViewDepartment", "LeaveRequest.ViewAll"]}>
                 <ActionTooltip title="ดาวน์โหลดเอกสารคำขอลา">
                   <Button variant="contained" startIcon={<DownloadOutlinedIcon />} disabled={isDownloadingPdf} onClick={handleDownloadPdf}>
                     {isDownloadingPdf ? "กำลังสร้าง PDF..." : "ดาวน์โหลดเอกสารคำขอลา"}

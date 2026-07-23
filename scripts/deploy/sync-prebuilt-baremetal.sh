@@ -33,6 +33,8 @@ require_dir "$BACKEND_SOURCE"
 
 [ -f "${FRONTEND_SOURCE}/index.html" ] || fail "Frontend source must contain index.html: ${FRONTEND_SOURCE}"
 [ -f "${BACKEND_SOURCE}/Hop.Api.dll" ] || fail "Backend source must contain Hop.Api.dll: ${BACKEND_SOURCE}"
+[ -f "${BACKEND_SOURCE}/SkiaSharp.dll" ] || fail "Backend source is missing SkiaSharp.dll. Rebuild/publish backend with current dependencies before deploy: ${BACKEND_SOURCE}"
+[ -f "${BACKEND_SOURCE}/runtimes/linux-x64/native/libSkiaSharp.so" ] || fail "Backend source is missing runtimes/linux-x64/native/libSkiaSharp.so. Rebuild/publish backend for linux-x64 before deploy: ${BACKEND_SOURCE}"
 
 log "Syncing frontend from ${FRONTEND_SOURCE} to ${FRONTEND_TARGET}"
 sudo mkdir -p "$FRONTEND_TARGET"

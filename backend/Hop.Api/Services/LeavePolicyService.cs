@@ -79,7 +79,7 @@ public sealed class LeavePolicyService(AppDbContext db) : ILeavePolicyService
         }
 
         var fiscalYear = FiscalYearHelper.GetFiscalYear(startDate);
-        var preview = await CalculateAvailableDaysAsync(userId, leaveTypeId, fiscalYear, requestedDays, cancellationToken);
+        var preview = await CalculateAvailableDaysAsync(userId, leaveTypeId, fiscalYear, requestedDays, startDate, cancellationToken);
         errors.AddRange(preview.Errors);
         warnings.AddRange(preview.Warnings);
         notes.AddRange(preview.PolicyNotes);
@@ -118,6 +118,7 @@ public sealed class LeavePolicyService(AppDbContext db) : ILeavePolicyService
         Guid leaveTypeId,
         int fiscalYear,
         decimal requestedDays = 0,
+        DateOnly? referenceDate = null,
         CancellationToken cancellationToken = default)
     {
         var user = await db.Users.AsNoTracking().FirstOrDefaultAsync(item => item.Id == userId, cancellationToken);
@@ -150,22 +151,34 @@ public sealed class LeavePolicyService(AppDbContext db) : ILeavePolicyService
             warnings.Add("ประเภทการลานี้ไม่มีสิทธิได้รับค่าจ้างตาม policy กรุณาตรวจสอบก่อนส่งคำขอ");
         }
 
+        if (!policy.AllowRequest)
+        {
+            errors.Add("ประเภทการลานี้ไม่อนุญาตให้ยื่นคำขอตาม policy");
+        }
+
         if (!string.IsNullOrWhiteSpace(policy.Notes))
         {
             notes.Add(policy.Notes);
         }
 
-        if (policy.MaxPaidDays is not null && policy.MaxPaidDays.Value < policy.EntitlementDays)
+        var entitlementReferenceDate = referenceDate ?? FiscalYearStartDate(fiscalYear);
+        var annualEntitlement = ResolveAnnualEntitlement(policy);
+        var employerPaidLimit = ResolveEmployerPaidLimit(user, policy, entitlementReferenceDate);
+        var maximumLeaveDays = ResolveMaximumLeaveDays(user, policy, annualEntitlement, entitlementReferenceDate);
+        var maximumTotalAvailableDays = ResolveMaximumTotalAvailableDays(user, policy, fiscalYear);
+        var requiresSpecialApprovalAfterDays = policy.RequiresSpecialApprovalAfterDays;
+
+        if (employerPaidLimit is not null && employerPaidLimit.Value < annualEntitlement)
         {
-            notes.Add($"ได้รับค่าจ้างไม่เกิน {policy.MaxPaidDays.Value:0.##} วัน ตาม policy");
+            notes.Add($"ได้รับค่าจ้างจากหน่วยงานไม่เกิน {employerPaidLimit.Value:0.##} วัน ตาม policy");
         }
 
-        if (policy.MaxExtendedDays is not null)
+        if (maximumLeaveDays is not null && requiresSpecialApprovalAfterDays is not null && maximumLeaveDays.Value > requiresSpecialApprovalAfterDays.Value)
         {
-            notes.Add($"กรณีพิเศษอาจพิจารณาได้เพิ่มเติมไม่เกิน {policy.MaxExtendedDays.Value:0.##} วัน ตาม policy");
+            notes.Add($"กรณีพิเศษอาจพิจารณาได้เพิ่มเติมไม่เกิน {maximumLeaveDays.Value:0.##} วัน ตาม policy");
         }
 
-        var entitlement = ResolvePolicyEntitlement(user, policy, FiscalYearStartDate(fiscalYear));
+        var entitlement = ResolvePolicyEntitlement(user, policy, entitlementReferenceDate);
         var balance = await db.LeaveBalances
             .AsNoTracking()
             .FirstOrDefaultAsync(item => item.UserId == userId && item.LeaveTypeId == leaveTypeId && item.Year == fiscalYear, cancellationToken);
@@ -176,10 +189,9 @@ public sealed class LeavePolicyService(AppDbContext db) : ILeavePolicyService
         var used = balance?.UsedDays ?? 0;
         var pending = balance?.PendingDays ?? 0;
         var available = FiscalYearHelper.CalculateAvailableDays(entitled, carriedOver, used, pending, adjusted);
-        var maxAccumulatedDays = ResolveMaxAccumulatedDays(user, policy, fiscalYear);
-        if (maxAccumulatedDays is not null)
+        if (maximumTotalAvailableDays is not null)
         {
-            available = Math.Min(available, Math.Max(0, maxAccumulatedDays.Value - used - pending + adjusted));
+            available = Math.Min(available, Math.Max(0, maximumTotalAvailableDays.Value - used - pending + adjusted));
         }
 
         if (leaveType.RequiresBalance && entitlement <= 0)
@@ -189,10 +201,31 @@ public sealed class LeavePolicyService(AppDbContext db) : ILeavePolicyService
 
         if (leaveType.RequiresBalance && requestedDays > 0 && available < requestedDays)
         {
-            errors.Add(pending > 0
-                ? $"วันลาคงเหลือไม่เพียงพอ คงเหลือ {entitled + carriedOver + adjusted - used:0.##} วัน มีคำขอรออนุมัติ {pending:0.##} วัน เหลือใช้ได้ {available:0.##} วัน แต่ขอลา {requestedDays:0.##} วัน"
-                : $"วันลาคงเหลือไม่เพียงพอ คงเหลือ {available:0.##} วัน แต่ขอลา {requestedDays:0.##} วัน");
+            if (maximumLeaveDays is not null && used + pending + requestedDays <= maximumLeaveDays.Value)
+            {
+                warnings.Add($"คำขอนี้เกินสิทธิ์ได้รับค่าจ้างปกติ {available:0.##} วัน แต่ยังไม่เกินเพดานสูงสุด {maximumLeaveDays.Value:0.##} วัน ต้องตรวจสอบสิทธิ์พิเศษหรือสิทธิ์อื่นก่อนอนุมัติ");
+            }
+            else
+            {
+                errors.Add(pending > 0
+                    ? $"วันลาคงเหลือไม่เพียงพอ คงเหลือ {entitled + carriedOver + adjusted - used:0.##} วัน มีคำขอรออนุมัติ {pending:0.##} วัน เหลือใช้ได้ {available:0.##} วัน แต่ขอลา {requestedDays:0.##} วัน"
+                    : $"วันลาคงเหลือไม่เพียงพอ คงเหลือ {available:0.##} วัน แต่ขอลา {requestedDays:0.##} วัน");
+            }
         }
+
+        if (!leaveType.RequiresBalance && requestedDays > 0 && maximumLeaveDays is not null && requestedDays > maximumLeaveDays.Value)
+        {
+            errors.Add($"จำนวนวันลาเกินสิทธิ์ตาม policy ของ{leaveType.Name} ขอได้ไม่เกิน {maximumLeaveDays.Value:0.##} วัน แต่ขอลา {requestedDays:0.##} วัน");
+        }
+
+        var limitStatus = ResolveLimitStatus(used + pending, requestedDays, employerPaidLimit, maximumLeaveDays, policy);
+        var requiresSpecialApproval = limitStatus == "requires_special_approval";
+        if (requiresSpecialApproval)
+        {
+            warnings.Add("คำขอนี้มีบางส่วนเกินสิทธิ์ปกติและต้องใช้อำนาจอนุมัติพิเศษหรือการตรวจสอบเพิ่มเติม");
+        }
+
+        var paymentSegments = CalculatePaymentSegments(used + pending, requestedDays, employerPaidLimit, maximumLeaveDays, policy);
 
         return new LeavePolicyPreviewResult(
             user.EmploymentType,
@@ -207,6 +240,12 @@ public sealed class LeavePolicyService(AppDbContext db) : ILeavePolicyService
             requestedDays,
             leaveType.RequiresBalance,
             errors.Count == 0,
+            limitStatus,
+            employerPaidLimit,
+            maximumLeaveDays,
+            maximumTotalAvailableDays,
+            requiresSpecialApproval,
+            paymentSegments,
             warnings,
             errors,
             notes);
@@ -267,9 +306,16 @@ public sealed class LeavePolicyService(AppDbContext db) : ILeavePolicyService
         }
 
         var serviceMonths = CalculateCompletedServiceMonths(user.EmploymentStartDate.Value, asOfDate);
-        return serviceMonths >= requiredMonths.Value
-            ? null
-            : $"ยังไม่ครบเงื่อนไขอายุงาน ต้องมีอายุงานอย่างน้อย {requiredMonths.Value} เดือน ปัจจุบัน {serviceMonths} เดือน";
+        if (serviceMonths >= requiredMonths.Value)
+        {
+            return null;
+        }
+
+        var eligibleDate = user.EmploymentStartDate.Value.AddMonths(requiredMonths.Value);
+        var currentService = FormatServiceDuration(user.EmploymentStartDate.Value, asOfDate);
+        var requiredService = FormatRequiredService(requiredMonths.Value);
+        var leaveTypeName = policy.LeaveType?.Name ?? "ประเภทการลานี้";
+        return $"ยังไม่มีสิทธิ{leaveTypeName} เนื่องจากอายุงาน {currentService} ต้องครบ {requiredService} โดยจะเริ่มมีสิทธิวันที่ {FormatThaiDate(eligibleDate)}";
     }
 
     public string? ValidateGenderRequirement(User user, LeaveType leaveType)
@@ -321,6 +367,12 @@ public sealed class LeavePolicyService(AppDbContext db) : ILeavePolicyService
             requestedDays,
             true,
             false,
+            null,
+            null,
+            null,
+            null,
+            false,
+            [],
             [],
             errors,
             []);
@@ -334,6 +386,11 @@ public sealed class LeavePolicyService(AppDbContext db) : ILeavePolicyService
         }
 
         var serviceMonths = CalculateCompletedServiceMonths(user.EmploymentStartDate.Value, asOfDate);
+        if (serviceMonths < 6 && policy.ProbationEntitlementDays is not null)
+        {
+            return policy.ProbationEntitlementDays.Value;
+        }
+
         if (serviceMonths < 12 && policy.FirstYearEntitlementDays is not null)
         {
             return policy.FirstYearEntitlementDays.Value;
@@ -341,10 +398,10 @@ public sealed class LeavePolicyService(AppDbContext db) : ILeavePolicyService
 
         if (policy.ProrateIfServiceLessThanYear && serviceMonths < 12)
         {
-            return Math.Round(policy.EntitlementDays * Math.Max(0, serviceMonths) / 12, 2, MidpointRounding.AwayFromZero);
+            return Math.Round(ResolveAnnualEntitlement(policy) * Math.Max(0, serviceMonths) / 12, 2, MidpointRounding.AwayFromZero);
         }
 
-        return policy.EntitlementDays;
+        return ResolveAnnualEntitlement(policy);
     }
 
     private static decimal NormalizeCarryOver(decimal carriedOver, User user, LeavePolicyRule policy, int fiscalYear)
@@ -361,15 +418,16 @@ public sealed class LeavePolicyService(AppDbContext db) : ILeavePolicyService
 
     private static decimal ResolveCarryOverCap(User user, LeavePolicyRule policy, int fiscalYear, string? leaveTypeCode)
     {
-        var cap = policy.CarryOverMaxDays ?? FiscalYearHelper.CarryOverDefaultMaxDays;
+        var cap = policy.CarryForwardLimitDays ?? policy.CarryOverMaxDays ?? FiscalYearHelper.CarryOverDefaultMaxDays;
         if (policy.AllowCarryOver)
         {
             cap = ResolveEmploymentCarryOverCap(user, fiscalYear, cap);
         }
 
-        if (policy.MaxAccumulatedDays is not null)
+        var maximumTotalAvailableDays = policy.MaximumTotalAvailableDays ?? policy.MaxAccumulatedDays;
+        if (maximumTotalAvailableDays is not null)
         {
-            cap = Math.Min(cap, policy.MaxAccumulatedDays.Value);
+            cap = Math.Min(cap, maximumTotalAvailableDays.Value);
         }
 
         return Math.Max(0, cap);
@@ -380,27 +438,135 @@ public sealed class LeavePolicyService(AppDbContext db) : ILeavePolicyService
         var serviceMonths = user.EmploymentStartDate is null ? 0 : CalculateCompletedServiceMonths(user.EmploymentStartDate.Value, FiscalYearStartDate(fiscalYear));
         return user.EmploymentType switch
         {
-            EmploymentTypes.CivilServant => Math.Min(currentCap, serviceMonths >= 120 ? 30 : 20),
+            EmploymentTypes.CivilServant or EmploymentTypes.PermanentEmployee => Math.Min(currentCap, serviceMonths >= 120 ? 30 : 20),
             EmploymentTypes.GovernmentEmployee or EmploymentTypes.MophEmployee => Math.Min(currentCap, 15),
             EmploymentTypes.TemporaryEmployeeDaily or EmploymentTypes.TemporaryEmployeeMonthly => 0,
             _ => currentCap
         };
     }
 
-    private static decimal? ResolveMaxAccumulatedDays(User user, LeavePolicyRule policy, int fiscalYear)
+    private static decimal? ResolveMaximumTotalAvailableDays(User user, LeavePolicyRule policy, int fiscalYear)
     {
         if (policy.LeaveType?.Code != "VACATION_LEAVE")
         {
-            return policy.MaxAccumulatedDays;
+            return policy.MaximumTotalAvailableDays ?? policy.MaxAccumulatedDays;
         }
 
         var serviceMonths = user.EmploymentStartDate is null ? 0 : CalculateCompletedServiceMonths(user.EmploymentStartDate.Value, FiscalYearStartDate(fiscalYear));
         return user.EmploymentType switch
         {
-            EmploymentTypes.CivilServant => serviceMonths >= 120 ? 30 : 20,
+            EmploymentTypes.CivilServant or EmploymentTypes.PermanentEmployee => serviceMonths >= 120 ? 30 : 20,
             EmploymentTypes.GovernmentEmployee or EmploymentTypes.MophEmployee => 15,
-            _ => policy.MaxAccumulatedDays
+            _ => policy.MaximumTotalAvailableDays ?? policy.MaxAccumulatedDays
         };
+    }
+
+    private static decimal ResolveAnnualEntitlement(LeavePolicyRule policy)
+    {
+        return policy.AnnualEntitlementDays ?? policy.EntitlementDays;
+    }
+
+    private static decimal? ResolveEmployerPaidLimit(User user, LeavePolicyRule policy, DateOnly asOfDate)
+    {
+        var serviceMonths = user.EmploymentStartDate is null ? 12 : CalculateCompletedServiceMonths(user.EmploymentStartDate.Value, asOfDate);
+        if (serviceMonths < 6 && policy.ProbationEntitlementDays is not null)
+        {
+            return policy.ProbationEntitlementDays.Value;
+        }
+
+        if (serviceMonths < 12 && policy.FirstYearPaidDays is not null)
+        {
+            return policy.FirstYearPaidDays.Value;
+        }
+
+        if (!policy.IsPaid)
+        {
+            return policy.EmployerPaidLimitDays ?? policy.MaxPaidDays ?? 0;
+        }
+
+        return policy.EmployerPaidLimitDays ?? policy.MaxPaidDays ?? ResolveAnnualEntitlement(policy);
+    }
+
+    private static decimal? ResolveMaximumLeaveDays(User user, LeavePolicyRule policy, decimal annualEntitlement, DateOnly asOfDate)
+    {
+        var socialSecurityTotal = policy.UsesSocialSecurity && policy.SocialSecurityMaxDays is not null
+            ? (ResolveEmployerPaidLimit(user, policy, asOfDate) ?? 0) + policy.SocialSecurityMaxDays.Value
+            : (decimal?)null;
+        return new[] { policy.MaximumLeaveDays, policy.MaxExtendedDays, socialSecurityTotal, annualEntitlement }
+            .Where(item => item is not null)
+            .Max();
+    }
+
+    private static string ResolveLimitStatus(decimal alreadyReservedOrUsedDays, decimal requestedDays, decimal? employerPaidLimit, decimal? maximumLeaveDays, LeavePolicyRule policy)
+    {
+        if (requestedDays <= 0)
+        {
+            return "within_normal_limit";
+        }
+
+        var afterRequest = alreadyReservedOrUsedDays + requestedDays;
+        if (maximumLeaveDays is not null && afterRequest > maximumLeaveDays.Value)
+        {
+            return "exceeds_maximum";
+        }
+
+        var specialAfter = policy.RequiresSpecialApprovalAfterDays;
+        if (specialAfter is not null && afterRequest > specialAfter.Value && maximumLeaveDays is not null && maximumLeaveDays.Value > specialAfter.Value)
+        {
+            return "requires_special_approval";
+        }
+
+        return "within_normal_limit";
+    }
+
+    private static IReadOnlyList<LeavePaymentSegmentResult> CalculatePaymentSegments(decimal alreadyReservedOrUsedDays, decimal requestedDays, decimal? employerPaidLimit, decimal? maximumLeaveDays, LeavePolicyRule policy)
+    {
+        if (requestedDays <= 0)
+        {
+            return [];
+        }
+
+        var remaining = requestedDays;
+        var cursor = alreadyReservedOrUsedDays;
+        var segments = new List<LeavePaymentSegmentResult>();
+        var paidLimit = Math.Max(employerPaidLimit ?? (policy.IsPaid ? requestedDays : 0), 0);
+        var paidDays = Math.Min(remaining, Math.Max(paidLimit - cursor, 0));
+        if (paidDays > 0)
+        {
+            segments.Add(new LeavePaymentSegmentResult(paidDays, "Employer", "Paid", "ได้รับค่าจ้างจากหน่วยงาน", null));
+            remaining -= paidDays;
+            cursor += paidDays;
+        }
+
+        var specialAfter = policy.RequiresSpecialApprovalAfterDays;
+        if (remaining > 0 && maximumLeaveDays is not null && specialAfter is not null && maximumLeaveDays.Value > specialAfter.Value)
+        {
+            var specialDays = Math.Min(remaining, Math.Max(maximumLeaveDays.Value - Math.Max(cursor, specialAfter.Value), 0));
+            if (specialDays > 0)
+            {
+                segments.Add(new LeavePaymentSegmentResult(specialDays, "SpecialApproval", "Conditional", "ต้องอนุมัติพิเศษ", "เกินสิทธิ์ปกติ ต้องตรวจสอบอำนาจอนุมัติก่อนอนุมัติ"));
+                remaining -= specialDays;
+                cursor += specialDays;
+            }
+        }
+
+        if (remaining > 0 && policy.UsesSocialSecurity)
+        {
+            var socialSecurityLimit = policy.SocialSecurityMaxDays ?? remaining;
+            var socialSecurityDays = Math.Min(remaining, Math.Max(socialSecurityLimit - Math.Max(cursor - paidLimit, 0), 0));
+            if (socialSecurityDays > 0)
+            {
+                segments.Add(new LeavePaymentSegmentResult(socialSecurityDays, "SocialSecurity", "Conditional", "สิทธิประกันสังคมตามเงื่อนไข", "ต้องตรวจสอบเงื่อนไขประกันสังคม"));
+                remaining -= socialSecurityDays;
+            }
+        }
+
+        if (remaining > 0 || segments.Count == 0)
+        {
+            segments.Add(new LeavePaymentSegmentResult(remaining > 0 ? remaining : requestedDays, "Employee", "Unpaid", "ไม่ได้รับค่าจ้าง", policy.IsPaid ? "เกินสิทธิ์ได้รับค่าจ้างตาม policy" : "ประเภทการลานี้ไม่ได้รับค่าจ้าง"));
+        }
+
+        return segments;
     }
 
     private static DateOnly FiscalYearStartDate(int fiscalYear)
@@ -422,5 +588,69 @@ public sealed class LeavePolicyService(AppDbContext db) : ILeavePolicyService
         }
 
         return Math.Max(0, months);
+    }
+
+    private static string FormatServiceDuration(DateOnly startDate, DateOnly asOfDate)
+    {
+        if (asOfDate < startDate)
+        {
+            return "0 วัน";
+        }
+
+        var years = asOfDate.Year - startDate.Year;
+        var cursor = startDate.AddYears(years);
+        if (cursor > asOfDate)
+        {
+            years--;
+            cursor = startDate.AddYears(years);
+        }
+
+        var months = 0;
+        while (cursor.AddMonths(months + 1) <= asOfDate)
+        {
+            months++;
+        }
+
+        cursor = cursor.AddMonths(months);
+        var days = asOfDate.DayNumber - cursor.DayNumber;
+        var parts = new List<string>();
+        if (years > 0)
+        {
+            parts.Add($"{years} ปี");
+        }
+
+        if (months > 0)
+        {
+            parts.Add($"{months} เดือน");
+        }
+
+        if (days > 0 || parts.Count == 0)
+        {
+            parts.Add($"{days} วัน");
+        }
+
+        return string.Join(" ", parts);
+    }
+
+    private static string FormatRequiredService(int requiredMonths)
+    {
+        var years = requiredMonths / 12;
+        var months = requiredMonths % 12;
+        if (years > 0 && months > 0)
+        {
+            return $"{years} ปี {months} เดือน";
+        }
+
+        if (years > 0)
+        {
+            return $"{years} ปี";
+        }
+
+        return $"{months} เดือน";
+    }
+
+    private static string FormatThaiDate(DateOnly date)
+    {
+        return $"{date.Day:00}/{date.Month:00}/{date.Year + 543}";
     }
 }

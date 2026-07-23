@@ -42,6 +42,7 @@ const categoryOptions = [
   { value: "Leave", label: "ระบบลา" },
   { value: "User", label: "ระบบผู้ใช้" },
   { value: "Notification", label: "ระบบแจ้งเตือน" },
+  { value: "Announcement", label: "ข่าวสารและประกาศ" },
   { value: "Backup", label: "ระบบสำรองข้อมูล" },
   { value: "System", label: "ระบบ" },
 ];

@@ -33,6 +33,11 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.Configure<LineOptions>(builder.Configuration.GetSection("Line"));
 builder.Services.Configure<PasswordPolicyOptions>(builder.Configuration.GetSection("PasswordPolicy"));
+builder.Services.AddOptions<AnnouncementStorageOptions>()
+    .Bind(builder.Configuration.GetSection(AnnouncementStorageOptions.SectionName))
+    .Validate(options => options.MaxImageSizeBytes > 0 && options.MaxAttachmentSizeBytes > 0, "Announcement media size limits must be greater than zero.")
+    .Validate(options => options.ThumbnailMaxWidth > 0 && options.ThumbnailMaxHeight > 0 && options.MediumMaxSize > 0 && options.LargeMaxSize > 0, "Announcement media variant dimensions must be greater than zero.")
+    .ValidateOnStart();
 
 builder.Services.AddCors(options =>
 {
@@ -62,6 +67,7 @@ builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
 builder.Services.AddScoped<IAuditLogService, AuditLogService>();
 builder.Services.AddScoped<ILeaveAttachmentStorageService, LeaveAttachmentStorageService>();
+builder.Services.AddScoped<IAnnouncementMediaStorageService, AnnouncementMediaStorageService>();
 builder.Services.AddScoped<ILeavePdfService, LeavePdfService>();
 builder.Services.AddScoped<IFileScanningService>(provider =>
 {
@@ -73,6 +79,7 @@ builder.Services.AddScoped<IFileScanningService>(provider =>
 });
 builder.Services.AddScoped<ILeaveCalendarService, LeaveCalendarService>();
 builder.Services.AddScoped<ILeavePolicyService, LeavePolicyService>();
+builder.Services.AddScoped<ILeaveEntitlementService, LeaveEntitlementService>();
 builder.Services.AddScoped<ILeaveBalanceValidationService, LeaveBalanceValidationService>();
 builder.Services.AddScoped<ILeaveBalanceRolloverService, LeaveBalanceRolloverService>();
 builder.Services.AddScoped<ILeaveValidationService, LeaveValidationService>();
@@ -89,6 +96,8 @@ builder.Services.AddScoped<IDiagnosticsRedactionService, DiagnosticsRedactionSer
 builder.Services.AddScoped<IDiagnosticsService, DiagnosticsService>();
 builder.Services.AddScoped<IDocumentationService, DocumentationService>();
 builder.Services.AddScoped<IPasswordPolicyService, PasswordPolicyService>();
+builder.Services.AddScoped<IAnnouncementAudienceResolver, AnnouncementAudienceResolver>();
+builder.Services.AddScoped<IAnnouncementNotificationDispatcher, AnnouncementNotificationDispatcher>();
 builder.Services.AddScoped<LineConfigurationResolver>();
 builder.Services.AddScoped<IUserAvatarUrlResolver, UserAvatarUrlResolver>();
 builder.Services.AddSingleton<ILoginRateLimiter, InMemoryLoginRateLimiter>();
@@ -96,6 +105,7 @@ builder.Services.AddHttpClient<ILineMessagingService, LineMessagingService>();
 builder.Services.AddHttpClient<ILineUserBindingService, LineUserBindingService>();
 builder.Services.AddHostedService<LineRetryWorker>();
 builder.Services.AddHostedService<ApprovalEscalationWorker>();
+builder.Services.AddHostedService<AnnouncementScheduledPublishWorker>();
 builder.Services.AddSingleton<IAuthorizationPolicyProvider, PermissionPolicyProvider>();
 builder.Services.AddScoped<IAuthorizationHandler, PermissionAuthorizationHandler>();
 

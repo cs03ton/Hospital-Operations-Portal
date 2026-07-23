@@ -35,6 +35,9 @@ public class Phase1CriticalLeaveWorkflowTests
         Assert.Contains(notifications.Events, item => item.EventName == "ApprovalStepActivated" && item.RecipientUserId == fixture.Director.Id);
 
         var directorController = CreateController(db, fixture.Director.Id, notifications);
+        var directorDetailResult = await directorController.GetLeaveRequest(fixture.LeaveRequest.Id);
+        Assert.IsType<ApiResponse<LeaveRequestResponse>>(directorDetailResult.Value);
+
         var directorResult = await directorController.ApproveLeaveRequest(fixture.LeaveRequest.Id, new LeaveDecisionRequest("อนุมัติ"));
 
         Assert.IsType<ApiResponse<LeaveRequestResponse>>(directorResult.Value);

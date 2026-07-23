@@ -3,6 +3,7 @@ using Hop.Api.Data;
 using Hop.Api.DTOs;
 using Hop.Api.Interfaces;
 using Hop.Api.Models;
+using Hop.Api.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -12,7 +13,11 @@ namespace Hop.Api.Controllers;
 [ApiController]
 [Route("api/[controller]")]
 [Authorize]
-public class UsersController(AppDbContext db, IAuditLogService auditLogService, IHostEnvironment environment) : ControllerBase
+public class UsersController(
+    AppDbContext db,
+    IAuditLogService auditLogService,
+    IHostEnvironment environment,
+    ILeaveEntitlementService leaveEntitlementService) : ControllerBase
 {
     [HttpGet("{id:guid}/profile-image")]
     [AllowAnonymous]
@@ -224,6 +229,7 @@ public class UsersController(AppDbContext db, IAuditLogService auditLogService, 
 
         await db.SaveChangesAsync();
         await auditLogService.WriteAsync(GetCurrentUserId(), "User.Create", "User", user.Id.ToString(), $"Created user {user.Username}.", "Success", HttpContext);
+        await InitializeLeaveEntitlementsIfReadyAsync(user.Id, "Initial entitlement on user creation");
 
         var created = await LoadUsers().SingleAsync(item => item.Id == user.Id);
         return CreatedAtAction(nameof(GetUser), new { id = user.Id }, ApiResponse<UserResponse>.Ok(ToResponse(created)));
@@ -283,6 +289,8 @@ public class UsersController(AppDbContext db, IAuditLogService auditLogService, 
         }
         var gender = GenderTypes.Normalize(request.Gender);
         var previousLineUserId = user.LineUserId;
+        var previousEmploymentType = user.EmploymentType;
+        var previousEmploymentStartDate = user.EmploymentStartDate;
 
         user.EmployeeCode = request.EmployeeCode;
         user.FullName = request.Fullname;
@@ -310,6 +318,20 @@ public class UsersController(AppDbContext db, IAuditLogService auditLogService, 
         await SyncLineUserBindingAsync(user, previousLineUserId);
         await db.SaveChangesAsync();
         await auditLogService.WriteAsync(GetCurrentUserId(), "User.Edit", "User", user.Id.ToString(), $"Updated user {user.Username}.", "Success", HttpContext);
+        if (!string.Equals(previousEmploymentType, user.EmploymentType, StringComparison.OrdinalIgnoreCase) ||
+            previousEmploymentStartDate != user.EmploymentStartDate)
+        {
+            await auditLogService.WriteAsync(
+                GetCurrentUserId(),
+                "Employee.EmploymentProfileChanged",
+                "User",
+                user.Id.ToString(),
+                $"Employment profile changed. oldEmploymentType={previousEmploymentType ?? "-"}, newEmploymentType={user.EmploymentType ?? "-"}, oldStartDate={previousEmploymentStartDate?.ToString("yyyy-MM-dd") ?? "-"}, newStartDate={user.EmploymentStartDate?.ToString("yyyy-MM-dd") ?? "-"}. Existing balances were not recalculated automatically.",
+                "Success",
+                HttpContext);
+        }
+
+        await InitializeLeaveEntitlementsIfReadyAsync(user.Id, "Initial entitlement after employee profile completion");
 
         var updated = await LoadUsers().SingleAsync(item => item.Id == id);
         return ApiResponse<UserResponse>.Ok(ToResponse(updated));
@@ -588,5 +610,30 @@ public class UsersController(AppDbContext db, IAuditLogService auditLogService, 
     {
         var value = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
         return Guid.TryParse(value, out var userId) ? userId : null;
+    }
+
+    private async Task InitializeLeaveEntitlementsIfReadyAsync(Guid userId, string reason)
+    {
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var fiscalYear = FiscalYearHelper.GetFiscalYear(today);
+        var result = await leaveEntitlementService.InitializeAsync(
+            userId,
+            fiscalYear,
+            today,
+            GetCurrentUserId(),
+            reason,
+            HttpContext.RequestAborted);
+
+        if (result.Errors.Count > 0)
+        {
+            await auditLogService.WriteAsync(
+                GetCurrentUserId(),
+                "LeaveEntitlement.InitializationSkipped",
+                "User",
+                userId.ToString(),
+                $"Skipped leave entitlement initialization. fiscalYear={fiscalYear}, errors={string.Join(" | ", result.Errors)}.",
+                "Failed",
+                HttpContext);
+        }
     }
 }

@@ -332,7 +332,8 @@ public class LeaveBalanceRolloverTests
         var controller = new LeaveBalancesController(
             db,
             auditLogService,
-            new LeaveBalanceRolloverService(db, new LeavePolicyService(db), auditLogService));
+            new LeaveBalanceRolloverService(db, new LeavePolicyService(db), auditLogService),
+            new LeavePolicyService(db));
         controller.ControllerContext = new ControllerContext
         {
             HttpContext = new DefaultHttpContext

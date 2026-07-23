@@ -12,7 +12,7 @@ namespace Hop.Api.Controllers;
 public class ApprovalsController(IPendingApprovalNotificationService notificationService) : ControllerBase
 {
     [HttpGet("my-pending")]
-    [RequirePermission(LeavePermissions.ViewPendingApproval)]
+    [RequireAnyPermission(LeavePermissions.ViewPendingApproval, LeavePermissions.ApproveCurrentStep)]
     public async Task<ActionResult<ApiResponse<IReadOnlyList<PendingApprovalNotificationResponse>>>> GetMyPendingApprovals(CancellationToken cancellationToken)
     {
         var userId = GetCurrentUserId();

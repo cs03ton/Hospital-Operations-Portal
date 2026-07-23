@@ -22,6 +22,21 @@
 | `AuditLog.ExportExcel` | Export audit log เป็น Excel |
 | `AuditLog.ExportPdf` | Export audit log เป็น PDF |
 | `AuditLog.RetentionRun` | รัน retention เพื่อลบ audit log ที่เกินอายุ |
+| `Announcement.Created` | สร้างประกาศ |
+| `Announcement.Updated` | แก้ไขประกาศ |
+| `Announcement.Published` | เผยแพร่ประกาศ |
+| `Announcement.Unpublished` | ยกเลิกการเผยแพร่ประกาศ |
+| `Announcement.Archived` | จัดเก็บประกาศ |
+| `Announcement.Cancelled` | ยกเลิกประกาศ |
+| `Announcement.DeletedDraft` | ลบประกาศแบบร่าง |
+| `Announcement.Duplicated` | คัดลอกประกาศ |
+| `Announcement.Read` | ผู้ใช้เปิดอ่านรายละเอียดประกาศ |
+| `Announcement.Acknowledged` | ผู้ใช้กดรับทราบประกาศ |
+| `Announcement.NotificationPreviewed` | ผู้ดูแลตรวจ preview จำนวนผู้รับแจ้งเตือนก่อนเผยแพร่ |
+| `Announcement.NotificationDispatched` | ระบบสร้าง Notification Bell หรือ LINE queue สำหรับประกาศสำเร็จ |
+| `Announcement.NotificationSkipped` | ประกาศถูกเผยแพร่โดยไม่เลือกช่องทางแจ้งเตือนเพิ่มเติม |
+| `Announcement.NotificationDispatchFailed` | ระบบสร้างรายการแจ้งเตือนประกาศไม่สำเร็จ |
+| `Announcement.ScheduledPublished` | ระบบเผยแพร่ประกาศที่ตั้งเวลาไว้โดยอัตโนมัติ |
 
 ## Leave Support and Governance
 

@@ -21,5 +21,6 @@ public class LeaveBalanceTransaction
 
 public static class LeaveBalanceTransactionTypes
 {
+    public const string EntitlementGranted = "EntitlementGranted";
     public const string LeaveCancellationRestore = "LeaveCancellationRestore";
 }

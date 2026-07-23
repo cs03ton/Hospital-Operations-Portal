@@ -28,6 +28,9 @@ dotnet publish backend/Hop.Api/Hop.Api.csproj \
   -o "$BACKEND_RELEASE_DIR" \
   --nologo
 
+[ -f "${BACKEND_RELEASE_DIR}/SkiaSharp.dll" ] || fail "SkiaSharp.dll is missing from backend publish output. Run dotnet restore/publish again."
+[ -f "${BACKEND_RELEASE_DIR}/runtimes/linux-x64/native/libSkiaSharp.so" ] || fail "libSkiaSharp.so for linux-x64 is missing from backend publish output."
+
 log "Syncing backend publish output to ${BACKEND_TARGET}"
 rsync -a --delete "${BACKEND_RELEASE_DIR}/" "${BACKEND_TARGET}/"
 

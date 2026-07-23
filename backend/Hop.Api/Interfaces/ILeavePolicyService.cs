@@ -2,6 +2,14 @@ using Hop.Api.Models;
 
 namespace Hop.Api.Interfaces;
 
+public sealed record LeavePaymentSegmentResult(
+    decimal Days,
+    string PaymentSource,
+    string PaymentStatus,
+    string Label,
+    string? Notes
+);
+
 public sealed record LeavePolicyPreviewResult(
     string? EmploymentType,
     string EmploymentTypeName,
@@ -15,6 +23,12 @@ public sealed record LeavePolicyPreviewResult(
     decimal RequestedDays,
     bool RequiresBalance,
     bool CanSubmit,
+    string? LimitStatus,
+    decimal? EmployerPaidLimitDays,
+    decimal? MaximumLeaveDays,
+    decimal? MaximumTotalAvailableDays,
+    bool RequiresSpecialApproval,
+    IReadOnlyList<LeavePaymentSegmentResult> PaymentSegments,
     IReadOnlyList<string> Warnings,
     IReadOnlyList<string> Errors,
     IReadOnlyList<string> PolicyNotes
@@ -41,7 +55,7 @@ public interface ILeavePolicyService
         string? durationType,
         decimal requestedDays,
         CancellationToken cancellationToken = default);
-    Task<LeavePolicyPreviewResult> CalculateAvailableDaysAsync(Guid userId, Guid leaveTypeId, int fiscalYear, decimal requestedDays = 0, CancellationToken cancellationToken = default);
+    Task<LeavePolicyPreviewResult> CalculateAvailableDaysAsync(Guid userId, Guid leaveTypeId, int fiscalYear, decimal requestedDays = 0, DateOnly? referenceDate = null, CancellationToken cancellationToken = default);
     Task<LeaveCarryOverPolicyResult> CalculateCarryOverAsync(Guid userId, Guid leaveTypeId, int fromFiscalYear, decimal endYearRemaining, CancellationToken cancellationToken = default);
     string? ValidateMinimumService(User user, LeavePolicyRule policy, DateOnly asOfDate);
     string? ValidateGenderRequirement(User user, LeaveType leaveType);

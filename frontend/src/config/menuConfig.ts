@@ -6,6 +6,7 @@ import BarChartOutlinedIcon from "@mui/icons-material/BarChartOutlined";
 import DirectionsCarOutlinedIcon from "@mui/icons-material/DirectionsCarOutlined";
 import BusinessOutlinedIcon from "@mui/icons-material/BusinessOutlined";
 import CalendarMonthOutlinedIcon from "@mui/icons-material/CalendarMonthOutlined";
+import CampaignOutlinedIcon from "@mui/icons-material/CampaignOutlined";
 import DashboardOutlinedIcon from "@mui/icons-material/DashboardOutlined";
 import EventAvailableOutlinedIcon from "@mui/icons-material/EventAvailableOutlined";
 import EventBusyOutlinedIcon from "@mui/icons-material/EventBusyOutlined";
@@ -31,6 +32,7 @@ import type { NavigationItem } from "../types/navigation";
 const leaveViewPermissions = [
   "LeaveRequest.ViewOwn",
   "LeaveRequest.ViewPendingApproval",
+  "LeaveApproval.ApproveCurrentStep",
   "LeaveRequest.ViewDepartment",
   "LeaveRequest.ViewAll",
 ];
@@ -58,13 +60,23 @@ export const navigationModules: NavigationModule[] = [
     ],
   },
   {
+    moduleId: "AnnouncementCenter",
+    moduleLabel: "ข่าวสาร",
+    moduleIcon: CampaignOutlinedIcon,
+    enabled: true,
+    children: [
+      { label: "ศูนย์ประกาศ", path: "/announcements", icon: CampaignOutlinedIcon, permission: "Announcement.View", activePatterns: ["/announcements", "/announcements/:id"] },
+      { label: "จัดการประกาศ", path: "/admin/announcements", icon: CampaignOutlinedIcon, permissions: ["Announcement.Manage", "Announcement.Create", "Announcement.EditOwn", "Announcement.EditAll"], allowedRoles: ["Admin", "SuperAdmin", "LeaveAdmin"], activePatterns: ["/admin/announcements", "/admin/announcements/create", "/admin/announcements/:id/edit"] },
+    ],
+  },
+  {
     moduleId: "LeaveManagement",
     moduleLabel: "ระบบลา",
     moduleIcon: EventAvailableOutlinedIcon,
     enabled: true,
     children: [
       { label: "แดชบอร์ดการลา", path: "/dashboard/leave", icon: DashboardOutlinedIcon, permission: "Dashboard.View", activePatterns: ["/dashboard/leave"] },
-      { label: "งานรออนุมัติของฉัน", path: "/leave/pending-approvals", icon: FactCheckOutlinedIcon, permission: "LeaveRequest.ViewPendingApproval", activePatterns: ["/leave/pending-approvals"], hiddenForRoles: ["Admin", "SuperAdmin"] },
+      { label: "งานรออนุมัติของฉัน", path: "/leave/pending-approvals", icon: FactCheckOutlinedIcon, permissions: ["LeaveRequest.ViewPendingApproval", "LeaveApproval.ApproveCurrentStep"], activePatterns: ["/leave/pending-approvals"], hiddenForRoles: ["Admin", "SuperAdmin"] },
       { label: "รายการคำขอลา", path: "/leave", icon: EventAvailableOutlinedIcon, permissions: leaveViewPermissions, activePatterns: ["/leave", "/leave/:id"] },
       { label: "คำขอยกเลิกใบลา", path: "/leave/cancellations", icon: BlockOutlinedIcon, permissions: ["LeaveCancellation.ViewOwn", "LeaveCancellation.ApproveCurrentStep", "LeaveCancellation.ViewDepartment", "LeaveCancellation.ViewAll", "LeaveCancellation.Manage"], activePatterns: ["/leave/cancellations", "/leave/cancellations/:id"] },
       { label: "ปฏิทินการลา", path: "/leave/calendar", icon: CalendarMonthOutlinedIcon, permissions: leaveViewPermissions, activePatterns: ["/leave/calendar"] },

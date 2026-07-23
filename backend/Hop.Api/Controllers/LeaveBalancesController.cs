@@ -16,7 +16,8 @@ namespace Hop.Api.Controllers;
 public class LeaveBalancesController(
     AppDbContext db,
     IAuditLogService auditLogService,
-    ILeaveBalanceRolloverService rolloverService) : ControllerBase
+    ILeaveBalanceRolloverService rolloverService,
+    ILeavePolicyService leavePolicyService) : ControllerBase
 {
     [HttpGet]
     [RequirePermission(LeavePermissions.ManageBalances)]
@@ -422,17 +423,28 @@ public class LeaveBalancesController(
             .Where(item => item.UserId == userId && item.Year == year)
             .ToListAsync();
 
-        return leaveTypes.Select(leaveType =>
+        var rows = new List<LeaveBalanceResponse>();
+        foreach (var leaveType in leaveTypes)
         {
             var balance = balances.FirstOrDefault(item => item.LeaveTypeId == leaveType.Id);
-            var entitled = balance?.EntitledDays ?? leaveType.DefaultDaysPerYear;
+            var policyPreview = balance is null
+                ? await leavePolicyService.CalculateAvailableDaysAsync(userId, leaveType.Id, year)
+                : null;
+            var entitled = balance?.EntitledDays ?? policyPreview?.EntitlementDays ?? 0;
             var carriedOver = balance?.CarriedOverDays ?? 0;
             var used = balance?.UsedDays ?? 0;
             var pending = balance?.PendingDays ?? 0;
             var adjusted = balance?.AdjustedDays ?? 0;
             var available = FiscalYearHelper.CalculateAvailableDays(entitled, carriedOver, used, pending, adjusted);
+            var notes = balance?.Notes;
+            if (balance is null)
+            {
+                notes = policyPreview is not null && policyPreview.Errors.Count == 0
+                    ? "ยังไม่ได้ตั้งต้นยอดวันลาจริง ระบบแสดงค่าคำนวณจาก policy ปัจจุบัน"
+                    : string.Join(" | ", policyPreview?.Errors ?? ["ยังไม่ได้ตั้งต้นยอดวันลา"]);
+            }
 
-            return new LeaveBalanceResponse(
+            rows.Add(new LeaveBalanceResponse(
                 balance?.Id,
                 userId,
                 null,
@@ -448,9 +460,11 @@ public class LeaveBalancesController(
                 pending,
                 available,
                 available,
-                balance?.Notes
-            );
-        }).ToList();
+                notes
+            ));
+        }
+
+        return rows;
     }
 
     private async Task<LeaveBalanceResponse?> LoadBalance(Guid id)

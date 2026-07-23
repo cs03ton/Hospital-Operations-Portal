@@ -21,6 +21,11 @@
 - 🛠️ Admin Dashboard
 - 💾 Backup Center รองรับ path มาตรฐาน `/opt/hop/backups/postgres` และชื่อไฟล์ `hopdb_YYYYMMDD_HHMMSS.backup`
 - 📚 Documentation Center
+- 📢 Announcement Center สำหรับข่าวสาร/ประกาศประชาสัมพันธ์ภายใน
+- 🖼️ Announcement Media รองรับรูปหน้าปก รูปภาพประกอบ preview บนเว็บ และไฟล์แนบ
+- 🎯 Announcement Target รองรับทุกคน หน่วยงาน บทบาท บุคคล และ permission พร้อมเลือกหลายรายการ
+- 🔔 Announcement Notification Channels เลือกส่ง Notification Bell และ LINE Flex Card รายประกาศ
+- 🗑️ Admin สามารถลบประกาศและ media ที่เกี่ยวข้องตามสิทธิ์
 - 🔑 Self-service password change
 - 📎 Attachment preview สำหรับไฟล์แนบคำขอลา
 - 🟠 Returned-for-revision workflow แสดงผลเป็น `ตีกลับรอแก้ไข`

@@ -33,6 +33,7 @@ public static class LeavePermissions
     [
         ViewOwn,
         ViewPendingApproval,
+        ApproveCurrentStep,
         ViewDepartment,
         ViewAll,
         SupportViewAll

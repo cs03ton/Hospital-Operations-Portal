@@ -79,6 +79,14 @@ public record LeavePolicyPreviewRequest(
     string? DurationType
 );
 
+public record LeavePaymentSegmentResponse(
+    decimal Days,
+    string PaymentSource,
+    string PaymentStatus,
+    string Label,
+    string? Notes
+);
+
 public record LeavePolicyPreviewResponse(
     string? EmploymentType,
     string EmploymentTypeName,
@@ -89,6 +97,12 @@ public record LeavePolicyPreviewResponse(
     decimal AvailableDays,
     decimal RequestedDays,
     bool CanSubmit,
+    string? LimitStatus,
+    decimal? EmployerPaidLimitDays,
+    decimal? MaximumLeaveDays,
+    decimal? MaximumTotalAvailableDays,
+    bool RequiresSpecialApproval,
+    IReadOnlyList<LeavePaymentSegmentResponse> PaymentSegments,
     IReadOnlyList<string> Warnings,
     IReadOnlyList<string> Errors,
     IReadOnlyList<string> PolicyNotes

@@ -71,6 +71,21 @@ export function AppHeader({ drawerWidth, isSidebarCollapsed, onMobileMenuClick, 
           <PageTitle title={pageTitle.title} subtitle={pageTitle.subtitle} />
         </Box>
         <NotificationBell />
+        <Tooltip title="เมนูผู้ใช้งาน">
+          <IconButton
+            color="inherit"
+            onClick={(event) => setUserMenuAnchor(event.currentTarget)}
+            aria-label="เปิดเมนูผู้ใช้งาน"
+            sx={{ display: { xs: "inline-flex", md: "none" }, flexShrink: 0, p: 0.5 }}
+          >
+            <Avatar
+              src={toAbsoluteMediaUrl(user?.profileImageUrl)}
+              sx={{ width: 34, height: 34, bgcolor: brandColors.accent, color: brandColors.primaryDark, fontSize: 14, fontWeight: 700 }}
+            >
+              {(user?.fullname ?? "U").slice(0, 1)}
+            </Avatar>
+          </IconButton>
+        </Tooltip>
         <Stack
           direction="row"
           spacing={1.25}

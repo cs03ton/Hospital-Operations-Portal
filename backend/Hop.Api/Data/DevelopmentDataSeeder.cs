@@ -122,7 +122,28 @@ public static class DevelopmentDataSeeder
         ("System.Line.TestSend", "ทดสอบส่งข้อความ LINE", "System", "LineTestSend"),
         ("Documentation.View", "ดูศูนย์คู่มือการใช้งาน", "Documentation", "View"),
         ("Documentation.AdminView", "ดูคู่มือสำหรับผู้ดูแลระบบ", "Documentation", "AdminView"),
-        ("Documentation.Manage", "จัดการคู่มือการใช้งาน", "Documentation", "Manage")
+        ("Documentation.Manage", "จัดการคู่มือการใช้งาน", "Documentation", "Manage"),
+        ("Announcement.View", "ดูศูนย์ข่าวสารและประกาศ", "Announcement", "View"),
+        ("Announcement.Acknowledge", "รับทราบประกาศ", "Announcement", "Acknowledge"),
+        ("Announcement.Manage", "จัดการประกาศ", "Announcement", "Manage"),
+        ("Announcement.Create", "สร้างประกาศ", "Announcement", "Create"),
+        ("Announcement.EditOwn", "แก้ไขประกาศของตนเอง", "Announcement", "EditOwn"),
+        ("Announcement.EditAll", "แก้ไขประกาศทั้งหมด", "Announcement", "EditAll"),
+        ("Announcement.Publish", "เผยแพร่ประกาศ", "Announcement", "Publish"),
+        ("Announcement.Schedule", "ตั้งเวลาเผยแพร่ประกาศ", "Announcement", "Schedule"),
+        ("Announcement.Archive", "จัดเก็บประกาศ", "Announcement", "Archive"),
+        ("Announcement.Cancel", "ยกเลิกประกาศ", "Announcement", "Cancel"),
+        ("Announcement.DeleteDraft", "ลบประกาศ", "Announcement", "Delete"),
+        ("Announcement.ManageCategories", "จัดการหมวดหมู่ประกาศ", "Announcement", "ManageCategories"),
+        ("Announcement.ManageTargets", "จัดการกลุ่มเป้าหมายประกาศ", "Announcement", "ManageTargets"),
+        ("Announcement.Analytics.View", "ดูสถิติประกาศ", "Announcement", "AnalyticsView"),
+        ("Announcement.Analytics.ViewUsers", "ดูรายชื่อผู้รับทราบประกาศ", "Announcement", "AnalyticsViewUsers"),
+        ("Announcement.Notification.Configure", "กำหนดช่องทางแจ้งเตือนประกาศ", "AnnouncementNotification", "Configure"),
+        ("Announcement.Notification.Preview", "ดูตัวอย่างผู้รับแจ้งเตือนประกาศ", "AnnouncementNotification", "Preview"),
+        ("Announcement.Notification.SendInApp", "ส่ง Notification Bell สำหรับประกาศ", "AnnouncementNotification", "SendInApp"),
+        ("Announcement.Notification.SendLine", "ส่ง LINE สำหรับประกาศ", "AnnouncementNotification", "SendLine"),
+        ("Announcement.Notification.ViewDelivery", "ดูสถานะการส่งแจ้งเตือนประกาศ", "AnnouncementNotification", "ViewDelivery"),
+        ("Announcement.Notification.RetryFailed", "ส่งแจ้งเตือนประกาศที่ล้มเหลวซ้ำ", "AnnouncementNotification", "RetryFailed")
     ];
 
     private sealed record LeaveTypeSeed(string Code, string Name, string Description, decimal DefaultDays, bool RequiresAttachment, bool RequiresBalance, bool AllowCarryOver, decimal CarryOverMaxDays, bool UseFiscalYear, bool IsPaid, string[] LegacyCodes);
@@ -139,10 +160,15 @@ public static class DevelopmentDataSeeder
         int? MinServiceYears = null,
         bool ProrateIfServiceLessThanYear = false,
         decimal? FirstYearEntitlementDays = null,
+        decimal? ProbationEntitlementDays = null,
         decimal? FirstYearPaidDays = null,
         bool IsPaid = true,
         decimal? MaxExtendedDays = null,
+        decimal? RequiresSpecialApprovalAfterDays = null,
         decimal? SocialSecurityMaxDays = null,
+        bool UsesSocialSecurity = false,
+        string PaymentRuleType = "EmployerPaid",
+        string DayCountingType = "BusinessDays",
         string? Notes = null);
 
     private static readonly LeaveTypeSeed[] LeaveTypeSeeds =
@@ -158,34 +184,40 @@ public static class DevelopmentDataSeeder
 
     private static readonly LeavePolicyRuleSeed[] LeavePolicyRuleSeeds =
     [
-        new(EmploymentTypes.CivilServant, "SICK_LEAVE", 60, MaxPaidDays: 60, MaxExtendedDays: 120, Notes: "กรณีเกิน 60 วัน ผู้อำนวยการอาจพิจารณาได้รวมไม่เกิน 120 วัน"),
+        new(EmploymentTypes.CivilServant, "SICK_LEAVE", 60, MaxPaidDays: 60, MaxExtendedDays: 120, RequiresSpecialApprovalAfterDays: 60, PaymentRuleType: "EmployerPaidThenSpecialApproval", Notes: "กรณีเกิน 60 วัน ผู้อำนวยการอาจพิจารณาได้รวมไม่เกิน 120 วัน"),
         new(EmploymentTypes.CivilServant, "PERSONAL_LEAVE", 45, MaxPaidDays: 45, FirstYearEntitlementDays: 15),
         new(EmploymentTypes.CivilServant, "VACATION_LEAVE", 10, MaxPaidDays: 10, AllowCarryOver: true, CarryOverMaxDays: 30, MaxAccumulatedDays: 30, MinServiceMonths: 6),
         new(EmploymentTypes.CivilServant, "MATERNITY_LEAVE", 90, MaxPaidDays: 90),
         new(EmploymentTypes.CivilServant, "ORDINATION_LEAVE", 120, MaxPaidDays: 120, MinServiceMonths: 12, Notes: "ใช้ตามระเบียบราชการและเงื่อนไขหน่วยงาน"),
 
-        new(EmploymentTypes.GovernmentEmployee, "SICK_LEAVE", 30, MaxPaidDays: 30),
-        new(EmploymentTypes.GovernmentEmployee, "PERSONAL_LEAVE", 10, MaxPaidDays: 10),
-        new(EmploymentTypes.GovernmentEmployee, "VACATION_LEAVE", 10, MaxPaidDays: 10, AllowCarryOver: true, CarryOverMaxDays: 15, MaxAccumulatedDays: 15, MinServiceMonths: 6, FirstYearEntitlementDays: 0),
-        new(EmploymentTypes.GovernmentEmployee, "MATERNITY_LEAVE", 90, MaxPaidDays: 45, Notes: "ได้รับค่าจ้างไม่เกิน 45 วันตาม policy"),
+        new(EmploymentTypes.PermanentEmployee, "SICK_LEAVE", 60, MaxPaidDays: 60, MaxExtendedDays: 120, RequiresSpecialApprovalAfterDays: 60, PaymentRuleType: "EmployerPaidThenSpecialApproval", Notes: "กรณีเกิน 60 วัน ผู้อำนวยการอาจพิจารณาได้รวมไม่เกิน 120 วัน"),
+        new(EmploymentTypes.PermanentEmployee, "PERSONAL_LEAVE", 45, MaxPaidDays: 45, FirstYearEntitlementDays: 15),
+        new(EmploymentTypes.PermanentEmployee, "VACATION_LEAVE", 10, MaxPaidDays: 10, AllowCarryOver: true, CarryOverMaxDays: 30, MaxAccumulatedDays: 30, MinServiceMonths: 6),
+        new(EmploymentTypes.PermanentEmployee, "MATERNITY_LEAVE", 90, MaxPaidDays: 90),
+        new(EmploymentTypes.PermanentEmployee, "ORDINATION_LEAVE", 120, MaxPaidDays: 120, MinServiceMonths: 12, Notes: "ใช้ตามระเบียบราชการและเงื่อนไขหน่วยงาน"),
+
+        new(EmploymentTypes.GovernmentEmployee, "SICK_LEAVE", 30, MaxPaidDays: 30, SocialSecurityMaxDays: 90, UsesSocialSecurity: true, PaymentRuleType: "EmployerPaidThenSocialSecurity", Notes: "ส่วนที่เกิน 30 วันให้ตรวจสิทธิประกันสังคมตามเงื่อนไข"),
+        new(EmploymentTypes.GovernmentEmployee, "PERSONAL_LEAVE", 10, MaxPaidDays: 10, MinServiceMonths: 12),
+        new(EmploymentTypes.GovernmentEmployee, "VACATION_LEAVE", 10, MaxPaidDays: 10, AllowCarryOver: true, CarryOverMaxDays: 5, MaxAccumulatedDays: 15, MinServiceMonths: 6),
+        new(EmploymentTypes.GovernmentEmployee, "MATERNITY_LEAVE", 90, MaxPaidDays: 45, SocialSecurityMaxDays: 45, UsesSocialSecurity: true, PaymentRuleType: "EmployerPaidThenSocialSecurity", DayCountingType: "CalendarDays", Notes: "ได้รับค่าจ้างจากหน่วยงานไม่เกิน 45 วัน ส่วนที่เหลือใช้สิทธิประกันสังคมตามเงื่อนไข"),
         new(EmploymentTypes.GovernmentEmployee, "ORDINATION_LEAVE", 120, MaxPaidDays: 120, MinServiceYears: 4, Notes: "ต้องทำงานไม่น้อยกว่า 4 ปี"),
 
-        new(EmploymentTypes.MophEmployee, "SICK_LEAVE", 45, MaxPaidDays: 45),
-        new(EmploymentTypes.MophEmployee, "PERSONAL_LEAVE", 15, MaxPaidDays: 15, FirstYearPaidDays: 6, Notes: "ปีแรกได้รับค่าจ้างไม่เกิน 6 วัน"),
-        new(EmploymentTypes.MophEmployee, "VACATION_LEAVE", 10, MaxPaidDays: 10, AllowCarryOver: true, CarryOverMaxDays: 15, MaxAccumulatedDays: 15, MinServiceMonths: 6, FirstYearEntitlementDays: 0),
-        new(EmploymentTypes.MophEmployee, "MATERNITY_LEAVE", 90, MaxPaidDays: 45),
+        new(EmploymentTypes.MophEmployee, "SICK_LEAVE", 45, MaxPaidDays: 45, SocialSecurityMaxDays: 90, UsesSocialSecurity: true, PaymentRuleType: "EmployerPaidThenSocialSecurity", Notes: "ส่วนที่เกิน 45 วันให้ตรวจสิทธิประกันสังคมตามเงื่อนไข"),
+        new(EmploymentTypes.MophEmployee, "PERSONAL_LEAVE", 15, MaxPaidDays: 15, FirstYearEntitlementDays: 6, FirstYearPaidDays: 6, Notes: "ปีแรกได้รับค่าจ้างไม่เกิน 6 วัน"),
+        new(EmploymentTypes.MophEmployee, "VACATION_LEAVE", 10, MaxPaidDays: 10, AllowCarryOver: true, CarryOverMaxDays: 5, MaxAccumulatedDays: 15, MinServiceMonths: 6),
+        new(EmploymentTypes.MophEmployee, "MATERNITY_LEAVE", 90, MaxPaidDays: 45, SocialSecurityMaxDays: 45, UsesSocialSecurity: true, PaymentRuleType: "EmployerPaidThenSocialSecurity", DayCountingType: "CalendarDays", Notes: "ได้รับค่าจ้างจากหน่วยงานไม่เกิน 45 วัน ส่วนที่เหลือใช้สิทธิประกันสังคมตามเงื่อนไข"),
         new(EmploymentTypes.MophEmployee, "ORDINATION_LEAVE", 120, MaxPaidDays: 120, MinServiceYears: 4, Notes: "ต้องทำงานไม่น้อยกว่า 4 ปี"),
 
-        new(EmploymentTypes.TemporaryEmployeeMonthly, "SICK_LEAVE", 15, MaxPaidDays: 15, MinServiceMonths: 6, FirstYearEntitlementDays: 8, FirstYearPaidDays: 8),
+        new(EmploymentTypes.TemporaryEmployeeMonthly, "SICK_LEAVE", 15, MaxPaidDays: 15, FirstYearEntitlementDays: 8, ProbationEntitlementDays: 8, FirstYearPaidDays: 8, Notes: "ผู้ปฏิบัติงานยังไม่ครบ 6 เดือนรองรับวงเงินสิทธิ 8 วันทำการ"),
         new(EmploymentTypes.TemporaryEmployeeMonthly, "PERSONAL_LEAVE", 10, IsPaid: false, Notes: "ลาได้แต่ไม่ได้รับค่าจ้าง"),
-        new(EmploymentTypes.TemporaryEmployeeMonthly, "VACATION_LEAVE", 10, MaxPaidDays: 10, MinServiceMonths: 6, FirstYearEntitlementDays: 0),
-        new(EmploymentTypes.TemporaryEmployeeMonthly, "MATERNITY_LEAVE", 90, MaxPaidDays: 45),
+        new(EmploymentTypes.TemporaryEmployeeMonthly, "VACATION_LEAVE", 10, MaxPaidDays: 10, MinServiceMonths: 6, Notes: "ไม่มีสิทธิสะสมวันลาพักผ่อน"),
+        new(EmploymentTypes.TemporaryEmployeeMonthly, "MATERNITY_LEAVE", 90, MaxPaidDays: 45, SocialSecurityMaxDays: 45, UsesSocialSecurity: true, PaymentRuleType: "EmployerPaidThenSocialSecurity", DayCountingType: "CalendarDays", Notes: "การได้รับค่าจ้างให้เป็นไปตามสิทธิและประกันสังคม"),
         new(EmploymentTypes.TemporaryEmployeeMonthly, "ORDINATION_LEAVE", 120, IsPaid: false, Notes: "ไม่มีสิทธิได้รับค่าจ้างระหว่างลา"),
 
-        new(EmploymentTypes.TemporaryEmployeeDaily, "SICK_LEAVE", 15, IsPaid: false, FirstYearEntitlementDays: 8, MaxExtendedDays: 30, SocialSecurityMaxDays: 90, Notes: "รายวันไม่มีสิทธิได้รับค่าจ้างจากหน่วยงาน อาจใช้สิทธิประกันสังคมตามเงื่อนไข"),
+        new(EmploymentTypes.TemporaryEmployeeDaily, "SICK_LEAVE", 15, IsPaid: false, FirstYearEntitlementDays: 8, ProbationEntitlementDays: 8, MaxExtendedDays: 30, SocialSecurityMaxDays: 90, UsesSocialSecurity: true, PaymentRuleType: "UnpaidThenSocialSecurity", Notes: "รายวันไม่มีสิทธิได้รับค่าจ้างจากหน่วยงาน อาจใช้สิทธิประกันสังคมตามเงื่อนไข"),
         new(EmploymentTypes.TemporaryEmployeeDaily, "PERSONAL_LEAVE", 10, IsPaid: false, Notes: "ลาได้แต่ไม่ได้รับค่าจ้าง"),
-        new(EmploymentTypes.TemporaryEmployeeDaily, "VACATION_LEAVE", 10, IsPaid: false, MinServiceMonths: 6, FirstYearEntitlementDays: 0, Notes: "ไม่สะสมวันลาพักผ่อน"),
-        new(EmploymentTypes.TemporaryEmployeeDaily, "MATERNITY_LEAVE", 0, IsPaid: false, SocialSecurityMaxDays: 90, Notes: "ใช้สิทธิประกันสังคมตามเงื่อนไข"),
+        new(EmploymentTypes.TemporaryEmployeeDaily, "VACATION_LEAVE", 10, IsPaid: false, MinServiceMonths: 6, Notes: "ไม่สะสมวันลาพักผ่อน"),
+        new(EmploymentTypes.TemporaryEmployeeDaily, "MATERNITY_LEAVE", 90, IsPaid: false, SocialSecurityMaxDays: 90, UsesSocialSecurity: true, PaymentRuleType: "UnpaidThenSocialSecurity", DayCountingType: "CalendarDays", Notes: "ลาได้ 90 วัน แต่ไม่ได้รับค่าจ้างระหว่างลา ใช้สิทธิประกันสังคมตามเงื่อนไข"),
         new(EmploymentTypes.TemporaryEmployeeDaily, "ORDINATION_LEAVE", 120, IsPaid: false, Notes: "ไม่มีสิทธิได้รับค่าจ้างระหว่างลา")
     ];
 
@@ -371,6 +403,8 @@ public static class DevelopmentDataSeeder
             await GrantPermissions(db, staffRole.Id,
                 "Dashboard.View",
                 "Documentation.View",
+                "Announcement.View",
+                "Announcement.Acknowledge",
                 "LeaveRequest.ViewOwn",
                 "LeaveRequest.Create",
                 "LeaveRequest.EditOwn",
@@ -382,6 +416,8 @@ public static class DevelopmentDataSeeder
             await GrantPermissions(db, departmentHeadRole.Id,
                 "Dashboard.View",
                 "Documentation.View",
+                "Announcement.View",
+                "Announcement.Acknowledge",
                 "LeaveRequest.ViewOwn",
                 "LeaveRequest.ViewPendingApproval",
                 "LeaveRequest.ViewDepartment",
@@ -398,6 +434,8 @@ public static class DevelopmentDataSeeder
             await GrantPermissions(db, directorRole.Id,
                 "Dashboard.View",
                 "Documentation.View",
+                "Announcement.View",
+                "Announcement.Acknowledge",
                 "AdminDashboard.View",
                 "Dashboard.Executive.View",
                 "LeaveDashboard.ViewExecutiveSummary",
@@ -416,6 +454,23 @@ public static class DevelopmentDataSeeder
             await GrantPermissions(db, leaveAdminRole.Id,
                 "Dashboard.View",
                 "Documentation.View",
+                "Announcement.View",
+                "Announcement.Acknowledge",
+                "Announcement.Manage",
+                "Announcement.Create",
+                "Announcement.EditAll",
+                "Announcement.Publish",
+                "Announcement.Schedule",
+                "Announcement.Archive",
+                "Announcement.Cancel",
+                "Announcement.DeleteDraft",
+                "Announcement.ManageTargets",
+                "Announcement.Analytics.View",
+                "Announcement.Notification.Configure",
+                "Announcement.Notification.Preview",
+                "Announcement.Notification.SendInApp",
+                "Announcement.Notification.SendLine",
+                "Announcement.Notification.ViewDelivery",
                 "LeaveRequest.ViewDepartment",
                 "LeaveCancellation.ViewDepartment",
                 "LeaveCancellation.Manage",
@@ -429,6 +484,27 @@ public static class DevelopmentDataSeeder
                 "Documentation.View",
                 "Documentation.AdminView",
                 "Documentation.Manage",
+                "Announcement.View",
+                "Announcement.Acknowledge",
+                "Announcement.Manage",
+                "Announcement.Create",
+                "Announcement.EditOwn",
+                "Announcement.EditAll",
+                "Announcement.Publish",
+                "Announcement.Schedule",
+                "Announcement.Archive",
+                "Announcement.Cancel",
+                "Announcement.DeleteDraft",
+                "Announcement.ManageCategories",
+                "Announcement.ManageTargets",
+                "Announcement.Analytics.View",
+                "Announcement.Analytics.ViewUsers",
+                "Announcement.Notification.Configure",
+                "Announcement.Notification.Preview",
+                "Announcement.Notification.SendInApp",
+                "Announcement.Notification.SendLine",
+                "Announcement.Notification.ViewDelivery",
+                "Announcement.Notification.RetryFailed",
                 "Dashboard.Executive.View",
                 "LeaveDashboard.ViewExecutiveSummary",
                 "LeaveAnalytics.View",
@@ -497,6 +573,7 @@ public static class DevelopmentDataSeeder
             }
 
             await EnsureLeaveTypesAndPolicyRules(db);
+            await EnsureAnnouncementCategories(db);
             await db.SaveChangesAsync();
         }
         catch (Exception ex)
@@ -508,6 +585,40 @@ public static class DevelopmentDataSeeder
             }
 
             logger.LogWarning(ex, "Database seed skipped. Start PostgreSQL and run the app again to seed defaults.");
+        }
+    }
+
+    private static async Task EnsureAnnouncementCategories(AppDbContext db)
+    {
+        var seeds = new (string Name, string Description, string Color, int DisplayOrder)[]
+        {
+            ("ประกาศทั่วไป", "ข่าวสารทั่วไปภายในโรงพยาบาล", "#0F766E", 1),
+            ("ประกาศสำคัญ", "ประกาศที่ต้องให้เจ้าหน้าที่รับทราบเป็นพิเศษ", "#C8A96B", 2),
+            ("ระบบ", "ประกาศเกี่ยวกับระบบงานและการบำรุงรักษา", "#2563EB", 3),
+            ("ทรัพยากรบุคคล", "ข่าวสารจากงานบุคลากรและ HR", "#16A34A", 4)
+        };
+
+        foreach (var seed in seeds)
+        {
+            var category = await db.AnnouncementCategories.FirstOrDefaultAsync(item => item.Name == seed.Name);
+            if (category is null)
+            {
+                db.AnnouncementCategories.Add(new AnnouncementCategory
+                {
+                    Name = seed.Name,
+                    Description = seed.Description,
+                    Color = seed.Color,
+                    DisplayOrder = seed.DisplayOrder,
+                    IsActive = true
+                });
+                continue;
+            }
+
+            category.Description = seed.Description;
+            category.Color = seed.Color;
+            category.DisplayOrder = seed.DisplayOrder;
+            category.IsActive = true;
+            category.UpdatedAt = DateTime.UtcNow;
         }
     }
 
@@ -580,18 +691,29 @@ public static class DevelopmentDataSeeder
             }
 
             rule.EntitlementDays = seed.EntitlementDays;
+            rule.AnnualEntitlementDays = seed.EntitlementDays;
             rule.MaxPaidDays = seed.MaxPaidDays;
+            rule.EmployerPaidLimitDays = seed.MaxPaidDays;
             rule.AllowCarryOver = seed.AllowCarryOver;
             rule.CarryOverMaxDays = seed.CarryOverMaxDays;
+            rule.CarryForwardLimitDays = seed.CarryOverMaxDays;
             rule.MaxAccumulatedDays = seed.MaxAccumulatedDays;
+            rule.MaximumTotalAvailableDays = seed.MaxAccumulatedDays;
             rule.MinServiceMonths = seed.MinServiceMonths;
             rule.MinServiceYears = seed.MinServiceYears;
             rule.ProrateIfServiceLessThanYear = seed.ProrateIfServiceLessThanYear;
             rule.FirstYearEntitlementDays = seed.FirstYearEntitlementDays;
+            rule.ProbationEntitlementDays = seed.ProbationEntitlementDays;
             rule.FirstYearPaidDays = seed.FirstYearPaidDays;
             rule.IsPaid = seed.IsPaid;
+            rule.AllowRequest = true;
             rule.MaxExtendedDays = seed.MaxExtendedDays;
+            rule.MaximumLeaveDays = seed.MaxExtendedDays ?? seed.EntitlementDays;
+            rule.RequiresSpecialApprovalAfterDays = seed.RequiresSpecialApprovalAfterDays;
             rule.SocialSecurityMaxDays = seed.SocialSecurityMaxDays;
+            rule.UsesSocialSecurity = seed.UsesSocialSecurity;
+            rule.PaymentRuleType = seed.PaymentRuleType;
+            rule.DayCountingType = seed.DayCountingType;
             rule.Notes = seed.Notes;
             rule.IsActive = true;
             rule.UpdatedAt = DateTime.UtcNow;

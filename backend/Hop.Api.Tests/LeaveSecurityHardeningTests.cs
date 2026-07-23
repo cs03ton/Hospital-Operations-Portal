@@ -109,6 +109,7 @@ public class LeaveSecurityHardeningTests
         var currentApproverId = Guid.NewGuid();
         var previousApproverId = Guid.NewGuid();
         var approveOnlyUserId = Guid.NewGuid();
+        var currentStepApproverOnlyUserId = Guid.NewGuid();
         var manageUserId = Guid.NewGuid();
         var departmentViewerId = Guid.NewGuid();
         var otherDepartmentStaffId = Guid.NewGuid();
@@ -130,10 +131,13 @@ public class LeaveSecurityHardeningTests
         var directorOwnRequest = CreateLeaveRequest(directorId);
         var directorCurrentApprovalRequest = CreateLeaveRequest(otherDepartmentStaffId);
         directorCurrentApprovalRequest.CurrentApproverId = directorId;
+        var approverOnlyCurrentApprovalRequest = CreateLeaveRequest(otherDepartmentStaffId);
+        approverOnlyCurrentApprovalRequest.CurrentApproverId = currentStepApproverOnlyUserId;
         db.LeaveRequests.Add(leaveRequest);
         db.LeaveRequests.Add(otherDepartmentLeaveRequest);
         db.LeaveRequests.Add(directorOwnRequest);
         db.LeaveRequests.Add(directorCurrentApprovalRequest);
+        db.LeaveRequests.Add(approverOnlyCurrentApprovalRequest);
         db.Departments.AddRange(
             new Department { Id = departmentId, Name = "IT" },
             new Department { Id = otherDepartmentId, Name = "Other" });
@@ -142,6 +146,7 @@ public class LeaveSecurityHardeningTests
         SeedPermissionUser(db, currentApproverId, "CurrentApprover", "LeaveRequest.ViewPendingApproval");
         SeedPermissionUser(db, previousApproverId, "PreviousApprover", "LeaveRequest.ViewPendingApproval");
         SeedPermissionUser(db, approveOnlyUserId, "Approver", "LeaveManagement.Approve");
+        SeedPermissionUser(db, currentStepApproverOnlyUserId, "CurrentStepApprover", "LeaveApproval.ApproveCurrentStep");
         SeedPermissionUser(db, manageUserId, "SuperAdmin", "LeaveRequest.ViewAll");
         SeedPermissionUser(db, departmentViewerId, "DepartmentHead", "LeaveRequest.ViewPendingApproval", departmentId);
         SeedPermissionUserWithPermissions(db, directorId, "Director", ["LeaveRequest.ViewOwn", "LeaveRequest.ViewPendingApproval"]);
@@ -154,6 +159,8 @@ public class LeaveSecurityHardeningTests
         Assert.True(await service.CanAccessLeaveRequestAsync(leaveRequest, currentApproverId));
         Assert.False(await service.CanAccessLeaveRequestAsync(leaveRequest, previousApproverId));
         Assert.False(await service.CanAccessLeaveRequestAsync(leaveRequest, approveOnlyUserId));
+        Assert.True(await service.CanAccessLeaveRequestAsync(approverOnlyCurrentApprovalRequest, currentStepApproverOnlyUserId));
+        Assert.False(await service.CanAccessLeaveRequestAsync(leaveRequest, currentStepApproverOnlyUserId));
         Assert.True(await service.CanAccessLeaveRequestAsync(leaveRequest, departmentViewerId));
         Assert.False(await service.CanAccessLeaveRequestAsync(otherDepartmentLeaveRequest, departmentViewerId));
         Assert.True(await service.CanAccessLeaveRequestAsync(directorOwnRequest, directorId));

@@ -31,7 +31,7 @@ public class LeaveRequestsController(
     ILogger<LeaveRequestsController> logger) : ControllerBase
 {
     [HttpGet]
-    [RequireAnyPermission(LeavePermissions.ViewOwn, LeavePermissions.ViewPendingApproval, LeavePermissions.ViewDepartment, LeavePermissions.ViewAll, LeavePermissions.SupportViewAll)]
+    [RequireAnyPermission(LeavePermissions.ViewOwn, LeavePermissions.ViewPendingApproval, LeavePermissions.ApproveCurrentStep, LeavePermissions.ViewDepartment, LeavePermissions.ViewAll, LeavePermissions.SupportViewAll)]
     public async Task<ActionResult<ApiResponse<object>>> GetLeaveRequests(
         [FromQuery] Guid? leaveTypeId,
         [FromQuery] string? status,
@@ -155,7 +155,7 @@ public class LeaveRequestsController(
     }
 
     [HttpGet("{id:guid}")]
-    [RequireAnyPermission(LeavePermissions.ViewOwn, LeavePermissions.ViewPendingApproval, LeavePermissions.ViewDepartment, LeavePermissions.ViewAll, LeavePermissions.SupportViewAll)]
+    [RequireAnyPermission(LeavePermissions.ViewOwn, LeavePermissions.ViewPendingApproval, LeavePermissions.ApproveCurrentStep, LeavePermissions.ViewDepartment, LeavePermissions.ViewAll, LeavePermissions.SupportViewAll)]
     public async Task<ActionResult<ApiResponse<LeaveRequestResponse>>> GetLeaveRequest(Guid id)
     {
         var leaveRequest = await LoadLeaveRequests().FirstOrDefaultAsync(item => item.Id == id);
@@ -173,7 +173,7 @@ public class LeaveRequestsController(
     }
 
     [HttpGet("{id:guid}/pdf")]
-    [RequireAnyPermission(LeavePermissions.ViewOwn, LeavePermissions.ViewPendingApproval, LeavePermissions.ViewDepartment, LeavePermissions.ViewAll, LeavePermissions.SupportViewAll)]
+    [RequireAnyPermission(LeavePermissions.ViewOwn, LeavePermissions.ViewPendingApproval, LeavePermissions.ApproveCurrentStep, LeavePermissions.ViewDepartment, LeavePermissions.ViewAll, LeavePermissions.SupportViewAll)]
     public async Task<IActionResult> DownloadLeaveRequestPdf(Guid id)
     {
         var leaveRequest = await db.LeaveRequests
@@ -333,6 +333,17 @@ public class LeaveRequestsController(
             preview.AvailableDays == decimal.MaxValue ? 0 : preview.AvailableDays,
             preview.RequestedDays,
             preview.CanSubmit,
+            preview.LimitStatus,
+            preview.EmployerPaidLimitDays,
+            preview.MaximumLeaveDays,
+            preview.MaximumTotalAvailableDays,
+            preview.RequiresSpecialApproval,
+            preview.PaymentSegments.Select(item => new LeavePaymentSegmentResponse(
+                item.Days,
+                item.PaymentSource,
+                item.PaymentStatus,
+                item.Label,
+                item.Notes)).ToList(),
             preview.Warnings,
             preview.Errors,
             preview.PolicyNotes));
@@ -656,7 +667,7 @@ public class LeaveRequestsController(
     }
 
     [HttpPost("{id:guid}/line-action-opened")]
-    [RequireAnyPermission(LeavePermissions.ViewOwn, LeavePermissions.ViewPendingApproval, LeavePermissions.ViewDepartment, LeavePermissions.ViewAll, LeavePermissions.SupportViewAll)]
+    [RequireAnyPermission(LeavePermissions.ViewOwn, LeavePermissions.ViewPendingApproval, LeavePermissions.ApproveCurrentStep, LeavePermissions.ViewDepartment, LeavePermissions.ViewAll, LeavePermissions.SupportViewAll)]
     public async Task<ActionResult<ApiResponse<bool>>> RecordLineActionOpened(Guid id, LineApprovalActionOpenedRequest request)
     {
         var leaveRequest = await db.LeaveRequests
@@ -713,7 +724,7 @@ public class LeaveRequestsController(
     }
 
     [HttpGet("{id:guid}/attachments")]
-    [RequireAnyPermission(LeavePermissions.ViewOwn, LeavePermissions.ViewPendingApproval, LeavePermissions.ViewDepartment, LeavePermissions.ViewAll, LeavePermissions.SupportViewAll)]
+    [RequireAnyPermission(LeavePermissions.ViewOwn, LeavePermissions.ViewPendingApproval, LeavePermissions.ApproveCurrentStep, LeavePermissions.ViewDepartment, LeavePermissions.ViewAll, LeavePermissions.SupportViewAll)]
     public async Task<ActionResult<ApiResponse<IReadOnlyList<LeaveAttachmentResponse>>>> GetAttachments(Guid id)
     {
         var leaveRequest = await db.LeaveRequests.FirstOrDefaultAsync(item => item.Id == id);
@@ -1034,7 +1045,8 @@ public class LeaveRequestsController(
 
     private async Task<LeaveBalance> GetOrCreateBalance(LeaveRequest leaveRequest)
     {
-        var year = leaveRequest.StartDate.Year;
+        var leaveType = await db.LeaveTypes.SingleAsync(item => item.Id == leaveRequest.LeaveTypeId);
+        var year = FiscalYearHelper.ResolveBalanceYear(leaveRequest.StartDate, leaveType);
         var balance = await db.LeaveBalances.FirstOrDefaultAsync(item =>
             item.UserId == leaveRequest.UserId &&
             item.LeaveTypeId == leaveRequest.LeaveTypeId &&
@@ -1045,13 +1057,19 @@ public class LeaveRequestsController(
             return balance;
         }
 
-        var leaveType = await db.LeaveTypes.SingleAsync(item => item.Id == leaveRequest.LeaveTypeId);
+        var entitlementDays = await leavePolicyService.CalculateEntitlementAsync(leaveRequest.UserId, leaveRequest.LeaveTypeId, year, HttpContext.RequestAborted);
+        if (entitlementDays <= 0)
+        {
+            entitlementDays = leaveType.DefaultDaysPerYear;
+        }
+
         balance = new LeaveBalance
         {
             UserId = leaveRequest.UserId,
             LeaveTypeId = leaveRequest.LeaveTypeId,
             Year = year,
-            EntitledDays = leaveType.DefaultDaysPerYear
+            EntitledDays = entitlementDays,
+            Notes = $"Created automatically from leave request {leaveRequest.RequestNumber ?? leaveRequest.Id.ToString()}."
         };
         db.LeaveBalances.Add(balance);
         return balance;

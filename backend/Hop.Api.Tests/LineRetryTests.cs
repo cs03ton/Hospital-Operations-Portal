@@ -246,6 +246,26 @@ public class LineRetryTests
     }
 
     [Fact]
+    public void LineConfigurationResolver_PublicAppUrlReadsGenericProductionKey()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["ASPNETCORE_ENVIRONMENT"] = Environments.Production,
+                ["Line:PublicAppUrl"] = "http://localhost:5173",
+                ["PublicAppUrl"] = "http://172.16.2.99"
+            })
+            .Build();
+
+        var resolver = new LineConfigurationResolver(
+            Options.Create(new LineOptions()),
+            configuration,
+            new TestHostEnvironment(Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString()), Environments.Production));
+
+        Assert.Equal("http://172.16.2.99", resolver.PublicAppUrl);
+    }
+
+    [Fact]
     public void LeaveLineFlexMessageTemplates_PendingCardUsesMinimalActionColors()
     {
         var payload = LeaveLineFlexMessageTemplates.BuildPendingApprovalCard(CreateLeaveRequest(), "https://hop.example.local");
@@ -259,6 +279,24 @@ public class LineRetryTests
         Assert.Contains(footerButtons, item => item.Label == "ดูรายละเอียด" && item.Color == "#2563EB");
         Assert.Contains(footerButtons, item => item.Label == "อนุมัติ" && item.Color == "#16A34A");
         Assert.Contains(footerButtons, item => item.Label == "ไม่อนุมัติ" && item.Color == "#DC2626");
+    }
+
+    [Fact]
+    public void LeaveLineFlexMessageTemplates_InfoRowsUseIconsInsteadOfPlaceholderDots()
+    {
+        var payload = LeaveLineFlexMessageTemplates.BuildPendingApprovalCard(CreateLeaveRequest(), "https://hop.example.local");
+        using var document = JsonDocument.Parse(payload);
+        var texts = new List<string>();
+        CollectText(document.RootElement.GetProperty("messages")[0].GetProperty("contents"), texts);
+        var text = string.Join(" ", texts);
+
+        Assert.DoesNotContain(texts, item => item == "...");
+        Assert.Contains("🧾", text);
+        Assert.Contains("👤", text);
+        Assert.Contains("🏥", text);
+        Assert.Contains("🏷", text);
+        Assert.Contains("📅", text);
+        Assert.Contains("⏱", text);
     }
 
     [Fact]

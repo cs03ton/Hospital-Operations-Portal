@@ -389,11 +389,26 @@ public static class LeaveLineFlexMessageTemplates
             spacing = "sm",
             contents = new object[]
             {
-                Text("...", Gold, "sm", "bold", 1),
+                Text(InfoIcon(label), Gold, "md", "regular", 1, align: "center"),
                 Text(label, TextMuted, "sm", "regular", 4),
                 Text(":", Gold, "sm", "bold", 1),
                 Text(value, valueColor, "sm", "bold", 7, true)
             }
+        };
+    }
+
+    private static string InfoIcon(string label)
+    {
+        return label switch
+        {
+            "เลขที่คำขอ" => "🧾",
+            "ผู้ขอ" => "👤",
+            "หน่วยงาน" => "🏥",
+            "ประเภทการลา" => "🏷",
+            "วันที่ลา" => "📅",
+            "จำนวนวัน" => "⏱",
+            "เหตุผล" => "📝",
+            _ => "•"
         };
     }
 

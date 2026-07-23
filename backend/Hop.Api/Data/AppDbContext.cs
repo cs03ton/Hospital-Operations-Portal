@@ -41,6 +41,13 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<RestoreRun> RestoreRuns => Set<RestoreRun>();
     public DbSet<DiagnosticRun> DiagnosticRuns => Set<DiagnosticRun>();
     public DbSet<SupportBundle> SupportBundles => Set<SupportBundle>();
+    public DbSet<Announcement> Announcements => Set<Announcement>();
+    public DbSet<AnnouncementCategory> AnnouncementCategories => Set<AnnouncementCategory>();
+    public DbSet<AnnouncementTarget> AnnouncementTargets => Set<AnnouncementTarget>();
+    public DbSet<AnnouncementFile> AnnouncementFiles => Set<AnnouncementFile>();
+    public DbSet<AnnouncementImage> AnnouncementImages => Set<AnnouncementImage>();
+    public DbSet<AnnouncementRead> AnnouncementReads => Set<AnnouncementRead>();
+    public DbSet<AnnouncementNotificationDelivery> AnnouncementNotificationDeliveries => Set<AnnouncementNotificationDelivery>();
 
     public override int SaveChanges(bool acceptAllChangesOnSuccess)
     {
@@ -264,18 +271,29 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             entity.Property(item => item.LeaveTypeId).HasColumnName("leave_type_id");
             entity.Property(item => item.FiscalYear).HasColumnName("fiscal_year");
             entity.Property(item => item.EntitlementDays).HasColumnName("entitlement_days");
+            entity.Property(item => item.AnnualEntitlementDays).HasColumnName("annual_entitlement_days");
             entity.Property(item => item.MaxPaidDays).HasColumnName("max_paid_days");
+            entity.Property(item => item.EmployerPaidLimitDays).HasColumnName("employer_paid_limit_days");
             entity.Property(item => item.AllowCarryOver).HasColumnName("allow_carry_over");
             entity.Property(item => item.CarryOverMaxDays).HasColumnName("carry_over_max_days");
+            entity.Property(item => item.CarryForwardLimitDays).HasColumnName("carry_forward_limit_days");
             entity.Property(item => item.MaxAccumulatedDays).HasColumnName("max_accumulated_days");
+            entity.Property(item => item.MaximumTotalAvailableDays).HasColumnName("maximum_total_available_days");
             entity.Property(item => item.MinServiceMonths).HasColumnName("min_service_months");
             entity.Property(item => item.MinServiceYears).HasColumnName("min_service_years");
             entity.Property(item => item.ProrateIfServiceLessThanYear).HasColumnName("prorate_if_service_less_than_year");
             entity.Property(item => item.FirstYearEntitlementDays).HasColumnName("first_year_entitlement_days");
+            entity.Property(item => item.ProbationEntitlementDays).HasColumnName("probation_entitlement_days");
             entity.Property(item => item.FirstYearPaidDays).HasColumnName("first_year_paid_days");
             entity.Property(item => item.IsPaid).HasColumnName("is_paid");
+            entity.Property(item => item.AllowRequest).HasColumnName("allow_request").HasDefaultValue(true);
             entity.Property(item => item.MaxExtendedDays).HasColumnName("max_extended_days");
+            entity.Property(item => item.MaximumLeaveDays).HasColumnName("maximum_leave_days");
+            entity.Property(item => item.RequiresSpecialApprovalAfterDays).HasColumnName("requires_special_approval_after_days");
             entity.Property(item => item.SocialSecurityMaxDays).HasColumnName("social_security_max_days");
+            entity.Property(item => item.UsesSocialSecurity).HasColumnName("uses_social_security");
+            entity.Property(item => item.PaymentRuleType).HasColumnName("payment_rule_type").HasMaxLength(80).HasDefaultValue("EmployerPaid");
+            entity.Property(item => item.DayCountingType).HasColumnName("day_counting_type").HasMaxLength(40).HasDefaultValue("BusinessDays");
             entity.Property(item => item.Notes).HasColumnName("notes").HasMaxLength(1000);
             entity.Property(item => item.IsActive).HasColumnName("is_active");
             entity.Property(item => item.CreatedAt).HasColumnName("created_at");
@@ -924,6 +942,209 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             entity.HasOne(item => item.CreatedByUser)
                 .WithMany()
                 .HasForeignKey(item => item.CreatedByUserId);
+        });
+
+        modelBuilder.Entity<AnnouncementCategory>(entity =>
+        {
+            entity.ToTable("announcement_categories");
+            entity.Property(item => item.Id).HasColumnName("id");
+            entity.Property(item => item.Name).HasColumnName("name").HasMaxLength(160);
+            entity.Property(item => item.Description).HasColumnName("description").HasMaxLength(1000);
+            entity.Property(item => item.Color).HasColumnName("color").HasMaxLength(20);
+            entity.Property(item => item.IsActive).HasColumnName("is_active");
+            entity.Property(item => item.DisplayOrder).HasColumnName("display_order");
+            entity.Property(item => item.CreatedAt).HasColumnName("created_at");
+            entity.Property(item => item.UpdatedAt).HasColumnName("updated_at");
+            entity.HasIndex(item => item.Name).IsUnique();
+            entity.HasIndex(item => new { item.IsActive, item.DisplayOrder });
+        });
+
+        modelBuilder.Entity<Announcement>(entity =>
+        {
+            entity.ToTable("announcements");
+            entity.Property(item => item.Id).HasColumnName("id");
+            entity.Property(item => item.Title).HasColumnName("title").HasMaxLength(240);
+            entity.Property(item => item.Summary).HasColumnName("summary").HasMaxLength(1000);
+            entity.Property(item => item.Body).HasColumnName("body");
+            entity.Property(item => item.Status).HasColumnName("status").HasMaxLength(40);
+            entity.Property(item => item.Priority).HasColumnName("priority").HasMaxLength(40);
+            entity.Property(item => item.CategoryId).HasColumnName("category_id");
+            entity.Property(item => item.CreatedByUserId).HasColumnName("created_by_user_id");
+            entity.Property(item => item.UpdatedByUserId).HasColumnName("updated_by_user_id");
+            entity.Property(item => item.PublishedByUserId).HasColumnName("published_by_user_id");
+            entity.Property(item => item.PublishAt).HasColumnName("publish_at");
+            entity.Property(item => item.ExpiresAt).HasColumnName("expires_at");
+            entity.Property(item => item.PublishedAt).HasColumnName("published_at");
+            entity.Property(item => item.ArchivedAt).HasColumnName("archived_at");
+            entity.Property(item => item.CancelledAt).HasColumnName("cancelled_at");
+            entity.Property(item => item.IsFeatured).HasColumnName("is_featured");
+            entity.Property(item => item.ShowAsPopup).HasColumnName("show_as_popup");
+            entity.Property(item => item.ShowAsBanner).HasColumnName("show_as_banner");
+            entity.Property(item => item.RequiresAcknowledgement).HasColumnName("requires_acknowledgement");
+            entity.Property(item => item.CoverImageUrl).HasColumnName("cover_image_url").HasMaxLength(1000);
+            entity.Property(item => item.Tags).HasColumnName("tags").HasMaxLength(1000);
+            entity.Property(item => item.ViewCount).HasColumnName("view_count");
+            entity.Property(item => item.NotifyInApp).HasColumnName("notify_in_app").HasDefaultValue(true);
+            entity.Property(item => item.NotifyViaLine).HasColumnName("notify_via_line").HasDefaultValue(false);
+            entity.Property(item => item.NotificationSentAt).HasColumnName("notification_sent_at");
+            entity.Property(item => item.LineNotificationQueuedAt).HasColumnName("line_notification_queued_at");
+            entity.Property(item => item.NotificationDispatchStatus).HasColumnName("notification_dispatch_status").HasMaxLength(40);
+            entity.Property(item => item.NotificationDispatchError).HasColumnName("notification_dispatch_error").HasMaxLength(1000);
+            entity.Property(item => item.NotificationConfigVersion).HasColumnName("notification_config_version").HasDefaultValue(1);
+            entity.Property(item => item.CreatedAt).HasColumnName("created_at");
+            entity.Property(item => item.UpdatedAt).HasColumnName("updated_at");
+            entity.HasIndex(item => new { item.Status, item.PublishAt, item.ExpiresAt });
+            entity.HasIndex(item => new { item.IsFeatured, item.Status });
+            entity.HasIndex(item => new { item.ShowAsPopup, item.Status });
+            entity.HasIndex(item => new { item.ShowAsBanner, item.Status });
+            entity.HasIndex(item => new { item.NotifyInApp, item.NotifyViaLine });
+            entity.HasOne(item => item.Category)
+                .WithMany(category => category.Announcements)
+                .HasForeignKey(item => item.CategoryId);
+            entity.HasOne(item => item.CreatedByUser)
+                .WithMany()
+                .HasForeignKey(item => item.CreatedByUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(item => item.UpdatedByUser)
+                .WithMany()
+                .HasForeignKey(item => item.UpdatedByUserId);
+            entity.HasOne(item => item.PublishedByUser)
+                .WithMany()
+                .HasForeignKey(item => item.PublishedByUserId);
+        });
+
+        modelBuilder.Entity<AnnouncementNotificationDelivery>(entity =>
+        {
+            entity.ToTable("announcement_notification_deliveries");
+            entity.Property(item => item.Id).HasColumnName("id");
+            entity.Property(item => item.AnnouncementId).HasColumnName("announcement_id");
+            entity.Property(item => item.UserId).HasColumnName("user_id");
+            entity.Property(item => item.Channel).HasColumnName("channel").HasMaxLength(40);
+            entity.Property(item => item.Status).HasColumnName("status").HasMaxLength(40);
+            entity.Property(item => item.IdempotencyKey).HasColumnName("idempotency_key").HasMaxLength(240);
+            entity.Property(item => item.QueuedAt).HasColumnName("queued_at");
+            entity.Property(item => item.SentAt).HasColumnName("sent_at");
+            entity.Property(item => item.FailedAt).HasColumnName("failed_at");
+            entity.Property(item => item.RetryCount).HasColumnName("retry_count");
+            entity.Property(item => item.LastErrorCode).HasColumnName("last_error_code").HasMaxLength(120);
+            entity.Property(item => item.LastErrorMessageSanitized).HasColumnName("last_error_message_sanitized").HasMaxLength(1000);
+            entity.Property(item => item.NotificationId).HasColumnName("notification_id");
+            entity.Property(item => item.LineQueueId).HasColumnName("line_queue_id");
+            entity.Property(item => item.CreatedAt).HasColumnName("created_at");
+            entity.Property(item => item.UpdatedAt).HasColumnName("updated_at");
+            entity.HasIndex(item => item.IdempotencyKey).IsUnique();
+            entity.HasIndex(item => new { item.AnnouncementId, item.Channel, item.Status });
+            entity.HasIndex(item => new { item.UserId, item.Channel });
+            entity.HasOne(item => item.Announcement)
+                .WithMany(announcement => announcement.NotificationDeliveries)
+                .HasForeignKey(item => item.AnnouncementId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(item => item.User)
+                .WithMany()
+                .HasForeignKey(item => item.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(item => item.Notification)
+                .WithMany()
+                .HasForeignKey(item => item.NotificationId)
+                .OnDelete(DeleteBehavior.SetNull);
+            entity.HasOne(item => item.LineQueue)
+                .WithMany()
+                .HasForeignKey(item => item.LineQueueId)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<AnnouncementTarget>(entity =>
+        {
+            entity.ToTable("announcement_targets");
+            entity.Property(item => item.Id).HasColumnName("id");
+            entity.Property(item => item.AnnouncementId).HasColumnName("announcement_id");
+            entity.Property(item => item.TargetType).HasColumnName("target_type").HasMaxLength(40);
+            entity.Property(item => item.TargetValue).HasColumnName("target_value").HasMaxLength(160);
+            entity.Property(item => item.CreatedAt).HasColumnName("created_at");
+            entity.HasIndex(item => new { item.AnnouncementId, item.TargetType, item.TargetValue });
+            entity.HasOne(item => item.Announcement)
+                .WithMany(announcement => announcement.Targets)
+                .HasForeignKey(item => item.AnnouncementId);
+        });
+
+        modelBuilder.Entity<AnnouncementFile>(entity =>
+        {
+            entity.ToTable("announcement_files");
+            entity.Property(item => item.Id).HasColumnName("id");
+            entity.Property(item => item.AnnouncementId).HasColumnName("announcement_id");
+            entity.Property(item => item.FileName).HasColumnName("file_name").HasMaxLength(260);
+            entity.Property(item => item.OriginalFileName).HasColumnName("original_file_name").HasMaxLength(260);
+            entity.Property(item => item.ContentType).HasColumnName("content_type").HasMaxLength(120);
+            entity.Property(item => item.FilePath).HasColumnName("file_path").HasMaxLength(1000);
+            entity.Property(item => item.FileSize).HasColumnName("file_size");
+            entity.Property(item => item.FileRole).HasColumnName("file_role").HasMaxLength(40);
+            entity.Property(item => item.CreatedAt).HasColumnName("created_at");
+            entity.Property(item => item.CreatedByUserId).HasColumnName("created_by_user_id");
+            entity.HasIndex(item => new { item.AnnouncementId, item.FileRole });
+            entity.HasOne(item => item.Announcement)
+                .WithMany(announcement => announcement.Files)
+                .HasForeignKey(item => item.AnnouncementId);
+            entity.HasOne(item => item.CreatedByUser)
+                .WithMany()
+                .HasForeignKey(item => item.CreatedByUserId);
+        });
+
+        modelBuilder.Entity<AnnouncementImage>(entity =>
+        {
+            entity.ToTable("announcement_images");
+            entity.Property(item => item.Id).HasColumnName("id");
+            entity.Property(item => item.AnnouncementId).HasColumnName("announcement_id");
+            entity.Property(item => item.OriginalFileName).HasColumnName("original_file_name").HasMaxLength(260);
+            entity.Property(item => item.StoredFileName).HasColumnName("stored_file_name").HasMaxLength(260);
+            entity.Property(item => item.RelativePath).HasColumnName("relative_path").HasMaxLength(1000);
+            entity.Property(item => item.LargePath).HasColumnName("large_path").HasMaxLength(1000);
+            entity.Property(item => item.MediumPath).HasColumnName("medium_path").HasMaxLength(1000);
+            entity.Property(item => item.ThumbnailPath).HasColumnName("thumbnail_path").HasMaxLength(1000);
+            entity.Property(item => item.MimeType).HasColumnName("mime_type").HasMaxLength(120);
+            entity.Property(item => item.FileSize).HasColumnName("file_size");
+            entity.Property(item => item.Width).HasColumnName("width");
+            entity.Property(item => item.Height).HasColumnName("height");
+            entity.Property(item => item.DisplayOrder).HasColumnName("display_order");
+            entity.Property(item => item.IsCover).HasColumnName("is_cover");
+            entity.Property(item => item.CreatedAt).HasColumnName("created_at");
+            entity.Property(item => item.CreatedByUserId).HasColumnName("created_by_user_id");
+            entity.Property(item => item.UpdatedAt).HasColumnName("updated_at");
+            entity.Property(item => item.UpdatedByUserId).HasColumnName("updated_by_user_id");
+            entity.HasIndex(item => new { item.AnnouncementId, item.DisplayOrder });
+            entity.HasIndex(item => new { item.AnnouncementId, item.IsCover });
+            entity.HasIndex(item => item.CreatedByUserId);
+            entity.HasIndex(item => item.UpdatedByUserId);
+            entity.HasIndex(item => item.AnnouncementId)
+                .IsUnique()
+                .HasFilter("is_cover = true");
+            entity.HasOne(item => item.Announcement)
+                .WithMany(announcement => announcement.Images)
+                .HasForeignKey(item => item.AnnouncementId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(item => item.CreatedByUser)
+                .WithMany()
+                .HasForeignKey(item => item.CreatedByUserId);
+            entity.HasOne(item => item.UpdatedByUser)
+                .WithMany()
+                .HasForeignKey(item => item.UpdatedByUserId);
+        });
+
+        modelBuilder.Entity<AnnouncementRead>(entity =>
+        {
+            entity.ToTable("announcement_reads");
+            entity.Property(item => item.Id).HasColumnName("id");
+            entity.Property(item => item.AnnouncementId).HasColumnName("announcement_id");
+            entity.Property(item => item.UserId).HasColumnName("user_id");
+            entity.Property(item => item.ReadAt).HasColumnName("read_at");
+            entity.Property(item => item.AcknowledgedAt).HasColumnName("acknowledged_at");
+            entity.HasIndex(item => new { item.AnnouncementId, item.UserId }).IsUnique();
+            entity.HasIndex(item => new { item.UserId, item.ReadAt });
+            entity.HasOne(item => item.Announcement)
+                .WithMany(announcement => announcement.Reads)
+                .HasForeignKey(item => item.AnnouncementId);
+            entity.HasOne(item => item.User)
+                .WithMany()
+                .HasForeignKey(item => item.UserId);
         });
     }
 

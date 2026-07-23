@@ -26,6 +26,7 @@ public sealed class DocumentationService(
         new("head-guide", "head.md", "คู่มือหัวหน้าหน่วยงาน", "วิธีดูงานรออนุมัติ ตรวจคำขอ และอนุมัติ/ไม่อนุมัติ", "Approval Guide", ["DepartmentHead", "Admin", "SuperAdmin"]),
         new("director-guide", "director.md", "คู่มือผู้อำนวยการ/ผู้อนุมัติ", "งานอนุมัติขั้นสุดท้าย Executive Dashboard และ Leave Analytics", "Executive Guide", ["Director", "Admin", "SuperAdmin"]),
         new("admin-guide", "admin.md", "คู่มือผู้ดูแลระบบ", "การดูแลผู้ใช้ สิทธิ์ ระบบลา LINE Health Center และ Backup", "Admin Guide", ["Admin", "SuperAdmin"]),
+        new("announcement-guide", "announcement.md", "คู่มือศูนย์ข่าวสารและประกาศ", "อ่านประกาศ รับทราบประกาศ จัดการรูปภาพ ไฟล์แนบ กลุ่มเป้าหมาย และช่องทางแจ้งเตือน", "User Guide", ["Staff", "DepartmentHead", "Director", "Admin", "SuperAdmin"]),
         new("faq", "faq.md", "FAQ", "คำถามที่พบบ่อยและแนวทางแก้ไขเบื้องต้น", "FAQ", ["Staff", "DepartmentHead", "Director", "Admin", "SuperAdmin"]),
         new("release-notes", "release-notes.md", "Release Notes", "สรุปความสามารถของ HOP Phase 1 และ Phase 1.5", "Release Notes", ["Admin", "SuperAdmin"])
     ];

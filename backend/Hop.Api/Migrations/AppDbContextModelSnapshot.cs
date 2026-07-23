@@ -22,6 +22,546 @@ namespace Hop.Api.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("Hop.Api.Models.Announcement", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTime?>("ArchivedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("archived_at");
+
+                    b.Property<string>("Body")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("body");
+
+                    b.Property<DateTime?>("CancelledAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("cancelled_at");
+
+                    b.Property<Guid?>("CategoryId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("category_id");
+
+                    b.Property<string>("CoverImageUrl")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("cover_image_url");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by_user_id");
+
+                    b.Property<DateTime?>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("expires_at");
+
+                    b.Property<bool>("IsFeatured")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_featured");
+
+                    b.Property<DateTime?>("LineNotificationQueuedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("line_notification_queued_at");
+
+                    b.Property<int>("NotificationConfigVersion")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(1)
+                        .HasColumnName("notification_config_version");
+
+                    b.Property<string>("NotificationDispatchError")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("notification_dispatch_error");
+
+                    b.Property<string>("NotificationDispatchStatus")
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("notification_dispatch_status");
+
+                    b.Property<DateTime?>("NotificationSentAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("notification_sent_at");
+
+                    b.Property<bool>("NotifyInApp")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true)
+                        .HasColumnName("notify_in_app");
+
+                    b.Property<bool>("NotifyViaLine")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("notify_via_line");
+
+                    b.Property<string>("Priority")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("priority");
+
+                    b.Property<DateTime?>("PublishAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("publish_at");
+
+                    b.Property<DateTime?>("PublishedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("published_at");
+
+                    b.Property<Guid?>("PublishedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("published_by_user_id");
+
+                    b.Property<bool>("RequiresAcknowledgement")
+                        .HasColumnType("boolean")
+                        .HasColumnName("requires_acknowledgement");
+
+                    b.Property<bool>("ShowAsBanner")
+                        .HasColumnType("boolean")
+                        .HasColumnName("show_as_banner");
+
+                    b.Property<bool>("ShowAsPopup")
+                        .HasColumnType("boolean")
+                        .HasColumnName("show_as_popup");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("status");
+
+                    b.Property<string>("Summary")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("summary");
+
+                    b.Property<string>("Tags")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("tags");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(240)
+                        .HasColumnType("character varying(240)")
+                        .HasColumnName("title");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid?>("UpdatedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("updated_by_user_id");
+
+                    b.Property<int>("ViewCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("view_count");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CategoryId");
+
+                    b.HasIndex("CreatedByUserId");
+
+                    b.HasIndex("PublishedByUserId");
+
+                    b.HasIndex("UpdatedByUserId");
+
+                    b.HasIndex("IsFeatured", "Status");
+
+                    b.HasIndex("NotifyInApp", "NotifyViaLine");
+
+                    b.HasIndex("ShowAsBanner", "Status");
+
+                    b.HasIndex("ShowAsPopup", "Status");
+
+                    b.HasIndex("Status", "PublishAt", "ExpiresAt");
+
+                    b.ToTable("announcements", (string)null);
+                });
+
+            modelBuilder.Entity("Hop.Api.Models.AnnouncementCategory", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Color")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("color");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("description");
+
+                    b.Property<int>("DisplayOrder")
+                        .HasColumnType("integer")
+                        .HasColumnName("display_order");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_active");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("character varying(160)")
+                        .HasColumnName("name");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Name")
+                        .IsUnique();
+
+                    b.HasIndex("IsActive", "DisplayOrder");
+
+                    b.ToTable("announcement_categories", (string)null);
+                });
+
+            modelBuilder.Entity("Hop.Api.Models.AnnouncementFile", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("AnnouncementId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("announcement_id");
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("content_type");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid?>("CreatedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by_user_id");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasMaxLength(260)
+                        .HasColumnType("character varying(260)")
+                        .HasColumnName("file_name");
+
+                    b.Property<string>("FilePath")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("file_path");
+
+                    b.Property<string>("FileRole")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("file_role");
+
+                    b.Property<long>("FileSize")
+                        .HasColumnType("bigint")
+                        .HasColumnName("file_size");
+
+                    b.Property<string>("OriginalFileName")
+                        .IsRequired()
+                        .HasMaxLength(260)
+                        .HasColumnType("character varying(260)")
+                        .HasColumnName("original_file_name");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedByUserId");
+
+                    b.HasIndex("AnnouncementId", "FileRole");
+
+                    b.ToTable("announcement_files", (string)null);
+                });
+
+            modelBuilder.Entity("Hop.Api.Models.AnnouncementImage", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("AnnouncementId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("announcement_id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid?>("CreatedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by_user_id");
+
+                    b.Property<int>("DisplayOrder")
+                        .HasColumnType("integer")
+                        .HasColumnName("display_order");
+
+                    b.Property<long>("FileSize")
+                        .HasColumnType("bigint")
+                        .HasColumnName("file_size");
+
+                    b.Property<int?>("Height")
+                        .HasColumnType("integer")
+                        .HasColumnName("height");
+
+                    b.Property<bool>("IsCover")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_cover");
+
+                    b.Property<string>("LargePath")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("large_path");
+
+                    b.Property<string>("MediumPath")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("medium_path");
+
+                    b.Property<string>("MimeType")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("mime_type");
+
+                    b.Property<string>("OriginalFileName")
+                        .IsRequired()
+                        .HasMaxLength(260)
+                        .HasColumnType("character varying(260)")
+                        .HasColumnName("original_file_name");
+
+                    b.Property<string>("RelativePath")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("relative_path");
+
+                    b.Property<string>("StoredFileName")
+                        .IsRequired()
+                        .HasMaxLength(260)
+                        .HasColumnType("character varying(260)")
+                        .HasColumnName("stored_file_name");
+
+                    b.Property<string>("ThumbnailPath")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("thumbnail_path");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid?>("UpdatedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("updated_by_user_id");
+
+                    b.Property<int?>("Width")
+                        .HasColumnType("integer")
+                        .HasColumnName("width");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AnnouncementId")
+                        .IsUnique()
+                        .HasFilter("is_cover = true");
+
+                    b.HasIndex("CreatedByUserId");
+
+                    b.HasIndex("UpdatedByUserId");
+
+                    b.HasIndex("AnnouncementId", "DisplayOrder");
+
+                    b.HasIndex("AnnouncementId", "IsCover");
+
+                    b.ToTable("announcement_images", (string)null);
+                });
+
+            modelBuilder.Entity("Hop.Api.Models.AnnouncementNotificationDelivery", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("AnnouncementId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("announcement_id");
+
+                    b.Property<string>("Channel")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("channel");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<DateTime?>("FailedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("failed_at");
+
+                    b.Property<string>("IdempotencyKey")
+                        .IsRequired()
+                        .HasMaxLength(240)
+                        .HasColumnType("character varying(240)")
+                        .HasColumnName("idempotency_key");
+
+                    b.Property<string>("LastErrorCode")
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("last_error_code");
+
+                    b.Property<string>("LastErrorMessageSanitized")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("last_error_message_sanitized");
+
+                    b.Property<Guid?>("LineQueueId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("line_queue_id");
+
+                    b.Property<Guid?>("NotificationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("notification_id");
+
+                    b.Property<DateTime>("QueuedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("queued_at");
+
+                    b.Property<int>("RetryCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("retry_count");
+
+                    b.Property<DateTime?>("SentAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("sent_at");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("status");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("IdempotencyKey")
+                        .IsUnique();
+
+                    b.HasIndex("LineQueueId");
+
+                    b.HasIndex("NotificationId");
+
+                    b.HasIndex("UserId", "Channel");
+
+                    b.HasIndex("AnnouncementId", "Channel", "Status");
+
+                    b.ToTable("announcement_notification_deliveries", (string)null);
+                });
+
+            modelBuilder.Entity("Hop.Api.Models.AnnouncementRead", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTime?>("AcknowledgedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("acknowledged_at");
+
+                    b.Property<Guid>("AnnouncementId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("announcement_id");
+
+                    b.Property<DateTime>("ReadAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("read_at");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AnnouncementId", "UserId")
+                        .IsUnique();
+
+                    b.HasIndex("UserId", "ReadAt");
+
+                    b.ToTable("announcement_reads", (string)null);
+                });
+
+            modelBuilder.Entity("Hop.Api.Models.AnnouncementTarget", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("AnnouncementId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("announcement_id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("TargetType")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("target_type");
+
+                    b.Property<string>("TargetValue")
+                        .HasMaxLength(160)
+                        .HasColumnType("character varying(160)")
+                        .HasColumnName("target_value");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AnnouncementId", "TargetType", "TargetValue");
+
+                    b.ToTable("announcement_targets", (string)null);
+                });
+
             modelBuilder.Entity("Hop.Api.Models.ApprovalChain", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1289,6 +1829,20 @@ namespace Hop.Api.Migrations
                         .HasColumnType("boolean")
                         .HasColumnName("allow_carry_over");
 
+                    b.Property<bool>("AllowRequest")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true)
+                        .HasColumnName("allow_request");
+
+                    b.Property<decimal?>("AnnualEntitlementDays")
+                        .HasColumnType("numeric")
+                        .HasColumnName("annual_entitlement_days");
+
+                    b.Property<decimal?>("CarryForwardLimitDays")
+                        .HasColumnType("numeric")
+                        .HasColumnName("carry_forward_limit_days");
+
                     b.Property<decimal?>("CarryOverMaxDays")
                         .HasColumnType("numeric")
                         .HasColumnName("carry_over_max_days");
@@ -1296,6 +1850,18 @@ namespace Hop.Api.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
+
+                    b.Property<string>("DayCountingType")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasDefaultValue("BusinessDays")
+                        .HasColumnName("day_counting_type");
+
+                    b.Property<decimal?>("EmployerPaidLimitDays")
+                        .HasColumnType("numeric")
+                        .HasColumnName("employer_paid_limit_days");
 
                     b.Property<string>("EmploymentType")
                         .IsRequired()
@@ -1343,6 +1909,14 @@ namespace Hop.Api.Migrations
                         .HasColumnType("numeric")
                         .HasColumnName("max_paid_days");
 
+                    b.Property<decimal?>("MaximumLeaveDays")
+                        .HasColumnType("numeric")
+                        .HasColumnName("maximum_leave_days");
+
+                    b.Property<decimal?>("MaximumTotalAvailableDays")
+                        .HasColumnType("numeric")
+                        .HasColumnName("maximum_total_available_days");
+
                     b.Property<int?>("MinServiceMonths")
                         .HasColumnType("integer")
                         .HasColumnName("min_service_months");
@@ -1356,9 +1930,25 @@ namespace Hop.Api.Migrations
                         .HasColumnType("character varying(1000)")
                         .HasColumnName("notes");
 
+                    b.Property<string>("PaymentRuleType")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)")
+                        .HasDefaultValue("EmployerPaid")
+                        .HasColumnName("payment_rule_type");
+
+                    b.Property<decimal?>("ProbationEntitlementDays")
+                        .HasColumnType("numeric")
+                        .HasColumnName("probation_entitlement_days");
+
                     b.Property<bool>("ProrateIfServiceLessThanYear")
                         .HasColumnType("boolean")
                         .HasColumnName("prorate_if_service_less_than_year");
+
+                    b.Property<decimal?>("RequiresSpecialApprovalAfterDays")
+                        .HasColumnType("numeric")
+                        .HasColumnName("requires_special_approval_after_days");
 
                     b.Property<decimal?>("SocialSecurityMaxDays")
                         .HasColumnType("numeric")
@@ -1367,6 +1957,10 @@ namespace Hop.Api.Migrations
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("updated_at");
+
+                    b.Property<bool>("UsesSocialSecurity")
+                        .HasColumnType("boolean")
+                        .HasColumnName("uses_social_security");
 
                     b.HasKey("Id");
 
@@ -2377,6 +2971,138 @@ namespace Hop.Api.Migrations
                     b.ToTable("user_roles", (string)null);
                 });
 
+            modelBuilder.Entity("Hop.Api.Models.Announcement", b =>
+                {
+                    b.HasOne("Hop.Api.Models.AnnouncementCategory", "Category")
+                        .WithMany("Announcements")
+                        .HasForeignKey("CategoryId");
+
+                    b.HasOne("Hop.Api.Models.User", "CreatedByUser")
+                        .WithMany()
+                        .HasForeignKey("CreatedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Hop.Api.Models.User", "PublishedByUser")
+                        .WithMany()
+                        .HasForeignKey("PublishedByUserId");
+
+                    b.HasOne("Hop.Api.Models.User", "UpdatedByUser")
+                        .WithMany()
+                        .HasForeignKey("UpdatedByUserId");
+
+                    b.Navigation("Category");
+
+                    b.Navigation("CreatedByUser");
+
+                    b.Navigation("PublishedByUser");
+
+                    b.Navigation("UpdatedByUser");
+                });
+
+            modelBuilder.Entity("Hop.Api.Models.AnnouncementFile", b =>
+                {
+                    b.HasOne("Hop.Api.Models.Announcement", "Announcement")
+                        .WithMany("Files")
+                        .HasForeignKey("AnnouncementId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Hop.Api.Models.User", "CreatedByUser")
+                        .WithMany()
+                        .HasForeignKey("CreatedByUserId");
+
+                    b.Navigation("Announcement");
+
+                    b.Navigation("CreatedByUser");
+                });
+
+            modelBuilder.Entity("Hop.Api.Models.AnnouncementImage", b =>
+                {
+                    b.HasOne("Hop.Api.Models.Announcement", "Announcement")
+                        .WithMany("Images")
+                        .HasForeignKey("AnnouncementId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Hop.Api.Models.User", "CreatedByUser")
+                        .WithMany()
+                        .HasForeignKey("CreatedByUserId");
+
+                    b.HasOne("Hop.Api.Models.User", "UpdatedByUser")
+                        .WithMany()
+                        .HasForeignKey("UpdatedByUserId");
+
+                    b.Navigation("Announcement");
+
+                    b.Navigation("CreatedByUser");
+
+                    b.Navigation("UpdatedByUser");
+                });
+
+            modelBuilder.Entity("Hop.Api.Models.AnnouncementNotificationDelivery", b =>
+                {
+                    b.HasOne("Hop.Api.Models.Announcement", "Announcement")
+                        .WithMany("NotificationDeliveries")
+                        .HasForeignKey("AnnouncementId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Hop.Api.Models.LineDeliveryLog", "LineQueue")
+                        .WithMany()
+                        .HasForeignKey("LineQueueId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("Hop.Api.Models.Notification", "Notification")
+                        .WithMany()
+                        .HasForeignKey("NotificationId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("Hop.Api.Models.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Announcement");
+
+                    b.Navigation("LineQueue");
+
+                    b.Navigation("Notification");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("Hop.Api.Models.AnnouncementRead", b =>
+                {
+                    b.HasOne("Hop.Api.Models.Announcement", "Announcement")
+                        .WithMany("Reads")
+                        .HasForeignKey("AnnouncementId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Hop.Api.Models.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Announcement");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("Hop.Api.Models.AnnouncementTarget", b =>
+                {
+                    b.HasOne("Hop.Api.Models.Announcement", "Announcement")
+                        .WithMany("Targets")
+                        .HasForeignKey("AnnouncementId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Announcement");
+                });
+
             modelBuilder.Entity("Hop.Api.Models.ApprovalChain", b =>
                 {
                     b.HasOne("Hop.Api.Models.Department", "Department")
@@ -2958,6 +3684,24 @@ namespace Hop.Api.Migrations
                     b.Navigation("Role");
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("Hop.Api.Models.Announcement", b =>
+                {
+                    b.Navigation("Files");
+
+                    b.Navigation("Images");
+
+                    b.Navigation("NotificationDeliveries");
+
+                    b.Navigation("Reads");
+
+                    b.Navigation("Targets");
+                });
+
+            modelBuilder.Entity("Hop.Api.Models.AnnouncementCategory", b =>
+                {
+                    b.Navigation("Announcements");
                 });
 
             modelBuilder.Entity("Hop.Api.Models.ApprovalChain", b =>

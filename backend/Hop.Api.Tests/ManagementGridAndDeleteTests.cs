@@ -28,7 +28,7 @@ public class ManagementGridAndDeleteTests
         AddUser(db, "head01", "หัวหน้าหน่วยงาน", department.Id);
         await db.SaveChangesAsync();
 
-        var controller = new UsersController(db, new NoopAuditLogService(), new FakeHostEnvironment());
+        var controller = new UsersController(db, new NoopAuditLogService(), new FakeHostEnvironment(), new NoopLeaveEntitlementService());
 
         var result = await controller.GetUsers(page: 1, pageSize: 10, search: "staff01");
 
@@ -60,7 +60,7 @@ public class ManagementGridAndDeleteTests
         });
         await db.SaveChangesAsync();
 
-        var controller = new UsersController(db, new NoopAuditLogService(), new FakeHostEnvironment());
+        var controller = new UsersController(db, new NoopAuditLogService(), new FakeHostEnvironment(), new NoopLeaveEntitlementService());
         SetUserContext(controller, adminId);
 
         var result = await controller.DeleteUser(user.Id);
@@ -81,7 +81,7 @@ public class ManagementGridAndDeleteTests
         db.UserRoles.Add(new UserRole { UserId = admin.Id, RoleId = role.Id, User = admin, Role = role });
         await db.SaveChangesAsync();
 
-        var controller = new UsersController(db, new NoopAuditLogService(), new FakeHostEnvironment());
+        var controller = new UsersController(db, new NoopAuditLogService(), new FakeHostEnvironment(), new NoopLeaveEntitlementService());
         SetUserContext(controller, Guid.NewGuid());
 
         var result = await controller.DeleteUser(admin.Id);
@@ -196,6 +196,14 @@ public class ManagementGridAndDeleteTests
         public Task WriteAsync(Guid? userId, string action, string resource, string? resourceId, string? detail, string result = "Success", HttpContext? httpContext = null)
         {
             return Task.CompletedTask;
+        }
+    }
+
+    private sealed class NoopLeaveEntitlementService : ILeaveEntitlementService
+    {
+        public Task<LeaveEntitlementInitializationResult> InitializeAsync(Guid userId, int fiscalYear, DateOnly effectiveDate, Guid? initiatedByUserId, string reason, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(new LeaveEntitlementInitializationResult(userId, fiscalYear, 0, 0, 0, [], []));
         }
     }
 

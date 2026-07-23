@@ -43,6 +43,8 @@ const emptyStep: SaveApprovalChainStepRequest = {
   isActive: true,
 };
 
+const shrinkLabelProps = { shrink: true };
+
 export function ApprovalChainFormPage() {
   const { id } = useParams();
   const isEdit = Boolean(id);
@@ -131,23 +133,23 @@ export function ApprovalChainFormPage() {
         <Card>
           <CardContent>
             <Stack component="form" spacing={2} onSubmit={chainForm.handleSubmit((values) => saveChainMutation.mutate(values))}>
-              <TextField label="ชื่อกฎการอนุมัติ" error={Boolean(chainForm.formState.errors.name)} helperText={chainForm.formState.errors.name?.message} {...chainForm.register("name", { required: "กรุณากรอกชื่อกฎการอนุมัติ" })} />
-              <TextField label="รายละเอียด" {...chainForm.register("description")} />
+              <TextField label="ชื่อกฎการอนุมัติ" InputLabelProps={shrinkLabelProps} error={Boolean(chainForm.formState.errors.name)} helperText={chainForm.formState.errors.name?.message} {...chainForm.register("name", { required: "กรุณากรอกชื่อกฎการอนุมัติ" })} />
+              <TextField label="รายละเอียด" InputLabelProps={shrinkLabelProps} {...chainForm.register("description")} />
               <Grid container spacing={2}>
                 <Grid item xs={12} md={4}>
-                  <TextField fullWidth select label="หน่วยงาน" defaultValue="" {...chainForm.register("departmentId")}>
+                  <TextField fullWidth select label="หน่วยงาน" InputLabelProps={shrinkLabelProps} defaultValue="" {...chainForm.register("departmentId")}>
                     <MenuItem value="">ไม่จำกัดหน่วยงาน</MenuItem>
                     {departments.map((item) => <MenuItem key={item.id} value={item.id}>{item.name}</MenuItem>)}
                   </TextField>
                 </Grid>
                 <Grid item xs={12} md={4}>
-                  <TextField fullWidth select label="ประเภทการลา" defaultValue="" {...chainForm.register("leaveTypeId")}>
+                  <TextField fullWidth select label="ประเภทการลา" InputLabelProps={shrinkLabelProps} defaultValue="" {...chainForm.register("leaveTypeId")}>
                     <MenuItem value="">ไม่จำกัดประเภท</MenuItem>
                     {leaveTypes.map((item) => <MenuItem key={item.id} value={item.id}>{getLeaveTypeLabel(item.name || item.code)}</MenuItem>)}
                   </TextField>
                 </Grid>
                 <Grid item xs={12} md={4}>
-                  <TextField fullWidth type="number" label="จำนวนวันขั้นต่ำ" inputProps={{ min: 0, step: 0.5 }} {...chainForm.register("minimumDays")} />
+                  <TextField fullWidth type="number" label="จำนวนวันขั้นต่ำ" InputLabelProps={shrinkLabelProps} inputProps={{ min: 0, step: 0.5 }} {...chainForm.register("minimumDays")} />
                 </Grid>
               </Grid>
               <Controller name="isActive" control={chainForm.control} render={({ field }) => <FormControlLabel control={<Checkbox checked={field.value} onChange={(event) => field.onChange(event.target.checked)} />} label="เปิดใช้งาน" />} />
@@ -167,25 +169,25 @@ export function ApprovalChainFormPage() {
                 <Stack component="form" spacing={2} onSubmit={stepForm.handleSubmit((values) => saveStepMutation.mutate(values))}>
                   <Grid container spacing={2}>
                     <Grid item xs={12} md={2}>
-                      <TextField fullWidth type="number" label="ลำดับ" inputProps={{ min: 1 }} {...stepForm.register("stepOrder", { required: true })} />
+                      <TextField fullWidth type="number" label="ลำดับ" InputLabelProps={shrinkLabelProps} inputProps={{ min: 1 }} {...stepForm.register("stepOrder", { required: true })} />
                     </Grid>
                     <Grid item xs={12} md={4}>
-                      <TextField fullWidth label="ชื่อขั้นอนุมัติ" {...stepForm.register("name", { required: true })} />
+                      <TextField fullWidth label="ชื่อขั้นอนุมัติ" InputLabelProps={shrinkLabelProps} {...stepForm.register("name", { required: true })} />
                     </Grid>
                     <Grid item xs={12} md={3}>
-                      <TextField fullWidth select label="บทบาทผู้อนุมัติ" defaultValue="" {...stepForm.register("approverRoleId")}>
+                      <TextField fullWidth select label="บทบาทผู้อนุมัติ" InputLabelProps={shrinkLabelProps} defaultValue="" {...stepForm.register("approverRoleId")}>
                         <MenuItem value="">ไม่ระบุ</MenuItem>
                         {roles.map((item) => <MenuItem key={item.id} value={item.id}>{getRoleLabel(item.name)}</MenuItem>)}
                       </TextField>
                     </Grid>
                     <Grid item xs={12} md={3}>
-                      <TextField fullWidth select label="ผู้อนุมัติเฉพาะราย" defaultValue="" {...stepForm.register("approverUserId")}>
+                      <TextField fullWidth select label="ผู้อนุมัติเฉพาะราย" InputLabelProps={shrinkLabelProps} defaultValue="" {...stepForm.register("approverUserId")}>
                         <MenuItem value="">ไม่ระบุ</MenuItem>
                         {users.map((item) => <MenuItem key={item.id} value={item.id}>{item.fullname}</MenuItem>)}
                       </TextField>
                     </Grid>
                     <Grid item xs={12} md={6}>
-                      <TextField fullWidth select label="Permission ที่ต้องมี" defaultValue="LeaveApproval.ApproveCurrentStep" {...stepForm.register("requiredPermissionCode")}>
+                      <TextField fullWidth select label="Permission ที่ต้องมี" InputLabelProps={shrinkLabelProps} defaultValue="LeaveApproval.ApproveCurrentStep" {...stepForm.register("requiredPermissionCode")}>
                         {permissions.map((item) => <MenuItem key={item.id} value={item.code}>{item.code}</MenuItem>)}
                       </TextField>
                     </Grid>

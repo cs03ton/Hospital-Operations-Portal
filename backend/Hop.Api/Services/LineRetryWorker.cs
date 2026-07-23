@@ -9,7 +9,7 @@ public sealed class LineRetryWorker(
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        if (!configuration.GetValue("LineRetry:Enabled", false))
+        if (!configuration.GetValue("LineRetry:Enabled", true))
         {
             logger.LogInformation("LINE retry worker is disabled.");
             return;

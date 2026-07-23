@@ -5,6 +5,7 @@ import { alpha, useTheme } from "@mui/material/styles";
 import { useQuery } from "@tanstack/react-query";
 import { Link as RouterLink } from "react-router-dom";
 import { getDashboardSummary } from "../api/adminApi";
+import { getFeaturedAnnouncements } from "../api/announcementsApi";
 import { PageHeader } from "../components/PageHeader";
 import { dashboardModules, getDashboardModuleMetricLabel, getVisibleDashboardModules } from "../config/dashboardModules";
 import { hospitalName } from "../config/appConfig";
@@ -19,6 +20,11 @@ export function DashboardHubPage() {
     queryKey: ["dashboard-summary", "hub"],
     queryFn: getDashboardSummary,
   });
+  const { data: featuredAnnouncements = [] } = useQuery({
+    queryKey: ["announcements", "featured", "hub"],
+    queryFn: getFeaturedAnnouncements,
+    enabled: Boolean(user?.permissions?.includes("Announcement.View")),
+  });
 
   return (
     <Box>
@@ -31,6 +37,33 @@ export function DashboardHubPage() {
         <Alert severity="warning" sx={{ mb: 2 }}>
           ไม่สามารถโหลดตัวเลขสรุปได้ในขณะนี้ ระบบจะแสดงข้อมูลเริ่มต้นแทน
         </Alert>
+      )}
+
+      {featuredAnnouncements.length > 0 && (
+        <Card
+          sx={{
+            mb: 2.5,
+            border: `1px solid ${brandColors.border}`,
+            borderTop: `4px solid ${brandColors.accent}`,
+            boxShadow: `0 14px 34px ${alpha(theme.palette.primary.dark, 0.06)}`,
+          }}
+        >
+          <CardContent>
+            <Stack direction={{ xs: "column", md: "row" }} spacing={2} alignItems={{ xs: "stretch", md: "center" }} justifyContent="space-between">
+              <Box>
+                <Typography variant="h6" fontWeight={900} color="primary.dark">
+                  ประกาศสำคัญล่าสุด
+                </Typography>
+                <Typography color="text.secondary">
+                  {featuredAnnouncements[0].title}
+                </Typography>
+              </Box>
+              <Button component={RouterLink} to={`/announcements/${featuredAnnouncements[0].id}`} variant="outlined" endIcon={<ArrowForwardOutlinedIcon />}>
+                อ่านประกาศ
+              </Button>
+            </Stack>
+          </CardContent>
+        </Card>
       )}
 
       <Grid container spacing={2.5}>

@@ -23,13 +23,15 @@ public sealed class LeaveRequestAccessService(AppDbContext db) : ILeaveRequestAc
             .Select(item => item.DepartmentId)
             .FirstOrDefaultAsync();
 
+        var canViewPendingApproval = permissions.Contains(LeavePermissions.ViewPendingApproval) ||
+            permissions.Contains(LeavePermissions.ApproveCurrentStep);
         var canViewAll = permissions.Contains(LeavePermissions.ViewAll) ||
             permissions.Contains(LeavePermissions.SupportViewAll);
         var isDepartmentHead = roles.Contains("DepartmentHead");
 
         return new LeaveRequestVisibility(
             permissions.Contains(LeavePermissions.ViewOwn) || isDepartmentHead || canViewAll,
-            permissions.Contains(LeavePermissions.ViewPendingApproval),
+            canViewPendingApproval,
             permissions.Contains(LeavePermissions.ViewDepartment) || isDepartmentHead,
             canViewAll,
             departmentId,

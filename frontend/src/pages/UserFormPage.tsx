@@ -26,6 +26,7 @@ import {
   type SaveUserRequest,
 } from "../api/adminApi";
 import { getApprovalChains } from "../api/leaveApi";
+import { AppDatePicker } from "../components/common/AppDatePicker";
 import { PageHeader } from "../components/PageHeader";
 import { useSaveFeedback } from "../hooks/useSaveFeedback";
 import { employmentTypeOptions } from "../utils/employmentLabels";
@@ -303,13 +304,18 @@ export function UserFormPage() {
                 </FormControl>
               )}
             />
-            <TextField
-              fullWidth
-              label="วันที่เริ่มปฏิบัติงาน"
-              InputLabelProps={{ shrink: true }}
-              type="date"
-              helperText="ใช้ตรวจเงื่อนไขอายุงาน เช่น สิทธิ์ลาพักผ่อนหรือสิทธิ์ลาป่วยปีแรก"
-              {...register("employmentStartDate")}
+            <Controller
+              name="employmentStartDate"
+              control={control}
+              render={({ field }) => (
+                <AppDatePicker
+                  label="วันที่เริ่มปฏิบัติงาน"
+                  value={field.value}
+                  onChange={field.onChange}
+                  helperText="ใช้ตรวจเงื่อนไขอายุงาน เช่น สิทธิ์ลาพักผ่อนหรือสิทธิ์ลาป่วยปีแรก"
+                  buddhistYear
+                />
+              )}
             />
             <TextField
               fullWidth

@@ -1,4 +1,4 @@
-export type AppStatusDomain = "leave" | "backup" | "diagnostics" | "notificationPriority" | "notificationType" | "lineBinding" | "active";
+export type AppStatusDomain = "leave" | "backup" | "diagnostics" | "notificationPriority" | "notificationType" | "lineBinding" | "active" | "announcement" | "announcementPriority";
 
 export type StatusTone = "default" | "success" | "warning" | "error" | "info";
 
@@ -57,6 +57,19 @@ const statusMaps: Record<AppStatusDomain, Record<string, StatusMeta>> = {
   active: {
     active: { label: "ใช้งาน", tone: "success" },
     inactive: { label: "ปิดใช้งาน", tone: "default" },
+  },
+  announcement: {
+    Draft: { label: "แบบร่าง", tone: "default" },
+    Scheduled: { label: "ตั้งเวลา", tone: "info" },
+    Published: { label: "เผยแพร่แล้ว", tone: "success" },
+    Expired: { label: "หมดอายุ", tone: "warning" },
+    Archived: { label: "จัดเก็บแล้ว", tone: "default" },
+    Cancelled: { label: "ยกเลิก", tone: "error" },
+  },
+  announcementPriority: {
+    Normal: { label: "ปกติ", tone: "info" },
+    Important: { label: "สำคัญ", tone: "warning" },
+    Critical: { label: "เร่งด่วน", tone: "error" },
   },
 };
 

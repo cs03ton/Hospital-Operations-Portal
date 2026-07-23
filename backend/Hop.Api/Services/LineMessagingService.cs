@@ -72,7 +72,7 @@ public sealed class LineMessagingService(
         await NotifyUserPayloadAsync(userId, eventName, payload, leaveRequestId, cancellationToken);
     }
 
-    public async Task NotifyUserPayloadAsync(Guid userId, string eventName, string payload, Guid? leaveRequestId = null, CancellationToken cancellationToken = default)
+    public async Task<LineDeliveryLog> NotifyUserPayloadAsync(Guid userId, string eventName, string payload, Guid? leaveRequestId = null, CancellationToken cancellationToken = default)
     {
         var enabled = IsLineEnabled();
         var deliveryLog = new LineDeliveryLog
@@ -93,11 +93,12 @@ public sealed class LineMessagingService(
         if (!enabled)
         {
             logger.LogInformation("LINE notification disabled: event {EventName} leave request {LeaveRequestId}.", eventName, leaveRequestId);
-            return;
+            return deliveryLog;
         }
 
         await SendAsync(deliveryLog, userId, payload, cancellationToken);
         await db.SaveChangesAsync(cancellationToken);
+        return deliveryLog;
     }
 
     public async Task<LineTestSendResponse> SendTestMessageAsync(string toUserId, string message, CancellationToken cancellationToken = default)

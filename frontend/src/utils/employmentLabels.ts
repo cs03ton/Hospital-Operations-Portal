@@ -1,5 +1,6 @@
 export const employmentTypeLabels: Record<string, string> = {
   CIVIL_SERVANT: "ข้าราชการ",
+  PERMANENT_EMPLOYEE: "ลูกจ้างประจำ",
   GOVERNMENT_EMPLOYEE: "พนักงานราชการ",
   MOPH_EMPLOYEE: "พนักงานกระทรวงสาธารณสุข",
   TEMPORARY_EMPLOYEE_MONTHLY: "ลูกจ้างชั่วคราวรายเดือน",
