@@ -9,7 +9,8 @@ namespace Hop.Api.Services;
 public sealed class AnnouncementMediaStorageService(
     IConfiguration configuration,
     IOptions<AnnouncementStorageOptions> options,
-    IFileScanningService fileScanningService) : IAnnouncementMediaStorageService
+    IFileScanningService fileScanningService,
+    IFileTypeValidationService fileTypeValidationService) : IAnnouncementMediaStorageService
 {
     private static readonly Dictionary<string, string> ImageMimeTypes = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -116,6 +117,15 @@ public sealed class AnnouncementMediaStorageService(
         await ValidateCommonAsync(file, storageOptions.MaxAttachmentSizeBytes, cancellationToken);
         var extension = ValidateExtension(file.FileName, storageOptions.AllowedAttachmentExtensions);
         ValidateAttachmentContentType(file, extension);
+        var allowedExtensions = storageOptions.AllowedAttachmentExtensions
+            .Select(item => item.StartsWith('.') ? item.ToLowerInvariant() : $".{item.ToLowerInvariant()}")
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var validation = await fileTypeValidationService.ValidateAsync(file, allowedExtensions, cancellationToken);
+        if (!validation.IsValid)
+        {
+            throw new InvalidOperationException("ชนิดไฟล์ไม่ตรงกับข้อมูลภายในไฟล์");
+        }
+
         await ScanAsync(file, cancellationToken);
 
         var now = DateTime.UtcNow;

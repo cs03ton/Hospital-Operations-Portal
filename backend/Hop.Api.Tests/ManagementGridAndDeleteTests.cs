@@ -7,6 +7,7 @@ using Hop.Api.Models;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Hosting;
 using Xunit;
@@ -28,7 +29,7 @@ public class ManagementGridAndDeleteTests
         AddUser(db, "head01", "หัวหน้าหน่วยงาน", department.Id);
         await db.SaveChangesAsync();
 
-        var controller = new UsersController(db, new NoopAuditLogService(), new FakeHostEnvironment(), new NoopLeaveEntitlementService());
+        var controller = new UsersController(db, new NoopAuditLogService(), new FakeHostEnvironment(), CreateConfiguration(), new NoopLeaveEntitlementService());
 
         var result = await controller.GetUsers(page: 1, pageSize: 10, search: "staff01");
 
@@ -45,6 +46,37 @@ public class ManagementGridAndDeleteTests
         await using var db = CreateDbContext();
         var adminId = Guid.NewGuid();
         var user = AddUser(db, "staff.delete", "เจ้าหน้าที่ลบ", null);
+        user.EmployeeCode = "DEL001";
+        user.Position = "เจ้าหน้าที่";
+        user.Email = "staff.delete@example.local";
+        user.PhoneNumber = "0812345678";
+        user.LineUserId = "Udeletedtest";
+        var staffRole = new Role { Id = Guid.NewGuid(), Name = "Staff", IsActive = true };
+        db.Roles.Add(staffRole);
+        db.UserRoles.Add(new UserRole { UserId = user.Id, RoleId = staffRole.Id, User = user, Role = staffRole });
+        db.RefreshTokens.Add(new RefreshToken
+        {
+            Id = Guid.NewGuid(),
+            UserId = user.Id,
+            Token = "refresh-token",
+            ExpiresAt = DateTime.UtcNow.AddDays(7)
+        });
+        db.LineUserBindings.Add(new LineUserBinding
+        {
+            Id = Guid.NewGuid(),
+            LineUserId = user.LineUserId,
+            UserId = user.Id,
+            Status = "Bound",
+            BoundAt = DateTime.UtcNow
+        });
+        db.LineConnectTokens.Add(new LineConnectToken
+        {
+            Id = Guid.NewGuid(),
+            UserId = user.Id,
+            Token = "connect-token",
+            ShortCode = "HOP-123456",
+            ExpiresAt = DateTime.UtcNow.AddMinutes(10)
+        });
         db.LeaveTypes.Add(new LeaveType { Id = Guid.NewGuid(), Code = "VACATION_LEAVE", Name = "ลาพักผ่อน", IsActive = true });
         var leaveTypeId = db.LeaveTypes.Local.Single().Id;
         db.LeaveRequests.Add(new LeaveRequest
@@ -60,7 +92,7 @@ public class ManagementGridAndDeleteTests
         });
         await db.SaveChangesAsync();
 
-        var controller = new UsersController(db, new NoopAuditLogService(), new FakeHostEnvironment(), new NoopLeaveEntitlementService());
+        var controller = new UsersController(db, new NoopAuditLogService(), new FakeHostEnvironment(), CreateConfiguration(), new NoopLeaveEntitlementService());
         SetUserContext(controller, adminId);
 
         var result = await controller.DeleteUser(user.Id);
@@ -69,6 +101,76 @@ public class ManagementGridAndDeleteTests
         Assert.Equal("SoftDeleted", response.Data?.Action);
         var savedUser = await db.Users.SingleAsync(item => item.Id == user.Id);
         Assert.False(savedUser.IsActive);
+        Assert.StartsWith("deleted-", savedUser.Username);
+        Assert.Equal("ผู้ใช้ที่ถูกลบ", savedUser.FullName);
+        Assert.Null(savedUser.EmployeeCode);
+        Assert.Null(savedUser.Email);
+        Assert.Null(savedUser.PhoneNumber);
+        Assert.Null(savedUser.LineUserId);
+        Assert.Null(savedUser.DepartmentId);
+        Assert.Empty(await db.UserRoles.Where(item => item.UserId == user.Id).ToListAsync());
+        Assert.NotNull((await db.RefreshTokens.SingleAsync(item => item.UserId == user.Id)).RevokedAt);
+        Assert.False(await db.LineConnectTokens.AnyAsync(item => item.UserId == user.Id));
+        var binding = await db.LineUserBindings.SingleAsync(item => item.LineUserId == "Udeletedtest");
+        Assert.Null(binding.UserId);
+        Assert.Equal("Unbound", binding.Status);
+    }
+
+    [Fact]
+    public async Task DeleteUser_WithOnlyAuditAndAccessData_HardDeletesAndCleansReferences()
+    {
+        await using var db = CreateDbContext();
+        var adminId = Guid.NewGuid();
+        var user = AddUser(db, "uat.delete", "UAT Delete", null);
+        var role = new Role { Id = Guid.NewGuid(), Name = "Staff", IsActive = true };
+        db.Roles.Add(role);
+        db.UserRoles.Add(new UserRole { UserId = user.Id, RoleId = role.Id, User = user, Role = role });
+        db.RefreshTokens.Add(new RefreshToken
+        {
+            Id = Guid.NewGuid(),
+            UserId = user.Id,
+            Token = "uat-refresh-token",
+            ExpiresAt = DateTime.UtcNow.AddDays(7)
+        });
+        db.AuditLogs.Add(new AuditLog
+        {
+            Id = Guid.NewGuid(),
+            UserId = user.Id,
+            EntityName = "User",
+            EntityId = user.Id.ToString(),
+            Action = "User.Create"
+        });
+        db.Notifications.Add(new Notification
+        {
+            Id = Guid.NewGuid(),
+            UserId = user.Id,
+            Title = "test",
+            Message = "test"
+        });
+        db.LineUserBindings.Add(new LineUserBinding
+        {
+            Id = Guid.NewGuid(),
+            LineUserId = "Uuatdelete",
+            UserId = user.Id,
+            Status = "Bound"
+        });
+        await db.SaveChangesAsync();
+
+        var controller = new UsersController(db, new NoopAuditLogService(), new FakeHostEnvironment(), CreateConfiguration(), new NoopLeaveEntitlementService());
+        SetUserContext(controller, adminId);
+
+        var result = await controller.DeleteUser(user.Id);
+
+        var response = Assert.IsType<ApiResponse<DeleteResultResponse>>(result.Value);
+        Assert.Equal("Deleted", response.Data?.Action);
+        Assert.False(await db.Users.AnyAsync(item => item.Id == user.Id));
+        Assert.False(await db.AuditLogs.AnyAsync(item => item.UserId == user.Id || item.EntityId == user.Id.ToString()));
+        Assert.False(await db.RefreshTokens.AnyAsync(item => item.UserId == user.Id));
+        Assert.False(await db.UserRoles.AnyAsync(item => item.UserId == user.Id));
+        Assert.False(await db.Notifications.AnyAsync(item => item.UserId == user.Id));
+        var binding = await db.LineUserBindings.SingleAsync(item => item.LineUserId == "Uuatdelete");
+        Assert.Null(binding.UserId);
+        Assert.Equal("Unbound", binding.Status);
     }
 
     [Fact]
@@ -81,7 +183,7 @@ public class ManagementGridAndDeleteTests
         db.UserRoles.Add(new UserRole { UserId = admin.Id, RoleId = role.Id, User = admin, Role = role });
         await db.SaveChangesAsync();
 
-        var controller = new UsersController(db, new NoopAuditLogService(), new FakeHostEnvironment(), new NoopLeaveEntitlementService());
+        var controller = new UsersController(db, new NoopAuditLogService(), new FakeHostEnvironment(), CreateConfiguration(), new NoopLeaveEntitlementService());
         SetUserContext(controller, Guid.NewGuid());
 
         var result = await controller.DeleteUser(admin.Id);
@@ -176,6 +278,16 @@ public class ManagementGridAndDeleteTests
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options;
         return new AppDbContext(options);
+    }
+
+    private static IConfiguration CreateConfiguration()
+    {
+        return new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Storage:RootPath"] = Path.Combine(Path.GetTempPath(), "hop-tests-storage")
+            })
+            .Build();
     }
 
     private static void SetUserContext(ControllerBase controller, Guid userId)

@@ -42,6 +42,8 @@ services:
       Jwt__Key: ${Jwt__Key:?Jwt__Key is required}
       Jwt__Issuer: ${Jwt__Issuer:-Hop.Api}
       Jwt__Audience: ${Jwt__Audience:-Hop.Client}
+      Jwt__AccessTokenMinutes: ${Jwt__AccessTokenMinutes:-15}
+      Jwt__ClockSkewMinutes: ${Jwt__ClockSkewMinutes:-2}
       Hospital__Name: ${Hospital__Name:?Hospital__Name is required}
       Storage__RootPath: ${Storage__RootPath:-/app/storage}
       Storage__PublicBaseUrl: ${Storage__PublicBaseUrl:?Storage__PublicBaseUrl is required}
@@ -77,6 +79,7 @@ services:
       Cors__AllowedOrigins__0: ${PUBLIC_APP_URL:?PUBLIC_APP_URL is required}
       LoginRateLimit__Enabled: ${LoginRateLimit__Enabled:-true}
       AuditLog__RetentionDays: ${AuditLog__RetentionDays:-365}
+      ForwardedHeaders__KnownProxies__0: ${ForwardedHeaders__KnownProxies__0:-}
     depends_on:
       postgres:
         condition: service_healthy

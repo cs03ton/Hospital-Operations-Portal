@@ -9,6 +9,23 @@
 - รองรับ hardened cookie mode พร้อม CSRF protection
 - password hash ด้วย BCrypt
 - login rate limit ป้องกัน brute force เบื้องต้น
+- ค่า `Jwt__AccessTokenMinutes` ควรตั้งเป็น 15 นาทีใน production
+- refresh token รุ่นใหม่ถูกเก็บแบบ hash at rest ผ่าน `refresh_tokens.token_hash`
+
+## MFA Readiness
+
+Phase 1 ยังไม่เปิดใช้งาน MFA จริง แต่กำหนดแนวทางรองรับไว้สำหรับ Phase ถัดไป:
+
+1. เพิ่มสถานะระดับบัญชี เช่น `MfaEnabled`, `MfaMethod`, `MfaEnrolledAt`
+2. รองรับวิธี MFA แบบ TOTP หรือ LINE second factor ตามนโยบายโรงพยาบาล
+3. ใช้ step-up authentication เฉพาะงานสำคัญ เช่น reset password, permission change, backup restore, superadmin override
+4. บันทึก audit event เช่น `Auth.MfaChallenge`, `Auth.MfaSuccess`, `Auth.MfaFailed`
+5. ไม่เก็บ secret ของ TOTP แบบ plaintext และต้องเข้ารหัสหรือป้องกันด้วย secret manager
+
+ข้อเสนอสำหรับ production hardening ระยะถัดไป:
+
+- เพิ่ม `SecurityStamp` หรือ `TokenVersion` ใน user เพื่อ revoke access token ได้ทันทีหลังเปลี่ยนรหัสผ่าน/เปลี่ยนสิทธิ์
+- เพิ่ม policy บังคับ MFA สำหรับ Admin/SuperAdmin ก่อนเปิดใช้งาน production เต็มรูปแบบ
 
 ## Self-Service Password Change
 

@@ -4,7 +4,7 @@ ARG VITE_API_BASE_URL=
 ARG VITE_APP_NAME="Hospital Operations Portal"
 ARG VITE_HOSPITAL_NAME="โรงพยาบาลนาหมื่น"
 ARG VITE_APP_VERSION=1.0.0
-ARG VITE_AUTH_TOKEN_STORAGE_MODE=localStorage
+ARG VITE_AUTH_TOKEN_STORAGE_MODE=cookie
 ARG VITE_AUTH_CSRF_COOKIE_NAME=hop_csrf_token
 ARG VITE_AUTH_CSRF_HEADER_NAME=X-CSRF-TOKEN
 ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
@@ -21,7 +21,7 @@ RUN npm install
 COPY frontend/ ./
 RUN npm run build
 
-FROM nginx:1.27-alpine AS runtime
-COPY --from=build /app/dist /usr/share/nginx/html
-EXPOSE 80
+FROM nginxinc/nginx-unprivileged:1.27-alpine AS runtime
+COPY --from=build --chown=nginx:nginx /app/dist /usr/share/nginx/html
+EXPOSE 8080
 CMD ["nginx", "-g", "daemon off;"]

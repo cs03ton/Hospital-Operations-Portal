@@ -3,7 +3,9 @@ using Hop.Api.Models;
 
 namespace Hop.Api.Services;
 
-public sealed class LeaveAttachmentStorageService(IConfiguration configuration) : ILeaveAttachmentStorageService
+public sealed class LeaveAttachmentStorageService(
+    IConfiguration configuration,
+    IFileTypeValidationService fileTypeValidationService) : ILeaveAttachmentStorageService
 {
     public async Task<LeaveAttachment> SaveAsync(Guid leaveRequestId, Guid uploadedByUserId, IFormFile file)
     {
@@ -34,6 +36,12 @@ public sealed class LeaveAttachmentStorageService(IConfiguration configuration) 
         if (!allowedExtensions.Contains(extension))
         {
             throw new InvalidOperationException("File type is not allowed.");
+        }
+
+        var validation = await fileTypeValidationService.ValidateAsync(file, allowedExtensions);
+        if (!validation.IsValid)
+        {
+            throw new InvalidOperationException(validation.ErrorMessage ?? "File content validation failed.");
         }
 
         var now = DateTime.UtcNow;

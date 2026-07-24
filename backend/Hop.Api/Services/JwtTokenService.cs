@@ -40,7 +40,7 @@ public class JwtTokenService(IConfiguration configuration) : IJwtTokenService
             issuer: configuration["Jwt:Issuer"],
             audience: configuration["Jwt:Audience"],
             claims: claims,
-            expires: DateTime.UtcNow.AddMinutes(60),
+            expires: DateTime.UtcNow.AddMinutes(configuration.GetValue("Jwt:AccessTokenMinutes", 15)),
             signingCredentials: credentials);
 
         return new JwtSecurityTokenHandler().WriteToken(token);

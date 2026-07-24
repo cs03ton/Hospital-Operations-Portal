@@ -24,10 +24,15 @@ sudo nano /etc/hop/hop-api.env
 |---|---|
 | `ConnectionStrings__DefaultConnection` | PostgreSQL connection string |
 | `Jwt__Key` | JWT signing key |
+| `Jwt__AccessTokenMinutes` | อายุ access token แนะนำ `15` นาที |
+| `Jwt__ClockSkewMinutes` | clock skew สำหรับตรวจ JWT แนะนำ `2` นาที |
 | `Line__AccessToken` | LINE Messaging API access token |
 | `Line__ChannelSecret` | LINE webhook signature verification |
 | `Storage__RootPath` | Runtime storage folder |
 | `Storage__PublicBaseUrl` | Public base URL for profile images/files |
+| `ForwardedHeaders__KnownProxies__0` | IP reverse proxy ที่เชื่อถือได้ เช่น `127.0.0.1` สำหรับ bare-metal nginx |
+
+อ่าน hardening checklist เพิ่มเติมได้ที่ `docs/NGINX-HARDENING.md`
 
 ## Production Startup
 

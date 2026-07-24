@@ -18,7 +18,9 @@ public class MeProfileController(
     IAuditLogService auditLogService,
     ILineUserBindingService lineUserBindingService,
     ILineMessagingService lineMessagingService,
-    IHostEnvironment environment) : ControllerBase
+    IHostEnvironment environment,
+    IConfiguration configuration,
+    IFileTypeValidationService fileTypeValidationService) : ControllerBase
 {
     private static readonly Regex PhoneRegex = new(@"^[0-9+\-\s()]{6,30}$", RegexOptions.Compiled);
     private static readonly Regex EmailRegex = new(@"^[^@\s]+@[^@\s]+\.[^@\s]+$", RegexOptions.Compiled);
@@ -33,6 +35,13 @@ public class MeProfileController(
         ["image/jpeg"] = ".jpg",
         ["image/png"] = ".png",
         ["image/webp"] = ".webp"
+    };
+    private static readonly HashSet<string> AllowedProfileImageExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ".jpg",
+        ".jpeg",
+        ".png",
+        ".webp"
     };
     private const long MaxProfileImageBytes = 2 * 1024 * 1024;
 
@@ -143,6 +152,18 @@ public class MeProfileController(
         }
 
         var extension = ProfileImageExtensions[file.ContentType];
+        var fileExtension = Path.GetExtension(file.FileName).ToLowerInvariant();
+        if (string.IsNullOrWhiteSpace(fileExtension) || !AllowedProfileImageExtensions.Contains(fileExtension))
+        {
+            return BadRequest(ApiResponse<ProfileImageUploadResponse>.Fail("รองรับเฉพาะไฟล์ JPG, PNG หรือ WEBP เท่านั้น"));
+        }
+
+        var validation = await fileTypeValidationService.ValidateAsync(file, AllowedProfileImageExtensions);
+        if (!validation.IsValid)
+        {
+            return BadRequest(ApiResponse<ProfileImageUploadResponse>.Fail("ไฟล์รูปโปรไฟล์ไม่ตรงกับชนิดไฟล์ที่รองรับ"));
+        }
+
         var storageDirectory = GetProfileImageDirectory(user.Id);
         Directory.CreateDirectory(storageDirectory);
         DeleteExistingProfileImageFiles(storageDirectory);
@@ -376,19 +397,19 @@ public class MeProfileController(
 
     private string GetProfileImageDirectory(Guid userId)
     {
-        return Path.Combine(environment.ContentRootPath, "storage", "profile-images", userId.ToString("N"));
+        return Path.Combine(GetStorageRoot(), "profile-images", userId.ToString("N"));
     }
 
     private string ToStorageRelativePath(string absolutePath)
     {
-        var storageRoot = Path.GetFullPath(Path.Combine(environment.ContentRootPath, "storage"));
+        var storageRoot = GetStorageRoot();
         var fullPath = Path.GetFullPath(absolutePath);
         if (!fullPath.StartsWith(storageRoot, StringComparison.OrdinalIgnoreCase))
         {
             throw new InvalidOperationException("Invalid profile image storage path.");
         }
 
-        return Path.GetRelativePath(environment.ContentRootPath, fullPath).Replace('\\', '/');
+        return Path.GetRelativePath(storageRoot, fullPath).Replace('\\', '/');
     }
 
     private string? ResolveStoragePath(string relativePath)
@@ -398,9 +419,25 @@ public class MeProfileController(
             return null;
         }
 
-        var storageRoot = Path.GetFullPath(Path.Combine(environment.ContentRootPath, "storage"));
-        var absolutePath = Path.GetFullPath(Path.Combine(environment.ContentRootPath, relativePath));
+        var storageRoot = GetStorageRoot();
+        var normalizedRelativePath = relativePath.Replace('/', Path.DirectorySeparatorChar);
+        if (normalizedRelativePath.StartsWith($"storage{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase))
+        {
+            normalizedRelativePath = normalizedRelativePath[$"storage{Path.DirectorySeparatorChar}".Length..];
+        }
+
+        var absolutePath = Path.GetFullPath(Path.Combine(storageRoot, normalizedRelativePath));
         return absolutePath.StartsWith(storageRoot, StringComparison.OrdinalIgnoreCase) ? absolutePath : null;
+    }
+
+    private string GetStorageRoot()
+    {
+        var configuredRoot = configuration["Storage:RootPath"] ?? configuration["STORAGE_ROOT_PATH"];
+        var root = string.IsNullOrWhiteSpace(configuredRoot)
+            ? Path.Combine(environment.ContentRootPath, "storage")
+            : configuredRoot;
+
+        return Path.GetFullPath(root);
     }
 
     private static void DeleteExistingProfileImageFiles(string storageDirectory)

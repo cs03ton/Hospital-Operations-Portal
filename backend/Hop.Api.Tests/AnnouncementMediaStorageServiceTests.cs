@@ -52,6 +52,17 @@ public class AnnouncementMediaStorageServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task SaveAttachmentAsync_RejectsSpoofedPdf()
+    {
+        var service = CreateService(new FileScanResult(true, "Test", "Clean"));
+        var file = CreateFormFile("fake.pdf", "application/pdf", "not a pdf"u8.ToArray());
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => service.SaveAttachmentAsync(Guid.NewGuid(), Guid.NewGuid(), file));
+
+        Assert.Equal("ชนิดไฟล์ไม่ตรงกับข้อมูลภายในไฟล์", ex.Message);
+    }
+
+    [Fact]
     public async Task SaveImageAsync_RejectsVirusScanFailure()
     {
         var service = CreateService(new FileScanResult(false, "Test", "Infected"));
@@ -76,7 +87,8 @@ public class AnnouncementMediaStorageServiceTests : IDisposable
         return new AnnouncementMediaStorageService(
             configuration,
             Options.Create(new AnnouncementStorageOptions()),
-            new StubFileScanningService(scanResult));
+            new StubFileScanningService(scanResult),
+            new FileTypeValidationService());
     }
 
     private static IFormFile CreateImageFormFile(string fileName, string contentType, SKEncodedImageFormat format = SKEncodedImageFormat.Jpeg)

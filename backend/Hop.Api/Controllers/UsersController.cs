@@ -17,6 +17,7 @@ public class UsersController(
     AppDbContext db,
     IAuditLogService auditLogService,
     IHostEnvironment environment,
+    IConfiguration configuration,
     ILeaveEntitlementService leaveEntitlementService) : ControllerBase
 {
     [HttpGet("{id:guid}/profile-image")]
@@ -377,26 +378,24 @@ public class UsersController(
         }
 
         var references = await GetUserDeleteReferences(id);
-        if (references.Any(item => item.Count > 0))
+        var hardDeleteBlockingReferences = await GetUserHardDeleteBlockingReferences(id);
+        if (hardDeleteBlockingReferences.Any(item => item.Count > 0))
         {
-            user.IsActive = false;
-            user.UpdatedAt = DateTime.UtcNow;
-            foreach (var refreshToken in await db.RefreshTokens.Where(item => item.UserId == id && item.RevokedAt == null).ToListAsync())
-            {
-                refreshToken.RevokedAt = DateTime.UtcNow;
-                refreshToken.RevokedReason = "User deleted by administrator";
-            }
+            var deletedUsername = user.Username;
+            await RemoveUserAccessArtifactsAsync(user, "User deleted by administrator");
+            AnonymizeDeletedUser(user);
 
             await db.SaveChangesAsync();
-            await auditLogService.WriteAsync(currentUserId, "User.SoftDelete", "User", user.Id.ToString(), $"Soft deleted user {user.Username}.", "Success", HttpContext);
+            await auditLogService.WriteAsync(currentUserId, "User.SoftDelete", "User", user.Id.ToString(), $"Soft deleted and anonymized user {deletedUsername}.", "Success", HttpContext);
 
             return ApiResponse<DeleteResultResponse>.Ok(new DeleteResultResponse(
                 "SoftDeleted",
-                "ไม่สามารถลบผู้ใช้งานได้ เนื่องจากมีข้อมูลอ้างอิงในระบบ ระบบจึงปิดการใช้งานผู้ใช้แทน",
+                "ลบผู้ใช้งานเรียบร้อยแล้ว ระบบเก็บประวัติที่จำเป็นไว้แบบไม่ระบุตัวตน",
                 references));
         }
 
-        db.UserRoles.RemoveRange(user.UserRoles);
+        await RemoveUserAccessArtifactsAsync(user, "User deleted by administrator", deleteRefreshTokens: true);
+        await RemoveUserDisposableReferencesAsync(id);
         db.Users.Remove(user);
         await db.SaveChangesAsync();
         await auditLogService.WriteAsync(currentUserId, "User.Delete", "User", user.Id.ToString(), $"Deleted user {user.Username}.", "Success", HttpContext);
@@ -456,6 +455,130 @@ public class UsersController(
             new DeleteReferenceSummary("LINE Bindings", await db.LineUserBindings.CountAsync(item => item.UserId == id)),
             new DeleteReferenceSummary("LINE Delivery Logs", await db.LineDeliveryLogs.CountAsync(item => item.RecipientUserId == id))
         ];
+    }
+
+    private async Task<IReadOnlyList<DeleteReferenceSummary>> GetUserHardDeleteBlockingReferences(Guid id)
+    {
+        return
+        [
+            new DeleteReferenceSummary("Leave Requests", await db.LeaveRequests.CountAsync(item => item.UserId == id)),
+            new DeleteReferenceSummary("Leave Approvals", await db.LeaveApprovals.CountAsync(item => item.ApproverId == id)),
+            new DeleteReferenceSummary("Current Approver", await db.LeaveRequests.CountAsync(item => item.CurrentApproverId == id)),
+            new DeleteReferenceSummary("Approval Chain Steps", await db.ApprovalChainSteps.CountAsync(item => item.ApproverUserId == id)),
+            new DeleteReferenceSummary("Approval Delegations", await db.ApprovalDelegations.CountAsync(item =>
+                item.ApproverUserId == id || item.DelegateUserId == id || item.CreatedByUserId == id)),
+            new DeleteReferenceSummary("Leave Balances", await db.LeaveBalances.CountAsync(item => item.UserId == id)),
+            new DeleteReferenceSummary("Leave Balance Adjustments", await db.LeaveBalanceAdjustments.CountAsync(item =>
+                item.UserId == id || item.AdjustedByUserId == id)),
+            new DeleteReferenceSummary("Announcements", await db.Announcements.CountAsync(item =>
+                item.CreatedByUserId == id || item.UpdatedByUserId == id || item.PublishedByUserId == id)),
+            new DeleteReferenceSummary("Announcement Files", await db.AnnouncementFiles.CountAsync(item => item.CreatedByUserId == id)),
+            new DeleteReferenceSummary("Announcement Images", await db.AnnouncementImages.CountAsync(item =>
+                item.CreatedByUserId == id || item.UpdatedByUserId == id))
+        ];
+    }
+
+    private async Task RemoveUserAccessArtifactsAsync(User user, string refreshTokenReason, bool deleteRefreshTokens = false)
+    {
+        var now = DateTime.UtcNow;
+
+        db.UserRoles.RemoveRange(user.UserRoles);
+
+        var refreshTokens = await db.RefreshTokens.Where(item => item.UserId == user.Id).ToListAsync();
+        if (deleteRefreshTokens)
+        {
+            db.RefreshTokens.RemoveRange(refreshTokens);
+        }
+        else
+        {
+            foreach (var refreshToken in refreshTokens.Where(item => item.RevokedAt == null))
+            {
+                refreshToken.RevokedAt = now;
+                refreshToken.RevokedReason = refreshTokenReason;
+            }
+        }
+
+        db.LinePairingCodes.RemoveRange(await db.LinePairingCodes.Where(item => item.UserId == user.Id).ToListAsync());
+        db.LineConnectTokens.RemoveRange(await db.LineConnectTokens.Where(item => item.UserId == user.Id).ToListAsync());
+
+        foreach (var binding in await db.LineUserBindings.Where(item => item.UserId == user.Id).ToListAsync())
+        {
+            binding.UserId = null;
+            binding.Status = "Unbound";
+            binding.UnboundAt ??= now;
+            binding.UpdatedAt = now;
+        }
+
+        DeleteProfileImageFile(user.ProfileImagePath);
+    }
+
+    private async Task RemoveUserDisposableReferencesAsync(Guid userId)
+    {
+        var userIdText = userId.ToString();
+
+        db.AuditLogs.RemoveRange(await db.AuditLogs
+            .Where(item => item.UserId == userId || (item.EntityName == "User" && item.EntityId == userIdText))
+            .ToListAsync());
+        db.Notifications.RemoveRange(await db.Notifications.Where(item => item.UserId == userId).ToListAsync());
+        db.LineDeliveryLogs.RemoveRange(await db.LineDeliveryLogs.Where(item => item.RecipientUserId == userId).ToListAsync());
+        db.AnnouncementReads.RemoveRange(await db.AnnouncementReads.Where(item => item.UserId == userId).ToListAsync());
+        db.AnnouncementNotificationDeliveries.RemoveRange(await db.AnnouncementNotificationDeliveries.Where(item => item.UserId == userId).ToListAsync());
+    }
+
+    private static void AnonymizeDeletedUser(User user)
+    {
+        var now = DateTime.UtcNow;
+        var suffix = user.Id.ToString("N")[..12];
+
+        user.EmployeeCode = null;
+        user.FullName = "ผู้ใช้ที่ถูกลบ";
+        user.Username = $"deleted-{suffix}";
+        user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(Guid.NewGuid().ToString("N"));
+        user.Position = null;
+        user.Email = null;
+        user.PhoneNumber = null;
+        user.LeaveContactAddress = null;
+        user.Gender = GenderTypes.Unknown;
+        user.EmploymentType = null;
+        user.EmploymentStartDate = null;
+        user.ProfileImageUrl = null;
+        user.ProfileImagePath = null;
+        user.ProfileImageFileName = null;
+        user.ProfileImageContentType = null;
+        user.ProfileImageUpdatedAt = null;
+        user.DepartmentId = null;
+        user.LeaveApprovalRuleId = null;
+        user.LineUserId = null;
+        user.IsActive = false;
+        user.UpdatedAt = now;
+        user.PasswordChangedAt = now;
+    }
+
+    private void DeleteProfileImageFile(string? relativePath)
+    {
+        if (string.IsNullOrWhiteSpace(relativePath))
+        {
+            return;
+        }
+
+        var absolutePath = ResolveStoragePath(relativePath);
+        if (absolutePath is null || !System.IO.File.Exists(absolutePath))
+        {
+            return;
+        }
+
+        try
+        {
+            System.IO.File.Delete(absolutePath);
+        }
+        catch (IOException)
+        {
+            // Profile cleanup should not block account removal. A later storage cleanup can retry.
+        }
+        catch (UnauthorizedAccessException)
+        {
+            // Profile cleanup should not block account removal. A later storage cleanup can retry.
+        }
     }
 
     private static UserResponse ToResponse(User user)
@@ -601,9 +724,25 @@ public class UsersController(
             return null;
         }
 
-        var storageRoot = Path.GetFullPath(Path.Combine(environment.ContentRootPath, "storage"));
-        var absolutePath = Path.GetFullPath(Path.Combine(environment.ContentRootPath, relativePath));
+        var storageRoot = GetStorageRoot();
+        var normalizedRelativePath = relativePath.Replace('/', Path.DirectorySeparatorChar);
+        if (normalizedRelativePath.StartsWith($"storage{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase))
+        {
+            normalizedRelativePath = normalizedRelativePath[$"storage{Path.DirectorySeparatorChar}".Length..];
+        }
+
+        var absolutePath = Path.GetFullPath(Path.Combine(storageRoot, normalizedRelativePath));
         return absolutePath.StartsWith(storageRoot, StringComparison.OrdinalIgnoreCase) ? absolutePath : null;
+    }
+
+    private string GetStorageRoot()
+    {
+        var configuredRoot = configuration["Storage:RootPath"] ?? configuration["STORAGE_ROOT_PATH"];
+        var root = string.IsNullOrWhiteSpace(configuredRoot)
+            ? Path.Combine(environment.ContentRootPath, "storage")
+            : configuredRoot;
+
+        return Path.GetFullPath(root);
     }
 
     private Guid? GetCurrentUserId()

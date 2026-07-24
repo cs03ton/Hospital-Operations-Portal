@@ -50,11 +50,13 @@ public class AuthController(AppDbContext db, IJwtTokenService jwtTokenService, I
         var roleName = GetRoleName(user);
         var accessToken = jwtTokenService.GenerateAccessToken(user, roleName);
         var refreshTokenValue = jwtTokenService.GenerateRefreshToken();
+        var refreshTokenHash = HashRefreshToken(refreshTokenValue);
 
         db.RefreshTokens.Add(new RefreshToken
         {
             UserId = user.Id,
-            Token = refreshTokenValue,
+            Token = refreshTokenHash,
+            TokenHash = refreshTokenHash,
             ExpiresAt = DateTime.UtcNow.AddDays(7),
             CreatedByIp = HttpContext.Connection.RemoteIpAddress?.ToString(),
             UserAgent = Request.Headers.UserAgent.ToString()
@@ -90,7 +92,7 @@ public class AuthController(AppDbContext db, IJwtTokenService jwtTokenService, I
                 .ThenInclude(userRole => userRole.Role)!
                     .ThenInclude(role => role!.RolePermissions)
                         .ThenInclude(rolePermission => rolePermission.Permission)
-            .FirstOrDefaultAsync(token => token.Token == refreshToken);
+            .FirstOrDefaultAsync(token => token.TokenHash == HashRefreshToken(refreshToken) || token.Token == refreshToken);
 
         if (storedToken is null || !storedToken.IsActive || storedToken.User is null || !storedToken.User.IsActive)
         {
@@ -121,11 +123,14 @@ public class AuthController(AppDbContext db, IJwtTokenService jwtTokenService, I
 
         var roleName = GetRoleName(storedToken.User);
         var newRefreshTokenValue = jwtTokenService.GenerateRefreshToken();
-        storedToken.ReplacedByToken = newRefreshTokenValue;
+        var newRefreshTokenHash = HashRefreshToken(newRefreshTokenValue);
+        storedToken.ReplacedByToken = newRefreshTokenHash;
+        storedToken.ReplacedByTokenHash = newRefreshTokenHash;
         db.RefreshTokens.Add(new RefreshToken
         {
             UserId = storedToken.UserId,
-            Token = newRefreshTokenValue,
+            Token = newRefreshTokenHash,
+            TokenHash = newRefreshTokenHash,
             ExpiresAt = DateTime.UtcNow.AddDays(7),
             CreatedByIp = HttpContext.Connection.RemoteIpAddress?.ToString(),
             UserAgent = Request.Headers.UserAgent.ToString()
@@ -150,7 +155,7 @@ public class AuthController(AppDbContext db, IJwtTokenService jwtTokenService, I
         if (!string.IsNullOrWhiteSpace(refreshToken))
         {
             var storedToken = await db.RefreshTokens
-                .FirstOrDefaultAsync(token => token.Token == refreshToken);
+                .FirstOrDefaultAsync(token => token.TokenHash == HashRefreshToken(refreshToken) || token.Token == refreshToken);
 
             if (storedToken is not null && storedToken.RevokedAt is null)
             {
@@ -346,6 +351,12 @@ public class AuthController(AppDbContext db, IJwtTokenService jwtTokenService, I
     private static string GenerateCsrfToken()
     {
         return Convert.ToHexString(RandomNumberGenerator.GetBytes(32));
+    }
+
+    private static string HashRefreshToken(string refreshToken)
+    {
+        var bytes = SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(refreshToken));
+        return Convert.ToHexString(bytes);
     }
 
     private static SameSiteMode ParseSameSite(string? value)

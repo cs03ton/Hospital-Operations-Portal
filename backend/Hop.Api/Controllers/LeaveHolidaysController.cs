@@ -9,6 +9,7 @@ using Microsoft.EntityFrameworkCore;
 using System.Globalization;
 using System.IO.Compression;
 using System.Text;
+using System.Xml;
 using System.Xml.Linq;
 
 namespace Hop.Api.Controllers;
@@ -20,6 +21,9 @@ public class LeaveHolidaysController(AppDbContext db, IAuditLogService auditLogS
 {
     private static readonly string[] TemplateHeaders = ["วันที่", "ชื่อวันหยุด", "ประเภทวันหยุด"];
     private static readonly XNamespace Spreadsheet = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
+    private const long MaxImportFileBytes = 2 * 1024 * 1024;
+    private const int MaxImportRows = 5000;
+    private const long MaxZipEntryBytes = 5 * 1024 * 1024;
 
     [HttpGet]
     [RequireAnyPermission(LeavePermissions.ViewOwn, LeavePermissions.ViewPendingApproval, LeavePermissions.ViewDepartment, LeavePermissions.ViewAll, LeavePermissions.ManageHolidays)]
@@ -208,6 +212,11 @@ public class LeaveHolidaysController(AppDbContext db, IAuditLogService auditLogS
             return [];
         }
 
+        if (file.Length > MaxImportFileBytes)
+        {
+            return [new ParsedHolidayRow(1, string.Empty, string.Empty, string.Empty, "ไฟล์นำเข้าต้องมีขนาดไม่เกิน 2 MB")];
+        }
+
         var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
         await using var stream = file.OpenReadStream();
         return extension switch
@@ -226,6 +235,12 @@ public class LeaveHolidaysController(AppDbContext db, IAuditLogService auditLogS
         while (!reader.EndOfStream)
         {
             rowNumber++;
+            if (rows.Count >= MaxImportRows)
+            {
+                rows.Add(new ParsedHolidayRow(rowNumber, string.Empty, string.Empty, string.Empty, $"รองรับการนำเข้าไม่เกิน {MaxImportRows:N0} รายการต่อครั้ง"));
+                break;
+            }
+
             var line = await reader.ReadLineAsync() ?? string.Empty;
             if (rowNumber == 1 || string.IsNullOrWhiteSpace(line) || line.StartsWith("คำอธิบาย:", StringComparison.OrdinalIgnoreCase))
             {
@@ -242,6 +257,11 @@ public class LeaveHolidaysController(AppDbContext db, IAuditLogService auditLogS
     private static IReadOnlyList<ParsedHolidayRow> ParseXlsx(Stream stream)
     {
         using var archive = new ZipArchive(stream, ZipArchiveMode.Read, leaveOpen: true);
+        if (!ValidateArchive(archive, out var archiveError))
+        {
+            return [new ParsedHolidayRow(1, string.Empty, string.Empty, string.Empty, archiveError)];
+        }
+
         var sharedStrings = ReadSharedStrings(archive);
         var sheetEntry = archive.GetEntry("xl/worksheets/sheet1.xml");
         if (sheetEntry is null)
@@ -250,7 +270,7 @@ public class LeaveHolidaysController(AppDbContext db, IAuditLogService auditLogS
         }
 
         using var sheetStream = sheetEntry.Open();
-        var document = XDocument.Load(sheetStream);
+        var document = LoadXml(sheetStream);
         var rows = new List<ParsedHolidayRow>();
         foreach (var row in document.Descendants(Spreadsheet + "row"))
         {
@@ -264,6 +284,12 @@ public class LeaveHolidaysController(AppDbContext db, IAuditLogService auditLogS
             if (cells.All(string.IsNullOrWhiteSpace))
             {
                 continue;
+            }
+
+            if (rows.Count >= MaxImportRows)
+            {
+                rows.Add(new ParsedHolidayRow(rowNumber, string.Empty, string.Empty, string.Empty, $"รองรับการนำเข้าไม่เกิน {MaxImportRows:N0} รายการต่อครั้ง"));
+                break;
             }
 
             rows.Add(new ParsedHolidayRow(rowNumber, cells.ElementAtOrDefault(0) ?? string.Empty, cells.ElementAtOrDefault(1) ?? string.Empty, cells.ElementAtOrDefault(2) ?? string.Empty));
@@ -370,8 +396,38 @@ public class LeaveHolidaysController(AppDbContext db, IAuditLogService auditLogS
         }
 
         using var stream = entry.Open();
-        var document = XDocument.Load(stream);
+        var document = LoadXml(stream);
         return document.Descendants(Spreadsheet + "si").Select(item => string.Concat(item.Descendants(Spreadsheet + "t").Select(text => text.Value))).ToList();
+    }
+
+    private static XDocument LoadXml(Stream stream)
+    {
+        var settings = new XmlReaderSettings
+        {
+            DtdProcessing = DtdProcessing.Prohibit,
+            XmlResolver = null,
+            MaxCharactersInDocument = MaxZipEntryBytes
+        };
+
+        using var reader = XmlReader.Create(stream, settings);
+        return XDocument.Load(reader, LoadOptions.None);
+    }
+
+    private static bool ValidateArchive(ZipArchive archive, out string error)
+    {
+        foreach (var entry in archive.Entries)
+        {
+            if (entry.FullName.Contains("..", StringComparison.Ordinal) ||
+                Path.IsPathRooted(entry.FullName) ||
+                entry.Length > MaxZipEntryBytes)
+            {
+                error = "ไฟล์ .xlsx ไม่ปลอดภัยหรือมีขนาดภายในใหญ่เกินกำหนด";
+                return false;
+            }
+        }
+
+        error = string.Empty;
+        return true;
     }
 
     private static string ReadCellValue(XElement cell, IReadOnlyList<string> sharedStrings)

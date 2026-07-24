@@ -1,3 +1,4 @@
+using System.Net;
 using System.Text;
 using Hop.Api.Authorization;
 using Hop.Api.Configuration;
@@ -8,6 +9,7 @@ using Hop.Api.Middleware;
 using Hop.Api.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.IdentityModel.Tokens;
@@ -67,6 +69,7 @@ builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
 builder.Services.AddScoped<IAuditLogService, AuditLogService>();
 builder.Services.AddScoped<ILeaveAttachmentStorageService, LeaveAttachmentStorageService>();
+builder.Services.AddScoped<IFileTypeValidationService, FileTypeValidationService>();
 builder.Services.AddScoped<IAnnouncementMediaStorageService, AnnouncementMediaStorageService>();
 builder.Services.AddScoped<ILeavePdfService, LeavePdfService>();
 builder.Services.AddScoped<IFileScanningService>(provider =>
@@ -128,13 +131,33 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidateLifetime = true,
             ValidIssuer = builder.Configuration["Jwt:Issuer"],
             ValidAudience = builder.Configuration["Jwt:Audience"],
-            IssuerSigningKey = signingKey
+            IssuerSigningKey = signingKey,
+            ClockSkew = TimeSpan.FromMinutes(builder.Configuration.GetValue("Jwt:ClockSkewMinutes", 2))
         };
     });
 
-builder.Services.AddAuthorization();
+builder.Services.AddAuthorization(options =>
+{
+    options.FallbackPolicy = new AuthorizationPolicyBuilder()
+        .RequireAuthenticatedUser()
+        .Build();
+});
 
 builder.Services.AddHealthChecks();
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto | ForwardedHeaders.XForwardedHost;
+    options.KnownNetworks.Clear();
+    options.KnownProxies.Clear();
+    var trustedProxies = builder.Configuration.GetSection("ForwardedHeaders:KnownProxies").Get<string[]>() ?? [];
+    foreach (var proxy in trustedProxies)
+    {
+        if (IPAddress.TryParse(proxy, out var address))
+        {
+            options.KnownProxies.Add(address);
+        }
+    }
+});
 
 var app = builder.Build();
 
@@ -170,6 +193,7 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
+app.UseForwardedHeaders();
 app.UseMiddleware<CorrelationIdMiddleware>();
 app.UseMiddleware<GlobalExceptionMiddleware>();
 app.UseCors("Frontend");
@@ -179,10 +203,10 @@ app.UseMiddleware<PermissionDeniedAuditMiddleware>();
 app.UseAuthorization();
 
 app.MapControllers();
-app.MapHealthChecks("/health");
-app.MapHealthChecks("/healthz");
-app.MapGet("/health/live", () => Results.Ok(new { status = "Healthy" }));
-app.MapHealthChecks("/health/ready");
+app.MapHealthChecks("/health").AllowAnonymous();
+app.MapHealthChecks("/healthz").AllowAnonymous();
+app.MapGet("/health/live", () => Results.Ok(new { status = "Healthy" })).AllowAnonymous();
+app.MapHealthChecks("/health/ready").AllowAnonymous();
 app.MapGet("/api", () => ApiResponse<string>.Ok("Hospital Operations Portal API is running."));
 
 app.Run();

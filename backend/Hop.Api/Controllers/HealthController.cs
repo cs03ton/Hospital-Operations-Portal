@@ -1,4 +1,5 @@
 using Hop.Api.DTOs;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Hop.Api.Controllers;
@@ -8,11 +9,11 @@ namespace Hop.Api.Controllers;
 public class HealthController : ControllerBase
 {
     [HttpGet]
+    [AllowAnonymous]
     public ActionResult<ApiResponse<object>> Get()
     {
         return ApiResponse<object>.Ok(new
         {
-            service = "Hop.Api",
             status = "Healthy",
             checkedAt = DateTime.UtcNow
         });

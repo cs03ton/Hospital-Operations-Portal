@@ -40,6 +40,6 @@ public sealed class CorrelationIdMiddleware(RequestDelegate next, ILogger<Correl
 
         return value.All(character =>
             char.IsLetterOrDigit(character) ||
-            character is '-' or '_' or '.' or ':' or '/');
+            character is '-' or '_');
     }
 }
