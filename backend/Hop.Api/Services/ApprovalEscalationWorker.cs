@@ -18,23 +18,34 @@ public sealed class ApprovalEscalationWorker(
         var intervalMinutes = Math.Max(5, configuration.GetValue("ApprovalEscalation:IntervalMinutes", 30));
         using var timer = new PeriodicTimer(TimeSpan.FromMinutes(intervalMinutes));
 
-        do
+        try
         {
-            try
+            do
             {
-                using var scope = scopeFactory.CreateScope();
-                var service = scope.ServiceProvider.GetRequiredService<IApprovalEscalationService>();
-                var count = await service.EscalateOverdueApprovalsAsync(stoppingToken);
-                if (count > 0)
+                try
                 {
-                    logger.LogInformation("Approval escalation worker processed {Count} approvals.", count);
+                    using var scope = scopeFactory.CreateScope();
+                    var service = scope.ServiceProvider.GetRequiredService<IApprovalEscalationService>();
+                    var count = await service.EscalateOverdueApprovalsAsync(stoppingToken);
+                    if (count > 0)
+                    {
+                        logger.LogInformation("Approval escalation worker processed {Count} approvals.", count);
+                    }
+                }
+                catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+                {
+                    break;
+                }
+                catch (Exception ex)
+                {
+                    logger.LogWarning(ex, "Approval escalation worker failed.");
                 }
             }
-            catch (Exception ex)
-            {
-                logger.LogWarning(ex, "Approval escalation worker failed.");
-            }
+            while (await timer.WaitForNextTickAsync(stoppingToken));
         }
-        while (await timer.WaitForNextTickAsync(stoppingToken));
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+        {
+            logger.LogInformation("Approval escalation worker is stopping.");
+        }
     }
 }

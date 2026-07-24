@@ -1,4 +1,4 @@
-import { httpClient } from "./httpClient";
+import { httpClient, refreshAuthSession } from "./httpClient";
 import type { ApiResponse, AuthUser, LoginResponse } from "../types/auth";
 
 export type PasswordPolicy = {
@@ -31,7 +31,7 @@ export async function getCurrentUser() {
 }
 
 export async function refreshSession(refreshToken?: string | null) {
-  const response = await httpClient.post<ApiResponse<LoginResponse>>("/api/auth/refresh-token", { refreshToken });
+  const response = await refreshAuthSession<ApiResponse<LoginResponse>>(refreshToken);
   return response.data.data;
 }
 

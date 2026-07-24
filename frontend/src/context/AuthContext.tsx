@@ -49,6 +49,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     async function loadProfile() {
       if (!accessToken) {
         if (isCookieTokenMode()) {
+          if (window.location.pathname === "/login") {
+            clearSession();
+            setIsLoading(false);
+            return;
+          }
+
           try {
             const refreshed = await authApi.refreshSession(null);
             setAuthToken(refreshed.accessToken);

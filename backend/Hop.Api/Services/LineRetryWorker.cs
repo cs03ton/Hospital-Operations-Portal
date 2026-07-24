@@ -18,23 +18,34 @@ public sealed class LineRetryWorker(
         var intervalMinutes = Math.Max(1, configuration.GetValue("LineRetry:IntervalMinutes", 5));
         using var timer = new PeriodicTimer(TimeSpan.FromMinutes(intervalMinutes));
 
-        do
+        try
         {
-            try
+            do
             {
-                using var scope = scopeFactory.CreateScope();
-                var lineService = scope.ServiceProvider.GetRequiredService<ILineMessagingService>();
-                var count = await lineService.RetryPendingDeliveriesAsync(stoppingToken);
-                if (count > 0)
+                try
                 {
-                    logger.LogInformation("LINE retry worker processed {Count} delivery logs.", count);
+                    using var scope = scopeFactory.CreateScope();
+                    var lineService = scope.ServiceProvider.GetRequiredService<ILineMessagingService>();
+                    var count = await lineService.RetryPendingDeliveriesAsync(stoppingToken);
+                    if (count > 0)
+                    {
+                        logger.LogInformation("LINE retry worker processed {Count} delivery logs.", count);
+                    }
+                }
+                catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+                {
+                    break;
+                }
+                catch (Exception ex)
+                {
+                    logger.LogWarning(ex, "LINE retry worker failed.");
                 }
             }
-            catch (Exception ex)
-            {
-                logger.LogWarning(ex, "LINE retry worker failed.");
-            }
+            while (await timer.WaitForNextTickAsync(stoppingToken));
         }
-        while (await timer.WaitForNextTickAsync(stoppingToken));
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+        {
+            logger.LogInformation("LINE retry worker is stopping.");
+        }
     }
 }

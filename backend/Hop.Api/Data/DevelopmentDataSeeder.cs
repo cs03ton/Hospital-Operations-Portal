@@ -297,46 +297,49 @@ public static class DevelopmentDataSeeder
                 await db.SaveChangesAsync();
             }
 
+            var permissionsByCode = (await db.Permissions.ToListAsync())
+                .GroupBy(permission => permission.Code, StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
+
             foreach (var group in PermissionGroups)
             {
                 foreach (var action in PermissionActions)
                 {
                     var code = $"{group}.{action}";
-                    if (!await db.Permissions.AnyAsync(permission => permission.Code == code))
+                    if (!permissionsByCode.ContainsKey(code))
                     {
-                        db.Permissions.Add(new Permission
+                        var permission = new Permission
                         {
                             Code = code,
                             Name = code,
                             Group = group,
                             Action = action,
                             IsActive = true
-                        });
+                        };
+                        db.Permissions.Add(permission);
+                        permissionsByCode[code] = permission;
                     }
                 }
             }
 
             foreach (var permissionSeed in GranularLeavePermissions)
             {
-                var permission = await db.Permissions.FirstOrDefaultAsync(item => item.Code == permissionSeed.Code);
-                if (permission is null)
+                if (!permissionsByCode.TryGetValue(permissionSeed.Code, out var permission))
                 {
-                    db.Permissions.Add(new Permission
+                    permission = new Permission
                     {
                         Code = permissionSeed.Code,
-                        Name = permissionSeed.Name,
-                        Group = permissionSeed.Group,
-                        Action = permissionSeed.Action,
-                        IsActive = true
-                    });
+                        CreatedAt = DateTime.UtcNow
+                    };
+                    db.Permissions.Add(permission);
+                    permissionsByCode[permissionSeed.Code] = permission;
                 }
-                else
-                {
-                    permission.Name = permissionSeed.Name;
-                    permission.Group = permissionSeed.Group;
-                    permission.Action = permissionSeed.Action;
-                    permission.IsActive = true;
-                }
+
+                permission.Name = permissionSeed.Name;
+                permission.Group = permissionSeed.Group;
+                permission.Action = permissionSeed.Action;
+                permission.IsActive = true;
+                permission.UpdatedAt = DateTime.UtcNow;
             }
 
             await db.SaveChangesAsync();
@@ -554,22 +557,24 @@ public static class DevelopmentDataSeeder
                 var standardItPassword = configuration["Seed:StandardItPassword"] ?? configuration["SEED_STANDARD_IT_PASSWORD"];
                 if (string.IsNullOrWhiteSpace(standardItPassword))
                 {
-                    throw new InvalidOperationException("Seed:StandardItPassword is required when creating standard IT users.");
+                    logger.LogInformation("Standard IT development users were not seeded because Seed:StandardItPassword is not configured.");
                 }
-
-                await RetireDevelopmentUsers(db, logger);
-                await SeedStandardItUsersAndApprovalChain(
-                    db,
-                    department,
-                    new Dictionary<string, Role>
-                    {
-                        ["Admin"] = adminRole,
-                        ["Staff"] = staffRole,
-                        ["DepartmentHead"] = departmentHeadRole,
-                        ["Director"] = directorRole
-                    },
-                    standardItPassword,
-                    logger);
+                else
+                {
+                    await RetireDevelopmentUsers(db, logger);
+                    await SeedStandardItUsersAndApprovalChain(
+                        db,
+                        department,
+                        new Dictionary<string, Role>
+                        {
+                            ["Admin"] = adminRole,
+                            ["Staff"] = staffRole,
+                            ["DepartmentHead"] = departmentHeadRole,
+                            ["Director"] = directorRole
+                        },
+                        standardItPassword,
+                        logger);
+                }
             }
 
             await EnsureLeaveTypesAndPolicyRules(db);

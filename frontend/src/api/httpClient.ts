@@ -48,6 +48,10 @@ export function getApiBaseUrl() {
   return apiBaseUrl;
 }
 
+export async function refreshAuthSession<TResponse>(refreshToken?: string | null) {
+  return refreshClient.post<TResponse>("/api/auth/refresh-token", { refreshToken });
+}
+
 httpClient.interceptors.request.use(async (config) => {
   const token = memoryAccessToken ?? (cookieTokenMode ? null : localStorage.getItem(authStorageKeys.accessToken));
   if (token) {
@@ -94,8 +98,10 @@ httpClient.interceptors.response.use(
       return httpClient(originalRequest);
     } catch (refreshError) {
       clearStoredSession();
-      notifyGlobal("warning", "กรุณาเข้าสู่ระบบใหม่");
-      window.location.assign("/login");
+      if (window.location.pathname !== "/login") {
+        notifyGlobal("warning", "กรุณาเข้าสู่ระบบใหม่");
+        window.location.assign("/login");
+      }
       return Promise.reject(refreshError);
     }
   },

@@ -26,9 +26,15 @@ if (builder.Environment.IsDevelopment())
     builder.Logging.AddDebug();
 }
 
-var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
-    ?? ["http://localhost:5173"];
-var allowCredentials = builder.Configuration.GetValue("Cors:AllowCredentials", builder.Configuration.GetValue("CORS_ALLOW_CREDENTIALS", false));
+var allowedOrigins = (builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
+    ?? ["http://localhost:5173"])
+    .Select(origin => origin.Trim().TrimEnd('/'))
+    .Where(origin => !string.IsNullOrWhiteSpace(origin))
+    .Distinct(StringComparer.OrdinalIgnoreCase)
+    .ToArray();
+var allowCredentials = builder.Configuration.GetValue<bool?>("Cors:AllowCredentials")
+    ?? builder.Configuration.GetValue<bool?>("CORS_ALLOW_CREDENTIALS")
+    ?? builder.Environment.IsDevelopment();
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
