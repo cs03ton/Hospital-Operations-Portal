@@ -12,7 +12,14 @@ namespace Hop.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-public class AuthController(AppDbContext db, IJwtTokenService jwtTokenService, IAuditLogService auditLogService, ILoginRateLimiter loginRateLimiter, IConfiguration configuration) : ControllerBase
+public class AuthController(
+    AppDbContext db,
+    IJwtTokenService jwtTokenService,
+    IAuditLogService auditLogService,
+    ILoginRateLimiter loginRateLimiter,
+    ILineLiffAuthenticationService lineLiffAuthenticationService,
+    ILineUserBindingService lineUserBindingService,
+    IConfiguration configuration) : ControllerBase
 {
     [HttpGet("csrf")]
     [HttpGet("/api/csrf")]
@@ -144,6 +151,86 @@ public class AuthController(AppDbContext db, IJwtTokenService jwtTokenService, I
             jwtTokenService.GenerateAccessToken(storedToken.User, roleName),
             ShouldUseCookieTokenStorage() ? string.Empty : newRefreshTokenValue,
             ToAuthUserDto(storedToken.User, roleName)
+        ));
+    }
+
+    [HttpPost("line/liff")]
+    [AllowAnonymous]
+    public async Task<ActionResult<ApiResponse<LoginResponse>>> LoginWithLineLiff(LiffLoginRequest request, CancellationToken cancellationToken)
+    {
+        VerifiedLineIdentity identity;
+        try
+        {
+            identity = await lineLiffAuthenticationService.VerifyIdTokenAsync(request.IdToken, cancellationToken);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            await auditLogService.WriteAsync(null, "Auth.LineTokenRejected", "Auth", null, ex.Message, "Denied", HttpContext);
+            return Unauthorized(ApiResponse<LoginResponse>.Fail("LINE_TOKEN_INVALID"));
+        }
+        catch (InvalidOperationException ex) when (ex.Message == "LINE_SERVICE_UNAVAILABLE")
+        {
+            await auditLogService.WriteAsync(null, "Auth.LineLiffLoginFailed", "Auth", null, "LINE service unavailable.", "Failed", HttpContext);
+            return StatusCode(StatusCodes.Status503ServiceUnavailable, ApiResponse<LoginResponse>.Fail("LINE_SERVICE_UNAVAILABLE"));
+        }
+        catch (InvalidOperationException ex) when (ex.Message == "LINE_LOGIN_CHANNEL_ID_MISSING")
+        {
+            await auditLogService.WriteAsync(null, "Auth.LineLiffLoginFailed", "Auth", null, "LINE Login channel id is not configured.", "Failed", HttpContext);
+            return StatusCode(StatusCodes.Status503ServiceUnavailable, ApiResponse<LoginResponse>.Fail("LINE_LOGIN_NOT_CONFIGURED"));
+        }
+
+        var boundUserId = await db.LineUserBindings
+            .Where(binding => binding.LineUserId == identity.LineUserId && binding.Status == "Bound" && binding.UserId != null)
+            .Select(binding => binding.UserId)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        var user = await LoadUserQuery()
+            .FirstOrDefaultAsync(item =>
+                item.IsActive &&
+                (
+                    item.LineUserId == identity.LineUserId ||
+                    (boundUserId != null && item.Id == boundUserId.Value)
+                ),
+                cancellationToken);
+
+        if (user is null)
+        {
+            await auditLogService.WriteAsync(null, "Auth.LineLiffLoginFailed", "LineUserBinding", null, $"Unlinked LINE user {MaskLineUserId(identity.LineUserId)} attempted LIFF login.", "Denied", HttpContext);
+            return StatusCode(StatusCodes.Status403Forbidden, ApiResponse<LoginResponse>.Fail("LINE_ACCOUNT_NOT_LINKED"));
+        }
+
+        var binding = await db.LineUserBindings.FirstOrDefaultAsync(item => item.LineUserId == identity.LineUserId, cancellationToken);
+        if (binding is not null && binding.Status != "Bound")
+        {
+            await auditLogService.WriteAsync(user.Id, "Auth.LineLiffLoginFailed", "LineUserBinding", binding.Id.ToString(), "LINE link is not active.", "Denied", HttpContext);
+            return StatusCode(StatusCodes.Status403Forbidden, ApiResponse<LoginResponse>.Fail("LINE_LINK_REVOKED"));
+        }
+
+        var roleName = GetRoleName(user);
+        var accessToken = jwtTokenService.GenerateAccessToken(user, roleName);
+        var refreshTokenValue = jwtTokenService.GenerateRefreshToken();
+        var refreshTokenHash = HashRefreshToken(refreshTokenValue);
+
+        db.RefreshTokens.Add(new RefreshToken
+        {
+            UserId = user.Id,
+            Token = refreshTokenHash,
+            TokenHash = refreshTokenHash,
+            ExpiresAt = DateTime.UtcNow.AddDays(7),
+            CreatedByIp = HttpContext.Connection.RemoteIpAddress?.ToString(),
+            UserAgent = Request.Headers.UserAgent.ToString()
+        });
+
+        await db.SaveChangesAsync(cancellationToken);
+        await lineUserBindingService.MarkLiffLoginAsync(user.Id, identity.LineUserId, cancellationToken);
+        await auditLogService.WriteAsync(user.Id, "Auth.LineLiffLoginSucceeded", "LineUserBinding", binding?.Id.ToString(), $"LINE LIFF login succeeded for {MaskLineUserId(identity.LineUserId)}.", "Success", HttpContext);
+        AppendRefreshTokenCookie(refreshTokenValue);
+        AppendCsrfCookie();
+
+        return ApiResponse<LoginResponse>.Ok(new LoginResponse(
+            accessToken,
+            ShouldUseCookieTokenStorage() ? string.Empty : refreshTokenValue,
+            ToAuthUserDto(user, roleName)
         ));
     }
 
@@ -357,6 +444,11 @@ public class AuthController(AppDbContext db, IJwtTokenService jwtTokenService, I
     {
         var bytes = SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(refreshToken));
         return Convert.ToHexString(bytes);
+    }
+
+    private static string MaskLineUserId(string value)
+    {
+        return value.Length <= 10 ? "U********" : $"{value[..5]}...{value[^4..]}";
     }
 
     private static SameSiteMode ParseSameSite(string? value)

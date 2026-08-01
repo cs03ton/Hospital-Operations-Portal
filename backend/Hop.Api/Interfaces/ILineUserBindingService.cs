@@ -8,6 +8,8 @@ public interface ILineUserBindingService
     Task<LineMeStatusResponse> GetMyLineStatusAsync(Guid userId, CancellationToken cancellationToken = default);
     Task<LinePairingCodeResponse> CreatePairingCodeAsync(Guid userId, CancellationToken cancellationToken = default);
     Task<LineConnectTokenResponse> CreateConnectTokenAsync(Guid userId, string? ipAddress = null, CancellationToken cancellationToken = default);
+    Task<LineMeStatusResponse> LinkVerifiedIdentityAsync(Guid userId, VerifiedLineIdentity identity, CancellationToken cancellationToken = default);
+    Task MarkLiffLoginAsync(Guid userId, string lineUserId, CancellationToken cancellationToken = default);
     Task<LineBindingStatusResponse> UnbindAsync(Guid userId, CancellationToken cancellationToken = default);
     Task<LineWebhookHandleResult> HandleFollowAsync(string lineUserId, CancellationToken cancellationToken = default);
     Task<LineWebhookHandleResult> HandleUnfollowAsync(string lineUserId, CancellationToken cancellationToken = default);

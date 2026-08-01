@@ -786,6 +786,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             entity.Property(item => item.Status).HasColumnName("status").HasMaxLength(40);
             entity.Property(item => item.LastEventType).HasColumnName("last_event_type").HasMaxLength(40);
             entity.Property(item => item.LastEventAt).HasColumnName("last_event_at");
+            entity.Property(item => item.LastLoginAt).HasColumnName("last_login_at");
             entity.Property(item => item.BoundAt).HasColumnName("bound_at");
             entity.Property(item => item.UnboundAt).HasColumnName("unbound_at");
             entity.Property(item => item.CreatedAt).HasColumnName("created_at");

@@ -2,6 +2,8 @@
 
 เอกสารนี้อธิบายการผูกบัญชี LINE OA กับบัญชีผู้ใช้งาน HOP โดยใช้ LINE Webhook, one-time connect token และ pairing code fallback
 
+> อ่านเพิ่มเติม: ระบบยังรองรับการผูกบัญชีและ Login ผ่าน LINE LIFF ดูรายละเอียดที่ [LINE-LIFF.md](LINE-LIFF.md)
+
 ## เป้าหมาย
 
 - เก็บ `lineUserId` อัตโนมัติเมื่อผู้ใช้เพิ่มเพื่อน LINE OA
@@ -76,12 +78,22 @@ HOP-482913
 
 ## User Flow
 
+### Pairing Code / Webhook
+
 1. ผู้ใช้เข้าเมนู `ข้อมูลส่วนตัวของฉัน`
 2. กด `เชื่อมต่อ LINE`
 3. ระบบสร้าง one-time connect token และ short code อายุ 10 นาที เช่น `HOP-482913`
 4. ผู้ใช้สแกน QR หรือเปิด LINE OA แล้วส่ง short code นี้ในแชท
 5. Webhook รับ message และผูกบัญชี
 6. ระบบส่งข้อความ LINE: `เชื่อมต่อ LINE กับ HOP สำเร็จแล้ว`
+
+### LINE LIFF
+
+1. ผู้ใช้เปิด LIFF URL จาก LINE OA
+2. ระบบตรวจ LINE ID Token กับ LINE Platform ที่ Backend
+3. ถ้าบัญชี LINE ผูกกับ HOP แล้ว ระบบจะเข้าสู่ระบบให้ตาม session ปกติ
+4. ถ้ายังไม่ผูก ระบบจะแนะนำให้ Login HOP และกด `เชื่อมด้วย LINE LIFF` ในหน้า `ข้อมูลส่วนตัวของฉัน`
+5. หลังผูกสำเร็จ ระบบบันทึก `last_login_at` ใน `line_user_bindings`
 
 ## Security Rules
 
@@ -147,7 +159,11 @@ POST /api/line/webhook
 GET  /api/me/line/status
 POST /api/me/line/connect-token
 POST /api/me/line/disconnect
+POST /api/me/line/link
+DELETE /api/me/line/unlink
 POST /api/me/profile/line/test-send
+
+POST /api/auth/line/liff
 
 GET  /api/admin/line/line-users
 POST /api/admin/line/line-users/{id}/test-send

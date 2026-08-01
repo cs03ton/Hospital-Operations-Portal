@@ -11,10 +11,11 @@ import {
 } from "@mui/material";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
-import { Navigate, useLocation, useNavigate } from "react-router-dom";
+import { Navigate, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import hospitalLogo from "../assets/logo/hospital-logo.png";
 import { appName, hospitalName } from "../config/appConfig";
 import { useAuth } from "../context/AuthContext";
+import { sanitizeInternalReturnUrl } from "../utils/returnUrl";
 
 type LoginForm = {
   username: string;
@@ -32,7 +33,9 @@ export function LoginPage() {
   const { isAuthenticated, login } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const [searchParams] = useSearchParams();
   const state = location.state as LocationState | null;
+  const queryReturnUrl = sanitizeInternalReturnUrl(searchParams.get("returnUrl"));
   const [error, setError] = useState<string | null>(null);
 
   const {
@@ -55,7 +58,7 @@ export function LoginPage() {
 
     try {
       await login(values.username, values.password);
-      navigate(`${state?.from?.pathname ?? "/dashboard"}${state?.from?.search ?? ""}`, { replace: true });
+      navigate(state?.from?.pathname ? `${state.from.pathname}${state.from.search ?? ""}` : queryReturnUrl, { replace: true });
     } catch {
       setError("เข้าสู่ระบบไม่สำเร็จ กรุณาตรวจสอบชื่อผู้ใช้และรหัสผ่าน");
     }

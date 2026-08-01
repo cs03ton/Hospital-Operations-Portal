@@ -15,4 +15,8 @@ public sealed class LineOptions
     public string? OaAddFriendUrl { get; set; }
     public bool LiffEnabled { get; set; }
     public string? LiffId { get; set; }
+    public string? LoginChannelId { get; set; }
+    public string? LoginChannelSecret { get; set; }
+    public string? IdTokenVerifyUrl { get; set; }
+    public string? LiffBaseUrl { get; set; }
 }

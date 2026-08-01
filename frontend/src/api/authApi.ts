@@ -25,6 +25,15 @@ export async function login(username: string, password: string) {
   return response.data.data;
 }
 
+export async function loginWithLiff(idToken: string, returnUrl?: string | null) {
+  const response = await httpClient.post<ApiResponse<LoginResponse>>("/api/auth/line/liff", {
+    idToken,
+    returnUrl,
+  });
+
+  return response.data.data;
+}
+
 export async function getCurrentUser() {
   const response = await httpClient.get<ApiResponse<AuthUser>>("/api/auth/me");
   return response.data.data;

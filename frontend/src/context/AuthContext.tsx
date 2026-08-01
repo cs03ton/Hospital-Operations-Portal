@@ -13,6 +13,7 @@ type AuthContextValue = {
   isAuthenticated: boolean;
   isLoading: boolean;
   login: (username: string, password: string) => Promise<void>;
+  loginWithLiff: (idToken: string, returnUrl?: string | null) => Promise<void>;
   logout: () => Promise<void>;
   clearSession: () => void;
   refreshUser: () => Promise<void>;
@@ -103,8 +104,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener("hop-auth-refreshed", syncRefreshedSession);
   }, []);
 
-  const signIn = useCallback(async (username: string, password: string) => {
-    const result = await authApi.login(username, password);
+  const applyLoginResult = useCallback((result: Awaited<ReturnType<typeof authApi.login>>) => {
     setAuthToken(result.accessToken);
     setAccessToken(result.accessToken);
     setRefreshToken(isCookieTokenMode() ? null : result.refreshToken);
@@ -115,8 +115,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       localStorage.setItem(authStorageKeys.refreshToken, result.refreshToken);
     }
     localStorage.setItem(authStorageKeys.user, JSON.stringify(normalizedUser));
-    notifyGlobal("success", "เข้าสู่ระบบสำเร็จ");
   }, []);
+
+  const signIn = useCallback(async (username: string, password: string) => {
+    const result = await authApi.login(username, password);
+    applyLoginResult(result);
+    notifyGlobal("success", "เข้าสู่ระบบสำเร็จ");
+  }, [applyLoginResult]);
+
+  const signInWithLiff = useCallback(async (idToken: string, returnUrl?: string | null) => {
+    const result = await authApi.loginWithLiff(idToken, returnUrl);
+    applyLoginResult(result);
+    notifyGlobal("success", "เข้าสู่ระบบผ่าน LINE สำเร็จ");
+  }, [applyLoginResult]);
 
   const signOut = useCallback(async () => {
     try {
@@ -144,11 +155,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isAuthenticated: Boolean(accessToken && user),
       isLoading,
       login: signIn,
+      loginWithLiff: signInWithLiff,
       logout: signOut,
       clearSession,
       refreshUser,
     }),
-    [accessToken, clearSession, isLoading, refreshToken, refreshUser, signIn, signOut, user],
+    [accessToken, clearSession, isLoading, refreshToken, refreshUser, signIn, signInWithLiff, signOut, user],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -3,11 +3,13 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { isAxiosError } from "axios";
 import { useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
+import { useSearchParams } from "react-router-dom";
 import {
   createMyLineConnectToken,
   deleteMyProfileImage,
   getMyLineBinding,
   getMyProfile,
+  linkMyLineWithLiff,
   sendMyLineTestMessage,
   unbindMyLine,
   updateMyProfile,
@@ -18,6 +20,7 @@ import { PageHeader } from "../components/PageHeader";
 import { useAuth } from "../context/AuthContext";
 import { useNotification } from "../hooks/useNotification";
 import { brandColors } from "../theme/theme";
+import { getLiffIdToken, initializeLiff } from "../services/liffService";
 import { getEmploymentTypeLabel } from "../utils/employmentLabels";
 import { getGenderLabel } from "../utils/genderLabels";
 import { toAbsoluteMediaUrl } from "../utils/mediaUrl";
@@ -37,7 +40,10 @@ export function ProfilePage() {
   const { showError, showSuccess } = useNotification();
   const { refreshUser } = useAuth();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const autoLiffLinkAttemptedRef = useRef(false);
+  const [searchParams] = useSearchParams();
   const [lineConfirmAction, setLineConfirmAction] = useState<LineConfirmAction>(null);
+  const shouldAutoLinkLiff = searchParams.get("lineLink") === "liff";
   const { data: profile, isLoading } = useQuery({ queryKey: ["me", "profile"], queryFn: getMyProfile });
   const { data: lineBinding, isLoading: isLineLoading } = useQuery({ queryKey: ["me", "profile", "line"], queryFn: getMyLineBinding });
   const { register, handleSubmit, reset, formState: { errors } } = useForm<ProfileFormValues>({
@@ -112,6 +118,46 @@ export function ProfilePage() {
     },
     onError: (error) => showError(getImageApiErrorMessage(error, "สร้างรหัสเชื่อมต่อ LINE ไม่สำเร็จ")),
   });
+
+  const linkLineWithLiffMutation = useMutation({
+    mutationFn: async () => {
+      await initializeLiff();
+      const idToken = await getLiffIdToken();
+      if (!idToken) {
+        throw new Error("LIFF_ID_TOKEN_MISSING");
+      }
+
+      return linkMyLineWithLiff(idToken);
+    },
+    onSuccess: async () => {
+      showSuccess("เชื่อมบัญชี LINE ด้วย LIFF สำเร็จ");
+      await queryClient.invalidateQueries({ queryKey: ["me", "profile", "line"] });
+      await queryClient.invalidateQueries({ queryKey: ["me", "profile"] });
+      await refreshUser();
+    },
+    onError: (error) => {
+      if (error instanceof Error && error.message === "LIFF_ID_TOKEN_MISSING") {
+        showError("ไม่พบข้อมูล LINE LIFF กรุณาเปิดหน้านี้จาก LINE OA อีกครั้ง");
+        return;
+      }
+
+      showError(getImageApiErrorMessage(error, "เชื่อมบัญชี LINE ด้วย LIFF ไม่สำเร็จ"));
+    },
+  });
+
+  useEffect(() => {
+    if (
+      !shouldAutoLinkLiff ||
+      autoLiffLinkAttemptedRef.current ||
+      isLineLoading ||
+      lineBinding?.isBound
+    ) {
+      return;
+    }
+
+    autoLiffLinkAttemptedRef.current = true;
+    linkLineWithLiffMutation.mutate();
+  }, [isLineLoading, lineBinding?.isBound, linkLineWithLiffMutation, shouldAutoLinkLiff]);
 
   const unbindLineMutation = useMutation({
     mutationFn: unbindMyLine,
@@ -338,6 +384,15 @@ export function ProfilePage() {
                     >
                       {latestLinePairingCode ? "สร้างรหัสใหม่" : "เชื่อมต่อ LINE"}
                     </Button>
+                    {import.meta.env.VITE_LIFF_ID && (
+                      <Button
+                        variant="outlined"
+                        disabled={linkLineWithLiffMutation.isPending || isLineLoading}
+                        onClick={() => linkLineWithLiffMutation.mutate()}
+                      >
+                        เชื่อมด้วย LINE LIFF
+                      </Button>
+                    )}
                   </Stack>
                 </Stack>
               )}

@@ -2364,6 +2364,10 @@ namespace Hop.Api.Migrations
                         .HasColumnType("character varying(40)")
                         .HasColumnName("last_event_type");
 
+                    b.Property<DateTime?>("LastLoginAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("last_login_at");
+
                     b.Property<string>("LineUserId")
                         .IsRequired()
                         .HasMaxLength(80)

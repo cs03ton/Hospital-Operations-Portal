@@ -88,7 +88,30 @@ public sealed class LineConfigurationResolver(
     public string? LiffId => FirstConfigured(
         lineOptions.LiffId,
         configuration["Line:LiffId"],
-        configuration["LINE_LIFF_ID"]);
+        configuration["LINE_LIFF_ID"],
+        configuration["VITE_LIFF_ID"]);
+
+    public string? LoginChannelId => FirstConfigured(
+        lineOptions.LoginChannelId,
+        configuration["Line:LoginChannelId"],
+        configuration["LINE_LOGIN_CHANNEL_ID"]);
+
+    public string? LoginChannelSecret => FirstConfigured(
+        lineOptions.LoginChannelSecret,
+        configuration["Line:LoginChannelSecret"],
+        configuration["LINE_LOGIN_CHANNEL_SECRET"]);
+
+    public string IdTokenVerifyUrl => FirstConfigured(
+        lineOptions.IdTokenVerifyUrl,
+        configuration["Line:IdTokenVerifyUrl"],
+        configuration["LINE_ID_TOKEN_VERIFY_URL"])
+        ?? "https://api.line.me/oauth2/v2.1/verify";
+
+    public string LiffBaseUrl => FirstConfigured(
+        lineOptions.LiffBaseUrl,
+        configuration["Line:LiffBaseUrl"],
+        configuration["LINE_LIFF_BASE_URL"])
+        ?? "https://miniapp.line.me";
 
     public bool HasChannelSecret => !string.IsNullOrWhiteSpace(ChannelSecret);
 

@@ -40,6 +40,7 @@ import { LeaveSupportPage } from "../pages/LeaveSupportPage";
 import { LineSettingsPage } from "../pages/LineSettingsPage";
 import { LineUsersPage } from "../pages/LineUsersPage";
 import { LineLeaveApprovalPage } from "../pages/LineLeaveApprovalPage";
+import { LiffEntryPage } from "../pages/LiffEntryPage";
 import { NotificationCenterPage } from "../pages/NotificationCenterPage";
 import { PendingApprovalsPage } from "../pages/PendingApprovalsPage";
 import { ProfilePage } from "../pages/ProfilePage";
@@ -141,6 +142,7 @@ function DashboardModuleGuard({ moduleKey, children }: { moduleKey: DashboardMod
 export function AppRoutes() {
   return (
     <Routes>
+      <Route path="/liff" element={<LiffEntryPage />} />
       <Route path="/login" element={<LoginPage />} />
       <Route element={<ProtectedRoute />}>
         <Route element={<MainLayout />}>

@@ -112,6 +112,7 @@ builder.Services.AddScoped<IUserAvatarUrlResolver, UserAvatarUrlResolver>();
 builder.Services.AddSingleton<ILoginRateLimiter, InMemoryLoginRateLimiter>();
 builder.Services.AddHttpClient<ILineMessagingService, LineMessagingService>();
 builder.Services.AddHttpClient<ILineUserBindingService, LineUserBindingService>();
+builder.Services.AddHttpClient<ILineLiffAuthenticationService, LineLiffAuthenticationService>();
 builder.Services.AddHostedService<LineRetryWorker>();
 builder.Services.AddHostedService<ApprovalEscalationWorker>();
 builder.Services.AddHostedService<AnnouncementScheduledPublishWorker>();

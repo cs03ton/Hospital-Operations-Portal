@@ -69,7 +69,94 @@ public sealed class LineUserBindingService(
             status.PictureUrl,
             status.LineUserIdMasked,
             status.BoundAt,
-            status.ExpiresAt);
+            status.ExpiresAt,
+            await db.LineUserBindings
+                .AsNoTracking()
+                .Where(item => item.UserId == userId && item.Status == "Bound")
+                .Select(item => item.LastLoginAt)
+                .FirstOrDefaultAsync(cancellationToken));
+    }
+
+    public async Task<LineMeStatusResponse> LinkVerifiedIdentityAsync(Guid userId, VerifiedLineIdentity identity, CancellationToken cancellationToken = default)
+    {
+        var user = await db.Users.FirstOrDefaultAsync(item => item.Id == userId && item.IsActive, cancellationToken);
+        if (user is null)
+        {
+            throw new InvalidOperationException("USER_DISABLED");
+        }
+
+        var lineAlreadyBound = await db.LineUserBindings.AnyAsync(item =>
+            item.LineUserId == identity.LineUserId &&
+            item.UserId != null &&
+            item.UserId != userId &&
+            item.Status == "Bound",
+            cancellationToken);
+        if (lineAlreadyBound)
+        {
+            await auditLogService.WriteAsync(userId, "User.LineLinkConflict", "LineUserBinding", null, $"LINE user {MaskLineUserId(identity.LineUserId)} is already bound to another user.", "Denied");
+            throw new InvalidOperationException("LINE_LINK_CONFLICT");
+        }
+
+        var userAlreadyBound = await db.LineUserBindings.AnyAsync(item =>
+            item.UserId == userId &&
+            item.LineUserId != identity.LineUserId &&
+            item.Status == "Bound",
+            cancellationToken);
+        if (!userAlreadyBound && !string.IsNullOrWhiteSpace(user.LineUserId) && user.LineUserId != identity.LineUserId)
+        {
+            userAlreadyBound = true;
+        }
+
+        if (userAlreadyBound)
+        {
+            await auditLogService.WriteAsync(userId, "User.LineLinkConflict", "LineUserBinding", null, "HOP user already has an active LINE link.", "Denied");
+            throw new InvalidOperationException("LINE_USER_ALREADY_LINKED");
+        }
+
+        var binding = await db.LineUserBindings.FirstOrDefaultAsync(item => item.LineUserId == identity.LineUserId, cancellationToken);
+        if (binding is null)
+        {
+            binding = new LineUserBinding
+            {
+                LineUserId = identity.LineUserId,
+                CreatedAt = DateTime.UtcNow
+            };
+            db.LineUserBindings.Add(binding);
+        }
+
+        binding.UserId = userId;
+        binding.DisplayName = identity.DisplayName ?? binding.DisplayName;
+        binding.PictureUrl = identity.PictureUrl ?? binding.PictureUrl;
+        binding.Status = "Bound";
+        binding.BoundAt ??= DateTime.UtcNow;
+        binding.UnboundAt = null;
+        binding.LastLoginAt = DateTime.UtcNow;
+        binding.UpdatedAt = DateTime.UtcNow;
+        user.LineUserId = identity.LineUserId;
+        user.UpdatedAt = DateTime.UtcNow;
+
+        await db.SaveChangesAsync(cancellationToken);
+        await auditLogService.WriteAsync(userId, "User.LineLinked", "LineUserBinding", binding.Id.ToString(), $"Linked LINE user {MaskLineUserId(identity.LineUserId)} via LIFF.", "Success");
+
+        return await GetMyLineStatusAsync(userId, cancellationToken);
+    }
+
+    public async Task MarkLiffLoginAsync(Guid userId, string lineUserId, CancellationToken cancellationToken = default)
+    {
+        var binding = await db.LineUserBindings.FirstOrDefaultAsync(item =>
+            item.UserId == userId &&
+            item.LineUserId == lineUserId &&
+            item.Status == "Bound",
+            cancellationToken);
+
+        if (binding is null)
+        {
+            return;
+        }
+
+        binding.LastLoginAt = DateTime.UtcNow;
+        binding.UpdatedAt = DateTime.UtcNow;
+        await db.SaveChangesAsync(cancellationToken);
     }
 
     public async Task<LinePairingCodeResponse> CreatePairingCodeAsync(Guid userId, CancellationToken cancellationToken = default)

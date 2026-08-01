@@ -10,6 +10,7 @@ public class LineUserBinding
     public string Status { get; set; } = "Pending";
     public string? LastEventType { get; set; }
     public DateTime? LastEventAt { get; set; }
+    public DateTime? LastLoginAt { get; set; }
     public DateTime? BoundAt { get; set; }
     public DateTime? UnboundAt { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;

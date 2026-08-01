@@ -290,6 +290,16 @@ public sealed class LineWebhookControllerTests
             throw new NotImplementedException();
         }
 
+        public Task<LineMeStatusResponse> LinkVerifiedIdentityAsync(Guid userId, VerifiedLineIdentity identity, CancellationToken cancellationToken = default)
+        {
+            throw new NotImplementedException();
+        }
+
+        public Task MarkLiffLoginAsync(Guid userId, string lineUserId, CancellationToken cancellationToken = default)
+        {
+            return Task.CompletedTask;
+        }
+
         public Task<LineWebhookHandleResult> HandleFollowAsync(string lineUserId, CancellationToken cancellationToken = default)
         {
             FollowCount++;

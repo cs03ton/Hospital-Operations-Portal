@@ -50,6 +50,7 @@ export type LineBindingStatus = {
   connectedAt?: string | null;
   unboundAt?: string | null;
   expiresAt?: string | null;
+  lastLoginAt?: string | null;
 };
 
 export type LinePairingCode = {
@@ -118,6 +119,26 @@ export async function createMyLineConnectToken() {
 
 export async function unbindMyLine() {
   const response = await httpClient.post<ApiResponse<LineBindingStatus>>("/api/me/line/disconnect");
+  const data = response.data.data;
+  return {
+    ...data,
+    isBound: data.connected ?? data.isBound,
+    boundAt: data.connectedAt ?? data.boundAt,
+  };
+}
+
+export async function linkMyLineWithLiff(idToken: string) {
+  const response = await httpClient.post<ApiResponse<LineBindingStatus>>("/api/me/line/link", { idToken });
+  const data = response.data.data;
+  return {
+    ...data,
+    isBound: data.connected ?? data.isBound,
+    boundAt: data.connectedAt ?? data.boundAt,
+  };
+}
+
+export async function unlinkMyLine() {
+  const response = await httpClient.delete<ApiResponse<LineBindingStatus>>("/api/me/line/unlink");
   const data = response.data.data;
   return {
     ...data,

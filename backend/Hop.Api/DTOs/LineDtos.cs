@@ -162,7 +162,21 @@ public record LineMeStatusResponse(
     string? PictureUrl,
     string? LineUserIdMasked,
     DateTime? ConnectedAt,
-    DateTime? ExpiresAt
+    DateTime? ExpiresAt,
+    DateTime? LastLoginAt = null
+);
+
+public record LiffLoginRequest(string IdToken, string? ReturnUrl = null);
+
+public record LineLinkRequest(string IdToken);
+
+public record VerifiedLineIdentity(
+    string LineUserId,
+    string Audience,
+    DateTime ExpiresAt,
+    string? DisplayName,
+    string? PictureUrl,
+    string? Email
 );
 
 public record LineUserBindingResponse(
