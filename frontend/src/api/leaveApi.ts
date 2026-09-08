@@ -199,6 +199,7 @@ export type LeaveBalance = {
   leaveTypeId: string;
   leaveTypeName: string;
   year: number;
+  useFiscalYear: boolean;
   entitledDays: number;
   carriedOverDays: number;
   adjustedDays: number;

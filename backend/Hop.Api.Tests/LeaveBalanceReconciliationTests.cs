@@ -56,6 +56,42 @@ public sealed class LeaveBalanceReconciliationTests
         Assert.Equal(1, repeated.Skipped);
     }
 
+    [Fact]
+    public async Task Confirm_creates_missing_balance_from_policy_and_request_history()
+    {
+        await using var db = CreateDb();
+        var user = new User
+        {
+            Id = Guid.NewGuid(), Username = "missing-balance", FullName = "Missing Balance",
+            EmploymentType = "CIVIL_SERVANT", EmploymentStartDate = new DateOnly(2020, 1, 1), IsActive = true
+        };
+        var leaveType = new LeaveType { Id = Guid.NewGuid(), Code = "SICK", Name = "Sick", UseFiscalYear = false, RequiresBalance = true };
+        db.AddRange(
+            user,
+            leaveType,
+            new LeavePolicyRule { Id = Guid.NewGuid(), LeaveTypeId = leaveType.Id, EmploymentType = user.EmploymentType, EntitlementDays = 30, IsActive = true },
+            Request(user.Id, leaveType.Id, "Approved", 2, new DateOnly(2026, 3, 1)),
+            Request(user.Id, leaveType.Id, "Pending", 1, new DateOnly(2026, 4, 1)));
+        await db.SaveChangesAsync();
+        var service = new LeaveBalanceReconciliationService(db);
+
+        var preview = await service.PreviewAsync(new LeaveBalanceReconciliationRequest(UserId: user.Id));
+        Assert.Single(preview.Items);
+        Assert.Null(preview.Items[0].BalanceId);
+        Assert.Empty(db.LeaveBalances);
+
+        var confirmed = await service.ConfirmAsync(new LeaveBalanceReconciliationRequest(UserId: user.Id));
+        var created = Assert.Single(db.LeaveBalances);
+        Assert.Equal(1, confirmed.Updated);
+        Assert.Equal(30, created.EntitledDays);
+        Assert.Equal(2, created.UsedDays);
+        Assert.Equal(1, created.PendingDays);
+
+        var repeated = await service.ConfirmAsync(new LeaveBalanceReconciliationRequest(UserId: user.Id));
+        Assert.Equal(0, repeated.Updated);
+        Assert.Equal(1, repeated.Skipped);
+    }
+
     private static LeaveRequest Request(Guid userId, Guid leaveTypeId, string status, decimal days, DateOnly startDate) => new()
     {
         Id = Guid.NewGuid(), UserId = userId, LeaveTypeId = leaveTypeId, Status = status,

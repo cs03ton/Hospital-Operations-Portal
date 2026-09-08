@@ -74,7 +74,7 @@ describe("Fleet maintenance UI", () => {
       "/fleet/maintenance/m1",
       "/fleet/maintenance/:id",
     );
-    fireEvent.click(await screen.findByText("Complete"));
+    fireEvent.click(await screen.findByText("เสร็จสิ้นงานบำรุงรักษา"));
     expect(screen.getByText("Complete maintenance")).toBeInTheDocument();
   });
   it("shows conflict error from action", async () => {
@@ -85,7 +85,7 @@ describe("Fleet maintenance UI", () => {
       "/fleet/maintenance/m1",
       "/fleet/maintenance/:id",
     );
-    fireEvent.click(await screen.findByText("Complete"));
+    fireEvent.click(await screen.findByText("เสร็จสิ้นงานบำรุงรักษา"));
     fireEvent.click(screen.getByText("ยืนยัน"));
     expect(await screen.findByText(/concurrency conflict/)).toBeInTheDocument();
   });

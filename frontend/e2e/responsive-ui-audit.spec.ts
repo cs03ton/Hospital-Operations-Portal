@@ -31,8 +31,8 @@ async function login(page: Page, role: string) {
 for (const viewport of viewports) {
   for (const role of roles) {
     test(`${role.key} ${viewport.name} has complete accessible actions`, async ({ page }) => {
-      test.skip(!(await login(page, role.key)), `Set RESPONSIVE_QA_${role.key}_USERNAME and RESPONSIVE_QA_${role.key}_PASSWORD`);
       await page.setViewportSize(viewport);
+      test.skip(!(await login(page, role.key)), `Set RESPONSIVE_QA_${role.key}_USERNAME and RESPONSIVE_QA_${role.key}_PASSWORD`);
 
       for (const route of role.routes) {
         await page.goto(route);

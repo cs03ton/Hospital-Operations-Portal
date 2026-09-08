@@ -43,6 +43,7 @@ import { EmptyState } from "../components/common/EmptyState";
 import { StatusBadge } from "../components/common/StatusBadge";
 import { PageHeader } from "../components/PageHeader";
 import { useNotification } from "../hooks/useNotification";
+import { usePermission } from "../context/PermissionContext";
 import { brandColors } from "../theme/theme";
 import { formatThaiDateTime } from "../utils/dateFormat";
 
@@ -63,6 +64,8 @@ export function AdminAnnouncementsPage() {
   const [appliedSearch, setAppliedSearch] = useState("");
   const queryClient = useQueryClient();
   const notify = useNotification();
+  const { hasAnyPermission } = usePermission();
+  const canCreate = hasAnyPermission(["Announcement.Manage", "Announcement.Create"]);
   const { data, isLoading } = useQuery({
     queryKey: ["admin", "announcements", page, pageSize, status, appliedSearch],
     queryFn: () => getAdminAnnouncements({ page: page + 1, pageSize, status: status || undefined, search: appliedSearch || undefined }),
@@ -120,9 +123,11 @@ export function AdminAnnouncementsPage() {
         <PageHeader title="จัดการประกาศ" subtitle="สร้าง เผยแพร่ ตั้งเวลา และติดตามประกาศภายในโรงพยาบาล" />
 
         <Stack direction={{ xs: "column", md: "row" }} spacing={2} justifyContent="space-between" alignItems={{ xs: "stretch", md: "center" }}>
-          <Button component={RouterLink} to="/admin/announcements/create" variant="contained" startIcon={<AddOutlinedIcon />}>
-            เพิ่มประกาศ
-          </Button>
+          {canCreate && (
+            <Button component={RouterLink} to="/admin/announcements/create" variant="contained" startIcon={<AddOutlinedIcon />}>
+              เพิ่มประกาศ
+            </Button>
+          )}
         </Stack>
 
         <Card sx={{ border: `1px solid ${brandColors.border}`, borderTop: `5px solid ${brandColors.accent}`, borderRadius: 3 }}>
@@ -181,24 +186,24 @@ export function AdminAnnouncementsPage() {
                           <Tooltip title="ดูประกาศ">
                             <IconButton component={RouterLink} to={`/admin/announcements/${item.id}`}><VisibilityOutlinedIcon /></IconButton>
                           </Tooltip>
-                          <Tooltip title="แก้ไข">
+                          {item.capabilities?.canEdit && <Tooltip title="แก้ไข">
                             <IconButton component={RouterLink} to={`/admin/announcements/${item.id}/edit`}><EditOutlinedIcon /></IconButton>
-                          </Tooltip>
-                          <Tooltip title="เผยแพร่">
-                            <span><IconButton disabled={item.status === "Published" || actionMutation.isPending} onClick={() => actionMutation.mutate({ id: item.id, action: "publish" })}><PublishOutlinedIcon /></IconButton></span>
-                          </Tooltip>
-                          <Tooltip title="คัดลอก">
+                          </Tooltip>}
+                          {item.capabilities?.canPublish && <Tooltip title="เผยแพร่">
+                            <span><IconButton disabled={actionMutation.isPending} onClick={() => actionMutation.mutate({ id: item.id, action: "publish" })}><PublishOutlinedIcon /></IconButton></span>
+                          </Tooltip>}
+                          {item.capabilities?.canDuplicate && <Tooltip title="คัดลอก">
                             <span><IconButton disabled={actionMutation.isPending} onClick={() => actionMutation.mutate({ id: item.id, action: "duplicate" })}><ContentCopyOutlinedIcon /></IconButton></span>
-                          </Tooltip>
-                          <Tooltip title="จัดเก็บ">
-                            <span><IconButton disabled={item.status === "Archived" || actionMutation.isPending} onClick={() => actionMutation.mutate({ id: item.id, action: "archive" })}><ArchiveOutlinedIcon /></IconButton></span>
-                          </Tooltip>
-                          <Tooltip title="ยกเลิก">
-                            <span><IconButton disabled={item.status === "Cancelled" || actionMutation.isPending} onClick={() => actionMutation.mutate({ id: item.id, action: "cancel" })}><CancelOutlinedIcon /></IconButton></span>
-                          </Tooltip>
-                          <Tooltip title="ลบประกาศ">
+                          </Tooltip>}
+                          {item.capabilities?.canArchive && <Tooltip title="จัดเก็บ">
+                            <span><IconButton disabled={actionMutation.isPending} onClick={() => actionMutation.mutate({ id: item.id, action: "archive" })}><ArchiveOutlinedIcon /></IconButton></span>
+                          </Tooltip>}
+                          {item.capabilities?.canCancel && <Tooltip title="ยกเลิก">
+                            <span><IconButton disabled={actionMutation.isPending} onClick={() => actionMutation.mutate({ id: item.id, action: "cancel" })}><CancelOutlinedIcon /></IconButton></span>
+                          </Tooltip>}
+                          {item.capabilities?.canDelete && <Tooltip title="ลบประกาศ">
                             <span><IconButton disabled={actionMutation.isPending} color="error" onClick={() => actionMutation.mutate({ id: item.id, action: "delete" })}><DeleteOutlineOutlinedIcon /></IconButton></span>
-                          </Tooltip>
+                          </Tooltip>}
                         </Stack>
                       </TableCell>
                     </TableRow>

@@ -43,7 +43,6 @@ export function AppShell() {
           flexGrow: 1,
           minWidth: 0,
           maxWidth: "100%",
-          overflowX: "clip",
           mt: 9,
           px: { xs: 2, sm: 2.5, md: 3.5 },
           py: { xs: 2, md: 3 },

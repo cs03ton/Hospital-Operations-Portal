@@ -385,7 +385,7 @@ public sealed class LeavePolicyService(
             []);
     }
 
-    private static decimal ResolvePolicyEntitlement(User user, LeavePolicyRule policy, DateOnly asOfDate)
+    internal static decimal ResolvePolicyEntitlement(User user, LeavePolicyRule policy, DateOnly asOfDate)
     {
         if (user.EmploymentStartDate is null)
         {

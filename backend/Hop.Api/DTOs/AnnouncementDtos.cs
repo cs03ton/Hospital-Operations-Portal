@@ -40,6 +40,15 @@ public record AnnouncementImageResponse(
     long FileSize
 );
 
+public record AnnouncementCapabilitiesResponse(
+    bool CanEdit,
+    bool CanPublish,
+    bool CanDuplicate,
+    bool CanArchive,
+    bool CanCancel,
+    bool CanDelete
+);
+
 public record AnnouncementSummaryResponse(
     Guid Id,
     string Title,
@@ -70,7 +79,8 @@ public record AnnouncementSummaryResponse(
     int LineEligibleRecipientCount,
     int LineQueuedCount,
     int LineSentCount,
-    int LineFailedCount
+    int LineFailedCount,
+    AnnouncementCapabilitiesResponse? Capabilities = null
 );
 
 public record AnnouncementDetailResponse(
@@ -114,7 +124,8 @@ public record AnnouncementDetailResponse(
     int LineEligibleRecipientCount,
     int LineQueuedCount,
     int LineSentCount,
-    int LineFailedCount
+    int LineFailedCount,
+    AnnouncementCapabilitiesResponse? Capabilities = null
 );
 
 public record CreateAnnouncementRequest(

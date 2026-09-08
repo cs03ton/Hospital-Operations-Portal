@@ -55,6 +55,14 @@ export type AnnouncementSummary = {
   lineQueuedCount: number;
   lineSentCount: number;
   lineFailedCount: number;
+  capabilities?: {
+    canEdit: boolean;
+    canPublish: boolean;
+    canDuplicate: boolean;
+    canArchive: boolean;
+    canCancel: boolean;
+    canDelete: boolean;
+  } | null;
 };
 
 export type AnnouncementDetail = AnnouncementSummary & {

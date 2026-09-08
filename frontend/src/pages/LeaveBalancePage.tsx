@@ -7,11 +7,11 @@ import OpenInNewOutlinedIcon from "@mui/icons-material/OpenInNewOutlined";
 import PersonOutlineOutlinedIcon from "@mui/icons-material/PersonOutlineOutlined";
 import ShieldOutlinedIcon from "@mui/icons-material/ShieldOutlined";
 import type { SvgIconComponent } from "@mui/icons-material";
-import { Alert, Box, Button, Card, CardContent, FormControl, Grid, LinearProgress, MenuItem, Select, Skeleton, Stack, Table, TableBody, TableCell, TableHead, TableRow, Typography } from "@mui/material";
+import { Alert, Box, Button, Card, CardContent, Chip, Grid, LinearProgress, Skeleton, Stack, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Typography } from "@mui/material";
 import { alpha, useTheme } from "@mui/material/styles";
 import { useQuery } from "@tanstack/react-query";
 import dayjs from "dayjs";
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { Link as RouterLink } from "react-router-dom";
 import { getMyLeaveBalances, type LeaveBalance } from "../api/leaveApi";
 import { getMyProfile } from "../api/profileApi";
@@ -39,10 +39,7 @@ export function LeaveBalancePage() {
   const theme = useTheme();
   const { data = [], isLoading } = useQuery({ queryKey: ["leave-balances", "me"], queryFn: getMyLeaveBalances, ...dashboardPollingOptions });
   const { data: profile, isLoading: isProfileLoading } = useQuery({ queryKey: ["me", "profile"], queryFn: getMyProfile });
-  const fiscalYears = useMemo(() => [...new Set(data.map((item) => item.year))].sort((a, b) => b - a), [data]);
-  const [selectedYear, setSelectedYear] = useState<number | "">("");
-  const activeYear = selectedYear || fiscalYears[0] || getCurrentFiscalYear();
-  const balances = useMemo(() => data.filter((item) => item.year === activeYear), [activeYear, data]);
+  const balances = data;
   const byCode = useMemo(() => new Map(balances.map((item) => [normalizeLeaveCode(item), item])), [balances]);
   const entitlementWarnings = useMemo(
     () => balances
@@ -62,7 +59,7 @@ export function LeaveBalancePage() {
         <Box
           sx={{
             display: "grid",
-            gridTemplateColumns: { xs: "1fr", md: "minmax(220px, 1fr) minmax(300px, 380px)" },
+            gridTemplateColumns: "1fr",
             alignItems: "end",
             gap: 2,
           }}
@@ -82,24 +79,6 @@ export function LeaveBalancePage() {
             กลับไป Dashboard Hub
           </Button>
 
-          <FormControl sx={{ width: "100%" }}>
-            <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5 }}>ปีงบประมาณ</Typography>
-            <Select
-              size="small"
-              value={activeYear}
-              onChange={(event) => setSelectedYear(Number(event.target.value))}
-              sx={{
-                bgcolor: "background.paper",
-                borderRadius: 2.5,
-                minHeight: 48,
-                "& .MuiSelect-select": { py: 1.35 },
-              }}
-            >
-              {(fiscalYears.length ? fiscalYears : [activeYear]).map((year) => (
-                <MenuItem key={year} value={year}>{formatFiscalYear(year)}</MenuItem>
-              ))}
-            </Select>
-          </FormControl>
         </Box>
 
         <Box
@@ -176,7 +155,7 @@ export function LeaveBalancePage() {
                   <Box sx={{ width: 10, height: 18, borderRadius: 99, bgcolor: alpha(theme.palette.primary.main, 0.16) }} />
                   <Typography variant="h6" fontWeight={900}>สรุปวันลาคงเหลือ แยกตามประเภทลา</Typography>
                 </Stack>
-                <Typography variant="body2" color="text.secondary">ปีงบประมาณ {formatFiscalYear(activeYear)}</Typography>
+                <Typography variant="body2" color="text.secondary">แสดงรอบสิทธิ์ปัจจุบันของแต่ละประเภทลา</Typography>
               </Box>
               <Button component={RouterLink} to="/leave" variant="outlined" startIcon={<OpenInNewOutlinedIcon />} sx={{ borderRadius: 2, alignSelf: { xs: "stretch", md: "flex-start" } }}>
                 ดูรายละเอียดทั้งหมด
@@ -222,7 +201,7 @@ export function LeaveBalancePage() {
                   <InfoLine label="วันที่เริ่มงาน" value={formatThaiDate(employmentStartDate)} />
                   <InfoLine label="วันที่คำนวณสิทธิ์" value={formatThaiDate(new Date())} />
                   <InfoLine label="อายุงาน ณ ปัจจุบัน" value={serviceDuration.label} />
-                  <InfoLine label="ปีงบประมาณ" value={formatFiscalYear(activeYear)} />
+                  <InfoLine label="รอบสิทธิ์" value="แสดงตามประเภทลา (ปีงบประมาณ/ปีปฏิทิน)" />
                   <InfoLine label="กลุ่มอายุงาน" value={currentServiceBand} strong />
                   <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 2 }}>
                     ระบบแสดงผลตามข้อมูลสิทธิ์ที่บันทึกในระบบวันลาคงเหลือ หากสิทธิ์ไม่ตรง กรุณาติดต่อ HR หรือผู้ดูแลระบบ
@@ -235,7 +214,8 @@ export function LeaveBalancePage() {
                   <Box sx={{ px: 2, py: 1.5, bgcolor: alpha(theme.palette.primary.main, 0.04), borderBottom: `1px solid ${theme.palette.divider}` }}>
                     <Typography fontWeight={900} color="primary">ตารางสิทธิ์การลาตามประเภทบุคลากร</Typography>
                   </Box>
-                  <Table size="small">
+                  <TableContainer sx={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+                  <Table size="small" sx={{ minWidth: 620 }}>
                     <TableHead>
                       <TableRow>
                         <TableCell>ประเภทบุคลากร</TableCell>
@@ -260,6 +240,7 @@ export function LeaveBalancePage() {
                       ))}
                     </TableBody>
                   </Table>
+                  </TableContainer>
                   <Typography variant="caption" color="text.secondary" sx={{ display: "block", px: 2, py: 1.5 }}>
                     อ้างอิง: policy เริ่มต้นในระบบ เงื่อนไข 6 เดือนใช้เฉพาะลาพักผ่อน และค่าใช้งานจริงอาจเปลี่ยนตาม policy เฉพาะปีงบประมาณ
                   </Typography>
@@ -342,6 +323,7 @@ function BalanceSummaryCard({ definition, balance, isLoading }: { definition: (t
               </Box>
               <Box sx={{ minWidth: 0 }}>
                 <Typography fontWeight={900}>{definition.emoji} {definition.title}</Typography>
+                {balance && <Chip size="small" variant="outlined" label={formatBalanceYear(balance)} sx={{ mt: 0.5, height: 24 }} />}
               </Box>
             </Stack>
             <Box sx={{ textAlign: "right", flex: "0 0 auto" }}>
@@ -412,9 +394,8 @@ function formatFiscalYear(year: number) {
   return `${thaiYear} (1 ต.ค. ${thaiYear - 1} - 30 ก.ย. ${thaiYear})`;
 }
 
-function getCurrentFiscalYear() {
-  const today = dayjs();
-  return today.month() >= 9 ? today.year() + 1 : today.year();
+function formatBalanceYear(balance: LeaveBalance) {
+  return balance.useFiscalYear ? `ปีงบประมาณ ${formatFiscalYear(balance.year)}` : `ปีปฏิทิน ${balance.year + 543}`;
 }
 
 function calculateServiceDuration(startDate?: string | null) {

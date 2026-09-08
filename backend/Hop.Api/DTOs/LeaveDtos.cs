@@ -223,6 +223,7 @@ public record LeaveBalanceResponse(
     Guid LeaveTypeId,
     string LeaveTypeName,
     int Year,
+    bool UseFiscalYear,
     decimal EntitledDays,
     decimal CarriedOverDays,
     decimal AdjustedDays,
@@ -350,7 +351,7 @@ public record LeaveBalanceReconciliationRequest(
 );
 
 public record LeaveBalanceReconciliationItemResponse(
-    Guid BalanceId,
+    Guid? BalanceId,
     Guid UserId,
     Guid LeaveTypeId,
     int Year,

@@ -290,7 +290,7 @@ public class AnnouncementsController(
             (target.TargetType == AnnouncementTargetTypes.Permission && target.TargetValue is not null && access.Permissions.Contains(target.TargetValue)));
     }
 
-    internal static AnnouncementSummaryResponse ToSummary(Announcement item, Guid userId, IUrlHelper? url = null)
+    internal static AnnouncementSummaryResponse ToSummary(Announcement item, Guid userId, IUrlHelper? url = null, AnnouncementCapabilitiesResponse? capabilities = null)
     {
         var read = item.Reads.FirstOrDefault(read => read.UserId == userId);
         return new AnnouncementSummaryResponse(
@@ -323,11 +323,12 @@ public class AnnouncementsController(
             item.NotificationDeliveries.Count(delivery => delivery.Channel == AnnouncementNotificationChannels.Line),
             item.NotificationDeliveries.Count(delivery => delivery.Channel == AnnouncementNotificationChannels.Line && (delivery.LineQueue == null || delivery.LineQueue.Status == "Queued")),
             item.NotificationDeliveries.Count(delivery => delivery.Channel == AnnouncementNotificationChannels.Line && delivery.LineQueue != null && delivery.LineQueue.Status == "Sent"),
-            item.NotificationDeliveries.Count(delivery => delivery.Channel == AnnouncementNotificationChannels.Line && delivery.LineQueue != null && delivery.LineQueue.Status == "Failed")
+            item.NotificationDeliveries.Count(delivery => delivery.Channel == AnnouncementNotificationChannels.Line && delivery.LineQueue != null && delivery.LineQueue.Status == "Failed"),
+            capabilities
         );
     }
 
-    internal static AnnouncementDetailResponse ToDetail(Announcement item, Guid userId, IUrlHelper? url = null)
+    internal static AnnouncementDetailResponse ToDetail(Announcement item, Guid userId, IUrlHelper? url = null, AnnouncementCapabilitiesResponse? capabilities = null)
     {
         var read = item.Reads.FirstOrDefault(read => read.UserId == userId);
         return new AnnouncementDetailResponse(
@@ -371,7 +372,8 @@ public class AnnouncementsController(
             item.NotificationDeliveries.Count(delivery => delivery.Channel == AnnouncementNotificationChannels.Line),
             item.NotificationDeliveries.Count(delivery => delivery.Channel == AnnouncementNotificationChannels.Line && (delivery.LineQueue == null || delivery.LineQueue.Status == "Queued")),
             item.NotificationDeliveries.Count(delivery => delivery.Channel == AnnouncementNotificationChannels.Line && delivery.LineQueue != null && delivery.LineQueue.Status == "Sent"),
-            item.NotificationDeliveries.Count(delivery => delivery.Channel == AnnouncementNotificationChannels.Line && delivery.LineQueue != null && delivery.LineQueue.Status == "Failed")
+            item.NotificationDeliveries.Count(delivery => delivery.Channel == AnnouncementNotificationChannels.Line && delivery.LineQueue != null && delivery.LineQueue.Status == "Failed"),
+            capabilities
         );
     }
 
@@ -552,8 +554,10 @@ public class AdminAnnouncementsController(
             .Take(pageSize)
             .ToListAsync(cancellationToken);
 
+        var userId = GetCurrentUserId() ?? Guid.Empty;
+        var permissions = await GetCurrentPermissionCodesAsync(userId, cancellationToken);
         return ApiResponse<PagedResponse<AnnouncementSummaryResponse>>.Ok(new PagedResponse<AnnouncementSummaryResponse>(
-            items.Select(item => AnnouncementsController.ToSummary(item, GetCurrentUserId() ?? Guid.Empty, Url)).ToList(),
+            items.Select(item => AnnouncementsController.ToSummary(item, userId, Url, BuildCapabilities(item, userId, permissions))).ToList(),
             page,
             pageSize,
             totalItems,
@@ -570,7 +574,9 @@ public class AdminAnnouncementsController(
             return NotFound(ApiResponse<AnnouncementDetailResponse>.Fail("ไม่พบประกาศ"));
         }
 
-        return ApiResponse<AnnouncementDetailResponse>.Ok(AnnouncementsController.ToDetail(item, GetCurrentUserId() ?? Guid.Empty, Url));
+        var userId = GetCurrentUserId() ?? Guid.Empty;
+        var permissions = await GetCurrentPermissionCodesAsync(userId, cancellationToken);
+        return ApiResponse<AnnouncementDetailResponse>.Ok(AnnouncementsController.ToDetail(item, userId, Url, BuildCapabilities(item, userId, permissions)));
     }
 
     [HttpGet("categories")]
@@ -605,6 +611,8 @@ public class AdminAnnouncementsController(
         {
             return NotFound(ApiResponse<AnnouncementImageResponse>.Fail("ไม่พบประกาศ"));
         }
+        if (!await CanEditAsync(announcement, userId.Value, cancellationToken))
+            return StatusCode(StatusCodes.Status403Forbidden, ApiResponse<AnnouncementImageResponse>.Fail("คุณไม่มีสิทธิ์แก้ไขประกาศนี้"));
 
         AnnouncementImage? image = null;
         try
@@ -664,6 +672,9 @@ public class AdminAnnouncementsController(
         {
             return NotFound(ApiResponse<IReadOnlyList<AnnouncementImageResponse>>.Fail("ไม่พบประกาศ"));
         }
+        var currentUserId = GetCurrentUserId();
+        if (currentUserId is null || !await CanEditAsync(announcement, currentUserId.Value, cancellationToken))
+            return StatusCode(StatusCodes.Status403Forbidden, ApiResponse<IReadOnlyList<AnnouncementImageResponse>>.Fail("คุณไม่มีสิทธิ์เข้าถึงรูปภาพของประกาศนี้"));
 
         return ApiResponse<IReadOnlyList<AnnouncementImageResponse>>.Ok(AnnouncementsController.ToImageResponses(announcement.Images, Url));
     }
@@ -676,6 +687,8 @@ public class AdminAnnouncementsController(
         CancellationToken cancellationToken)
     {
         var userId = GetCurrentUserId();
+        if (userId is null || !await CanEditAnnouncementAsync(announcementId, userId.Value, cancellationToken))
+            return StatusCode(StatusCodes.Status403Forbidden, ApiResponse<IReadOnlyList<AnnouncementImageResponse>>.Fail("คุณไม่มีสิทธิ์แก้ไขประกาศนี้"));
         var images = await db.AnnouncementImages
             .Where(item => item.AnnouncementId == announcementId)
             .ToListAsync(cancellationToken);
@@ -708,6 +721,8 @@ public class AdminAnnouncementsController(
         {
             return NotFound(ApiResponse<string>.Fail("ไม่พบรูปภาพ"));
         }
+        if (userId is null || !await CanEditAnnouncementAsync(image.AnnouncementId, userId.Value, cancellationToken))
+            return StatusCode(StatusCodes.Status403Forbidden, ApiResponse<string>.Fail("คุณไม่มีสิทธิ์แก้ไขประกาศนี้"));
 
         await mediaStorage.DeleteImageAsync(image, cancellationToken);
         db.AnnouncementImages.Remove(image);
@@ -725,11 +740,13 @@ public class AdminAnnouncementsController(
         CancellationToken cancellationToken)
     {
         var userId = GetCurrentUserId();
-        var announcementExists = await db.Announcements.AnyAsync(item => item.Id == announcementId, cancellationToken);
-        if (!announcementExists || userId is null)
+        var announcement = await db.Announcements.FirstOrDefaultAsync(item => item.Id == announcementId, cancellationToken);
+        if (announcement is null || userId is null)
         {
             return NotFound(ApiResponse<IReadOnlyList<AnnouncementFileResponse>>.Fail("ไม่พบประกาศ"));
         }
+        if (!await CanEditAsync(announcement, userId.Value, cancellationToken))
+            return StatusCode(StatusCodes.Status403Forbidden, ApiResponse<IReadOnlyList<AnnouncementFileResponse>>.Fail("คุณไม่มีสิทธิ์แก้ไขประกาศนี้"));
 
         if (files.Count == 0)
         {
@@ -785,6 +802,8 @@ public class AdminAnnouncementsController(
         {
             return NotFound(ApiResponse<string>.Fail("ไม่พบไฟล์แนบ"));
         }
+        if (userId is null || !await CanEditAnnouncementAsync(file.AnnouncementId, userId.Value, cancellationToken))
+            return StatusCode(StatusCodes.Status403Forbidden, ApiResponse<string>.Fail("คุณไม่มีสิทธิ์แก้ไขประกาศนี้"));
 
         await mediaStorage.DeleteAttachmentAsync(file, cancellationToken);
         db.AnnouncementFiles.Remove(file);
@@ -866,6 +885,11 @@ public class AdminAnnouncementsController(
         if (item is null)
         {
             return NotFound(ApiResponse<AnnouncementDetailResponse>.Fail("ไม่พบประกาศ"));
+        }
+
+        if (!await CanEditAsync(item, userId.Value, cancellationToken))
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, ApiResponse<AnnouncementDetailResponse>.Fail("คุณไม่มีสิทธิ์แก้ไขประกาศนี้"));
         }
 
         if (item.Status is AnnouncementStatuses.Archived or AnnouncementStatuses.Cancelled)
@@ -1010,6 +1034,11 @@ public class AdminAnnouncementsController(
             return NotFound(ApiResponse<string>.Fail("ไม่พบประกาศ"));
         }
 
+        if (item.Status != AnnouncementStatuses.Draft)
+        {
+            return BadRequest(ApiResponse<string>.Fail("ลบได้เฉพาะประกาศแบบร่าง"));
+        }
+
         foreach (var image in item.Images.ToList())
         {
             await mediaStorage.DeleteImageAsync(image, cancellationToken);
@@ -1140,6 +1169,44 @@ public class AdminAnnouncementsController(
             .Where(item => item.UserId == userId && item.Role != null && item.Role.IsActive)
             .SelectMany(item => item.Role!.RolePermissions)
             .AnyAsync(item => item.Permission != null && item.Permission.IsActive && item.Permission.Code == permissionCode, cancellationToken);
+    }
+
+    private async Task<HashSet<string>> GetCurrentPermissionCodesAsync(Guid userId, CancellationToken cancellationToken)
+    {
+        var codes = await db.UserRoles.AsNoTracking()
+            .Where(item => item.UserId == userId && item.Role != null && item.Role.IsActive)
+            .SelectMany(item => item.Role!.RolePermissions)
+            .Where(item => item.Permission != null && item.Permission.IsActive)
+            .Select(item => item.Permission!.Code)
+            .ToListAsync(cancellationToken);
+        return codes.ToHashSet(StringComparer.Ordinal);
+    }
+
+    internal static AnnouncementCapabilitiesResponse BuildCapabilities(Announcement item, Guid userId, HashSet<string> permissions)
+    {
+        var manage = permissions.Contains(AnnouncementPermissions.Manage);
+        var canEdit = item.Status is not (AnnouncementStatuses.Archived or AnnouncementStatuses.Cancelled) &&
+            (manage || permissions.Contains(AnnouncementPermissions.EditAll) ||
+             (permissions.Contains(AnnouncementPermissions.EditOwn) && item.CreatedByUserId == userId));
+        return new AnnouncementCapabilitiesResponse(
+            canEdit,
+            item.Status != AnnouncementStatuses.Published && (manage || permissions.Contains(AnnouncementPermissions.Publish)),
+            manage || permissions.Contains(AnnouncementPermissions.Create),
+            item.Status != AnnouncementStatuses.Archived && (manage || permissions.Contains(AnnouncementPermissions.Archive)),
+            item.Status != AnnouncementStatuses.Cancelled && (manage || permissions.Contains(AnnouncementPermissions.Cancel)),
+            item.Status == AnnouncementStatuses.Draft && (manage || permissions.Contains(AnnouncementPermissions.DeleteDraft)));
+    }
+
+    private async Task<bool> CanEditAsync(Announcement item, Guid userId, CancellationToken cancellationToken)
+    {
+        var permissions = await GetCurrentPermissionCodesAsync(userId, cancellationToken);
+        return BuildCapabilities(item, userId, permissions).CanEdit;
+    }
+
+    private async Task<bool> CanEditAnnouncementAsync(Guid announcementId, Guid userId, CancellationToken cancellationToken)
+    {
+        var announcement = await db.Announcements.AsNoTracking().FirstOrDefaultAsync(item => item.Id == announcementId, cancellationToken);
+        return announcement is not null && await CanEditAsync(announcement, userId, cancellationToken);
     }
 
     private static string NormalizeSummary(string? summary, string body)

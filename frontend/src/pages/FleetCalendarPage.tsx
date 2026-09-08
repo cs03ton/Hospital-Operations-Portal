@@ -97,7 +97,7 @@ export function FleetCalendarPage() {
   const calendarQuery = useQuery({
     queryKey: ["fleet-calendar", queryParams.toString()],
     queryFn: () => getFleetCalendar(queryParams),
-    retry: 1,
+    retry: false,
   });
   const events = calendarQuery.data ?? emptyCalendarEvents;
   const filteredEvents = useMemo(() => {
