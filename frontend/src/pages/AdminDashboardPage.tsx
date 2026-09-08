@@ -25,6 +25,7 @@ import { getAdminDashboard, type AdminDashboard } from "../api/adminApi";
 import { PageHeader } from "../components/PageHeader";
 import { brandColors } from "../theme/theme";
 import { formatThaiDateTime } from "../utils/dateFormat";
+import { dashboardPollingOptions } from "../config/queryPolling";
 
 type SummaryCardProps = {
   title: string;
@@ -56,7 +57,7 @@ export function AdminDashboardPage() {
   const { data, isLoading, isError } = useQuery({
     queryKey: ["admin-dashboard"],
     queryFn: getAdminDashboard,
-    refetchOnWindowFocus: false,
+    ...dashboardPollingOptions,
   });
   const todos = buildTodoItems(data);
 

@@ -15,6 +15,7 @@ import { ActionTooltip } from "../components/common/ActionTooltip";
 import { brandColors } from "../theme/theme";
 import { formatThaiDate } from "../utils/dateFormat";
 import { getLeaveStatusLabel, getLeaveTypeLabel, getLeaveTypeWithDurationLabel } from "../utils/leaveLabels";
+import { dashboardPollingOptions } from "../config/queryPolling";
 
 const coreLeaveCodes = new Set(["SICK_LEAVE", "PERSONAL_LEAVE", "VACATION_LEAVE"]);
 
@@ -33,11 +34,12 @@ export function LeaveAnalyticsPage() {
   const yearOptions = useMemo(() => buildYearOptions(currentYear), [currentYear]);
   const fiscalYearOptions = useMemo(() => buildFiscalYearOptions(currentFiscalYear), [currentFiscalYear]);
   const queryParams = useMemo(() => sanitizeFilters(filters), [filters]);
-  const { data: options } = useQuery({ queryKey: ["leave-analytics", "options"], queryFn: getLeaveAnalyticsOptions });
+  const { data: options } = useQuery({ queryKey: ["leave-analytics", "options"], queryFn: getLeaveAnalyticsOptions, ...dashboardPollingOptions });
   const departments = options?.departments ?? [];
   const { data, isError, isLoading } = useQuery({
     queryKey: ["leave-analytics", queryParams],
     queryFn: () => getLeaveAnalytics(queryParams),
+    ...dashboardPollingOptions,
   });
   const filteredLeaveTypes = useMemo(
     () => {

@@ -18,6 +18,7 @@ import {
 import { PageHeader } from "../components/PageHeader";
 import { formatThaiDateTime } from "../utils/dateFormat";
 import { getFleetStatusLabel } from "../utils/fleetLabels";
+import { dashboardPollingOptions } from "../config/queryPolling";
 
 type Metric = { label: string; value: number; suffix?: string; tone?: "normal" | "warning" | "error" };
 
@@ -25,15 +26,15 @@ export function FleetDashboardPage() {
   const query = useQuery({
     queryKey: FLEET_DASHBOARD_QUERY_KEY,
     queryFn: getFleetDashboard,
-    staleTime: 30_000,
-    refetchInterval: 60_000,
-    refetchOnWindowFocus: true,
+    staleTime: 0,
+    ...dashboardPollingOptions,
     retry: 1,
   });
   const feedbackQuery = useQuery({
     queryKey: ["fleet-feedback-eligible-trips"],
     queryFn: getFleetFeedbackEligibleTrips,
     staleTime: 60_000,
+    ...dashboardPollingOptions,
     retry: false,
   });
 

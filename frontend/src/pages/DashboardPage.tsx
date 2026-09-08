@@ -8,6 +8,7 @@ import { hospitalName } from "../config/appConfig";
 import { useAuth } from "../context/AuthContext";
 import { Link as RouterLink } from "react-router-dom";
 import { PermissionGuard } from "../context/PermissionContext";
+import { dashboardPollingOptions } from "../config/queryPolling";
 
 export function DashboardPage() {
   const { user } = useAuth();
@@ -15,10 +16,7 @@ export function DashboardPage() {
   const { data, isError, isLoading } = useQuery({
     queryKey: ["dashboard-summary", "leave", role],
     queryFn: getDashboardSummary,
-    // Leave requests can be approved from another account or device. Keep the
-    // dashboard in sync without requiring the current user to hard refresh.
-    refetchInterval: 60_000,
-    refetchOnWindowFocus: true,
+    ...dashboardPollingOptions,
   });
 
   return (

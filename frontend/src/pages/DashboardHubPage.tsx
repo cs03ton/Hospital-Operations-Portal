@@ -11,6 +11,7 @@ import { dashboardModules, getDashboardModuleMetricLabel, getVisibleDashboardMod
 import { hospitalName } from "../config/appConfig";
 import { useAuth } from "../context/AuthContext";
 import { brandColors } from "../theme/theme";
+import { dashboardPollingOptions } from "../config/queryPolling";
 
 export function DashboardHubPage() {
   const { user } = useAuth();
@@ -19,11 +20,13 @@ export function DashboardHubPage() {
   const { data, isError, isLoading } = useQuery({
     queryKey: ["dashboard-summary", "hub"],
     queryFn: getDashboardSummary,
+    ...dashboardPollingOptions,
   });
   const { data: featuredAnnouncements = [] } = useQuery({
     queryKey: ["announcements", "featured", "hub"],
     queryFn: getFeaturedAnnouncements,
     enabled: Boolean(user?.permissions?.includes("Announcement.View")),
+    ...dashboardPollingOptions,
   });
 
   return (

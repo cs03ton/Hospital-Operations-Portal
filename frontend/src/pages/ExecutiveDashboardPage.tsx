@@ -14,6 +14,7 @@ import { Link as RouterLink } from "react-router-dom";
 import { getExecutiveDashboard, type ExecutiveDashboard, type ExecutiveDepartmentLeave, type ExecutiveLeaveType, type ExecutiveMonthlyTrend, type ExecutiveYearlySummary } from "../api/adminApi";
 import { PageHeader } from "../components/PageHeader";
 import { brandColors } from "../theme/theme";
+import { dashboardPollingOptions } from "../config/queryPolling";
 
 export function ExecutiveDashboardPage() {
   const now = new Date();
@@ -30,6 +31,7 @@ export function ExecutiveDashboardPage() {
   const { data, isError, isLoading } = useQuery({
     queryKey: ["dashboard", "executive", queryParams],
     queryFn: () => getExecutiveDashboard(queryParams),
+    ...dashboardPollingOptions,
   });
 
   return (

@@ -29,6 +29,7 @@ import { usePermission } from "../context/PermissionContext";
 import { brandColors } from "../theme/theme";
 import { formatThaiDate } from "../utils/dateFormat";
 import { getLeaveDurationTypeLabel, getLeaveTypeColor, getLeaveTypeLabel, getLeaveTypeWithDurationLabel } from "../utils/leaveLabels";
+import { dashboardPollingOptions } from "../config/queryPolling";
 
 const thaiMonths = [
   "มกราคม",
@@ -66,8 +67,8 @@ export function LeaveCalendarPage() {
     enabled: canFilterDepartments,
     retry: false,
   });
-  const { data: leaveTypes = [] } = useQuery({ queryKey: ["leave-types"], queryFn: getLeaveTypes });
-  const { data: holidays = [] } = useQuery({ queryKey: ["leave-holidays", year], queryFn: () => getLeaveHolidays({ year }) });
+  const { data: leaveTypes = [] } = useQuery({ queryKey: ["leave-types"], queryFn: getLeaveTypes, ...dashboardPollingOptions });
+  const { data: holidays = [] } = useQuery({ queryKey: ["leave-holidays", year], queryFn: () => getLeaveHolidays({ year }), ...dashboardPollingOptions });
   const { data = [], isError, isLoading } = useQuery({
     queryKey: ["leave-calendar", year, month, canFilterDepartments ? departmentId : "", leaveTypeId, status],
     queryFn: () => getLeaveCalendar({
@@ -77,6 +78,7 @@ export function LeaveCalendarPage() {
       leaveTypeId: leaveTypeId || undefined,
       status: status || undefined,
     }),
+    ...dashboardPollingOptions,
   });
 
   const selectedMonth = dayjs(`${year}-${String(month).padStart(2, "0")}-01`);

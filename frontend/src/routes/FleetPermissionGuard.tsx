@@ -5,6 +5,7 @@ import { Navigate } from "react-router-dom";
 import { FLEET_DASHBOARD_QUERY_KEY, getFleetDashboard } from "../api/fleetApi";
 import { usePermission } from "../context/PermissionContext";
 import { fleetCapabilitiesAllowAny } from "../config/fleetNavigation";
+import { dashboardPollingOptions } from "../config/queryPolling";
 
 export function FleetPermissionGuard({ children, permissions, denyMode = "redirect" }: { children: ReactNode; permissions: readonly string[]; denyMode?: "redirect" | "hide" }) {
   const { hasAnyPermission } = usePermission();
@@ -13,9 +14,8 @@ export function FleetPermissionGuard({ children, permissions, denyMode = "redire
     queryKey: FLEET_DASHBOARD_QUERY_KEY,
     queryFn: getFleetDashboard,
     enabled: !directlyAllowed,
-    staleTime: 30_000,
-    refetchInterval: 60_000,
-    refetchOnWindowFocus: true,
+    staleTime: 0,
+    ...dashboardPollingOptions,
     retry: false,
   });
 

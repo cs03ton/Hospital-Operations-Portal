@@ -13,6 +13,7 @@ import { useModuleMenuState } from "../../hooks/useModuleMenuState";
 import { isItemActive, ModuleMenuGroup } from "./ModuleMenuGroup";
 import { useQuery } from "@tanstack/react-query";
 import { FLEET_DASHBOARD_QUERY_KEY, getFleetDashboard, getFleetRolloutAccess } from "../../api/fleetApi";
+import { dashboardPollingOptions } from "../../config/queryPolling";
 
 type AppSidebarProps = {
   drawerWidth: number;
@@ -43,9 +44,8 @@ export function AppSidebar({
     queryKey: FLEET_DASHBOARD_QUERY_KEY,
     queryFn: getFleetDashboard,
     enabled: fleetRollout.data?.isAllowed === true,
-    staleTime: 30_000,
-    refetchInterval: 60_000,
-    refetchOnWindowFocus: true,
+    staleTime: 0,
+    ...dashboardPollingOptions,
     retry: false,
   });
   const fleetPermissions = effectiveFleetPermissions(permissions, fleetDashboard.data?.capabilities);

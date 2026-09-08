@@ -14,18 +14,20 @@ import { formatThaiDate } from "../utils/dateFormat";
 import { getLeaveStatusLabel, getLeaveTypeLabel, getLeaveTypeWithDurationLabel } from "../utils/leaveLabels";
 import { getCancellationStatusLabel } from "./LeaveCancellationListPage";
 import { formatDays as formatLeaveDays } from "./LeaveCancellationCreatePage";
+import { dashboardPollingOptions } from "../config/queryPolling";
 
 export function LeaveReportsPage() {
   const [filters, setFilters] = useState<LeaveReportQuery>({});
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(10);
-  const { data: reportOptions } = useQuery({ queryKey: ["leave-report", "options"], queryFn: getLeaveAnalyticsOptions });
+  const { data: reportOptions } = useQuery({ queryKey: ["leave-report", "options"], queryFn: getLeaveAnalyticsOptions, ...dashboardPollingOptions });
   const departments = reportOptions?.departments ?? [];
   const leaveTypes = reportOptions?.leaveTypes ?? [];
-  const { data } = useQuery({ queryKey: ["leave-report", filters], queryFn: () => getLeaveReport(filters) });
+  const { data } = useQuery({ queryKey: ["leave-report", filters], queryFn: () => getLeaveReport(filters), ...dashboardPollingOptions });
   const { data: cancellationReport } = useQuery({
     queryKey: ["leave-cancellation-report-preview"],
     queryFn: () => getLeaveCancellationRequests({ page: 1, pageSize: 10 }),
+    ...dashboardPollingOptions,
   });
   const visibleLeaveRequests = useMemo(
     () => (data?.leaveRequests ?? []).slice(page * pageSize, page * pageSize + pageSize),

@@ -18,6 +18,7 @@ import { useNavigate } from "react-router-dom";
 import { getNotificationBadge, getNotificationItems } from "../../services/notificationService";
 import { brandColors } from "../../theme/theme";
 import { StatusBadge } from "../common/StatusBadge";
+import { notificationPollingOptions } from "../../config/queryPolling";
 
 export function NotificationBell() {
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
@@ -25,12 +26,12 @@ export function NotificationBell() {
   const { data: notifications = [] } = useQuery({
     queryKey: ["notifications", "me"],
     queryFn: () => getNotificationItems(),
-    refetchInterval: 60000,
+    ...notificationPollingOptions,
   });
   const { data: badgeCount = 0 } = useQuery({
     queryKey: ["notifications", "badge"],
     queryFn: () => getNotificationBadge(),
-    refetchInterval: 60000,
+    ...notificationPollingOptions,
   });
   const isOpen = Boolean(anchorEl);
 
