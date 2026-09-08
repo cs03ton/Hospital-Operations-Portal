@@ -141,8 +141,8 @@ export function NotificationCenterPage() {
         <CardContent>
           <Stack spacing={1.5}>
             <Typography variant="h6" fontWeight={800}>รายการแจ้งเตือน</Typography>
-            <TableContainer>
-              <Table size="small">
+            <TableContainer sx={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+              <Table size="small" sx={{ minWidth: 860, "& th:last-of-type, & td:last-of-type": { position: "sticky", right: 0, bgcolor: "background.paper", zIndex: 1, boxShadow: "-8px 0 12px -12px rgba(0,0,0,.45)" } }}>
                 <TableHead>
                   <TableRow>
                     <TableCell>หัวข้อ</TableCell>

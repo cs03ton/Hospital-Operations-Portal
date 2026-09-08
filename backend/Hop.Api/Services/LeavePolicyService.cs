@@ -5,8 +5,12 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Hop.Api.Services;
 
-public sealed class LeavePolicyService(AppDbContext db) : ILeavePolicyService
+public sealed class LeavePolicyService(
+    AppDbContext db,
+    ILeaveBalanceReconciliationService reconciliationService) : ILeavePolicyService
 {
+    public LeavePolicyService(AppDbContext db) : this(db, new CachedLeaveBalanceUsageService(db)) { }
+
     public async Task<LeavePolicyRule?> GetPolicyAsync(Guid userId, Guid leaveTypeId, int fiscalYear, CancellationToken cancellationToken = default)
     {
         var employmentType = await db.Users
@@ -78,7 +82,10 @@ public sealed class LeavePolicyService(AppDbContext db) : ILeavePolicyService
             errors.Add("การลาครึ่งวันต้องเลือกวันที่เริ่มลาและวันที่สิ้นสุดเป็นวันเดียวกัน");
         }
 
-        var fiscalYear = FiscalYearHelper.GetFiscalYear(startDate);
+        var leaveType = await db.LeaveTypes.AsNoTracking().FirstOrDefaultAsync(item => item.Id == leaveTypeId, cancellationToken);
+        var fiscalYear = leaveType is null
+            ? FiscalYearHelper.GetFiscalYear(startDate)
+            : FiscalYearHelper.ResolveBalanceYear(startDate, leaveType);
         var preview = await CalculateAvailableDaysAsync(userId, leaveTypeId, fiscalYear, requestedDays, startDate, cancellationToken);
         errors.AddRange(preview.Errors);
         warnings.AddRange(preview.Warnings);
@@ -93,7 +100,6 @@ public sealed class LeavePolicyService(AppDbContext db) : ILeavePolicyService
                 errors.Add(minimumServiceError);
             }
         }
-        var leaveType = await db.LeaveTypes.AsNoTracking().FirstOrDefaultAsync(item => item.Id == leaveTypeId, cancellationToken);
         if (user is not null && leaveType is not null)
         {
             var genderError = ValidateGenderRequirement(user, leaveType);
@@ -186,8 +192,9 @@ public sealed class LeavePolicyService(AppDbContext db) : ILeavePolicyService
         var entitled = balance?.EntitledDays ?? entitlement;
         var carriedOver = NormalizeCarryOver(balance?.CarriedOverDays ?? 0, user, policy, fiscalYear);
         var adjusted = balance?.AdjustedDays ?? 0;
-        var used = balance?.UsedDays ?? 0;
-        var pending = balance?.PendingDays ?? 0;
+        var usage = await reconciliationService.GetUsageAsync(userId, leaveTypeId, fiscalYear, cancellationToken);
+        var used = usage.UsedDays;
+        var pending = usage.PendingDays;
         var available = FiscalYearHelper.CalculateAvailableDays(entitled, carriedOver, used, pending, adjusted);
         if (maximumTotalAvailableDays is not null)
         {

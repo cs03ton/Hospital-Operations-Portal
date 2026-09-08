@@ -16,6 +16,7 @@
     "test:e2e:fleet-m4.2:uat": "cross-env FLEET_UAT_MODE=true playwright test --config playwright.m42.uat.config.ts e2e/fleet-milestone4.2.spec.ts",
     "test:e2e:fleet-dashboard:m6": "cross-env FLEET_UAT_MODE=true playwright test --config playwright.m6.uat.config.ts e2e/fleet-dashboard-m6.spec.ts",
     "e2e:phase1": "playwright test e2e/phase1-web-qa.spec.ts",
+    "e2e:responsive": "playwright test --config playwright.dev.config.ts e2e/responsive-ui-audit.spec.ts",
     "e2e:screenshots": "playwright test e2e/screenshots",
     "docs:screenshot": "set NODE_PATH=./node_modules&& playwright test ../tests/screenshots --config ../tests/screenshots/config/playwright.config.ts",
     "preview": "vite preview --host 0.0.0.0",

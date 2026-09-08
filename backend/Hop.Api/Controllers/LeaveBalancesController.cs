@@ -17,8 +17,16 @@ public class LeaveBalancesController(
     AppDbContext db,
     IAuditLogService auditLogService,
     ILeaveBalanceRolloverService rolloverService,
-    ILeavePolicyService leavePolicyService) : ControllerBase
+    ILeavePolicyService leavePolicyService,
+    ILeaveBalanceReconciliationService reconciliationService) : ControllerBase
 {
+    public LeaveBalancesController(
+        AppDbContext db,
+        IAuditLogService auditLogService,
+        ILeaveBalanceRolloverService rolloverService,
+        ILeavePolicyService leavePolicyService)
+        : this(db, auditLogService, rolloverService, leavePolicyService, new CachedLeaveBalanceUsageService(db)) { }
+
     [HttpGet]
     [RequirePermission(LeavePermissions.ManageBalances)]
     public async Task<ActionResult<ApiResponse<IReadOnlyList<LeaveBalanceResponse>>>> GetBalances(
@@ -54,12 +62,20 @@ public class LeaveBalancesController(
             query = query.Where(item => item.LeaveTypeId == leaveTypeId.Value);
         }
 
-        var rows = await query
+        var balances = await query
             .OrderBy(item => item.User!.FullName)
             .ThenBy(item => item.LeaveType!.Name)
             .ThenByDescending(item => item.Year)
-            .Select(item => ToResponse(item))
             .ToListAsync();
+
+        var rows = new List<LeaveBalanceResponse>(balances.Count);
+        foreach (var balance in balances)
+        {
+            var usage = await reconciliationService.GetUsageAsync(balance.UserId, balance.LeaveTypeId, balance.Year, HttpContext.RequestAborted);
+            balance.UsedDays = usage.UsedDays;
+            balance.PendingDays = usage.PendingDays;
+            rows.Add(ToResponse(balance));
+        }
 
         return ApiResponse<IReadOnlyList<LeaveBalanceResponse>>.Ok(rows);
     }
@@ -74,7 +90,7 @@ public class LeaveBalancesController(
             return Unauthorized(ApiResponse<IReadOnlyList<LeaveBalanceResponse>>.Fail("Invalid access token."));
         }
 
-        return ApiResponse<IReadOnlyList<LeaveBalanceResponse>>.Ok(await LoadBalances(userId.Value, year ?? FiscalYearHelper.GetFiscalYear(DateOnly.FromDateTime(DateTime.UtcNow))));
+        return ApiResponse<IReadOnlyList<LeaveBalanceResponse>>.Ok(await LoadBalances(userId.Value, year));
     }
 
     [HttpGet("user/{userId:guid}")]
@@ -86,7 +102,27 @@ public class LeaveBalancesController(
             return NotFound(ApiResponse<IReadOnlyList<LeaveBalanceResponse>>.Fail("User not found."));
         }
 
-        return ApiResponse<IReadOnlyList<LeaveBalanceResponse>>.Ok(await LoadBalances(userId, year ?? FiscalYearHelper.GetFiscalYear(DateOnly.FromDateTime(DateTime.UtcNow))));
+        return ApiResponse<IReadOnlyList<LeaveBalanceResponse>>.Ok(await LoadBalances(userId, year));
+    }
+
+    [HttpPost("reconciliation/preview")]
+    [RequirePermission(LeavePermissions.ManageBalances)]
+    public async Task<ActionResult<ApiResponse<LeaveBalanceReconciliationResponse>>> PreviewReconciliation(LeaveBalanceReconciliationRequest request)
+    {
+        return ApiResponse<LeaveBalanceReconciliationResponse>.Ok(
+            await reconciliationService.PreviewAsync(request, HttpContext.RequestAborted));
+    }
+
+    [HttpPost("reconciliation/confirm")]
+    [RequirePermission(LeavePermissions.ManageBalances)]
+    public async Task<ActionResult<ApiResponse<LeaveBalanceReconciliationResponse>>> ConfirmReconciliation(LeaveBalanceReconciliationRequest request)
+    {
+        var result = await reconciliationService.ConfirmAsync(request, HttpContext.RequestAborted);
+        await auditLogService.WriteAsync(
+            GetCurrentUserId(), "LeaveBalance.Reconciled", "LeaveBalance", null,
+            $"Reconciled cached leave balances. processed={result.Processed}, updated={result.Updated}, skipped={result.Skipped}.",
+            "Success", HttpContext);
+        return ApiResponse<LeaveBalanceReconciliationResponse>.Ok(result);
     }
 
     [HttpGet("import-template")]
@@ -410,7 +446,7 @@ public class LeaveBalancesController(
         return ApiResponse<LeaveBalanceResponse>.Ok((await LoadBalance(targetBalance.Id))!);
     }
 
-    private async Task<IReadOnlyList<LeaveBalanceResponse>> LoadBalances(Guid userId, int year)
+    private async Task<IReadOnlyList<LeaveBalanceResponse>> LoadBalances(Guid userId, int? requestedYear)
     {
         var leaveTypes = await db.LeaveTypes
             .AsNoTracking()
@@ -418,22 +454,28 @@ public class LeaveBalancesController(
             .OrderBy(item => item.Name)
             .ToListAsync();
 
+        var relevantYears = leaveTypes
+            .Select(item => requestedYear ?? FiscalYearHelper.ResolveBalanceYear(DateOnly.FromDateTime(DateTime.UtcNow), item))
+            .Distinct()
+            .ToList();
         var balances = await db.LeaveBalances
             .AsNoTracking()
-            .Where(item => item.UserId == userId && item.Year == year)
+            .Where(item => item.UserId == userId && relevantYears.Contains(item.Year))
             .ToListAsync();
 
         var rows = new List<LeaveBalanceResponse>();
         foreach (var leaveType in leaveTypes)
         {
-            var balance = balances.FirstOrDefault(item => item.LeaveTypeId == leaveType.Id);
+            var year = requestedYear ?? FiscalYearHelper.ResolveBalanceYear(DateOnly.FromDateTime(DateTime.UtcNow), leaveType);
+            var balance = balances.FirstOrDefault(item => item.LeaveTypeId == leaveType.Id && item.Year == year);
             var policyPreview = balance is null
                 ? await leavePolicyService.CalculateAvailableDaysAsync(userId, leaveType.Id, year)
                 : null;
             var entitled = balance?.EntitledDays ?? policyPreview?.EntitlementDays ?? 0;
             var carriedOver = balance?.CarriedOverDays ?? 0;
-            var used = balance?.UsedDays ?? 0;
-            var pending = balance?.PendingDays ?? 0;
+            var usage = await reconciliationService.GetUsageAsync(userId, leaveType.Id, year, HttpContext.RequestAborted);
+            var used = usage.UsedDays;
+            var pending = usage.PendingDays;
             var adjusted = balance?.AdjustedDays ?? 0;
             var available = FiscalYearHelper.CalculateAvailableDays(entitled, carriedOver, used, pending, adjusted);
             var notes = balance?.Notes;
@@ -554,7 +596,8 @@ public class LeaveBalancesController(
                 item.UserId == balance.UserId &&
                 item.LeaveTypeId == balance.LeaveTypeId &&
                 item.Year == toFiscalYear);
-        var endYearRemaining = FiscalYearHelper.CalculateAvailableDays(balance.EntitledDays, balance.CarriedOverDays, balance.UsedDays, balance.PendingDays, balance.AdjustedDays);
+        var usage = await reconciliationService.GetUsageAsync(balance.UserId, balance.LeaveTypeId, balance.Year, HttpContext.RequestAborted);
+        var endYearRemaining = FiscalYearHelper.CalculateAvailableDays(balance.EntitledDays, balance.CarriedOverDays, usage.UsedDays, usage.PendingDays, balance.AdjustedDays);
         var carryOverMaxDays = leaveType.CarryOverMaxDays > 0 ? leaveType.CarryOverMaxDays : FiscalYearHelper.CarryOverDefaultMaxDays;
         var carryOverDays = FiscalYearHelper.CalculateCarryOver(endYearRemaining, leaveType);
         var forfeitedDays = Math.Max(endYearRemaining - carryOverMaxDays, 0);
@@ -581,8 +624,8 @@ public class LeaveBalancesController(
             balance.EntitledDays,
             balance.CarriedOverDays,
             balance.AdjustedDays,
-            balance.UsedDays,
-            balance.PendingDays,
+            usage.UsedDays,
+            usage.PendingDays,
             endYearRemaining,
             carryOverMaxDays,
             carryOverDays,

@@ -123,6 +123,7 @@ builder.Services.AddScoped<ILeaveCalendarService, LeaveCalendarService>();
 builder.Services.AddScoped<ILeavePolicyService, LeavePolicyService>();
 builder.Services.AddScoped<ILeaveEntitlementService, LeaveEntitlementService>();
 builder.Services.AddScoped<ILeaveBalanceValidationService, LeaveBalanceValidationService>();
+builder.Services.AddScoped<ILeaveBalanceReconciliationService, LeaveBalanceReconciliationService>();
 builder.Services.AddScoped<ILeaveBalanceRolloverService, LeaveBalanceRolloverService>();
 builder.Services.AddScoped<ILeaveValidationService, LeaveValidationService>();
 builder.Services.AddScoped<IApprovalChainService, ApprovalChainService>();

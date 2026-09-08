@@ -42,6 +42,8 @@ export function AppShell() {
         sx={(theme) => ({
           flexGrow: 1,
           minWidth: 0,
+          maxWidth: "100%",
+          overflowX: "clip",
           mt: 9,
           px: { xs: 2, sm: 2.5, md: 3.5 },
           py: { xs: 2, md: 3 },
@@ -49,6 +51,14 @@ export function AppShell() {
             duration: theme.transitions.duration.shorter,
             easing: theme.transitions.easing.easeInOut,
           }),
+          "& .MuiCardActions-root": {
+            flexWrap: "wrap",
+            gap: 1,
+          },
+          "& .MuiDialog-paper": {
+            maxWidth: { xs: "calc(100vw - 24px)", sm: "calc(100vw - 64px)" },
+            m: { xs: 1.5, sm: 4 },
+          },
           ...(isFleetModule && fleetModuleStyles),
         })}
       >
@@ -147,7 +157,9 @@ const fleetModuleStyles = {
   "& .MuiTableContainer-root": {
     border: `1px solid ${brandColors.border}`,
     borderRadius: "14px",
-    overflow: "hidden",
+    overflowX: "auto",
+    overflowY: "hidden",
+    WebkitOverflowScrolling: "touch",
   },
   "& .MuiTableCell-head": {
     background: `linear-gradient(180deg, ${alpha(brandColors.accentSoft, 0.2)} 0%, ${brandColors.background} 100%)`,

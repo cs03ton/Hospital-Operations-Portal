@@ -12,8 +12,12 @@ namespace Hop.Api.Services;
 public sealed class LeaveBalanceRolloverService(
     AppDbContext db,
     ILeavePolicyService leavePolicyService,
-    IAuditLogService auditLogService) : ILeaveBalanceRolloverService
+    IAuditLogService auditLogService,
+    ILeaveBalanceReconciliationService reconciliationService) : ILeaveBalanceRolloverService
 {
+    public LeaveBalanceRolloverService(AppDbContext db, ILeavePolicyService leavePolicyService, IAuditLogService auditLogService)
+        : this(db, leavePolicyService, auditLogService, new CachedLeaveBalanceUsageService(db)) { }
+
     private const string ActionCreated = "Created";
     private const string ActionUpdated = "Updated";
     private const string ActionSkipped = "Skipped";
@@ -237,8 +241,9 @@ public sealed class LeaveBalanceRolloverService(
                 var entitled = source?.EntitledDays ?? await leavePolicyService.CalculateEntitlementAsync(user.Id, leaveType.Id, request.FromFiscalYear, cancellationToken);
                 var carriedOver = source?.CarriedOverDays ?? 0;
                 var adjusted = source?.AdjustedDays ?? 0;
-                var used = source?.UsedDays ?? 0;
-                var pending = source?.PendingDays ?? 0;
+                var usage = await reconciliationService.GetUsageAsync(user.Id, leaveType.Id, request.FromFiscalYear, cancellationToken);
+                var used = usage.UsedDays;
+                var pending = usage.PendingDays;
                 var endYearRemaining = FiscalYearHelper.CalculateAvailableDays(entitled, carriedOver, used, pending, adjusted);
                 var warnings = new List<string>();
                 string action;

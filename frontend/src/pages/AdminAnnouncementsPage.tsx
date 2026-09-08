@@ -150,8 +150,8 @@ export function AdminAnnouncementsPage() {
 
         <Card sx={{ border: `1px solid ${brandColors.border}`, borderRadius: 3 }}>
           <CardContent>
-            <TableContainer>
-              <Table>
+            <TableContainer sx={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+              <Table sx={{ minWidth: 980, "& th:last-of-type, & td:last-of-type": { position: "sticky", right: 0, bgcolor: "background.paper", zIndex: 1, boxShadow: "-8px 0 12px -12px rgba(0,0,0,.45)" } }}>
                 <TableHead>
                   <TableRow>
                     <TableCell>หัวข้อ</TableCell>

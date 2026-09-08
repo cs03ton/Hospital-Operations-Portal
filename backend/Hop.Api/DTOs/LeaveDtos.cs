@@ -342,6 +342,31 @@ public record LeaveBalanceRolloverConfirmRequest(
 
 public record LeaveBalanceAdjustmentRequest(decimal AdjustmentDays, string Reason);
 
+public record LeaveBalanceReconciliationRequest(
+    Guid? UserId = null,
+    Guid? DepartmentId = null,
+    Guid? LeaveTypeId = null,
+    int? Year = null
+);
+
+public record LeaveBalanceReconciliationItemResponse(
+    Guid BalanceId,
+    Guid UserId,
+    Guid LeaveTypeId,
+    int Year,
+    decimal PreviousUsedDays,
+    decimal ActualUsedDays,
+    decimal PreviousPendingDays,
+    decimal ActualPendingDays
+);
+
+public record LeaveBalanceReconciliationResponse(
+    int Processed,
+    int Updated,
+    int Skipped,
+    IReadOnlyList<LeaveBalanceReconciliationItemResponse> Items
+);
+
 public record ApprovalChainResponse(
     Guid Id,
     string Name,

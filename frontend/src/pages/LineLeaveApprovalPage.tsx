@@ -52,6 +52,7 @@ export function LineLeaveApprovalPage() {
     await queryClient.invalidateQueries({ queryKey: ["approvals", "my-pending"] });
     await queryClient.invalidateQueries({ queryKey: ["notifications"] });
     await queryClient.invalidateQueries({ queryKey: ["dashboard-summary"] });
+    await queryClient.invalidateQueries({ queryKey: ["leave-balances"] });
   };
 
   const approveMutation = useMutation({

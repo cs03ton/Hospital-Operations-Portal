@@ -8,8 +8,12 @@ namespace Hop.Api.Services;
 public sealed class LeaveEntitlementService(
     AppDbContext db,
     ILeavePolicyService leavePolicyService,
+    ILeaveBalanceReconciliationService reconciliationService,
     IAuditLogService auditLogService) : ILeaveEntitlementService
 {
+    public LeaveEntitlementService(AppDbContext db, ILeavePolicyService leavePolicyService, IAuditLogService auditLogService)
+        : this(db, leavePolicyService, new CachedLeaveBalanceUsageService(db), auditLogService) { }
+
     public async Task<LeaveEntitlementInitializationResult> InitializeAsync(
         Guid userId,
         int fiscalYear,
@@ -51,10 +55,11 @@ public sealed class LeaveEntitlementService(
         var skipped = 0;
         foreach (var leaveType in leaveTypes)
         {
+            var balanceYear = FiscalYearHelper.ResolveBalanceYear(effectiveDate, leaveType);
             var existing = await db.LeaveBalances.AnyAsync(item =>
                 item.UserId == userId &&
                 item.LeaveTypeId == leaveType.Id &&
-                item.Year == fiscalYear,
+                item.Year == balanceYear,
                 cancellationToken);
 
             if (existing)
@@ -63,7 +68,7 @@ public sealed class LeaveEntitlementService(
                 continue;
             }
 
-            var policy = await leavePolicyService.GetPolicyAsync(userId, leaveType.Id, fiscalYear, cancellationToken);
+            var policy = await leavePolicyService.GetPolicyAsync(userId, leaveType.Id, balanceYear, cancellationToken);
             if (policy is null)
             {
                 warnings.Add($"ยังไม่ได้กำหนด policy สำหรับ {leaveType.Name} ({EmploymentTypes.GetThaiLabel(user.EmploymentType)})");
@@ -71,18 +76,19 @@ public sealed class LeaveEntitlementService(
                 continue;
             }
 
-            var entitlementDays = await leavePolicyService.CalculateEntitlementAsync(userId, leaveType.Id, fiscalYear, cancellationToken);
+            var entitlementDays = await leavePolicyService.CalculateEntitlementAsync(userId, leaveType.Id, balanceYear, cancellationToken);
+            var usage = await reconciliationService.GetUsageAsync(userId, leaveType.Id, balanceYear, cancellationToken);
             var balance = new LeaveBalance
             {
                 Id = Guid.NewGuid(),
                 UserId = userId,
                 LeaveTypeId = leaveType.Id,
-                Year = fiscalYear,
+                Year = balanceYear,
                 EntitledDays = entitlementDays,
                 CarriedOverDays = 0,
                 AdjustedDays = 0,
-                UsedDays = 0,
-                PendingDays = 0,
+                UsedDays = usage.UsedDays,
+                PendingDays = usage.PendingDays,
                 Notes = $"Initialized from {user.EmploymentType} policy on {effectiveDate:yyyy-MM-dd}. {reason}"
             };
 
@@ -91,7 +97,7 @@ public sealed class LeaveEntitlementService(
             {
                 UserId = userId,
                 LeaveTypeId = leaveType.Id,
-                FiscalYear = fiscalYear,
+                FiscalYear = balanceYear,
                 TransactionType = LeaveBalanceTransactionTypes.EntitlementGranted,
                 AmountDays = entitlementDays,
                 ReferenceType = "LeaveBalance",

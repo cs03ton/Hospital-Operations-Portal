@@ -23,6 +23,7 @@ export type ManagementDataGridColumn<T> = {
   align?: "left" | "center" | "right";
   width?: number | string;
   sortable?: boolean;
+  mobileHidden?: boolean;
   render: (row: T) => ReactNode;
 };
 
@@ -84,7 +85,8 @@ export function ManagementDataGrid<T>({
             {toolbar}
           </Stack>
         )}
-        <TableContainer sx={{ maxHeight: 640, overflowX: "auto" }}>
+        <Box sx={{ display: { xs: "none", md: "block" } }}>
+        <TableContainer sx={{ maxHeight: 640, overflowX: "auto" }} aria-label={title ? `${title} แบบตาราง` : "รายการแบบตาราง"}>
           <Table size="small" stickyHeader sx={{ minWidth: minTableWidth }}>
             <TableHead>
               <TableRow>
@@ -128,6 +130,28 @@ export function ManagementDataGrid<T>({
             </TableBody>
           </Table>
         </TableContainer>
+        </Box>
+        <Stack spacing={1.25} sx={{ display: { xs: "flex", md: "none" } }} aria-label={title ? `${title} สำหรับมือถือ` : "รายการสำหรับมือถือ"}>
+          {isLoading ? (
+            <Typography color="text.secondary">กำลังโหลดข้อมูล...</Typography>
+          ) : rows.length === 0 ? (
+            <Typography color="text.secondary">{emptyMessage}</Typography>
+          ) : rows.map((row) => (
+            <Box key={getRowId(row)} sx={{ border: "1px solid", borderColor: "divider", borderRadius: 2, p: 1.5, minWidth: 0 }}>
+              <Stack spacing={1.1}>
+                {columns.filter((column) => !column.mobileHidden).map((column) => {
+                  const isAction = column.key === "actions" || column.key === "action";
+                  return (
+                    <Box key={column.key} sx={{ display: "grid", gridTemplateColumns: isAction ? "1fr" : "minmax(88px, 36%) minmax(0, 1fr)", gap: 1, alignItems: "start" }}>
+                      {!isAction && <Typography variant="caption" color="text.secondary" fontWeight={700}>{column.label}</Typography>}
+                      <Box sx={{ minWidth: 0, overflowWrap: "anywhere", textAlign: column.align ?? "left" }}>{column.render(row)}</Box>
+                    </Box>
+                  );
+                })}
+              </Stack>
+            </Box>
+          ))}
+        </Stack>
         <ListPagination
           page={page}
           pageSize={pageSize}

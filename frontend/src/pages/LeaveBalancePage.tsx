@@ -18,6 +18,7 @@ import { getMyProfile } from "../api/profileApi";
 import { PageHeader } from "../components/PageHeader";
 import { formatThaiDate } from "../utils/dateFormat";
 import { getEmploymentTypeLabel } from "../utils/employmentLabels";
+import { dashboardPollingOptions } from "../config/queryPolling";
 
 const coreLeaveDefinitions = [
   { code: "VACATION_LEAVE", title: "ลาพักผ่อน", icon: HotelOutlinedIcon, color: "#16A34A", emoji: "🛏️" },
@@ -36,7 +37,7 @@ const policySummaryRows = [
 
 export function LeaveBalancePage() {
   const theme = useTheme();
-  const { data = [], isLoading } = useQuery({ queryKey: ["leave-balances", "me"], queryFn: getMyLeaveBalances });
+  const { data = [], isLoading } = useQuery({ queryKey: ["leave-balances", "me"], queryFn: getMyLeaveBalances, ...dashboardPollingOptions });
   const { data: profile, isLoading: isProfileLoading } = useQuery({ queryKey: ["me", "profile"], queryFn: getMyProfile });
   const fiscalYears = useMemo(() => [...new Set(data.map((item) => item.year))].sort((a, b) => b - a), [data]);
   const [selectedYear, setSelectedYear] = useState<number | "">("");

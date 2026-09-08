@@ -1,3 +1,4 @@
+import SwipeOutlinedIcon from "@mui/icons-material/SwipeOutlined";
 import { Box, Card, CardContent, Stack, Table, TableContainer, Typography } from "@mui/material";
 import type { ReactNode } from "react";
 
@@ -29,10 +30,14 @@ export function DataTableCard({ title, subtitle, actions, children, minTableWidt
                 </Typography>
               )}
             </Box>
-            {actions && <Box sx={{ flexShrink: 0 }}>{actions}</Box>}
+            {actions && <Box sx={{ flexShrink: 0, width: { xs: "100%", md: "auto" }, "& .MuiButton-root": { width: { xs: "100%", sm: "auto" } } }}>{actions}</Box>}
           </Stack>
         )}
-        <TableContainer sx={{ overflowX: "auto" }}>
+        <Stack direction="row" spacing={0.75} alignItems="center" sx={{ display: { xs: "flex", md: "none" }, mb: 1, color: "text.secondary" }}>
+          <SwipeOutlinedIcon fontSize="small" />
+          <Typography variant="caption">เลื่อนตารางด้านข้างเพื่อดูข้อมูลเพิ่มเติม</Typography>
+        </Stack>
+        <TableContainer sx={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
           <Table size="small" sx={{ minWidth: minTableWidth }}>{children}</Table>
         </TableContainer>
       </CardContent>

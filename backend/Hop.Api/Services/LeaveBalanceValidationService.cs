@@ -5,8 +5,14 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Hop.Api.Services;
 
-public sealed class LeaveBalanceValidationService(AppDbContext db, ILeavePolicyService leavePolicyService) : ILeaveBalanceValidationService
+public sealed class LeaveBalanceValidationService(
+    AppDbContext db,
+    ILeavePolicyService leavePolicyService,
+    ILeaveBalanceReconciliationService reconciliationService) : ILeaveBalanceValidationService
 {
+    public LeaveBalanceValidationService(AppDbContext db, ILeavePolicyService leavePolicyService)
+        : this(db, leavePolicyService, new CachedLeaveBalanceUsageService(db)) { }
+
     public async Task<LeaveBalanceValidationResult> ValidateAvailableBalanceAsync(
         LeaveRequest leaveRequest,
         LeaveType leaveType,
@@ -56,8 +62,9 @@ public sealed class LeaveBalanceValidationService(AppDbContext db, ILeavePolicyS
         var entitled = balance?.EntitledDays ?? leaveType.DefaultDaysPerYear;
         var carriedOver = balance?.CarriedOverDays ?? 0;
         var adjusted = balance?.AdjustedDays ?? 0;
-        var used = balance?.UsedDays ?? 0;
-        var pending = balance?.PendingDays ?? 0;
+        var usage = await reconciliationService.GetUsageAsync(leaveRequest.UserId, leaveRequest.LeaveTypeId, year);
+        var used = usage.UsedDays;
+        var pending = usage.PendingDays;
         var available = FiscalYearHelper.CalculateAvailableDays(entitled, carriedOver, used, pending, adjusted);
         if (available < requestedDays)
         {

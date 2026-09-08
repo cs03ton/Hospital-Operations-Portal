@@ -82,6 +82,7 @@ export function LeaveRequestDetailPage() {
     await queryClient.invalidateQueries({ queryKey: ["approvals", "my-pending"] });
     await queryClient.invalidateQueries({ queryKey: ["notifications"] });
     await queryClient.invalidateQueries({ queryKey: ["dashboard-summary"] });
+    await queryClient.invalidateQueries({ queryKey: ["leave-balances"] });
   };
 
   const submitMutation = useMutation({ mutationFn: () => submitLeaveRequest(id!), onSuccess: async () => { showSuccess("ส่งคำขอลาเข้าสู่กระบวนการอนุมัติเรียบร้อยแล้ว"); await invalidate(); } });
