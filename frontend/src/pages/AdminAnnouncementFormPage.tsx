@@ -282,7 +282,6 @@ export function AdminAnnouncementFormPage() {
               <AnnouncementMediaSection
                 existingImages={detail?.images ?? []}
                 existingFiles={detail?.files ?? []}
-                coverFile={coverFile}
                 coverPreviewUrl={coverPreviewUrl}
                 galleryFiles={galleryFiles}
                 galleryPreviewUrls={galleryPreviewUrls}
@@ -480,7 +479,6 @@ function AnnouncementOptionTile({
 function AnnouncementMediaSection({
   existingImages,
   existingFiles,
-  coverFile,
   coverPreviewUrl,
   galleryFiles,
   galleryPreviewUrls,
@@ -494,7 +492,6 @@ function AnnouncementMediaSection({
 }: {
   existingImages: AnnouncementImage[];
   existingFiles: AnnouncementFile[];
-  coverFile: File | null;
   coverPreviewUrl: string | null;
   galleryFiles: File[];
   galleryPreviewUrls: string[];

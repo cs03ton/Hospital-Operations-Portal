@@ -109,3 +109,6 @@ To add a widget:
 3. Add backend metric fields only when the widget needs server data.
 
 No new module should be exposed from dashboard unless Phase scope allows it.
+# Fleet Phase 2.0
+
+Fleet dashboard metrics are planned as a separate module provider. The navigation/dashboard tile remains disabled during Milestone 1 and must not be enabled until its API, permission guard, loading/error states, and production role assignments are ready.

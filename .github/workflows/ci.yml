@@ -38,10 +38,14 @@ jobs:
       - name: Build API
         run: dotnet build backend/Hop.Api/Hop.Api.csproj --configuration Release --no-restore
 
-      - name: Test backend
+      - name: Test backend unit suite
+        run: dotnet test backend/Hop.Api.Tests/Hop.Api.Tests.csproj --configuration Release --filter "Category!=PostgreSqlIntegration"
+
+      - name: PostgreSQL Fleet integration suite
         env:
           HOP_E2E_CONNECTION_STRING: Host=localhost;Port=5432;Database=hop_ci;Username=hop_ci;Password=hop_ci_password
-        run: dotnet test backend/Hop.Api.Tests/Hop.Api.Tests.csproj --configuration Release
+          FLEET_REQUIRE_POSTGRES_INTEGRATION: "true"
+        run: dotnet test backend/Hop.Api.Tests/Hop.Api.Tests.csproj --configuration Release --no-build --filter "Category=PostgreSqlIntegration"
 
       - name: Restore EF tools
         run: dotnet tool restore
@@ -72,6 +76,14 @@ jobs:
       - name: Install dependencies
         working-directory: frontend
         run: npm ci
+
+      - name: Frontend lint
+        working-directory: frontend
+        run: npm run lint
+
+      - name: Fleet component tests
+        working-directory: frontend
+        run: npm run test:unit:coverage
 
       - name: TypeScript and Vite build
         working-directory: frontend

@@ -19,7 +19,7 @@ import { alpha } from "@mui/material/styles";
 import { useQuery } from "@tanstack/react-query";
 import dayjs from "dayjs";
 import { useMemo, useState } from "react";
-import { getDepartments } from "../api/adminApi";
+import { getDepartmentOptions } from "../api/adminApi";
 import { getLeaveCalendar, getLeaveHolidays, getLeaveTypes, type LeaveCalendarItem, type LeaveHoliday } from "../api/leaveApi";
 import { LeaveCalendarEventChip } from "../components/leave/LeaveCalendarEventChip";
 import { LeaveCalendarToolbar } from "../components/leave/LeaveCalendarToolbar";
@@ -62,7 +62,7 @@ export function LeaveCalendarPage() {
   const [detailSearch, setDetailSearch] = useState("");
   const { data: departments = [] } = useQuery({
     queryKey: ["departments"],
-    queryFn: getDepartments,
+    queryFn: getDepartmentOptions,
     enabled: canFilterDepartments,
     retry: false,
   });

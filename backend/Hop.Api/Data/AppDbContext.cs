@@ -37,6 +37,10 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<LineUserBinding> LineUserBindings => Set<LineUserBinding>();
     public DbSet<LinePairingCode> LinePairingCodes => Set<LinePairingCode>();
     public DbSet<LineConnectToken> LineConnectTokens => Set<LineConnectToken>();
+    public DbSet<LineGroupDestination> LineGroupDestinations => Set<LineGroupDestination>();
+    public DbSet<LineGroupEventSubscription> LineGroupEventSubscriptions => Set<LineGroupEventSubscription>();
+    public DbSet<LineWebhookInbox> LineWebhookInbox => Set<LineWebhookInbox>();
+    public DbSet<LineGroupDeliveryLog> LineGroupDeliveryLogs => Set<LineGroupDeliveryLog>();
     public DbSet<BackupRun> BackupRuns => Set<BackupRun>();
     public DbSet<RestoreRun> RestoreRuns => Set<RestoreRun>();
     public DbSet<DiagnosticRun> DiagnosticRuns => Set<DiagnosticRun>();
@@ -48,6 +52,36 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<AnnouncementImage> AnnouncementImages => Set<AnnouncementImage>();
     public DbSet<AnnouncementRead> AnnouncementReads => Set<AnnouncementRead>();
     public DbSet<AnnouncementNotificationDelivery> AnnouncementNotificationDeliveries => Set<AnnouncementNotificationDelivery>();
+    public DbSet<FleetVehicleType> FleetVehicleTypes => Set<FleetVehicleType>();
+    public DbSet<FleetStatusDefinition> FleetStatusDefinitions => Set<FleetStatusDefinition>();
+    public DbSet<FleetVehicle> FleetVehicles => Set<FleetVehicle>();
+    public DbSet<FleetDriverProfile> FleetDriverProfiles => Set<FleetDriverProfile>();
+    public DbSet<FleetVehicleUnavailability> FleetVehicleUnavailability => Set<FleetVehicleUnavailability>();
+    public DbSet<FleetDriverUnavailability> FleetDriverUnavailability => Set<FleetDriverUnavailability>();
+    public DbSet<FleetRequest> FleetRequests => Set<FleetRequest>();
+    public DbSet<FleetRequestPassenger> FleetRequestPassengers => Set<FleetRequestPassenger>();
+    public DbSet<FleetRequestStatusHistory> FleetRequestStatusHistories => Set<FleetRequestStatusHistory>();
+    public DbSet<FleetAssignment> FleetAssignments => Set<FleetAssignment>();
+    public DbSet<FleetCancellationRequest> FleetCancellationRequests => Set<FleetCancellationRequest>();
+    public DbSet<FleetTripRecord> FleetTripRecords => Set<FleetTripRecord>();
+    public DbSet<FleetTripParticipant> FleetTripParticipants => Set<FleetTripParticipant>();
+    public DbSet<FleetTripFeedback> FleetTripFeedbacks => Set<FleetTripFeedback>();
+    public DbSet<DomainEventRecord> DomainEvents => Set<DomainEventRecord>();
+    public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
+    public DbSet<NotificationDelivery> NotificationDeliveries => Set<NotificationDelivery>();
+    public DbSet<FleetRolloutSetting> FleetRolloutSettings => Set<FleetRolloutSetting>();
+    public DbSet<FleetMaintenanceType> FleetMaintenanceTypes => Set<FleetMaintenanceType>();
+    public DbSet<FleetVehicleMaintenanceSchedule> FleetVehicleMaintenanceSchedules => Set<FleetVehicleMaintenanceSchedule>();
+    public DbSet<FleetVehicleMaintenanceRecord> FleetVehicleMaintenanceRecords => Set<FleetVehicleMaintenanceRecord>();
+    public DbSet<FleetMaintenanceAttachment> FleetMaintenanceAttachments => Set<FleetMaintenanceAttachment>();
+    public DbSet<FleetVehicleDocument> FleetVehicleDocuments => Set<FleetVehicleDocument>();
+    public DbSet<FleetCapability> FleetCapabilities => Set<FleetCapability>();
+    public DbSet<FleetVehicleCapability> FleetVehicleCapabilities => Set<FleetVehicleCapability>();
+    public DbSet<FleetRequestRequiredCapability> FleetRequestRequiredCapabilities => Set<FleetRequestRequiredCapability>();
+    public DbSet<FleetCompatibilityOverride> FleetCompatibilityOverrides => Set<FleetCompatibilityOverride>();
+    public DbSet<FleetEmergencyPostReview> FleetEmergencyPostReviews => Set<FleetEmergencyPostReview>();
+    public DbSet<FleetTripAttachment> FleetTripAttachments => Set<FleetTripAttachment>();
+    public DbSet<FleetEmergencyPolicy> FleetEmergencyPolicies => Set<FleetEmergencyPolicy>();
 
     public override int SaveChanges(bool acceptAllChangesOnSuccess)
     {
@@ -63,6 +97,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        modelBuilder.ConfigureFleet();
+
         modelBuilder.Entity<Department>(entity =>
         {
             entity.ToTable("departments");
@@ -239,6 +275,14 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             entity.Property(item => item.Detail).HasColumnName("detail");
             entity.Property(item => item.IpAddress).HasColumnName("ip_address");
             entity.Property(item => item.Result).HasColumnName("result");
+            entity.Property(item => item.EffectiveActorUserId).HasColumnName("effective_actor_user_id");
+            entity.Property(item => item.DelegatorUserId).HasColumnName("delegator_user_id");
+            entity.Property(item => item.DelegationId).HasColumnName("delegation_id");
+            entity.Property(item => item.OldValue).HasColumnName("old_value");
+            entity.Property(item => item.NewValue).HasColumnName("new_value");
+            entity.Property(item => item.Reason).HasColumnName("reason");
+            entity.Property(item => item.CorrelationId).HasColumnName("correlation_id").HasMaxLength(100);
+            entity.Property(item => item.UserAgent).HasColumnName("user_agent").HasMaxLength(500);
             entity.Property(item => item.CreatedAt).HasColumnName("created_at");
             entity.HasIndex(item => item.CreatedAt);
             entity.HasOne(item => item.User)
@@ -641,6 +685,10 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             entity.Property(item => item.Id).HasColumnName("id");
             entity.Property(item => item.ApproverUserId).HasColumnName("approver_user_id");
             entity.Property(item => item.DelegateUserId).HasColumnName("delegate_user_id");
+            entity.Property(item => item.Scope).HasColumnName("scope").HasMaxLength(30);
+            entity.Property(item => item.RequiredPermissionCode).HasColumnName("required_permission_code").HasMaxLength(120);
+            entity.Property(item => item.StartAt).HasColumnName("start_at");
+            entity.Property(item => item.EndAt).HasColumnName("end_at");
             entity.Property(item => item.StartDate).HasColumnName("start_date");
             entity.Property(item => item.EndDate).HasColumnName("end_date");
             entity.Property(item => item.Reason).HasColumnName("reason");
@@ -649,7 +697,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             entity.Property(item => item.CreatedAt).HasColumnName("created_at");
             entity.Property(item => item.UpdatedAt).HasColumnName("updated_at");
             entity.Property(item => item.CancelledAt).HasColumnName("cancelled_at");
+            entity.Property(item => item.ConcurrencyToken).HasColumnName("concurrency_token").IsConcurrencyToken();
             entity.HasIndex(item => new { item.ApproverUserId, item.StartDate, item.EndDate });
+            entity.HasIndex(item => new { item.ApproverUserId, item.Scope, item.RequiredPermissionCode, item.StartAt, item.EndAt });
             entity.HasOne(item => item.ApproverUser)
                 .WithMany()
                 .HasForeignKey(item => item.ApproverUserId);
@@ -773,6 +823,90 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             entity.HasOne(item => item.RecipientUser)
                 .WithMany()
                 .HasForeignKey(item => item.RecipientUserId);
+        });
+
+        modelBuilder.Entity<LineGroupDestination>(entity =>
+        {
+            entity.ToTable("line_group_destinations");
+            entity.Property(x => x.Id).HasColumnName("id");
+            entity.Property(x => x.LineGroupId).HasColumnName("line_group_id").HasMaxLength(100);
+            entity.Property(x => x.DisplayName).HasColumnName("display_name").HasMaxLength(300);
+            entity.Property(x => x.Status).HasColumnName("status").HasMaxLength(30);
+            entity.Property(x => x.Module).HasColumnName("module").HasMaxLength(30);
+            entity.Property(x => x.DeliveryProvider).HasColumnName("delivery_provider").HasMaxLength(40).HasDefaultValue("LINE_MESSAGING_API");
+            entity.Property(x => x.EndpointUrl).HasColumnName("endpoint_url").HasMaxLength(1000);
+            entity.Property(x => x.ClientId).HasColumnName("client_id").HasMaxLength(300);
+            entity.Property(x => x.ClientSecretProtected).HasColumnName("client_secret_protected").HasMaxLength(4000);
+            entity.Property(x => x.AttentionRequired).HasColumnName("attention_required");
+            entity.Property(x => x.AttentionReason).HasColumnName("attention_reason").HasMaxLength(500);
+            entity.Property(x => x.FirstDetectedAt).HasColumnName("first_detected_at");
+            entity.Property(x => x.LastDetectedAt).HasColumnName("last_detected_at");
+            entity.Property(x => x.ConfirmedByUserId).HasColumnName("confirmed_by_user_id");
+            entity.Property(x => x.ConfirmedAt).HasColumnName("confirmed_at");
+            entity.Property(x => x.DisabledByUserId).HasColumnName("disabled_by_user_id");
+            entity.Property(x => x.DisabledAt).HasColumnName("disabled_at");
+            entity.Property(x => x.ConcurrencyToken).HasColumnName("concurrency_token").IsConcurrencyToken();
+            entity.HasIndex(x => x.LineGroupId).IsUnique();
+            entity.HasIndex(x => new { x.Module, x.Status });
+        });
+
+        modelBuilder.Entity<LineGroupEventSubscription>(entity =>
+        {
+            entity.ToTable("line_group_event_subscriptions");
+            entity.Property(x => x.Id).HasColumnName("id");
+            entity.Property(x => x.DestinationId).HasColumnName("destination_id");
+            entity.Property(x => x.EventType).HasColumnName("event_type").HasMaxLength(160);
+            entity.Property(x => x.IsEnabled).HasColumnName("is_enabled");
+            entity.Property(x => x.CreatedAt).HasColumnName("created_at");
+            entity.Property(x => x.UpdatedAt).HasColumnName("updated_at");
+            entity.HasIndex(x => new { x.DestinationId, x.EventType }).IsUnique();
+            entity.HasOne(x => x.Destination).WithMany(x => x.EventSubscriptions).HasForeignKey(x => x.DestinationId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<LineWebhookInbox>(entity =>
+        {
+            entity.ToTable("line_webhook_inbox");
+            entity.Property(x => x.Id).HasColumnName("id");
+            entity.Property(x => x.WebhookEventId).HasColumnName("webhook_event_id").HasMaxLength(160);
+            entity.Property(x => x.EventType).HasColumnName("event_type").HasMaxLength(40);
+            entity.Property(x => x.SourceType).HasColumnName("source_type").HasMaxLength(30);
+            entity.Property(x => x.SourceGroupId).HasColumnName("source_group_id").HasMaxLength(100);
+            entity.Property(x => x.Payload).HasColumnName("payload").HasColumnType("jsonb");
+            entity.Property(x => x.Status).HasColumnName("status").HasMaxLength(30);
+            entity.Property(x => x.AttemptCount).HasColumnName("attempt_count");
+            entity.Property(x => x.AvailableAt).HasColumnName("available_at");
+            entity.Property(x => x.ProcessedAt).HasColumnName("processed_at");
+            entity.Property(x => x.LastError).HasColumnName("last_error").HasMaxLength(1000);
+            entity.Property(x => x.CreatedAt).HasColumnName("created_at");
+            entity.HasIndex(x => x.WebhookEventId).IsUnique();
+            entity.HasIndex(x => new { x.Status, x.AvailableAt });
+        });
+
+        modelBuilder.Entity<LineGroupDeliveryLog>(entity =>
+        {
+            entity.ToTable("line_group_delivery_logs");
+            entity.Property(x => x.Id).HasColumnName("id");
+            entity.Property(x => x.EventId).HasColumnName("event_id");
+            entity.Property(x => x.DestinationId).HasColumnName("destination_id");
+            entity.Property(x => x.CanonicalEventType).HasColumnName("canonical_event_type").HasMaxLength(160);
+            entity.Property(x => x.SourceEventType).HasColumnName("source_event_type").HasMaxLength(160);
+            entity.Property(x => x.RequestId).HasColumnName("request_id");
+            entity.Property(x => x.Status).HasColumnName("status").HasMaxLength(30);
+            entity.Property(x => x.DeduplicationKey).HasColumnName("deduplication_key").HasMaxLength(400);
+            entity.Property(x => x.CorrelationId).HasColumnName("correlation_id").HasMaxLength(100);
+            entity.Property(x => x.MessageText).HasColumnName("message_text").HasMaxLength(5000);
+            entity.Property(x => x.AttemptCount).HasColumnName("attempt_count");
+            entity.Property(x => x.AvailableAt).HasColumnName("available_at");
+            entity.Property(x => x.SentAt).HasColumnName("sent_at");
+            entity.Property(x => x.FailedAt).HasColumnName("failed_at");
+            entity.Property(x => x.ErrorCode).HasColumnName("error_code").HasMaxLength(80);
+            entity.Property(x => x.ErrorMessage).HasColumnName("error_message").HasMaxLength(1000);
+            entity.Property(x => x.CreatedAt).HasColumnName("created_at");
+            entity.Property(x => x.UpdatedAt).HasColumnName("updated_at");
+            entity.HasIndex(x => x.DeduplicationKey).IsUnique();
+            entity.HasIndex(x => new { x.EventId, x.DestinationId, x.CanonicalEventType }).IsUnique();
+            entity.HasIndex(x => new { x.Status, x.AvailableAt });
+            entity.HasOne(x => x.Destination).WithMany().HasForeignKey(x => x.DestinationId).OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.Entity<LineUserBinding>(entity =>

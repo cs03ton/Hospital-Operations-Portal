@@ -8,12 +8,12 @@ import {
   TableCell,
   TableContainer,
   TableHead,
-  TablePagination,
   TableRow,
   TableSortLabel,
   Typography,
 } from "@mui/material";
 import type { ReactNode } from "react";
+import { ListPagination } from "./ListPagination";
 
 export type GridSortDirection = "asc" | "desc";
 
@@ -128,28 +128,14 @@ export function ManagementDataGrid<T>({
             </TableBody>
           </Table>
         </TableContainer>
-        <Box sx={{ overflowX: "auto" }}>
-          <TablePagination
-            component="div"
-            count={totalItems}
-            page={page - 1}
-            rowsPerPage={pageSize}
-            onPageChange={(_, value) => onPageChange(value + 1)}
-            onRowsPerPageChange={(event) => onPageSizeChange(Number(event.target.value))}
-            rowsPerPageOptions={[10, 20, 50, 100]}
-            labelRowsPerPage="จำนวนต่อหน้า"
-            labelDisplayedRows={({ from, to, count }) => `${from}-${to} จาก ${count}`}
-            sx={{
-              minWidth: { xs: 320, sm: "auto" },
-              ".MuiTablePagination-toolbar": {
-                flexWrap: "wrap",
-                rowGap: 1,
-                justifyContent: "flex-end",
-                px: 0,
-              },
-            }}
-          />
-        </Box>
+        <ListPagination
+          page={page}
+          pageSize={pageSize}
+          totalItems={totalItems}
+          onPageChange={onPageChange}
+          onPageSizeChange={onPageSizeChange}
+          disabled={isLoading}
+        />
       </CardContent>
     </Card>
   );

@@ -21,6 +21,18 @@ public class DashboardController(
     LineConfigurationResolver? lineConfiguration = null) : ControllerBase
 {
     private static readonly string[] CoreLeaveTypeCodes = ["VACATION_LEAVE", "PERSONAL_LEAVE", "SICK_LEAVE"];
+    private static readonly string[] ActiveFleetRequestStatuses =
+    [
+        FleetRequestStatuses.PendingDispatch,
+        FleetRequestStatuses.PendingAdminReview,
+        FleetRequestStatuses.PendingDirector,
+        FleetRequestStatuses.Approved,
+        FleetRequestStatuses.PendingDriverAck,
+        FleetRequestStatuses.Ready,
+        FleetRequestStatuses.InProgress,
+        FleetRequestStatuses.CancellationPending,
+        FleetRequestStatuses.Returned
+    ];
     private const string ExecutivePermission = "Dashboard.Executive.View";
     private const string ExecutiveSummaryPermission = "LeaveDashboard.ViewExecutiveSummary";
     private readonly IConfiguration configuration = configuration ?? new ConfigurationBuilder().Build();
@@ -57,13 +69,14 @@ public class DashboardController(
 
         var totalUsers = canViewAdminDashboard ? await db.Users.CountAsync(user => user.IsActive) : 0;
         var totalDepartments = canViewAdminDashboard ? await db.Departments.CountAsync(department => department.IsActive) : 0;
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var utcNow = DateTime.UtcNow;
+        var today = GetBangkokDate(utcNow);
         var weekStart = today.AddDays(-1 * (int)today.DayOfWeek);
         var weekEnd = weekStart.AddDays(6);
         var monthStart = new DateOnly(today.Year, today.Month, 1);
         var monthEnd = monthStart.AddMonths(1).AddDays(-1);
-        var todayStart = DateTime.UtcNow.Date;
-        var tomorrowStart = todayStart.AddDays(1);
+        var todayStart = BangkokDateStartUtc(today);
+        var tomorrowStart = BangkokDateStartUtc(today.AddDays(1));
         var pendingLeaveApprovals = userId is null || !canViewPendingApprovals
             ? 0
             : await db.LeaveApprovals.CountAsync(item =>
@@ -145,6 +158,22 @@ public class DashboardController(
         var unreadNotifications = userId is null
             ? 0
             : await db.Notifications.CountAsync(item => item.UserId == userId && !item.IsRead);
+        var isFleetDriver = permissionCodes.Contains(FleetPermissions.DriverViewOwnJobs) ||
+            permissionCodes.Contains(FleetPermissions.DriverViewOwn) ||
+            permissionCodes.Contains(FleetPermissions.DriverViewJobs);
+        var activeBorrowRequests = userId is null
+            ? 0
+            : isFleetDriver
+                ? await db.FleetAssignments.CountAsync(item =>
+                    item.DriverUserId == userId &&
+                    item.IsActive &&
+                    item.FleetRequest != null &&
+                    (item.FleetRequest.Status == FleetRequestStatuses.PendingDriverAck ||
+                     item.FleetRequest.Status == FleetRequestStatuses.Ready ||
+                     item.FleetRequest.Status == FleetRequestStatuses.InProgress))
+                : await db.FleetRequests.CountAsync(item =>
+                    item.RequesterUserId == userId &&
+                    ActiveFleetRequestStatuses.Contains(item.Status));
         var lineQueued = canViewSecurityDashboard ? await db.LineDeliveryLogs.CountAsync(item => item.Status == "Queued") : 0;
         var lineFailed = canViewSecurityDashboard ? await db.LineDeliveryLogs.CountAsync(item => item.Status == "Failed") : 0;
         var databaseStatus = canViewSecurityDashboard ? (await db.Database.CanConnectAsync() ? "Healthy" : "Unavailable") : "Restricted";
@@ -156,7 +185,7 @@ public class DashboardController(
             pendingApprovals,
             totalPendingLeaveRequests,
             OpenRepairRequests: 0,
-            ActiveBorrowRequests: 0,
+            ActiveBorrowRequests: activeBorrowRequests,
             InventoryItems: 0,
             staffOnLeaveToday,
             staffOnLeaveThisWeek,
@@ -204,9 +233,10 @@ public class DashboardController(
             return Forbid();
         }
 
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
-        var todayStart = DateTime.UtcNow.Date;
-        var tomorrowStart = todayStart.AddDays(1);
+        var utcNow = DateTime.UtcNow;
+        var today = GetBangkokDate(utcNow);
+        var todayStart = BangkokDateStartUtc(today);
+        var tomorrowStart = BangkokDateStartUtc(today.AddDays(1));
         var selectedYear = Math.Clamp(NormalizeCalendarYear(trendYear ?? today.Year), 2000, 2200);
         var requestedTrendMonth = trendMonth.GetValueOrDefault(0);
         var selectedMonth = requestedTrendMonth is >= 1 and <= 12 ? requestedTrendMonth : (int?)null;
@@ -724,6 +754,34 @@ public class DashboardController(
     private static int NormalizeCalendarYear(int year)
     {
         return year >= 2400 ? year - 543 : year;
+    }
+
+    internal static DateOnly GetBangkokDate(DateTime utcNow)
+    {
+        var normalizedUtc = utcNow.Kind == DateTimeKind.Utc
+            ? utcNow
+            : DateTime.SpecifyKind(utcNow, DateTimeKind.Utc);
+        return DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(normalizedUtc, BangkokTimeZone));
+    }
+
+    private static DateTime BangkokDateStartUtc(DateOnly date)
+    {
+        var localMidnight = date.ToDateTime(TimeOnly.MinValue, DateTimeKind.Unspecified);
+        return TimeZoneInfo.ConvertTimeToUtc(localMidnight, BangkokTimeZone);
+    }
+
+    private static readonly TimeZoneInfo BangkokTimeZone = ResolveBangkokTimeZone();
+
+    private static TimeZoneInfo ResolveBangkokTimeZone()
+    {
+        try
+        {
+            return TimeZoneInfo.FindSystemTimeZoneById("Asia/Bangkok");
+        }
+        catch (TimeZoneNotFoundException)
+        {
+            return TimeZoneInfo.FindSystemTimeZoneById("SE Asia Standard Time");
+        }
     }
 
     private async Task<IReadOnlyList<ExecutiveMonthlyTrendResponse>> BuildMonthlyTrend(DateOnly periodStart, DateOnly periodEnd, CancellationToken cancellationToken)

@@ -920,6 +920,12 @@ export async function getDepartments() {
   return response.data.data;
 }
 
+/** Read-only department choices for operational filters; does not grant department-management access. */
+export async function getDepartmentOptions() {
+  const response = await httpClient.get<ApiResponse<DepartmentSummary[]>>("/api/departments/options");
+  return response.data.data;
+}
+
 export async function getDepartmentsPaged(params: ManagementQuery = {}) {
   const response = await httpClient.get<ApiResponse<PagedResponse<DepartmentSummary>>>("/api/departments", { params });
   return response.data.data;

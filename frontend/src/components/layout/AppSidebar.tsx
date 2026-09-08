@@ -6,10 +6,13 @@ import { useLocation } from "react-router-dom";
 import hospitalLogo from "../../assets/logo/hospital-logo.png";
 import { appName, hospitalName } from "../../config/appConfig";
 import { navigationModules } from "../../config/menuConfig";
+import { effectiveFleetPermissions, fleetNavigationBadgeCount } from "../../config/fleetNavigation";
 import { useAuth } from "../../context/AuthContext";
 import { usePermission } from "../../context/PermissionContext";
 import { useModuleMenuState } from "../../hooks/useModuleMenuState";
 import { isItemActive, ModuleMenuGroup } from "./ModuleMenuGroup";
+import { useQuery } from "@tanstack/react-query";
+import { FLEET_DASHBOARD_QUERY_KEY, getFleetDashboard, getFleetRolloutAccess } from "../../api/fleetApi";
 
 type AppSidebarProps = {
   drawerWidth: number;
@@ -33,10 +36,21 @@ export function AppSidebar({
   const theme = useTheme();
   const isDesktop = useMediaQuery(theme.breakpoints.up("md"));
   const { user } = useAuth();
-  const { hasPermission, hasAnyPermission } = usePermission();
+  const { permissions, hasPermission, hasAnyPermission } = usePermission();
   const location = useLocation();
+  const fleetRollout = useQuery({ queryKey: ["fleet-rollout-access"], queryFn: getFleetRolloutAccess, staleTime: 60_000, retry: 1 });
+  const fleetDashboard = useQuery({
+    queryKey: FLEET_DASHBOARD_QUERY_KEY,
+    queryFn: getFleetDashboard,
+    enabled: fleetRollout.data?.isAllowed === true,
+    staleTime: 30_000,
+    refetchInterval: 60_000,
+    refetchOnWindowFocus: true,
+    retry: false,
+  });
+  const fleetPermissions = effectiveFleetPermissions(permissions, fleetDashboard.data?.capabilities);
   const visibleModules = navigationModules
-    .filter((module) => module.enabled)
+    .filter((module) => module.enabled && (module.moduleId !== "VehicleBooking" || fleetRollout.data?.isAllowed === true))
     .map((module) => ({
       ...module,
       children: module.children.filter((item) => {
@@ -45,12 +59,19 @@ export function AppSidebar({
           return false;
         }
 
+        if (module.moduleId === "VehicleBooking") {
+          if (item.permissions?.length) return item.permissions.some(permission => fleetPermissions.has(permission));
+          return !item.permission || fleetPermissions.has(item.permission);
+        }
+
         if (item.permissions?.length) {
           return roleAllowed || hasAnyPermission(item.permissions);
         }
 
         return roleAllowed || !item.permission || hasPermission(item.permission);
-      }),
+      }).map(item => module.moduleId === "VehicleBooking"
+        ? { ...item, badgeCount: fleetNavigationBadgeCount(item.path, fleetDashboard.data?.badges) }
+        : item),
     }))
     .filter((module) => (!module.permission || hasPermission(module.permission)) && module.children.length > 0);
   const activeModule = visibleModules.find((module) =>

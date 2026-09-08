@@ -1,4 +1,4 @@
-export type AppStatusDomain = "leave" | "backup" | "diagnostics" | "notificationPriority" | "notificationType" | "lineBinding" | "active" | "announcement" | "announcementPriority";
+export type AppStatusDomain = "leave" | "fleet" | "backup" | "diagnostics" | "notificationPriority" | "notificationType" | "lineBinding" | "active" | "announcement" | "announcementPriority";
 
 export type StatusTone = "default" | "success" | "warning" | "error" | "info";
 
@@ -8,6 +8,42 @@ type StatusMeta = {
 };
 
 const statusMaps: Record<AppStatusDomain, Record<string, StatusMeta>> = {
+  fleet: {
+    DRAFT: { label: "แบบร่าง", tone: "default" },
+    PENDING_DISPATCH: { label: "รอจัดรถและคนขับ", tone: "warning" },
+    PENDING_ADMIN_REVIEW: { label: "รอหัวหน้าฝ่ายบริหารตรวจสอบ", tone: "warning" },
+    PENDING_DIRECTOR: { label: "รอผู้อำนวยการอนุมัติ", tone: "warning" },
+    PENDING_DIRECTOR_APPROVAL: { label: "รอผู้อำนวยการอนุมัติ", tone: "warning" },
+    APPROVED: { label: "อนุมัติแล้ว", tone: "success" },
+    PENDING_DRIVER_ACK: { label: "รอคนขับรับทราบ", tone: "warning" },
+    DRIVER_ACKNOWLEDGED: { label: "คนขับรับทราบแล้ว", tone: "info" },
+    READY: { label: "พร้อมเดินทาง", tone: "info" },
+    IN_PROGRESS: { label: "กำลังปฏิบัติงาน", tone: "info" },
+    COMPLETED: { label: "เสร็จสิ้น", tone: "success" },
+    CANCELLATION_PENDING: { label: "รอพิจารณายกเลิก", tone: "warning" },
+    RETURNED: { label: "ส่งกลับแก้ไข", tone: "warning" },
+    REJECTED: { label: "ไม่รับคำขอ", tone: "error" },
+    CANCELLED: { label: "ยกเลิก", tone: "default" },
+    ABORTED: { label: "ยุติการเดินทาง", tone: "error" },
+    ASSIGNED: { label: "จัดรถและคนขับแล้ว", tone: "success" },
+    REPLACED: { label: "เปลี่ยนรถหรือคนขับแล้ว", tone: "info" },
+    AVAILABLE: { label: "พร้อมใช้งาน", tone: "success" },
+    RESERVED: { label: "จองแล้ว", tone: "warning" },
+    IN_USE: { label: "กำลังใช้งาน", tone: "info" },
+    MAINTENANCE: { label: "อยู่ระหว่างบำรุงรักษา", tone: "warning" },
+    TEMPORARILY_UNAVAILABLE: { label: "ไม่พร้อมใช้งานชั่วคราว", tone: "warning" },
+    DECOMMISSIONED: { label: "เลิกใช้งาน", tone: "default" },
+    UNAVAILABLE: { label: "ไม่พร้อมใช้งาน", tone: "error" },
+    SUSPENDED: { label: "ระงับการใช้งาน", tone: "error" },
+    ACTIVE: { label: "กำลังดำเนินการ", tone: "info" },
+    MATCH: { label: "เหมาะสม", tone: "success" },
+    PARTIAL_MATCH: { label: "เหมาะสมบางส่วน", tone: "warning" },
+    NOT_MATCH: { label: "ไม่เหมาะสม", tone: "error" },
+    OVERRIDDEN: { label: "อนุมัติยกเว้นแล้ว", tone: "info" },
+    NORMAL: { label: "ปกติ", tone: "default" },
+    URGENT: { label: "เร่งด่วน", tone: "warning" },
+    EMERGENCY: { label: "ฉุกเฉิน", tone: "error" },
+  },
   leave: {
     Draft: { label: "แบบร่าง", tone: "default" },
     Submitted: { label: "ส่งคำขอแล้ว", tone: "warning" },

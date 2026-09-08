@@ -105,3 +105,6 @@ Fresh schema includes:
 - `approval_escalation_rules`
 
 `schema.sql` uses `TIMESTAMPTZ` for DateTime columns to match the Npgsql EF Core migration type `timestamp with time zone`.
+# Fleet Phase 2.0
+
+`AddFleetFoundation` is additive and creates only Fleet master-data tables and indexes. It references existing `users` and `departments`, does not rename/drop legacy objects, and does not seed real vehicles, drivers, users, or departments. Validate the idempotent script and rehearse against a production-like backup before rollout.

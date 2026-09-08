@@ -1,6 +1,7 @@
 /* eslint-disable react-refresh/only-export-components */
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import * as authApi from "../api/authApi";
 import { isCookieTokenMode, setAuthToken } from "../api/httpClient";
 import { notifyGlobal } from "../contexts/NotificationContext";
@@ -22,6 +23,7 @@ type AuthContextValue = {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const queryClient = useQueryClient();
   const [accessToken, setAccessToken] = useState<string | null>(() =>
     isCookieTokenMode() ? null : localStorage.getItem(authStorageKeys.accessToken),
   );
@@ -35,6 +37,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
 
   const clearSession = useCallback(() => {
+    queryClient.clear();
     setAuthToken(null);
     setAccessToken(null);
     setRefreshToken(null);
@@ -42,7 +45,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem(authStorageKeys.accessToken);
     localStorage.removeItem(authStorageKeys.refreshToken);
     localStorage.removeItem(authStorageKeys.user);
-  }, []);
+  }, [queryClient]);
 
   useEffect(() => {
     setAuthToken(accessToken);
@@ -105,6 +108,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const applyLoginResult = useCallback((result: Awaited<ReturnType<typeof authApi.login>>) => {
+    queryClient.clear();
     setAuthToken(result.accessToken);
     setAccessToken(result.accessToken);
     setRefreshToken(isCookieTokenMode() ? null : result.refreshToken);
@@ -115,7 +119,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       localStorage.setItem(authStorageKeys.refreshToken, result.refreshToken);
     }
     localStorage.setItem(authStorageKeys.user, JSON.stringify(normalizedUser));
-  }, []);
+  }, [queryClient]);
 
   const signIn = useCallback(async (username: string, password: string) => {
     const result = await authApi.login(username, password);

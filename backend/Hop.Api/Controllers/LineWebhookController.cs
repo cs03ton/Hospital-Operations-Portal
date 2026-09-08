@@ -4,6 +4,7 @@ using System.Text.Json;
 using Hop.Api.Configuration;
 using Hop.Api.DTOs;
 using Hop.Api.Interfaces;
+using Hop.Api.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -15,6 +16,7 @@ namespace Hop.Api.Controllers;
 public class LineWebhookController(
     LineConfigurationResolver lineConfiguration,
     ILineUserBindingService lineUserBindingService,
+    LineGroupRegistrationService lineGroupRegistrationService,
     ILogger<LineWebhookController> logger) : ControllerBase
 {
     [HttpPost]
@@ -87,6 +89,16 @@ public class LineWebhookController(
             foreach (var lineEvent in events.EnumerateArray())
             {
                 var eventType = lineEvent.TryGetProperty("type", out var typeProperty) ? typeProperty.GetString() : null;
+                var sourceType = lineEvent.TryGetProperty("source", out var eventSource) && eventSource.TryGetProperty("type", out var sourceTypeProperty)
+                    ? sourceTypeProperty.GetString() : null;
+                if (string.Equals(sourceType, "group", StringComparison.OrdinalIgnoreCase))
+                {
+                    await lineGroupRegistrationService.EnqueueAsync(lineEvent, cancellationToken);
+                    results.Add(lineGroupRegistrationService.Enabled
+                        ? new LineWebhookHandleResult(eventType ?? "unknown", null, "Queued", false, "Group event queued.")
+                        : new LineWebhookHandleResult(eventType ?? "unknown", null, "Ignored", false, "LINE group notifications are disabled."));
+                    continue;
+                }
                 var lineUserId = lineEvent.TryGetProperty("source", out var source) &&
                     source.TryGetProperty("userId", out var userIdProperty)
                         ? userIdProperty.GetString()

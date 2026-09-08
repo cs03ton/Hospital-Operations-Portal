@@ -27,6 +27,12 @@ public sealed class DocumentationService(
         new("director-guide", "director.md", "คู่มือผู้อำนวยการ/ผู้อนุมัติ", "งานอนุมัติขั้นสุดท้าย Executive Dashboard และ Leave Analytics", "Executive Guide", ["Director", "Admin", "SuperAdmin"]),
         new("admin-guide", "admin.md", "คู่มือผู้ดูแลระบบ", "การดูแลผู้ใช้ สิทธิ์ ระบบลา LINE Health Center และ Backup", "Admin Guide", ["Admin", "SuperAdmin"]),
         new("announcement-guide", "announcement.md", "คู่มือศูนย์ข่าวสารและประกาศ", "อ่านประกาศ รับทราบประกาศ จัดการรูปภาพ ไฟล์แนบ กลุ่มเป้าหมาย และช่องทางแจ้งเตือน", "User Guide", ["Staff", "DepartmentHead", "Director", "Admin", "SuperAdmin"]),
+        new("fleet-requester-guide", "fleet-requester.md", "คู่มือขอใช้รถและผู้ร่วมเดินทาง", "สร้างคำขอ ติดตามสถานะ ยกเลิก และให้ Feedback หลังจบทริป", "Fleet Guide", ["Staff", "DepartmentHead", "Director", "FleetAdminReviewer", "Admin", "SuperAdmin"]),
+        new("fleet-dispatcher-guide", "fleet-dispatcher.md", "คู่มืองานยานพาหนะและการจัดรถ", "ตรวจคิว ตรวจความพร้อม จัดรถ/คนขับ และเปลี่ยน Assignment", "Fleet Guide", ["Admin", "SuperAdmin"]),
+        new("fleet-reviewer-guide", "fleet-reviewer.md", "คู่มือหัวหน้าฝ่ายบริหารตรวจคำขอรถ", "ตรวจรายละเอียดหลังจัดรถ อนุมัติส่งต่อ ส่งกลับ หรือไม่อนุมัติ", "Fleet Guide", ["FleetAdminReviewer", "Admin", "SuperAdmin"]),
+        new("fleet-director-guide", "fleet-director.md", "คู่มือผู้อำนวยการอนุมัติคำขอรถ", "ตรวจคำขอขั้นสุดท้าย อนุมัติ ส่งกลับ และดูรายงาน Fleet", "Fleet Guide", ["Director", "Admin", "SuperAdmin"]),
+        new("fleet-driver-guide", "fleet-driver.md", "คู่มือพนักงานขับรถ", "รับทราบงาน เริ่มเดินทาง บันทึกเลขไมล์ และปิดทริป", "Fleet Guide", ["พนักงานขับรถ", "Admin", "SuperAdmin"]),
+        new("fleet-admin-guide", "fleet-admin.md", "คู่มือผู้ดูแลระบบรถ", "ตั้งค่ารถ คนขับ สิทธิ์ LINE Group การบำรุงรักษา และติดตามระบบ", "Fleet Admin Guide", ["Admin", "SuperAdmin"]),
         new("faq", "faq.md", "FAQ", "คำถามที่พบบ่อยและแนวทางแก้ไขเบื้องต้น", "FAQ", ["Staff", "DepartmentHead", "Director", "Admin", "SuperAdmin"]),
         new("release-notes", "release-notes.md", "Release Notes", "สรุปความสามารถของ HOP Phase 1 และ Phase 1.5", "Release Notes", ["Admin", "SuperAdmin"])
     ];

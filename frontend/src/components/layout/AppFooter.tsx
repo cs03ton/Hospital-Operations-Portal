@@ -1,5 +1,5 @@
 import { Box, Stack, Typography } from "@mui/material";
-import { appDeveloper, appName, appVersion, hospitalName } from "../../config/appConfig";
+import { appName, appVersion, hospitalName } from "../../config/appConfig";
 import { brandColors } from "../../theme/theme";
 
 export function AppFooter() {
@@ -32,7 +32,6 @@ export function AppFooter() {
           sx={{ minWidth: 0 }}
         >
           <Typography variant="caption">© {currentYear} {hospitalName}</Typography>
-          <Typography variant="caption">พัฒนาโดย {appDeveloper}</Typography>
           <Typography variant="caption">Version {appVersion}</Typography>
         </Stack>
       </Stack>

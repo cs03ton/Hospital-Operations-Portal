@@ -1,12 +1,13 @@
 import AddCircleOutlineOutlinedIcon from "@mui/icons-material/AddCircleOutlineOutlined";
 import VisibilityOutlinedIcon from "@mui/icons-material/VisibilityOutlined";
-import { Box, Button, Card, CardContent, Chip, Grid, IconButton, MenuItem, Stack, Table, TableBody, TableCell, TableHead, TablePagination, TableRow, TextField } from "@mui/material";
+import { Box, Button, Card, CardContent, Chip, Grid, IconButton, MenuItem, Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField } from "@mui/material";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { Link as RouterLink, useSearchParams } from "react-router-dom";
-import { getDepartments } from "../api/adminApi";
+import { getDepartmentOptions } from "../api/adminApi";
 import { getLeaveRequestsPaged, getLeaveTypes, type LeaveRequestQuery } from "../api/leaveApi";
 import { AppDatePicker } from "../components/common/AppDatePicker";
+import { ListPagination } from "../components/common/ListPagination";
 import { PageHeader } from "../components/PageHeader";
 import { useAuth } from "../context/AuthContext";
 import { PermissionGuard, usePermission } from "../context/PermissionContext";
@@ -58,7 +59,7 @@ export function LeaveManagementPage() {
   const { data: leaveTypes = [] } = useQuery({ queryKey: ["leave-types"], queryFn: getLeaveTypes });
   const { data: departments = [] } = useQuery({
     queryKey: ["departments"],
-    queryFn: getDepartments,
+    queryFn: getDepartmentOptions,
     enabled: canFilterDepartments,
     retry: false,
   });
@@ -219,25 +220,17 @@ export function LeaveManagementPage() {
               )}
             </TableBody>
           </Table>
-          <TablePagination
-            component="div"
-            count={data?.totalItems ?? 0}
-            page={page}
-            onPageChange={(_, nextPage) => setPage(nextPage)}
-            rowsPerPage={pageSize}
-            onRowsPerPageChange={(event) => {
-              setPageSize(Number(event.target.value));
+          <ListPagination
+            page={page + 1}
+            pageSize={pageSize}
+            totalItems={data?.totalItems ?? 0}
+            onPageChange={(nextPage) => setPage(nextPage - 1)}
+            onPageSizeChange={(nextPageSize) => {
+              setPageSize(nextPageSize);
               setPage(0);
             }}
-            rowsPerPageOptions={[10, 20, 50]}
-            labelRowsPerPage="จำนวนรายการต่อหน้า"
-            labelDisplayedRows={({ from, to, count }) => `${from}-${to} จาก ${count !== -1 ? count : `มากกว่า ${to}`}`}
-            getItemAriaLabel={(type) => {
-              if (type === "first") return "ไปหน้าแรก";
-              if (type === "last") return "ไปหน้าสุดท้าย";
-              if (type === "next") return "ไปหน้าถัดไป";
-              return "ไปหน้าก่อนหน้า";
-            }}
+            pageSizeOptions={[10, 20, 50]}
+            disabled={isLoading}
           />
         </CardContent>
       </Card>

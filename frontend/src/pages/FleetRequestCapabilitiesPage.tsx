@@ -1,0 +1,9 @@
+import { useState } from "react";
+import { Alert,Button,MenuItem,Stack,TextField,Typography } from "@mui/material";
+import { useParams } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
+import { getFleetRequest,getFleetVehicles } from "../api/fleetApi";
+import { CompatibilityPanel,RequestCapabilitiesPanel } from "../components/fleet/FleetCapabilityPanels";
+import { usePermission } from "../context/PermissionContext";
+
+export function FleetRequestCapabilitiesPage(){const{id}=useParams();const{hasPermission}=usePermission();const{data,error,refetch}=useQuery({queryKey:["fleet","request-capabilities",id],queryFn:()=>getFleetRequest(id!)});const{data:vehicles=[]}=useQuery({queryKey:["fleet","vehicles"],queryFn:getFleetVehicles,enabled:hasPermission("FleetCompatibility.View")});const[selected,setSelected]=useState<string[]>([]);if(error)return <Alert severity="error" action={<Button onClick={()=>void refetch()}>ลองใหม่</Button>}>โหลดคำขอไม่สำเร็จ</Alert>;if(!data)return <Typography>กำลังโหลด…</Typography>;const editable=data.status==="DRAFT"||(data.status==="RETURNED"&&data.returnTarget==="REQUESTER");return <Stack spacing={2}><Typography variant="h4">Capabilities · {data.requestNo}</Typography>{!editable&&<Alert severity="info">คำขอพ้นสถานะแก้ไขแล้ว รายการจะแสดงแบบ read-only</Alert>}<RequestCapabilitiesPanel requestId={data.id} editable={editable} onSaved={()=>void refetch()}/>{hasPermission("FleetCompatibility.View")&&<><TextField select SelectProps={{multiple:true}} label="เลือกรถเพื่อเปรียบเทียบ" value={selected} onChange={e=>setSelected(typeof e.target.value==="string"?e.target.value.split(","):e.target.value)}>{vehicles.map(v=><MenuItem key={v.id} value={v.id}>{v.vehicleCode} · {v.registrationNumber}</MenuItem>)}</TextField>{selected.length>0&&<CompatibilityPanel requestId={data.id} vehicleIds={selected} requestConcurrencyToken={data.concurrencyToken}/>}</>}</Stack>}

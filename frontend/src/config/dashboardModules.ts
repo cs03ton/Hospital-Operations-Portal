@@ -23,6 +23,7 @@ export type DashboardModuleDefinition = {
   metricLabel: string;
   metricSelector: (summary?: DashboardSummary) => number | string;
   order: number;
+  visibleToAllAuthenticated?: boolean;
 };
 
 export const dashboardModules: DashboardModuleDefinition[] = [
@@ -41,11 +42,11 @@ export const dashboardModules: DashboardModuleDefinition[] = [
   {
     key: "vehicle",
     title: "ระบบจองรถ/ยืมรถ",
-    description: "เตรียมรองรับการจองรถส่วนกลาง สถานะการใช้งาน และงานอนุมัติ",
-    route: "/dashboard/vehicle",
+    description: "ติดตามการใช้รถ งานจัดรถ การอนุมัติ และสถานะการเดินทาง",
+    route: "/fleet/dashboard",
     icon: DirectionsCarOutlinedIcon,
-    status: "coming_soon",
-    allowedRoles: ["SuperAdmin"],
+    status: "active",
+    visibleToAllAuthenticated: true,
     metricLabel: "รายการที่ใช้งานอยู่",
     metricSelector: (summary) => summary?.activeBorrowRequests ?? 0,
     order: 20,
@@ -101,6 +102,7 @@ export function getVisibleDashboardModules(user: AuthUser | null | undefined) {
 
 export function canAccessDashboardModule(module: DashboardModuleDefinition, user: AuthUser | null | undefined) {
   if (!user) return false;
+  if (module.visibleToAllAuthenticated) return true;
   if (user.role === "SuperAdmin") return true;
 
   const roleAllowed = module.allowedRoles?.includes(user.role) ?? false;
@@ -112,6 +114,18 @@ export function canAccessDashboardModule(module: DashboardModuleDefinition, user
 export function getDashboardModuleMetricLabel(module: DashboardModuleDefinition, user: AuthUser | null | undefined) {
   if (module.key === "leave" && user?.role === "Staff") {
     return "คำขอลาของฉันที่รออนุมัติ";
+  }
+
+  if (module.key === "vehicle" && user?.permissions.some(permission =>
+    permission === "FleetDriver.ViewOwnJobs" ||
+    permission === "FleetDriver.ViewOwn" ||
+    permission === "FleetDriver.ViewJobs"
+  )) {
+    return "งานขับรถของฉันที่ยังดำเนินการอยู่";
+  }
+
+  if (module.key === "vehicle") {
+    return "คำขอใช้รถของฉันที่ยังดำเนินการอยู่";
   }
 
   return module.metricLabel;

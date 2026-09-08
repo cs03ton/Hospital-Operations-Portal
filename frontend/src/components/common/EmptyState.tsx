@@ -1,6 +1,7 @@
 import InboxOutlinedIcon from "@mui/icons-material/InboxOutlined";
 import type { SvgIconComponent } from "@mui/icons-material";
 import { Stack, Typography } from "@mui/material";
+import type { SvgIconProps } from "@mui/material/SvgIcon";
 import type { ReactNode } from "react";
 
 type EmptyStateProps = {
@@ -8,13 +9,14 @@ type EmptyStateProps = {
   title?: string;
   description?: string;
   icon?: SvgIconComponent;
+  iconColor?: SvgIconProps["color"];
   action?: ReactNode;
 };
 
-export function EmptyState({ message, title, description, icon: Icon = InboxOutlinedIcon, action }: EmptyStateProps) {
+export function EmptyState({ message, title, description, icon: Icon = InboxOutlinedIcon, iconColor = "disabled", action }: EmptyStateProps) {
   return (
     <Stack spacing={1} alignItems="center" textAlign="center" sx={{ py: { xs: 3, md: 4 }, px: 2, color: "text.secondary" }}>
-      <Icon color="disabled" />
+      <Icon color={iconColor} />
       {title && <Typography fontWeight={900} color="text.primary">{title}</Typography>}
       <Typography variant="body2">{description ?? message}</Typography>
       {action}

@@ -18,7 +18,7 @@ export type PageBreadcrumb = {
 
 const pageTitleEntries: PageTitleEntry[] = [
   { path: "/dashboard/leave", title: "แดชบอร์ดระบบลา", subtitle: "ภาพรวมคำขอลา งานอนุมัติ และปฏิทินการลา", exact: true, breadcrumbs: [{ label: "Dashboard", path: "/dashboard" }, { label: "ระบบลา" }] },
-  { path: "/dashboard/vehicle", title: "แดชบอร์ดระบบจองรถ/ยืมรถ", subtitle: "ระบบอยู่ระหว่างเตรียมเปิดใช้งาน", exact: true, breadcrumbs: [{ label: "Dashboard", path: "/dashboard" }, { label: "ระบบจองรถ/ยืมรถ" }] },
+  { path: "/dashboard/vehicle", title: "แดชบอร์ดระบบจองรถ/ยืมรถ", subtitle: "กำลังนำไปยัง Fleet Dashboard", exact: true, breadcrumbs: [{ label: "Dashboard", path: "/dashboard" }, { label: "ระบบจองรถ/ยืมรถ" }] },
   { path: "/dashboard/repair", title: "แดชบอร์ดระบบแจ้งซ่อม", subtitle: "ระบบอยู่ระหว่างเตรียมเปิดใช้งาน", exact: true, breadcrumbs: [{ label: "Dashboard", path: "/dashboard" }, { label: "ระบบแจ้งซ่อม" }] },
   { path: "/dashboard/inventory", title: "แดชบอร์ด Inventory", subtitle: "ระบบอยู่ระหว่างเตรียมเปิดใช้งาน", exact: true, breadcrumbs: [{ label: "Dashboard", path: "/dashboard" }, { label: "Inventory" }] },
   { path: "/dashboard/executive", title: "Executive Dashboard", subtitle: "ภาพรวมเชิงบริหารและ KPI สำคัญ", exact: true, breadcrumbs: [{ label: "Dashboard", path: "/dashboard" }, { label: "Executive Dashboard" }] },
@@ -52,6 +52,7 @@ const pageTitleEntries: PageTitleEntry[] = [
   { path: "/leave/types", title: "ประเภทการลา", subtitle: "กำหนดประเภทลาและเงื่อนไขเบื้องต้น", breadcrumbs: [{ label: "ประเภทการลา" }] },
   { path: "/leave/balances", title: "วันลาคงเหลือ", subtitle: "ตรวจสอบสิทธิ์วันลาของผู้ใช้งาน", breadcrumbs: [{ label: "วันลาคงเหลือ" }] },
   { path: "/leave", title: "รายการคำขอลา", subtitle: "สร้างคำขอลา ติดตามสถานะ และดำเนินการอนุมัติ", breadcrumbs: [{ label: "รายการคำขอลา" }] },
+  { path: "/fleet/admin/line-groups", title: "LINE Groups — Fleet", subtitle: "ยืนยันกลุ่มและกำหนด Event Subscription สำหรับงานยานพาหนะ", breadcrumbs: [{ label: "ระบบจองรถ" }, { label: "LINE Groups" }] },
   { path: "/reports/leave-analytics", title: "วิเคราะห์ข้อมูลการลา", subtitle: "วิเคราะห์แนวโน้ม ประเภทการลา หน่วยงาน และความหนาแน่นของการลา", breadcrumbs: [{ label: "วิเคราะห์ข้อมูลการลา" }] },
   { path: "/reports/leaves", title: "รายงานการลา", subtitle: "สรุปและส่งออกข้อมูลการลา", breadcrumbs: [{ label: "รายงานการลา" }] },
 ];

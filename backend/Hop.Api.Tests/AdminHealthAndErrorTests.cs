@@ -256,6 +256,28 @@ public class AdminHealthAndErrorTests
     }
 
     [Fact]
+    public async Task GlobalExceptionMiddleware_ClientCancellationDoesNotBecomeServerError()
+    {
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+        var middleware = new GlobalExceptionMiddleware(
+            _ => throw new TaskCanceledException("client disconnected"),
+            NullLogger<GlobalExceptionMiddleware>.Instance,
+            new TestWebHostEnvironment("Production"));
+        var context = new DefaultHttpContext
+        {
+            TraceIdentifier = "trace-cancelled-001",
+            RequestAborted = cancellation.Token
+        };
+        context.Response.Body = new MemoryStream();
+
+        await middleware.InvokeAsync(context);
+
+        Assert.Equal(499, context.Response.StatusCode);
+        Assert.Equal(0, context.Response.Body.Length);
+    }
+
+    [Fact]
     public async Task CorrelationIdMiddleware_UsesIncomingHeaderAsTraceIdentifierAndResponseHeader()
     {
         var middleware = new CorrelationIdMiddleware(

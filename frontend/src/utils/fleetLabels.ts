@@ -1,0 +1,48 @@
+const labels: Record<string, string> = {
+  DRAFT: "แบบร่าง",
+  PENDING_DISPATCH: "รอจัดรถและคนขับ",
+  PENDING_ADMIN_REVIEW: "รอหัวหน้าฝ่ายบริหารตรวจสอบ",
+  PENDING_DIRECTOR: "รอผู้อำนวยการอนุมัติ",
+  PENDING_DIRECTOR_APPROVAL: "รอผู้อำนวยการอนุมัติ",
+  APPROVED: "อนุมัติแล้ว",
+  PENDING_DRIVER_ACK: "รอคนขับรับทราบ",
+  READY: "พร้อมเดินทาง",
+  IN_PROGRESS: "กำลังปฏิบัติงาน",
+  COMPLETED: "เสร็จสิ้น",
+  CANCELLATION_PENDING: "รอพิจารณายกเลิก",
+  RETURNED: "ส่งกลับแก้ไข",
+  REJECTED: "ไม่รับคำขอ",
+  CANCELLED: "ยกเลิก",
+  ABORTED: "ยุติการเดินทาง",
+  // สถานะการจัดรถและคนขับ
+  ASSIGNED: "จัดรถและคนขับแล้ว",
+  REPLACED: "เปลี่ยนรถหรือคนขับแล้ว",
+  DRIVER_ACKNOWLEDGED: "คนขับรับทราบแล้ว",
+  // สถานะรถ คนขับ และงานบำรุงรักษา
+  AVAILABLE: "พร้อมใช้งาน",
+  RESERVED: "จองแล้ว",
+  IN_USE: "กำลังใช้งาน",
+  MAINTENANCE: "อยู่ระหว่างบำรุงรักษา",
+  TEMPORARILY_UNAVAILABLE: "ไม่พร้อมใช้งานชั่วคราว",
+  DECOMMISSIONED: "เลิกใช้งาน",
+  UNAVAILABLE: "ไม่พร้อมใช้งาน",
+  SUSPENDED: "ระงับการใช้งาน",
+  ACTIVE: "กำลังดำเนินการ",
+  // ผลตรวจความเหมาะสม
+  MATCH: "เหมาะสม",
+  PARTIAL_MATCH: "เหมาะสมบางส่วน",
+  NOT_MATCH: "ไม่เหมาะสม",
+  OVERRIDDEN: "อนุมัติยกเว้นแล้ว",
+  // ระดับความเร่งด่วนและผลทบทวน
+  NORMAL: "ปกติ",
+  URGENT: "เร่งด่วน",
+  EMERGENCY: "ฉุกเฉิน",
+  ACCEPTABLE: "เป็นไปตามเกณฑ์",
+  NEEDS_IMPROVEMENT: "ควรปรับปรุง",
+  POLICY_VIOLATION: "ไม่เป็นไปตามนโยบาย",
+  // เป้าหมายการส่งกลับ
+  REQUESTER: "ผู้ขอใช้รถ",
+  DISPATCHER: "งานยานพาหนะ",
+  ADMIN_REVIEW: "หัวหน้าฝ่ายบริหาร",
+};
+export const getFleetStatusLabel = (status?: string | null) => status ? (labels[status] ?? status) : "-";

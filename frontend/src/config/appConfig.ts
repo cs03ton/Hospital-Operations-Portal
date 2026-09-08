@@ -1,6 +1,6 @@
 const defaultAppName = "Hospital Operations Portal";
 const defaultHospitalName = "โรงพยาบาลนาหมื่น";
-const defaultAppVersion = "0.1.0";
+const defaultAppVersion = "2.0.0";
 const defaultAppDeveloper = "งานเทคโนโลยีสารสนเทศ";
 
 export const appName = import.meta.env.VITE_APP_NAME || defaultAppName;

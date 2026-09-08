@@ -10,6 +10,14 @@ public class AuditLog
     public string? Detail { get; set; }
     public string? IpAddress { get; set; }
     public string Result { get; set; } = "Success";
+    public Guid? EffectiveActorUserId { get; set; }
+    public Guid? DelegatorUserId { get; set; }
+    public Guid? DelegationId { get; set; }
+    public string? OldValue { get; set; }
+    public string? NewValue { get; set; }
+    public string? Reason { get; set; }
+    public string? CorrelationId { get; set; }
+    public string? UserAgent { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     public User? User { get; set; }

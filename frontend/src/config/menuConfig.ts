@@ -28,6 +28,7 @@ import WarehouseOutlinedIcon from "@mui/icons-material/WarehouseOutlined";
 import TuneOutlinedIcon from "@mui/icons-material/TuneOutlined";
 import type { SvgIconComponent } from "@mui/icons-material";
 import type { NavigationItem } from "../types/navigation";
+import { fleetNavigationItems } from "./fleetNavigation";
 
 const leaveViewPermissions = [
   "LeaveRequest.ViewOwn",
@@ -92,6 +93,13 @@ export const navigationModules: NavigationModule[] = [
     ],
   },
   {
+    moduleId: "VehicleBooking",
+    moduleLabel: "จองรถ",
+    moduleIcon: DirectionsCarOutlinedIcon,
+    enabled: true,
+    children: fleetNavigationItems,
+  },
+  {
     moduleId: "UserManagement",
     moduleLabel: "จัดการระบบผู้ใช้",
     moduleIcon: GroupOutlinedIcon,
@@ -113,6 +121,7 @@ export const navigationModules: NavigationModule[] = [
       { label: "Backup Center", path: "/admin/backup", icon: BackupOutlinedIcon, permission: "System.Backup.View", allowedRoles: ["SuperAdmin"] },
       { label: "บันทึกการใช้งาน", path: "/admin/audit-logs", icon: HistoryOutlinedIcon, permission: "SystemSettings.View" },
       { label: "ตั้งค่าระบบ", path: "/admin/system-settings", icon: TuneOutlinedIcon, permission: "SystemSettings.View" },
+      { label: "Fleet Rollout", path: "/admin/fleet-rollout", icon: DirectionsCarOutlinedIcon, permission: "SystemSettings.View", allowedRoles: ["Admin", "SuperAdmin"] },
       { label: "ตั้งค่า LINE", path: "/admin/line-settings", icon: NotificationsActiveOutlinedIcon, permissions: ["System.Line.TestSend", "SystemSettings.View"] },
       { label: "ผู้ใช้ LINE", path: "/admin/line-users", icon: NotificationsActiveOutlinedIcon, permissions: ["System.Line.TestSend", "SystemSettings.View"] },
     ],
@@ -132,13 +141,6 @@ export const navigationModules: NavigationModule[] = [
         activePatterns: ["/docs", "/docs/:slug"],
       },
     ],
-  },
-  {
-    moduleId: "VehicleBooking",
-    moduleLabel: "จองรถ",
-    moduleIcon: DirectionsCarOutlinedIcon,
-    enabled: false,
-    children: [],
   },
   {
     moduleId: "AssetBorrowing",

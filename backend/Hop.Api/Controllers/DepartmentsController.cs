@@ -14,6 +14,26 @@ namespace Hop.Api.Controllers;
 [Authorize]
 public class DepartmentsController(AppDbContext db, IAuditLogService auditLogService) : ControllerBase
 {
+    [HttpGet("options")]
+    [RequireAnyPermission(
+        "DepartmentManagement.View",
+        LeavePermissions.ViewDepartment,
+        LeavePermissions.ViewAll,
+        LeavePermissions.SupportViewAll,
+        LeavePermissions.CancellationViewDepartment,
+        LeavePermissions.CancellationViewAll)]
+    public async Task<ActionResult<ApiResponse<IReadOnlyList<DepartmentDto>>>> GetDepartmentOptions(CancellationToken cancellationToken)
+    {
+        var items = await db.Departments
+            .AsNoTracking()
+            .Where(item => item.IsActive)
+            .OrderBy(item => item.Name)
+            .Select(item => new DepartmentDto(item.Id, item.Name, null, true, item.CreatedAt, item.UpdatedAt, 0))
+            .ToListAsync(cancellationToken);
+
+        return ApiResponse<IReadOnlyList<DepartmentDto>>.Ok(items);
+    }
+
     [HttpGet]
     [RequirePermission("DepartmentManagement.View")]
     public async Task<ActionResult<ApiResponse<object>>> GetDepartments(

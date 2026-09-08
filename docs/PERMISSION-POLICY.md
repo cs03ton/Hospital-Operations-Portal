@@ -81,3 +81,8 @@ Frontend uses:
 - `usePermission()`
 
 Routes, menus, and sensitive action buttons must be guarded by permission code.
+# Fleet Phase 2.0
+
+Fleet permissions follow the existing PascalCase convention and are documented in `docs/business-requirements/vehicle-booking/HOP-Vehicle-Permission-Matrix.md`. Migrations/seeding must not bind Fleet capabilities to job-title role names; administrators assign them through the existing role-permission management flow.
+
+Fleet rollout was approved after Milestone 4.2 UAT on 2026-08-04. `Staff` and `DepartmentHead` receive requester permissions, `Director` additionally receives Fleet director-approval permissions, and `Admin`/`SuperAdmin` receive Fleet administration permissions. Dispatcher and Driver duties remain explicit assignments through Role Management so operational authority is not inferred from unrelated job roles.

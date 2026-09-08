@@ -39,6 +39,25 @@ public class CsrfProtectionTests
     }
 
     [Fact]
+    public async Task InvokeAsync_RejectsMismatchedDoubleSubmitTokenInCookieMode()
+    {
+        var called = false;
+        var middleware = new CsrfProtectionMiddleware(_ =>
+        {
+            called = true;
+            return Task.CompletedTask;
+        }, NullLogger<CsrfProtectionMiddleware>.Instance);
+        var context = CreateContext("POST");
+        context.Request.Headers["X-CSRF-TOKEN"] = "header-token";
+        context.Request.Headers.Cookie = "hop_csrf_token=cookie-token";
+
+        await middleware.InvokeAsync(context, CreateConfiguration("Cookie"), new NoopAuditLogService());
+
+        Assert.False(called);
+        Assert.Equal(StatusCodes.Status400BadRequest, context.Response.StatusCode);
+    }
+
+    [Fact]
     public async Task InvokeAsync_SkipsValidationInLocalStorageMode()
     {
         var called = false;

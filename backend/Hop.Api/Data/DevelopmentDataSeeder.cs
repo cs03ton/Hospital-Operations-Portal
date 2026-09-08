@@ -146,6 +146,95 @@ public static class DevelopmentDataSeeder
         ("Announcement.Notification.RetryFailed", "ส่งแจ้งเตือนประกาศที่ล้มเหลวซ้ำ", "AnnouncementNotification", "RetryFailed")
     ];
 
+    private static readonly (string Code, string Name, string Group, string Action)[] FleetPermissions =
+    [
+        ("FleetRequest.ViewOwn", "ดูคำขอใช้รถของตนเอง", "FleetRequest", "ViewOwn"),
+        ("FleetRequest.ViewDepartment", "ดูคำขอใช้รถในหน่วยงาน", "FleetRequest", "ViewDepartment"),
+        ("FleetRequest.ViewAll", "ดูคำขอใช้รถทั้งหมด", "FleetRequest", "ViewAll"),
+        ("FleetRequest.Create", "สร้างคำขอใช้รถ", "FleetRequest", "Create"),
+        ("FleetRequest.EditOwn", "แก้ไขคำขอใช้รถของตนเอง", "FleetRequest", "EditOwn"),
+        ("FleetRequest.Submit", "ส่งคำขอใช้รถ", "FleetRequest", "Submit"),
+        ("FleetRequest.Cancel", "ยกเลิกคำขอใช้รถ", "FleetRequest", "Cancel"),
+        ("FleetRequest.Copy", "คัดลอกคำขอใช้รถ", "FleetRequest", "Copy"),
+        ("FleetDispatch.View", "ดูคิวงานยานพาหนะ", "FleetDispatch", "View"),
+        ("FleetDispatch.Assign", "จัดรถและคนขับ", "FleetDispatch", "Assign"),
+        ("FleetDispatch.Reassign", "เปลี่ยนรถหรือคนขับ", "FleetDispatch", "Reassign"),
+        ("FleetDispatch.Return", "ส่งคำขอกลับจากงานยานพาหนะ", "FleetDispatch", "Return"),
+        ("FleetDispatch.Reject", "ปฏิเสธคำขอโดยงานยานพาหนะ", "FleetDispatch", "Reject"),
+        ("FleetAdminReview.Approve", "ส่งต่อคำขอหลัง review", "FleetAdminReview", "Approve"),
+        ("FleetAdminReview.Return", "ส่งคำขอกลับจาก review", "FleetAdminReview", "Return"),
+        ("FleetAdminReview.Reject", "ไม่อนุมัติคำขอในขั้น review", "FleetAdminReview", "Reject"),
+        ("FleetDirector.Approve", "อนุมัติคำขอใช้รถขั้นสุดท้าย", "FleetDirector", "Approve"),
+        ("FleetDirector.Return", "ส่งคำขอกลับจากผู้อำนวยการ", "FleetDirector", "Return"),
+        ("FleetDirector.Reject", "ไม่อนุมัติคำขอใช้รถขั้นสุดท้าย", "FleetDirector", "Reject"),
+        ("FleetDriver.ViewOwn", "ดูงานขับรถของตนเอง", "FleetDriver", "ViewOwn"),
+        ("FleetDriver.Acknowledge", "รับทราบงานขับรถ", "FleetDriver", "Acknowledge"),
+        ("FleetDriver.Start", "เริ่มงานขับรถ", "FleetDriver", "Start"),
+        ("FleetDriver.Complete", "ปิดงานขับรถ", "FleetDriver", "Complete"),
+        ("FleetVehicle.Manage", "จัดการข้อมูลรถ", "FleetVehicle", "Manage"),
+        ("FleetDriver.Manage", "จัดการข้อมูลคนขับ", "FleetDriver", "Manage"),
+        ("FleetReport.View", "ดูรายงานยานพาหนะ", "FleetReport", "View"),
+        ("FleetReport.Export", "ส่งออกรายงานยานพาหนะ", "FleetReport", "Export"),
+        ("FleetSettings.Manage", "จัดการตั้งค่างานยานพาหนะ", "FleetSettings", "Manage"),
+        ("FleetDelegation.Manage", "จัดการการมอบหมายผู้พิจารณาระบบยานพาหนะ", "FleetDelegation", "Manage"),
+        ("FleetDelegation.View", "ดูการมอบหมายผู้พิจารณาระบบยานพาหนะ", "FleetDelegation", "View"),
+        ("FleetDispatch.ReplaceAssignment", "เปลี่ยนรถหรือคนขับก่อนอนุมัติ", "FleetDispatch", "ReplaceAssignment"),
+        ("FleetDispatch.ReplaceApprovedAssignment", "เปลี่ยนรถหรือคนขับหลังอนุมัติ", "FleetDispatch", "ReplaceApprovedAssignment"),
+        ("FleetDriver.ViewOwnJobs", "ดูงานขับรถของตนเอง", "FleetDriver", "ViewOwnJobs"),
+        ("FleetDriver.StartTrip", "เริ่มภารกิจรถ", "FleetDriver", "StartTrip"),
+        ("FleetDriver.CompleteTrip", "ปิดภารกิจรถ", "FleetDriver", "CompleteTrip"),
+        ("FleetTrip.OverrideMileage", "แก้เลขไมล์โดยผู้ดูแล", "FleetTrip", "OverrideMileage"),
+        ("FleetTrip.CloseByAdmin", "ปิดงานโดยผู้ดูแล", "FleetTrip", "CloseByAdmin"),
+        ("FleetCancellation.Review", "พิจารณาคำขอยกเลิกหลังอนุมัติ", "FleetCancellation", "Review"),
+        ("FleetDashboard.View", "ดูแดชบอร์ดงานยานพาหนะ", "FleetDashboard", "View"),
+        ("FleetOutbox.View", "ดูสถานะ Outbox งานยานพาหนะ", "FleetOutbox", "View"),
+        ("FleetTrip.OverrideComplete", "ปิดงานแทนคนขับ", "FleetTrip", "OverrideComplete")
+        ,("FleetHealth.View", "ดู Fleet Health Center", "FleetHealth", "View")
+        ,("FleetHealth.Manage", "จัดการ Fleet Health และ Rollout", "FleetHealth", "Manage")
+        ,("FleetMaintenance.View", "ดูข้อมูลบำรุงรักษารถ", "FleetMaintenance", "View")
+        ,("FleetMaintenance.Manage", "จัดการแผนบำรุงรักษารถ", "FleetMaintenance", "Manage")
+        ,("FleetMaintenance.Complete", "ปิดงานบำรุงรักษารถ", "FleetMaintenance", "Complete")
+        ,("FleetMaintenance.Cancel", "ยกเลิกงานบำรุงรักษารถ", "FleetMaintenance", "Cancel")
+        ,("FleetMaintenance.OverrideMileage", "ยืนยันเลขไมล์บำรุงรักษา", "FleetMaintenance", "OverrideMileage")
+        ,("FleetMaintenance.ManageTypes", "จัดการประเภทบำรุงรักษา", "FleetMaintenance", "ManageTypes")
+        ,("FleetMaintenance.ManageDocuments", "จัดการเอกสารรถ", "FleetMaintenance", "ManageDocuments")
+        ,("FleetMaintenance.UploadAttachment", "อัปโหลดไฟล์บำรุงรักษา", "FleetMaintenance", "UploadAttachment")
+        ,("FleetCalendar.View", "ดูปฏิทิน Fleet", "FleetCalendar", "View")
+        ,("FleetCapability.View", "ดู Capability Fleet", "FleetCapability", "View")
+        ,("FleetCapability.Manage", "จัดการ Capability Fleet", "FleetCapability", "Manage")
+        ,("FleetVehicleCapability.Manage", "กำหนด Capability ให้รถ", "FleetVehicleCapability", "Manage")
+        ,("FleetRequestCapability.ManageOwn", "กำหนด Capability ในคำขอตนเอง", "FleetRequestCapability", "ManageOwn")
+        ,("FleetCompatibility.View", "ดูผล Compatibility", "FleetCompatibility", "View")
+        ,("FleetCompatibility.Override", "Override Compatibility ที่ไม่ใช่ Safety", "FleetCompatibility", "Override")
+        ,("FleetEmergency.Create", "สร้างคำขอ Fleet Emergency", "FleetEmergency", "Create")
+        ,("FleetEmergency.ViewOwn", "ดูคำขอ Fleet Emergency ของตน", "FleetEmergency", "ViewOwn")
+        ,("FleetEmergency.ViewQueue", "ดูคิว Fleet Emergency", "FleetEmergency", "ViewQueue")
+        ,("FleetEmergency.Dispatch", "จัดรถ Fleet Emergency", "FleetEmergency", "Dispatch")
+        ,("FleetEmergency.BypassApproval", "ข้าม approval ตามนโยบาย Fleet Emergency", "FleetEmergency", "BypassApproval")
+        ,("FleetEmergency.Review", "ทบทวน Fleet Emergency หลังเหตุการณ์", "FleetEmergency", "Review")
+        ,("FleetEmergency.ViewAudit", "ดู Audit Fleet Emergency", "FleetEmergency", "ViewAudit")
+        ,("FleetEmergencyPolicy.View", "ดูนโยบาย Fleet Emergency", "FleetEmergencyPolicy", "View")
+        ,("FleetEmergencyPolicy.Manage", "จัดการนโยบาย Fleet Emergency", "FleetEmergencyPolicy", "Manage")
+        ,("FleetDriver.ViewJobs", "ดูรายการงานขับรถบนมือถือ", "FleetDriver", "ViewJobs")
+        ,("FleetDriver.AcceptJob", "ตอบรับงานขับรถ", "FleetDriver", "AcceptJob")
+        ,("FleetDriver.DeclineJob", "ปฏิเสธงานขับรถ", "FleetDriver", "DeclineJob")
+        ,("FleetTrip.Start", "เริ่ม Trip", "FleetTrip", "Start")
+        ,("FleetTrip.Complete", "จบ Trip", "FleetTrip", "Complete")
+        ,("FleetTrip.UploadAttachment", "อัปโหลดไฟล์ Trip", "FleetTrip", "UploadAttachment")
+        ,("FleetLineGroup.View", "ดู LINE Group ของโมดูล Fleet", "FleetLineGroup", "View")
+        ,("FleetLineGroup.Manage", "ยืนยันและจัดการ LINE Group ของโมดูล Fleet", "FleetLineGroup", "Manage")
+    ];
+
+    private static readonly (string Code, string Name, string Description, int SortOrder)[] FleetVehicleTypeSeeds =
+    [
+        ("SEDAN", "รถเก๋ง", "รถยนต์นั่งส่วนบุคคล", 10),
+        ("PICKUP", "รถกระบะ", "รถกระบะ", 20),
+        ("VAN", "รถตู้", "รถตู้โดยสาร", 30),
+        ("AMBULANCE", "รถพยาบาล", "รถพยาบาล", 40),
+        ("MOTORCYCLE", "รถจักรยานยนต์", "รถจักรยานยนต์", 50),
+        ("OTHER", "อื่น ๆ", "ยานพาหนะประเภทอื่น", 99)
+    ];
+
     private sealed record LeaveTypeSeed(string Code, string Name, string Description, decimal DefaultDays, bool RequiresAttachment, bool RequiresBalance, bool AllowCarryOver, decimal CarryOverMaxDays, bool UseFiscalYear, bool IsPaid, string[] LegacyCodes);
 
     private sealed record LeavePolicyRuleSeed(
@@ -342,6 +431,48 @@ public static class DevelopmentDataSeeder
                 permission.UpdatedAt = DateTime.UtcNow;
             }
 
+            foreach (var permissionSeed in FleetPermissions)
+            {
+                if (!permissionsByCode.TryGetValue(permissionSeed.Code, out var permission))
+                {
+                    permission = new Permission
+                    {
+                        Code = permissionSeed.Code,
+                        CreatedAt = DateTime.UtcNow
+                    };
+                    db.Permissions.Add(permission);
+                    permissionsByCode[permissionSeed.Code] = permission;
+                }
+
+                permission.Name = permissionSeed.Name;
+                permission.Group = permissionSeed.Group;
+                permission.Action = permissionSeed.Action;
+                permission.IsActive = true;
+                permission.UpdatedAt = DateTime.UtcNow;
+            }
+
+            foreach (var typeSeed in FleetVehicleTypeSeeds)
+            {
+                var vehicleType = await db.FleetVehicleTypes.FirstOrDefaultAsync(item => item.Code == typeSeed.Code);
+                if (vehicleType is null)
+                {
+                    db.FleetVehicleTypes.Add(new FleetVehicleType
+                    {
+                        Code = typeSeed.Code,
+                        Name = typeSeed.Name,
+                        Description = typeSeed.Description,
+                        SortOrder = typeSeed.SortOrder,
+                        IsActive = true
+                    });
+                    continue;
+                }
+
+                vehicleType.Name = typeSeed.Name;
+                vehicleType.Description = typeSeed.Description;
+                vehicleType.SortOrder = typeSeed.SortOrder;
+                vehicleType.UpdatedAt = DateTime.UtcNow;
+            }
+
             await db.SaveChangesAsync();
 
             var superAdminRole = await db.Roles.SingleAsync(role => role.Name == "SuperAdmin");
@@ -399,6 +530,11 @@ public static class DevelopmentDataSeeder
                 .Select(permission => permission.Id)
                 .ToListAsync();
             await GrantPermissionIds(db, superAdminRole.Id, allPermissionIds);
+            var fleetPermissionIds = await db.Permissions
+                .Where(permission => permission.Code.StartsWith("Fleet"))
+                .Select(permission => permission.Id)
+                .ToListAsync();
+            await GrantPermissionIds(db, adminRole.Id, fleetPermissionIds);
             await RevokePermissions(db, superAdminRole.Id, "LeaveRequest.Create");
             await RevokePermissions(db, adminRole.Id, "LeaveRequest.Create");
             await RevokePermissions(db, superAdminRole.Id, "LeaveCancellation.Create", "LeaveCancellation.Submit", "LeaveCancellation.CancelOwn");
@@ -415,7 +551,15 @@ public static class DevelopmentDataSeeder
                 "LeaveCancellation.ViewOwn",
                 "LeaveCancellation.Create",
                 "LeaveCancellation.Submit",
-                "LeaveCancellation.CancelOwn");
+                "LeaveCancellation.CancelOwn",
+                "FleetRequest.ViewOwn",
+                "FleetRequest.Create",
+                "FleetRequest.EditOwn",
+                "FleetRequest.Submit",
+                "FleetRequest.Cancel",
+                "FleetRequest.Copy",
+                "FleetRequestCapability.ManageOwn",
+                "FleetCompatibility.View");
             await GrantPermissions(db, departmentHeadRole.Id,
                 "Dashboard.View",
                 "Documentation.View",
@@ -433,7 +577,16 @@ public static class DevelopmentDataSeeder
                 "LeaveCancellation.Submit",
                 "LeaveCancellation.CancelOwn",
                 "LeaveCancellation.ApproveCurrentStep",
-                "LeaveCancellation.ViewDepartment");
+                "LeaveCancellation.ViewDepartment",
+                "FleetRequest.ViewOwn",
+                "FleetRequest.ViewAll",
+                "FleetRequest.Create",
+                "FleetRequest.EditOwn",
+                "FleetRequest.Submit",
+                "FleetRequest.Cancel",
+                "FleetRequest.Copy",
+                "FleetRequestCapability.ManageOwn",
+                "FleetCompatibility.View");
             await GrantPermissions(db, directorRole.Id,
                 "Dashboard.View",
                 "Documentation.View",
@@ -444,6 +597,7 @@ public static class DevelopmentDataSeeder
                 "LeaveDashboard.ViewExecutiveSummary",
                 "LeaveAnalytics.View",
                 "LeaveRequest.ViewOwn",
+                "LeaveRequest.ViewAll",
                 "LeaveRequest.ViewPendingApproval",
                 "LeaveRequest.Create",
                 "LeaveRequest.EditOwn",
@@ -453,7 +607,19 @@ public static class DevelopmentDataSeeder
                 "LeaveCancellation.Create",
                 "LeaveCancellation.Submit",
                 "LeaveCancellation.CancelOwn",
-                "LeaveCancellation.ApproveCurrentStep");
+                "LeaveCancellation.ApproveCurrentStep",
+                "FleetRequest.ViewOwn",
+                "FleetRequest.ViewAll",
+                "FleetRequest.Create",
+                "FleetRequest.EditOwn",
+                "FleetRequest.Submit",
+                "FleetRequest.Cancel",
+                "FleetRequest.Copy",
+                "FleetRequestCapability.ManageOwn",
+                "FleetCompatibility.View",
+                "FleetDirector.Approve",
+                "FleetDirector.Return",
+                "FleetDirector.Reject");
             await GrantPermissions(db, leaveAdminRole.Id,
                 "Dashboard.View",
                 "Documentation.View",
@@ -527,6 +693,7 @@ public static class DevelopmentDataSeeder
                 "RoleManagement.Delete",
                 "RoleManagement.Manage",
                 "LeaveRequest.ViewOwn",
+                "LeaveRequest.ViewAll",
                 "LeaveRequest.ViewPendingApproval",
                 "LeaveRequest.ViewDepartment",
                 "LeaveApproval.ApproveCurrentStep",

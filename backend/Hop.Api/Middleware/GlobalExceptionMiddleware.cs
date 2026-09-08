@@ -14,6 +14,18 @@ public sealed class GlobalExceptionMiddleware(
         {
             await next(context);
         }
+        catch (OperationCanceledException) when (context.RequestAborted.IsCancellationRequested)
+        {
+            logger.LogDebug("Request was cancelled by the client. TraceId={TraceId} Method={Method} Path={Path}",
+                context.TraceIdentifier,
+                context.Request.Method,
+                context.Request.Path);
+
+            if (!context.Response.HasStarted)
+            {
+                context.Response.StatusCode = 499;
+            }
+        }
         catch (Exception ex)
         {
             var referenceId = context.TraceIdentifier;

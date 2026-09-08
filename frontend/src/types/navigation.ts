@@ -9,4 +9,5 @@ export type NavigationItem = {
   activePatterns?: string[];
   hiddenForRoles?: string[];
   allowedRoles?: string[];
+  badgeCount?: number;
 };

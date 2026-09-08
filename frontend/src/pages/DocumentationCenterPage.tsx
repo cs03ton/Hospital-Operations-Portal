@@ -254,6 +254,7 @@ function MiniDocSection({ title, docs, icon: Icon }: { title: string; docs: Docu
 }
 
 function iconForCategory(category: string) {
+  if (category.includes("Fleet")) return AutoStoriesOutlinedIcon;
   if (category.includes("Approval") || category.includes("Executive")) return SupervisorAccountOutlinedIcon;
   if (category.includes("FAQ")) return HelpOutlineOutlinedIcon;
   if (category.includes("Release")) return NewReleasesOutlinedIcon;

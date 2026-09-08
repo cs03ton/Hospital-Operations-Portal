@@ -1,11 +1,20 @@
 {
   "name": "hop-frontend",
-  "version": "0.1.0",
+  "version": "2.0.0",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
     "build": "tsc && vite build",
+    "test": "vitest run",
+    "test:unit": "vitest run",
+    "test:unit:watch": "vitest",
+    "test:unit:coverage": "vitest run --coverage",
+    "test:unit:fleet-m4.2": "vitest run src/pages/FleetM42Pages.test.tsx",
+    "test:e2e:dev": "playwright test --config playwright.dev.config.ts e2e/fleet-milestone4.1.spec.ts",
+    "test:e2e:uat": "cross-env FLEET_UAT_MODE=true playwright test --config playwright.uat.config.ts e2e/fleet-milestone4.1.spec.ts",
+    "test:e2e:fleet-m4.2:uat": "cross-env FLEET_UAT_MODE=true playwright test --config playwright.m42.uat.config.ts e2e/fleet-milestone4.2.spec.ts",
+    "test:e2e:fleet-dashboard:m6": "cross-env FLEET_UAT_MODE=true playwright test --config playwright.m6.uat.config.ts e2e/fleet-dashboard-m6.spec.ts",
     "e2e:phase1": "playwright test e2e/phase1-web-qa.spec.ts",
     "e2e:screenshots": "playwright test e2e/screenshots",
     "docs:screenshot": "set NODE_PATH=./node_modules&& playwright test ../tests/screenshots --config ../tests/screenshots/config/playwright.config.ts",
@@ -31,16 +40,23 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.61.0",
+    "@testing-library/jest-dom": "^6.4.8",
+    "@testing-library/react": "^15.0.7",
+    "@testing-library/user-event": "^14.5.2",
     "@types/react": "18.2.66",
     "@types/react-dom": "18.2.22",
     "@typescript-eslint/eslint-plugin": "6.21.0",
     "@typescript-eslint/parser": "6.21.0",
     "@vitejs/plugin-react": "4.2.1",
+    "@vitest/coverage-v8": "^1.6.1",
+    "cross-env": "^7.0.3",
     "eslint": "8.57.0",
     "eslint-plugin-react-hooks": "4.6.2",
     "eslint-plugin-react-refresh": "0.4.7",
+    "jsdom": "^24.1.3",
     "prettier": "3.2.5",
     "typescript": "5.4.5",
-    "vite": "4.5.3"
+    "vite": "4.5.3",
+    "vitest": "^1.6.1"
   }
 }

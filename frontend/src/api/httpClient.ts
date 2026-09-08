@@ -4,7 +4,9 @@ import { authStorageKeys } from "../types/auth";
 
 const apiBaseUrl =
   import.meta.env.VITE_API_URL ?? import.meta.env.VITE_API_BASE_URL ?? "";
-const tokenStorageMode = (import.meta.env.VITE_AUTH_TOKEN_STORAGE_MODE ?? "cookie").toLowerCase();
+const tokenStorageMode = (
+  import.meta.env.VITE_AUTH_TOKEN_STORAGE_MODE ?? (import.meta.env.DEV ? "localstorage" : "cookie")
+).toLowerCase();
 const cookieTokenMode = tokenStorageMode === "cookie";
 const csrfCookieName = import.meta.env.VITE_AUTH_CSRF_COOKIE_NAME ?? "hop_csrf_token";
 const csrfHeaderName = import.meta.env.VITE_AUTH_CSRF_HEADER_NAME ?? "X-CSRF-TOKEN";
@@ -53,6 +55,12 @@ export async function refreshAuthSession<TResponse>(refreshToken?: string | null
 }
 
 httpClient.interceptors.request.use(async (config) => {
+  // Fleet SPA routes and Fleet API routes intentionally share the `/fleet` prefix.
+  // Normalize API-client calls here so Vite can leave browser navigations to the SPA.
+  if (config.url === "/fleet" || config.url?.startsWith("/fleet/")) {
+    config.url = `/api${config.url}`;
+  }
+
   const token = memoryAccessToken ?? (cookieTokenMode ? null : localStorage.getItem(authStorageKeys.accessToken));
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
@@ -150,7 +158,10 @@ async function attachCsrfToken(config: InternalAxiosRequestConfig) {
   }
 
   let csrfToken = readCookie(csrfCookieName);
-  if (!csrfToken && cookieTokenMode) {
+  // CSRF protection is enforced by the API for every unsafe authenticated
+  // request, independently of where the access token is stored. Local-storage
+  // mode therefore needs the same CSRF cookie/header pair as cookie mode.
+  if (!csrfToken) {
     await ensureCsrfCookie();
     csrfToken = readCookie(csrfCookieName);
   }

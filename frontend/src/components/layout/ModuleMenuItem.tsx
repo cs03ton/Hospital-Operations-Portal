@@ -1,4 +1,4 @@
-import { ListItemButton, ListItemIcon, ListItemText, Tooltip } from "@mui/material";
+import { Badge, ListItemButton, ListItemIcon, ListItemText, Tooltip } from "@mui/material";
 import { alpha } from "@mui/material/styles";
 import { NavLink } from "react-router-dom";
 import { brandColors } from "../../theme/theme";
@@ -50,10 +50,13 @@ export function ModuleMenuItem({ item, isActive, isCollapsed, onClick }: ModuleM
         <Icon fontSize="small" />
       </ListItemIcon>
       {!isCollapsed && (
-        <ListItemText
-          primary={item.label}
-          primaryTypographyProps={{ variant: "body2", fontWeight: isActive ? 800 : 600 }}
-        />
+        <>
+          <ListItemText
+            primary={item.label}
+            primaryTypographyProps={{ variant: "body2", fontWeight: isActive ? 800 : 600 }}
+          />
+          {Boolean(item.badgeCount) && <Badge badgeContent={item.badgeCount} max={99} color="warning" sx={{ mr: 1 }} />}
+        </>
       )}
     </ListItemButton>
   );

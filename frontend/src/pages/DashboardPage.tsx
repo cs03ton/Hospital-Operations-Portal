@@ -15,6 +15,10 @@ export function DashboardPage() {
   const { data, isError, isLoading } = useQuery({
     queryKey: ["dashboard-summary", "leave", role],
     queryFn: getDashboardSummary,
+    // Leave requests can be approved from another account or device. Keep the
+    // dashboard in sync without requiring the current user to hard refresh.
+    refetchInterval: 60_000,
+    refetchOnWindowFocus: true,
   });
 
   return (

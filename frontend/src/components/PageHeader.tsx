@@ -8,6 +8,7 @@ type PageHeaderProps = {
 export function PageHeader({ title, subtitle }: PageHeaderProps) {
   return (
     <Box
+      className="hop-page-header"
       sx={(theme) => ({
         mb: 3,
         pb: 1.25,
@@ -15,10 +16,10 @@ export function PageHeader({ title, subtitle }: PageHeaderProps) {
         borderColor: theme.palette.warning.main,
       })}
     >
-      <Typography variant="h4" color="primary" sx={{ mb: 0.75, fontSize: { xs: "1.55rem", md: "2rem" } }}>
+      <Typography className="hop-page-title" variant="h4" color="primary" sx={{ mb: 0.75, fontSize: { xs: "1.55rem", md: "2rem" } }}>
         {title}
       </Typography>
-      <Typography color="text.secondary">{subtitle}</Typography>
+      <Typography className="hop-page-subtitle" color="text.secondary">{subtitle}</Typography>
     </Box>
   );
 }

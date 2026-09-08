@@ -1,4 +1,6 @@
 import { Alert, Box, Button, Card, CardContent, Chip, FormControl, FormControlLabel, FormHelperText, FormLabel, MenuItem, Radio, RadioGroup, Stack, TextField, Typography } from "@mui/material";
+import SaveOutlinedIcon from "@mui/icons-material/SaveOutlined";
+import SendOutlinedIcon from "@mui/icons-material/SendOutlined";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { isAxiosError } from "axios";
 import dayjs from "dayjs";
@@ -6,7 +8,7 @@ import { useEffect } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { useNavigate, useParams } from "react-router-dom";
 import { getMyProfile } from "../api/profileApi";
-import { createLeaveRequest, getLeaveHolidays, getLeaveRequest, getLeaveTypes, previewLeavePolicy, updateLeaveRequest, type SaveLeaveRequest } from "../api/leaveApi";
+import { createLeaveRequest, getLeaveHolidays, getLeaveRequest, getLeaveTypes, previewLeavePolicy, submitLeaveRequest, updateLeaveRequest, type SaveLeaveRequest } from "../api/leaveApi";
 import { AppDatePicker } from "../components/common/AppDatePicker";
 import { PageHeader } from "../components/PageHeader";
 import { appConfig } from "../config/appConfig";
@@ -82,26 +84,35 @@ export function LeaveRequestFormPage() {
     }
   }, [isHalfDay, setValue, startDate]);
   const mutation = useMutation({
-    mutationFn: (values: SaveLeaveRequest) => {
+    mutationFn: async ({ values, submit }: { values: SaveLeaveRequest; submit: boolean }) => {
       const payload = {
         ...values,
         endDate: isHalfDay ? values.startDate : values.endDate,
         totalDays: isHalfDay ? 0.5 : Number(values.totalDays || 1),
       };
-      return isEditMode ? updateLeaveRequest(id!, payload) : createLeaveRequest(payload);
+      const saved = isEditMode ? await updateLeaveRequest(id!, payload) : await createLeaveRequest(payload);
+      return submit ? submitLeaveRequest(saved.id) : saved;
     },
-    onSuccess: (data) => {
-      showSuccess(isEditMode ? "บันทึกการแก้ไขคำขอลาเรียบร้อยแล้ว" : "เพิ่มคำขอลาสำเร็จเรียบร้อยแล้ว โปรดรออนุมัติ");
+    onSuccess: (data, variables) => {
+      showSuccess(
+        variables.submit
+          ? "ส่งคำขอลาเข้าสู่กระบวนการอนุมัติเรียบร้อยแล้ว"
+          : isEditMode
+            ? "บันทึกการแก้ไขคำขอลาเรียบร้อยแล้ว"
+            : "บันทึกแบบร่างคำขอลาเรียบร้อยแล้ว",
+      );
       navigate(`/leave/${data.id}`);
     },
   });
 
+  const saveRequest = (submit: boolean) => handleSubmit((values) => mutation.mutate({ values, submit }))();
+
   return (
     <>
-      <PageHeader title={isEditMode ? "แก้ไขคำขอลา" : "สร้างคำขอลา"} subtitle={isEditMode ? "แก้ไขข้อมูลคำขอที่ยังเป็นแบบร่างหรือถูกตีกลับรอแก้ไข" : "บันทึกคำขอลาเป็นแบบร่างก่อนส่งอนุมัติ"} />
+      <PageHeader title={isEditMode ? "แก้ไขคำขอลา" : "สร้างคำขอลา"} subtitle={isEditMode ? "แก้ไขข้อมูลคำขอที่ยังเป็นแบบร่างหรือถูกตีกลับรอแก้ไข" : "กรอกข้อมูลให้ครบแล้วเลือกบันทึกแบบร่างหรือส่งคำขออนุมัติ"} />
       <Card>
         <CardContent>
-          <Stack component="form" spacing={2} onSubmit={handleSubmit((values) => mutation.mutate(values))}>
+          <Stack component="form" spacing={2} onSubmit={(event) => event.preventDefault()}>
             {mutation.isError && <Alert severity="error">{getApiErrorMessage(mutation.error, isEditMode ? "บันทึกการแก้ไขคำขอลาไม่สำเร็จ" : "สร้างคำขอลาไม่สำเร็จ")}</Alert>}
             {leaveTypeId && (
               <Alert severity={hasPolicyError ? "warning" : "info"}>
@@ -228,9 +239,53 @@ export function LeaveRequestFormPage() {
               จำนวนวันที่ใช้โดยประมาณ: {isHalfDay ? "0.5" : "คำนวณจากวันทำการที่เลือก"} วัน
             </Typography>
             <TextField label="เหตุผล" multiline minRows={4} error={Boolean(errors.reason)} helperText={errors.reason?.message} {...register("reason", { required: "กรุณากรอกเหตุผล" })} />
-            <Stack direction="row" spacing={1.5}>
-              <Button type="submit" variant="contained" disabled={mutation.isPending || hasPolicyError || hasHolidayInRange}>{isEditMode ? "บันทึกการแก้ไข" : "บันทึกแบบร่าง"}</Button>
-              <Button variant="outlined" onClick={() => navigate(isEditMode ? `/leave/${id}` : "/leave")}>ยกเลิก</Button>
+            <Stack
+              direction={{ xs: "column", sm: "row" }}
+              spacing={1.5}
+              sx={{
+                position: { xs: "sticky", sm: "static" },
+                bottom: { xs: "calc(8px + env(safe-area-inset-bottom))", sm: "auto" },
+                zIndex: 3,
+                mx: { xs: -1, sm: 0 },
+                p: { xs: 1.25, sm: 0 },
+                bgcolor: { xs: "background.paper", sm: "transparent" },
+                borderRadius: { xs: 2, sm: 0 },
+                boxShadow: { xs: "0 -6px 20px rgba(0, 0, 0, 0.08)", sm: "none" },
+              }}
+            >
+              {isEditMode ? (
+                <Button
+                  variant="contained"
+                  startIcon={<SaveOutlinedIcon />}
+                  disabled={mutation.isPending || hasPolicyError || hasHolidayInRange}
+                  onClick={() => void saveRequest(false)}
+                  sx={{ minHeight: 48 }}
+                >
+                  {mutation.isPending ? "กำลังบันทึก..." : "บันทึกการแก้ไข"}
+                </Button>
+              ) : (
+                <>
+                  <Button
+                    variant="outlined"
+                    startIcon={<SaveOutlinedIcon />}
+                    disabled={mutation.isPending || hasPolicyError || hasHolidayInRange}
+                    onClick={() => void saveRequest(false)}
+                    sx={{ minHeight: 48 }}
+                  >
+                    บันทึกแบบร่าง
+                  </Button>
+                  <Button
+                    variant="contained"
+                    startIcon={<SendOutlinedIcon />}
+                    disabled={mutation.isPending || hasPolicyError || hasHolidayInRange}
+                    onClick={() => void saveRequest(true)}
+                    sx={{ minHeight: 48 }}
+                  >
+                    {mutation.isPending ? "กำลังดำเนินการ..." : "ส่งคำขอ"}
+                  </Button>
+                </>
+              )}
+              <Button variant="text" disabled={mutation.isPending} onClick={() => navigate(isEditMode ? `/leave/${id}` : "/leave")} sx={{ minHeight: 48 }}>ยกเลิก</Button>
             </Stack>
           </Stack>
         </CardContent>

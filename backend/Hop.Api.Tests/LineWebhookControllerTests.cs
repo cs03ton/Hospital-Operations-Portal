@@ -7,6 +7,7 @@ using Hop.Api.Controllers;
 using Hop.Api.Data;
 using Hop.Api.DTOs;
 using Hop.Api.Interfaces;
+using Hop.Api.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
@@ -200,6 +201,7 @@ public sealed class LineWebhookControllerTests
         var controller = new LineWebhookController(
             resolver,
             service,
+            CreateGroupRegistrationService(resolver),
             NullLogger<LineWebhookController>.Instance);
         var context = new DefaultHttpContext
         {
@@ -216,6 +218,15 @@ public sealed class LineWebhookControllerTests
             HttpContext = context
         };
         return controller;
+    }
+
+    private static LineGroupRegistrationService CreateGroupRegistrationService(LineConfigurationResolver resolver)
+    {
+        var options = new DbContextOptionsBuilder<AppDbContext>()
+            .UseInMemoryDatabase($"line-group-controller-{Guid.NewGuid()}").Options;
+        return new LineGroupRegistrationService(
+            new AppDbContext(options), resolver, Options.Create(new LineGroupNotificationsOptions { Enabled = false }),
+            new HttpClient(), NullLogger<LineGroupRegistrationService>.Instance);
     }
 
     private static HttpRequestMessage CreateSignedWebhookRequest(string body)

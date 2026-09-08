@@ -14,6 +14,19 @@ namespace Hop.Api.Tests;
 
 public class DashboardSummaryTests
 {
+    [Theory]
+    [InlineData("2026-08-16T16:59:59Z", 2026, 8, 16)]
+    [InlineData("2026-08-16T17:00:00Z", 2026, 8, 17)]
+    [InlineData("2026-08-17T23:59:59Z", 2026, 8, 18)]
+    public void GetBangkokDate_UsesThailandCalendarDay(string utcText, int year, int month, int day)
+    {
+        var utc = DateTime.Parse(utcText, null, System.Globalization.DateTimeStyles.AdjustToUniversal);
+
+        var result = DashboardController.GetBangkokDate(utc);
+
+        Assert.Equal(new DateOnly(year, month, day), result);
+    }
+
     [Fact]
     public async Task GetSummary_ReturnsCoreLeaveBalancesWithoutCombiningSpecialLeaveTypes()
     {
@@ -158,6 +171,55 @@ public class DashboardSummaryTests
         Assert.Equal(1, summary.MyPendingRequests?.Count);
         Assert.Equal(0, summary.DepartmentRequests?.Count);
         Assert.Empty(summary.DepartmentRequests!.Items);
+    }
+
+    [Fact]
+    public async Task GetSummary_RequesterCountsOnlyOwnActiveFleetRequests()
+    {
+        await using var db = CreateDbContext();
+        var requester = new User { Id = Guid.NewGuid(), FullName = "ผู้ขอรถ", Username = "fleet.requester", PasswordHash = "hash", IsActive = true };
+        var otherRequester = new User { Id = Guid.NewGuid(), FullName = "ผู้ขอรถอื่น", Username = "fleet.other", PasswordHash = "hash", IsActive = true };
+        db.Users.AddRange(requester, otherRequester);
+        AddFleetRequest(db, requester.Id, FleetRequestStatuses.PendingDispatch);
+        AddFleetRequest(db, requester.Id, FleetRequestStatuses.PendingDirector);
+        AddFleetRequest(db, requester.Id, FleetRequestStatuses.Completed);
+        AddFleetRequest(db, requester.Id, FleetRequestStatuses.Draft);
+        AddFleetRequest(db, otherRequester.Id, FleetRequestStatuses.InProgress);
+        await db.SaveChangesAsync();
+
+        var controller = new DashboardController(db);
+        SetUserContext(controller, requester.Id);
+
+        var result = await controller.GetSummary();
+
+        var response = Assert.IsType<ApiResponse<DashboardSummaryResponse>>(result.Value);
+        Assert.Equal(2, response.Data!.ActiveBorrowRequests);
+    }
+
+    [Fact]
+    public async Task GetSummary_DriverCountsOnlyOwnActiveAssignments()
+    {
+        await using var db = CreateDbContext();
+        var driver = new User { Id = Guid.NewGuid(), FullName = "พนักงานขับรถ", Username = "fleet.driver", PasswordHash = "hash", IsActive = true };
+        var otherDriver = new User { Id = Guid.NewGuid(), FullName = "พนักงานขับรถอื่น", Username = "fleet.driver.other", PasswordHash = "hash", IsActive = true };
+        db.Users.AddRange(driver, otherDriver);
+        GrantRoleWithPermissions(db, driver.Id, "FleetDriver", FleetPermissions.DriverViewOwnJobs);
+        var activeRequest = AddFleetRequest(db, driver.Id, FleetRequestStatuses.Ready);
+        var completedRequest = AddFleetRequest(db, driver.Id, FleetRequestStatuses.Completed);
+        var otherRequest = AddFleetRequest(db, otherDriver.Id, FleetRequestStatuses.InProgress);
+        AddFleetAssignment(db, activeRequest, driver.Id, isActive: true);
+        AddFleetAssignment(db, completedRequest, driver.Id, isActive: true);
+        AddFleetAssignment(db, activeRequest, driver.Id, isActive: false);
+        AddFleetAssignment(db, otherRequest, otherDriver.Id, isActive: true);
+        await db.SaveChangesAsync();
+
+        var controller = new DashboardController(db);
+        SetUserContext(controller, driver.Id);
+
+        var result = await controller.GetSummary();
+
+        var response = Assert.IsType<ApiResponse<DashboardSummaryResponse>>(result.Value);
+        Assert.Equal(1, response.Data!.ActiveBorrowRequests);
     }
 
     [Fact]
@@ -360,6 +422,41 @@ public class DashboardSummaryTests
         };
         db.LeaveRequests.Add(leaveRequest);
         return leaveRequest;
+    }
+
+    private static FleetRequest AddFleetRequest(AppDbContext db, Guid requesterUserId, string status)
+    {
+        var request = new FleetRequest
+        {
+            Id = Guid.NewGuid(),
+            RequestNo = $"TEST-{Guid.NewGuid():N}",
+            RequesterUserId = requesterUserId,
+            RequestDate = DateOnly.FromDateTime(DateTime.UtcNow),
+            Purpose = "ทดสอบ Dashboard",
+            MissionType = "OFFICIAL",
+            Destination = "โรงพยาบาลน่าน",
+            DepartureAt = DateTime.UtcNow.AddDays(1),
+            ExpectedReturnAt = DateTime.UtcNow.AddDays(1).AddHours(2),
+            PassengerCount = 1,
+            Status = status,
+            CreatedByUserId = requesterUserId
+        };
+        db.FleetRequests.Add(request);
+        return request;
+    }
+
+    private static void AddFleetAssignment(AppDbContext db, FleetRequest request, Guid driverUserId, bool isActive)
+    {
+        db.FleetAssignments.Add(new FleetAssignment
+        {
+            Id = Guid.NewGuid(),
+            FleetRequestId = request.Id,
+            FleetRequest = request,
+            VehicleId = Guid.NewGuid(),
+            DriverUserId = driverUserId,
+            AssignedByUserId = driverUserId,
+            IsActive = isActive
+        });
     }
 
     private static LeaveCancellationRequest AddCancellation(AppDbContext db, LeaveRequest originalLeave, Guid userId, Guid leaveTypeId, string status, decimal days)

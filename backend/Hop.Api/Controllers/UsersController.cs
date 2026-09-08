@@ -35,20 +35,39 @@ public class UsersController(
             })
             .FirstOrDefaultAsync();
 
-        if (user is null || string.IsNullOrWhiteSpace(user.ProfileImagePath))
+        if (user is null)
         {
             return NotFound();
+        }
+
+        if (string.IsNullOrWhiteSpace(user.ProfileImagePath))
+        {
+            return DefaultProfileImage();
         }
 
         var absolutePath = ResolveStoragePath(user.ProfileImagePath);
         if (absolutePath is null || !System.IO.File.Exists(absolutePath))
         {
-            return NotFound();
+            return DefaultProfileImage();
         }
 
         Response.Headers.CacheControl = "public, max-age=86400";
         Response.Headers.ETag = $"\"{user.ProfileImageUpdatedAt?.Ticks ?? 0}\"";
         return PhysicalFile(absolutePath, user.ProfileImageContentType ?? "application/octet-stream");
+    }
+
+    private FileContentResult DefaultProfileImage()
+    {
+        const string svg = """
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+              <rect width="64" height="64" rx="32" fill="#e8f1ee"/>
+              <circle cx="32" cy="25" r="12" fill="#216654"/>
+              <path d="M12 58c2-13 10-20 20-20s18 7 20 20" fill="#216654"/>
+            </svg>
+            """;
+        Response.Headers.CacheControl = "public, max-age=300";
+        Response.Headers["X-HOP-Profile-Image-Fallback"] = "true";
+        return File(System.Text.Encoding.UTF8.GetBytes(svg), "image/svg+xml");
     }
 
     [HttpGet]

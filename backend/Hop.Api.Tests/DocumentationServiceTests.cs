@@ -24,8 +24,27 @@ public class DocumentationServiceTests
 
         Assert.Contains(docs, item => item.Slug == "staff-guide");
         Assert.Contains(docs, item => item.Slug == "faq");
+        Assert.Contains(docs, item => item.Slug == "fleet-requester-guide");
+        Assert.DoesNotContain(docs, item => item.Slug == "fleet-driver-guide");
         Assert.DoesNotContain(docs, item => item.Slug == "admin-guide");
         Assert.DoesNotContain(docs, item => item.Slug == "release-notes");
+    }
+
+    [Theory]
+    [InlineData("พนักงานขับรถ", "fleet-driver-guide")]
+    [InlineData("FleetAdminReviewer", "fleet-reviewer-guide")]
+    [InlineData("Director", "fleet-director-guide")]
+    public async Task Fleet_role_sees_its_own_manual(string role, string expectedSlug)
+    {
+        using var temp = new TempDocumentationRoot();
+        var service = temp.CreateService();
+        var access = new DocumentationAccessContext(
+            new HashSet<string>(StringComparer.OrdinalIgnoreCase) { role },
+            new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "Documentation.View" });
+
+        var docs = await service.GetDocumentsAsync(access);
+
+        Assert.Contains(docs, item => item.Slug == expectedSlug);
     }
 
     [Fact]
@@ -115,7 +134,7 @@ public class DocumentationServiceTests
         {
             Root = Path.Combine(Path.GetTempPath(), $"hop-docs-{Guid.NewGuid():N}");
             Directory.CreateDirectory(Root);
-            foreach (var file in new[] { "staff.md", "head.md", "director.md", "admin.md", "faq.md", "release-notes.md" })
+            foreach (var file in new[] { "staff.md", "head.md", "director.md", "admin.md", "announcement.md", "faq.md", "release-notes.md", "fleet-requester.md", "fleet-dispatcher.md", "fleet-reviewer.md", "fleet-director.md", "fleet-driver.md", "fleet-admin.md" })
             {
                 File.WriteAllText(Path.Combine(Root, file), $"# {file}\n\nเนื้อหาทดสอบ");
             }

@@ -19,6 +19,7 @@ public class ApprovalDelegationsController(AppDbContext db, IAuditLogService aud
     public async Task<ActionResult<ApiResponse<IReadOnlyList<ApprovalDelegationResponse>>>> GetDelegations()
     {
         var items = await db.ApprovalDelegations
+            .Where(item => item.Scope == null || item.Scope == "LEAVE")
             .AsNoTracking()
             .Include(item => item.ApproverUser)
             .Include(item => item.DelegateUser)
@@ -64,6 +65,7 @@ public class ApprovalDelegationsController(AppDbContext db, IAuditLogService aud
             IsActive = request.IsActive,
             CreatedByUserId = GetCurrentUserId()
         };
+        ApplyLeaveScope(delegation);
 
         db.ApprovalDelegations.Add(delegation);
         await db.SaveChangesAsync();
@@ -109,6 +111,7 @@ public class ApprovalDelegationsController(AppDbContext db, IAuditLogService aud
         delegation.EndDate = request.EndDate;
         delegation.Reason = request.Reason.Trim();
         delegation.IsActive = request.IsActive;
+        ApplyLeaveScope(delegation);
         delegation.UpdatedAt = DateTime.UtcNow;
         delegation.CancelledAt = request.IsActive ? null : DateTime.UtcNow;
         await db.SaveChangesAsync();
@@ -140,6 +143,7 @@ public class ApprovalDelegationsController(AppDbContext db, IAuditLogService aud
     {
         return db.ApprovalDelegations.AnyAsync(item =>
             item.IsActive &&
+            (item.Scope == null || item.Scope == "LEAVE") &&
             item.ApproverUserId == approverUserId &&
             item.Id != excludeId &&
             item.StartDate <= endDate &&
@@ -153,6 +157,7 @@ public class ApprovalDelegationsController(AppDbContext db, IAuditLogService aud
             .Include(item => item.ApproverUser)
             .Include(item => item.DelegateUser)
             .Include(item => item.CreatedByUser)
+            .Where(item => item.Scope == null || item.Scope == "LEAVE")
             .FirstOrDefaultAsync(item => item.Id == id);
     }
 
@@ -180,5 +185,14 @@ public class ApprovalDelegationsController(AppDbContext db, IAuditLogService aud
     {
         var value = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
         return Guid.TryParse(value, out var userId) ? userId : null;
+    }
+
+    private static void ApplyLeaveScope(ApprovalDelegation item)
+    {
+        item.Scope = "LEAVE";
+        item.RequiredPermissionCode = LeavePermissions.ApproveCurrentStep;
+        item.StartAt = DateTime.SpecifyKind(item.StartDate.ToDateTime(TimeOnly.MinValue), DateTimeKind.Unspecified).AddHours(-7);
+        item.EndAt = DateTime.SpecifyKind(item.EndDate.AddDays(1).ToDateTime(TimeOnly.MinValue), DateTimeKind.Unspecified).AddHours(-7);
+        item.ConcurrencyToken = Guid.NewGuid();
     }
 }

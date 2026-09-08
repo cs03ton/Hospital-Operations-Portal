@@ -686,6 +686,11 @@ namespace Hop.Api.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("cancelled_at");
 
+                    b.Property<Guid>("ConcurrencyToken")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid")
+                        .HasColumnName("concurrency_token");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
@@ -697,6 +702,10 @@ namespace Hop.Api.Migrations
                     b.Property<Guid>("DelegateUserId")
                         .HasColumnType("uuid")
                         .HasColumnName("delegate_user_id");
+
+                    b.Property<DateTime?>("EndAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("end_at");
 
                     b.Property<DateOnly>("EndDate")
                         .HasColumnType("date")
@@ -710,6 +719,20 @@ namespace Hop.Api.Migrations
                         .IsRequired()
                         .HasColumnType("text")
                         .HasColumnName("reason");
+
+                    b.Property<string>("RequiredPermissionCode")
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("required_permission_code");
+
+                    b.Property<string>("Scope")
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("scope");
+
+                    b.Property<DateTime?>("StartAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("start_at");
 
                     b.Property<DateOnly>("StartDate")
                         .HasColumnType("date")
@@ -726,6 +749,8 @@ namespace Hop.Api.Migrations
                     b.HasIndex("DelegateUserId");
 
                     b.HasIndex("ApproverUserId", "StartDate", "EndDate");
+
+                    b.HasIndex("ApproverUserId", "Scope", "RequiredPermissionCode", "StartAt", "EndAt");
 
                     b.ToTable("approval_delegations", (string)null);
                 });
@@ -892,13 +917,30 @@ namespace Hop.Api.Migrations
                         .HasColumnType("text")
                         .HasColumnName("action");
 
+                    b.Property<string>("CorrelationId")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("correlation_id");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
 
+                    b.Property<Guid?>("DelegationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("delegation_id");
+
+                    b.Property<Guid?>("DelegatorUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("delegator_user_id");
+
                     b.Property<string>("Detail")
                         .HasColumnType("text")
                         .HasColumnName("detail");
+
+                    b.Property<Guid?>("EffectiveActorUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("effective_actor_user_id");
 
                     b.Property<string>("EntityId")
                         .HasColumnType("text")
@@ -913,10 +955,27 @@ namespace Hop.Api.Migrations
                         .HasColumnType("text")
                         .HasColumnName("ip_address");
 
+                    b.Property<string>("NewValue")
+                        .HasColumnType("text")
+                        .HasColumnName("new_value");
+
+                    b.Property<string>("OldValue")
+                        .HasColumnType("text")
+                        .HasColumnName("old_value");
+
+                    b.Property<string>("Reason")
+                        .HasColumnType("text")
+                        .HasColumnName("reason");
+
                     b.Property<string>("Result")
                         .IsRequired()
                         .HasColumnType("text")
                         .HasColumnName("result");
+
+                    b.Property<string>("UserAgent")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("user_agent");
 
                     b.Property<Guid?>("UserId")
                         .HasColumnType("uuid")
@@ -1131,6 +1190,2497 @@ namespace Hop.Api.Migrations
                     b.HasIndex("DiagnosticType", "StartedAt");
 
                     b.ToTable("diagnostic_runs", (string)null);
+                });
+
+            modelBuilder.Entity("Hop.Api.Models.DomainEventRecord", b =>
+                {
+                    b.Property<Guid>("EventId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("event_id");
+
+                    b.Property<Guid?>("ActorUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("actor_user_id");
+
+                    b.Property<Guid>("AggregateId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("aggregate_id");
+
+                    b.Property<string>("AggregateType")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("aggregate_type");
+
+                    b.Property<string>("CorrelationId")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("correlation_id");
+
+                    b.Property<string>("EventType")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("character varying(160)")
+                        .HasColumnName("event_type");
+
+                    b.Property<DateTime>("OccurredAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("occurred_at");
+
+                    b.Property<string>("Payload")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("payload");
+
+                    b.Property<string>("Scope")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("scope");
+
+                    b.HasKey("EventId");
+
+                    b.HasIndex("Scope", "EventType", "OccurredAt");
+
+                    b.ToTable("domain_events", (string)null);
+                });
+
+            modelBuilder.Entity("Hop.Api.Models.FleetAssignment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTime>("AssignedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("assigned_at");
+
+                    b.Property<Guid>("AssignedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("assigned_by_user_id");
+
+                    b.Property<string>("AssignmentReason")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("assignment_reason");
+
+                    b.Property<string>("AssignmentStatus")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("assignment_status");
+
+                    b.Property<Guid>("ConcurrencyToken")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid")
+                        .HasColumnName("concurrency_token");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("DriverUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("driver_user_id");
+
+                    b.Property<Guid>("FleetRequestId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("fleet_request_id");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_active");
+
+                    b.Property<Guid?>("ReplacedAssignmentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("replaced_assignment_id");
+
+                    b.Property<Guid>("VehicleId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("vehicle_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AssignedByUserId");
+
+                    b.HasIndex("FleetRequestId")
+                        .IsUnique()
+                        .HasFilter("is_active = true");
+
+                    b.HasIndex("ReplacedAssignmentId");
+
+                    b.HasIndex("DriverUserId", "IsActive");
+
+                    b.HasIndex("VehicleId", "IsActive");
+
+                    b.ToTable("fleet_assignments", (string)null);
+                });
+
+            modelBuilder.Entity("Hop.Api.Models.FleetCancellationRequest", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTime?>("CompletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("completed_at");
+
+                    b.Property<Guid>("ConcurrencyToken")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid")
+                        .HasColumnName("concurrency_token");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("FleetRequestId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("fleet_request_id");
+
+                    b.Property<string>("PreviousStatus")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("previous_status");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("reason");
+
+                    b.Property<Guid>("RequestedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("requested_by_user_id");
+
+                    b.Property<string>("ReviewReason")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("review_reason");
+
+                    b.Property<DateTime?>("ReviewedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("reviewed_at");
+
+                    b.Property<Guid?>("ReviewedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("reviewed_by_user_id");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("status");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RequestedByUserId");
+
+                    b.HasIndex("ReviewedByUserId");
+
+                    b.HasIndex("FleetRequestId", "CreatedAt");
+
+                    b.ToTable("fleet_cancellation_requests", (string)null);
+                });
+
+            modelBuilder.Entity("Hop.Api.Models.FleetCapability", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)")
+                        .HasColumnName("category");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)")
+                        .HasColumnName("code");
+
+                    b.Property<Guid>("ConcurrencyToken")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid")
+                        .HasColumnName("concurrency_token");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid?>("CreatedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by_user_id");
+
+                    b.Property<string>("DataType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("data_type");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("description");
+
+                    b.Property<string>("EnumOptionsJson")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("enum_options_json");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_active");
+
+                    b.Property<bool>("IsRequiredSafetyCapability")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_required_safety_capability");
+
+                    b.Property<decimal?>("MaximumNumericValue")
+                        .HasPrecision(14, 2)
+                        .HasColumnType("numeric(14,2)")
+                        .HasColumnName("maximum_numeric_value");
+
+                    b.Property<decimal?>("MinimumNumericValue")
+                        .HasPrecision(14, 2)
+                        .HasColumnType("numeric(14,2)")
+                        .HasColumnName("minimum_numeric_value");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("name");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer")
+                        .HasColumnName("sort_order");
+
+                    b.Property<string>("Unit")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("unit");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid?>("UpdatedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("updated_by_user_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Code")
+                        .IsUnique();
+
+                    b.HasIndex("IsActive", "SortOrder");
+
+                    b.ToTable("fleet_capabilities", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_fleet_capability_type", "data_type IN ('BOOLEAN','NUMBER','TEXT','ENUM')");
+                        });
+                });
+
+            modelBuilder.Entity("Hop.Api.Models.FleetCompatibilityOverride", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("ApprovedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("approved_by_user_id");
+
+                    b.Property<Guid?>("AssignmentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("assignment_id");
+
+                    b.Property<Guid>("ConcurrencyToken")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid")
+                        .HasColumnName("concurrency_token");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("FleetRequestId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("fleet_request_id");
+
+                    b.Property<string>("MismatchCapabilityIds")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("mismatch_capability_ids");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("reason");
+
+                    b.Property<Guid>("VehicleId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("vehicle_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ApprovedByUserId");
+
+                    b.HasIndex("AssignmentId");
+
+                    b.HasIndex("VehicleId");
+
+                    b.HasIndex("FleetRequestId", "VehicleId", "CreatedAt");
+
+                    b.ToTable("fleet_compatibility_overrides", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_fleet_compatibility_override_mismatches", "jsonb_typeof(mismatch_capability_ids) = 'array' AND jsonb_array_length(mismatch_capability_ids) > 0");
+                        });
+                });
+
+            modelBuilder.Entity("Hop.Api.Models.FleetDriverProfile", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<bool>("CanDriveAmbulance")
+                        .HasColumnType("boolean")
+                        .HasColumnName("can_drive_ambulance");
+
+                    b.Property<bool>("CanDriveOther")
+                        .HasColumnType("boolean")
+                        .HasColumnName("can_drive_other");
+
+                    b.Property<bool>("CanDrivePickup")
+                        .HasColumnType("boolean")
+                        .HasColumnName("can_drive_pickup");
+
+                    b.Property<bool>("CanDriveSedan")
+                        .HasColumnType("boolean")
+                        .HasColumnName("can_drive_sedan");
+
+                    b.Property<bool>("CanDriveVan")
+                        .HasColumnType("boolean")
+                        .HasColumnName("can_drive_van");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid?>("CreatedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by_user_id");
+
+                    b.Property<string>("DriverStatus")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("driver_status");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_active");
+
+                    b.Property<DateOnly?>("LicenseExpiryDate")
+                        .HasColumnType("date")
+                        .HasColumnName("license_expiry_date");
+
+                    b.Property<DateOnly?>("LicenseIssueDate")
+                        .HasColumnType("date")
+                        .HasColumnName("license_issue_date");
+
+                    b.Property<string>("LicenseNumber")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("license_number");
+
+                    b.Property<string>("LicenseType")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("license_type");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("note");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid?>("UpdatedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("updated_by_user_id");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedByUserId");
+
+                    b.HasIndex("UpdatedByUserId");
+
+                    b.HasIndex("UserId")
+                        .IsUnique();
+
+                    b.HasIndex("IsActive", "DriverStatus");
+
+                    b.ToTable("fleet_driver_profiles", (string)null);
+                });
+
+            modelBuilder.Entity("Hop.Api.Models.FleetDriverUnavailability", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by_user_id");
+
+                    b.Property<DateTime>("EndAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("end_at");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("reason");
+
+                    b.Property<DateTime>("StartAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("start_at");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedByUserId");
+
+                    b.HasIndex("UserId", "StartAt", "EndAt");
+
+                    b.ToTable("fleet_driver_unavailability", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_fleet_driver_unavailability_range", "end_at > start_at");
+                        });
+                });
+
+            modelBuilder.Entity("Hop.Api.Models.FleetEmergencyPolicy", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<bool>("ApprovalBypassAllowed")
+                        .HasColumnType("boolean")
+                        .HasColumnName("approval_bypass_allowed");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)")
+                        .HasColumnName("code");
+
+                    b.Property<Guid>("ConcurrencyToken")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid")
+                        .HasColumnName("concurrency_token");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid?>("CreatedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by_user_id");
+
+                    b.Property<int>("DispatchTargetMinutes")
+                        .HasColumnType("integer")
+                        .HasColumnName("dispatch_target_minutes");
+
+                    b.Property<int>("DriverAcknowledgementTargetMinutes")
+                        .HasColumnType("integer")
+                        .HasColumnName("driver_ack_target_minutes");
+
+                    b.Property<DateTime>("EffectiveFrom")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("effective_from");
+
+                    b.Property<DateTime?>("EffectiveTo")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("effective_to");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_active");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("name");
+
+                    b.Property<bool>("PostReviewRequired")
+                        .HasColumnType("boolean")
+                        .HasColumnName("post_review_required");
+
+                    b.Property<string>("Priority")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("priority");
+
+                    b.Property<int>("ResponseTargetMinutes")
+                        .HasColumnType("integer")
+                        .HasColumnName("response_target_minutes");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid?>("UpdatedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("updated_by_user_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Code")
+                        .IsUnique();
+
+                    b.HasIndex("Priority", "IsActive", "EffectiveFrom");
+
+                    b.ToTable("fleet_emergency_policies", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_fleet_emergency_policy_dates", "effective_to IS NULL OR effective_to > effective_from");
+
+                            t.HasCheckConstraint("ck_fleet_emergency_policy_priority", "priority IN ('URGENT','EMERGENCY')");
+
+                            t.HasCheckConstraint("ck_fleet_emergency_policy_targets", "response_target_minutes > 0 AND dispatch_target_minutes > 0 AND driver_ack_target_minutes > 0");
+                        });
+                });
+
+            modelBuilder.Entity("Hop.Api.Models.FleetEmergencyPostReview", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("ConcurrencyToken")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid")
+                        .HasColumnName("concurrency_token");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("FleetRequestId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("fleet_request_id");
+
+                    b.Property<string>("FollowUpActions")
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)")
+                        .HasColumnName("follow_up_actions");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)")
+                        .HasColumnName("notes");
+
+                    b.Property<string>("Outcome")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("outcome");
+
+                    b.Property<string>("ResponseTimeAssessment")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("response_time_assessment");
+
+                    b.Property<DateTime>("ReviewedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("reviewed_at");
+
+                    b.Property<Guid>("ReviewedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("reviewed_by_user_id");
+
+                    b.Property<string>("SafetyIssues")
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)")
+                        .HasColumnName("safety_issues");
+
+                    b.Property<bool>("WasBypassAppropriate")
+                        .HasColumnType("boolean")
+                        .HasColumnName("was_bypass_appropriate");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FleetRequestId")
+                        .IsUnique();
+
+                    b.HasIndex("ReviewedByUserId");
+
+                    b.ToTable("fleet_emergency_post_reviews", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_fleet_emergency_review_outcome", "outcome IN ('ACCEPTABLE','NEEDS_IMPROVEMENT','POLICY_VIOLATION')");
+                        });
+                });
+
+            modelBuilder.Entity("Hop.Api.Models.FleetMaintenanceAttachment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("content_type");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by_user_id");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<Guid?>("DeletedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("deleted_by_user_id");
+
+                    b.Property<string>("FilePath")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("file_path");
+
+                    b.Property<long>("FileSize")
+                        .HasColumnType("bigint")
+                        .HasColumnName("file_size");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_deleted");
+
+                    b.Property<Guid>("MaintenanceRecordId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("maintenance_record_id");
+
+                    b.Property<string>("OriginalFileName")
+                        .IsRequired()
+                        .HasMaxLength(260)
+                        .HasColumnType("character varying(260)")
+                        .HasColumnName("original_file_name");
+
+                    b.Property<string>("StoredFileName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("stored_file_name");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MaintenanceRecordId", "IsDeleted");
+
+                    b.ToTable("fleet_maintenance_attachments", (string)null);
+                });
+
+            modelBuilder.Entity("Hop.Api.Models.FleetMaintenanceType", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<bool>("BlocksAvailabilityWhenOverdue")
+                        .HasColumnType("boolean")
+                        .HasColumnName("blocks_availability_when_overdue");
+
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("category");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("code");
+
+                    b.Property<Guid>("ConcurrencyToken")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid")
+                        .HasColumnName("concurrency_token");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid?>("CreatedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by_user_id");
+
+                    b.Property<int?>("DefaultReminderDays")
+                        .HasColumnType("integer")
+                        .HasColumnName("default_reminder_days");
+
+                    b.Property<decimal?>("DefaultReminderMileage")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("numeric(12,2)")
+                        .HasColumnName("default_reminder_mileage");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("description");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_active");
+
+                    b.Property<bool>("IsDateBased")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_date_based");
+
+                    b.Property<bool>("IsMileageBased")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_mileage_based");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("name");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer")
+                        .HasColumnName("sort_order");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid?>("UpdatedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("updated_by_user_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Code")
+                        .IsUnique();
+
+                    b.HasIndex("IsActive", "SortOrder");
+
+                    b.ToTable("fleet_maintenance_types", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_fleet_maintenance_types_basis", "is_date_based OR is_mileage_based");
+
+                            t.HasCheckConstraint("ck_fleet_maintenance_types_reminders", "default_reminder_days IS NULL OR default_reminder_days >= 0 AND (default_reminder_mileage IS NULL OR default_reminder_mileage >= 0)");
+                        });
+                });
+
+            modelBuilder.Entity("Hop.Api.Models.FleetRequest", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<bool?>("ApprovalBypassAllowedSnapshot")
+                        .HasColumnType("boolean")
+                        .HasColumnName("approval_bypass_allowed_snapshot");
+
+                    b.Property<string>("CancellationReason")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("cancellation_reason");
+
+                    b.Property<DateTime?>("CancelledAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("cancelled_at");
+
+                    b.Property<Guid>("ConcurrencyToken")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid")
+                        .HasColumnName("concurrency_token");
+
+                    b.Property<string>("ContactPersonName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("contact_person_name");
+
+                    b.Property<string>("ContactPhone")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("contact_phone");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by_user_id");
+
+                    b.Property<DateTime>("DepartureAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("departure_at");
+
+                    b.Property<string>("Destination")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("destination");
+
+                    b.Property<int?>("DispatchTargetMinutesSnapshot")
+                        .HasColumnType("integer")
+                        .HasColumnName("dispatch_target_minutes_snapshot");
+
+                    b.Property<int?>("DriverAcknowledgementTargetMinutesSnapshot")
+                        .HasColumnType("integer")
+                        .HasColumnName("driver_ack_target_minutes_snapshot");
+
+                    b.Property<DateTime?>("EmergencyDeclaredAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("emergency_declared_at");
+
+                    b.Property<Guid?>("EmergencyDeclaredByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("emergency_declared_by_user_id");
+
+                    b.Property<string>("EmergencyPolicyCode")
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)")
+                        .HasColumnName("emergency_policy_code");
+
+                    b.Property<Guid?>("EmergencyPolicyId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("emergency_policy_id");
+
+                    b.Property<string>("EmergencyReason")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("emergency_reason");
+
+                    b.Property<DateTime>("ExpectedReturnAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("expected_return_at");
+
+                    b.Property<string>("IncidentLocation")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("incident_location");
+
+                    b.Property<bool>("IsUrgent")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_urgent");
+
+                    b.Property<string>("MissionType")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("mission_type");
+
+                    b.Property<int>("PassengerCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("passenger_count");
+
+                    b.Property<bool?>("PostReviewRequiredSnapshot")
+                        .HasColumnType("boolean")
+                        .HasColumnName("post_review_required_snapshot");
+
+                    b.Property<string>("Priority")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasDefaultValue("NORMAL")
+                        .HasColumnName("priority");
+
+                    b.Property<string>("Purpose")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("purpose");
+
+                    b.Property<DateTime?>("ReportedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("reported_at");
+
+                    b.Property<Guid?>("ReportedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("reported_by_user_id");
+
+                    b.Property<DateOnly>("RequestDate")
+                        .HasColumnType("date")
+                        .HasColumnName("request_date");
+
+                    b.Property<string>("RequestNo")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("request_no");
+
+                    b.Property<DateTime?>("RequestedDepartureAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("requested_departure_at");
+
+                    b.Property<Guid?>("RequestedVehicleTypeId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("requested_vehicle_type_id");
+
+                    b.Property<Guid?>("RequesterDepartmentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("requester_department_id");
+
+                    b.Property<Guid>("RequesterUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("requester_user_id");
+
+                    b.Property<bool>("RequiresPostReview")
+                        .HasColumnType("boolean")
+                        .HasColumnName("requires_post_review");
+
+                    b.Property<int?>("ResponseTargetMinutesSnapshot")
+                        .HasColumnType("integer")
+                        .HasColumnName("response_target_minutes_snapshot");
+
+                    b.Property<string>("ReturnTarget")
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("return_target");
+
+                    b.Property<string>("SpecialRequirement")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("special_requirement");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("status");
+
+                    b.Property<DateTime?>("SubmittedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("submitted_at");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid?>("UpdatedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("updated_by_user_id");
+
+                    b.Property<string>("UrgentReason")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("urgent_reason");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedByUserId");
+
+                    b.HasIndex("EmergencyPolicyId");
+
+                    b.HasIndex("RequestNo")
+                        .IsUnique();
+
+                    b.HasIndex("RequestedVehicleTypeId");
+
+                    b.HasIndex("RequesterDepartmentId");
+
+                    b.HasIndex("UpdatedByUserId");
+
+                    b.HasIndex("RequesterUserId", "Status");
+
+                    b.HasIndex("Status", "DepartureAt");
+
+                    b.HasIndex("Priority", "Status", "SubmittedAt");
+
+                    b.ToTable("fleet_requests", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_fleet_requests_emergency_reason", "priority <> 'EMERGENCY' OR emergency_reason IS NOT NULL AND reported_by_user_id IS NOT NULL AND reported_at IS NOT NULL");
+
+                            t.HasCheckConstraint("ck_fleet_requests_passenger_count", "passenger_count > 0");
+
+                            t.HasCheckConstraint("ck_fleet_requests_priority", "priority IN ('NORMAL','URGENT','EMERGENCY')");
+
+                            t.HasCheckConstraint("ck_fleet_requests_time_range", "expected_return_at > departure_at");
+                        });
+                });
+
+            modelBuilder.Entity("Hop.Api.Models.FleetRequestPassenger", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("FleetRequestId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("fleet_request_id");
+
+                    b.Property<string>("FullName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("full_name");
+
+                    b.Property<bool>("IsRequester")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_requester");
+
+                    b.Property<string>("PassengerType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("passenger_type");
+
+                    b.Property<string>("Phone")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("phone");
+
+                    b.Property<string>("PositionOrOrganization")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("position_or_organization");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer")
+                        .HasColumnName("sort_order");
+
+                    b.Property<Guid?>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("FleetRequestId", "SortOrder");
+
+                    b.ToTable("fleet_request_passengers", (string)null);
+                });
+
+            modelBuilder.Entity("Hop.Api.Models.FleetRequestRequiredCapability", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("CapabilityId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("capability_id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("FleetRequestId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("fleet_request_id");
+
+                    b.Property<bool>("IsMandatory")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_mandatory");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("notes");
+
+                    b.Property<string>("Operator")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("operator");
+
+                    b.Property<bool?>("RequiredBooleanValue")
+                        .HasColumnType("boolean")
+                        .HasColumnName("required_boolean_value");
+
+                    b.Property<string>("RequiredEnumValue")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("required_enum_value");
+
+                    b.Property<decimal?>("RequiredNumericValue")
+                        .HasPrecision(14, 2)
+                        .HasColumnType("numeric(14,2)")
+                        .HasColumnName("required_numeric_value");
+
+                    b.Property<string>("RequiredTextValue")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("required_text_value");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CapabilityId");
+
+                    b.HasIndex("FleetRequestId", "CapabilityId")
+                        .IsUnique();
+
+                    b.ToTable("fleet_request_required_capabilities", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_fleet_request_capability_operator", "operator IN ('EQUALS','GREATER_THAN_OR_EQUAL','LESS_THAN_OR_EQUAL','CONTAINS','IN')");
+
+                            t.HasCheckConstraint("ck_fleet_request_capability_value", "num_nonnulls(required_boolean_value,required_numeric_value,required_text_value,required_enum_value)=1");
+                        });
+                });
+
+            modelBuilder.Entity("Hop.Api.Models.FleetRequestStatusHistory", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("action");
+
+                    b.Property<Guid>("ActorUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("actor_user_id");
+
+                    b.Property<string>("CorrelationId")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("correlation_id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("FleetRequestId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("fleet_request_id");
+
+                    b.Property<string>("FromStatus")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("from_status");
+
+                    b.Property<string>("Reason")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("reason");
+
+                    b.Property<string>("ReturnTarget")
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("return_target");
+
+                    b.Property<string>("ToStatus")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("to_status");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ActorUserId");
+
+                    b.HasIndex("FleetRequestId", "CreatedAt");
+
+                    b.ToTable("fleet_request_status_histories", (string)null);
+                });
+
+            modelBuilder.Entity("Hop.Api.Models.FleetRolloutSetting", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("ConcurrencyToken")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid")
+                        .HasColumnName("concurrency_token");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Mode")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("mode");
+
+                    b.PrimitiveCollection<string[]>("UatRoleCodes")
+                        .IsRequired()
+                        .HasColumnType("text[]")
+                        .HasColumnName("uat_role_codes");
+
+                    b.PrimitiveCollection<Guid[]>("UatUserIds")
+                        .IsRequired()
+                        .HasColumnType("uuid[]")
+                        .HasColumnName("uat_user_ids");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid?>("UpdatedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("updated_by_user_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedAt");
+
+                    b.HasIndex("UpdatedByUserId");
+
+                    b.ToTable("fleet_rollout_settings", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_fleet_rollout_mode", "mode IN ('Disabled', 'UATOnly', 'Enabled')");
+                        });
+                });
+
+            modelBuilder.Entity("Hop.Api.Models.FleetStatusDefinition", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("character varying(60)")
+                        .HasColumnName("code");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("description");
+
+                    b.Property<string>("Domain")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("domain");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_active");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer")
+                        .HasColumnName("sort_order");
+
+                    b.Property<string>("ThaiName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("thai_name");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Domain", "Code")
+                        .IsUnique();
+
+                    b.HasIndex("Domain", "IsActive", "SortOrder");
+
+                    b.ToTable("fleet_status_definitions", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            Id = new Guid("019fd100-0000-7000-8000-000000000001"),
+                            Code = "DRAFT",
+                            CreatedAt = new DateTime(2026, 8, 11, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Domain = "REQUEST",
+                            IsActive = true,
+                            SortOrder = 10,
+                            ThaiName = "แบบร่าง"
+                        },
+                        new
+                        {
+                            Id = new Guid("019fd100-0000-7000-8000-000000000002"),
+                            Code = "PENDING_DISPATCH",
+                            CreatedAt = new DateTime(2026, 8, 11, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Domain = "REQUEST",
+                            IsActive = true,
+                            SortOrder = 20,
+                            ThaiName = "รอจัดรถและคนขับ"
+                        },
+                        new
+                        {
+                            Id = new Guid("019fd100-0000-7000-8000-000000000003"),
+                            Code = "PENDING_ADMIN_REVIEW",
+                            CreatedAt = new DateTime(2026, 8, 11, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Domain = "REQUEST",
+                            IsActive = true,
+                            SortOrder = 30,
+                            ThaiName = "รอหัวหน้าฝ่ายบริหารตรวจสอบ"
+                        },
+                        new
+                        {
+                            Id = new Guid("019fd100-0000-7000-8000-000000000004"),
+                            Code = "PENDING_DIRECTOR",
+                            CreatedAt = new DateTime(2026, 8, 11, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Domain = "REQUEST",
+                            IsActive = true,
+                            SortOrder = 40,
+                            ThaiName = "รอผู้อำนวยการอนุมัติ"
+                        },
+                        new
+                        {
+                            Id = new Guid("019fd100-0000-7000-8000-000000000005"),
+                            Code = "APPROVED",
+                            CreatedAt = new DateTime(2026, 8, 11, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Domain = "REQUEST",
+                            IsActive = true,
+                            SortOrder = 50,
+                            ThaiName = "อนุมัติแล้ว"
+                        },
+                        new
+                        {
+                            Id = new Guid("019fd100-0000-7000-8000-000000000006"),
+                            Code = "PENDING_DRIVER_ACK",
+                            CreatedAt = new DateTime(2026, 8, 11, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Domain = "REQUEST",
+                            IsActive = true,
+                            SortOrder = 60,
+                            ThaiName = "รอคนขับรับทราบ"
+                        },
+                        new
+                        {
+                            Id = new Guid("019fd100-0000-7000-8000-000000000007"),
+                            Code = "READY",
+                            CreatedAt = new DateTime(2026, 8, 11, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Domain = "REQUEST",
+                            IsActive = true,
+                            SortOrder = 70,
+                            ThaiName = "พร้อมเดินทาง"
+                        },
+                        new
+                        {
+                            Id = new Guid("019fd100-0000-7000-8000-000000000008"),
+                            Code = "IN_PROGRESS",
+                            CreatedAt = new DateTime(2026, 8, 11, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Domain = "REQUEST",
+                            IsActive = true,
+                            SortOrder = 80,
+                            ThaiName = "กำลังปฏิบัติงาน"
+                        },
+                        new
+                        {
+                            Id = new Guid("019fd100-0000-7000-8000-000000000009"),
+                            Code = "COMPLETED",
+                            CreatedAt = new DateTime(2026, 8, 11, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Domain = "REQUEST",
+                            IsActive = true,
+                            SortOrder = 90,
+                            ThaiName = "เสร็จสิ้น"
+                        },
+                        new
+                        {
+                            Id = new Guid("019fd100-0000-7000-8000-000000000010"),
+                            Code = "CANCELLATION_PENDING",
+                            CreatedAt = new DateTime(2026, 8, 11, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Domain = "REQUEST",
+                            IsActive = true,
+                            SortOrder = 100,
+                            ThaiName = "รอพิจารณายกเลิก"
+                        },
+                        new
+                        {
+                            Id = new Guid("019fd100-0000-7000-8000-000000000011"),
+                            Code = "RETURNED",
+                            CreatedAt = new DateTime(2026, 8, 11, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Domain = "REQUEST",
+                            IsActive = true,
+                            SortOrder = 110,
+                            ThaiName = "ส่งกลับแก้ไข"
+                        },
+                        new
+                        {
+                            Id = new Guid("019fd100-0000-7000-8000-000000000012"),
+                            Code = "REJECTED",
+                            CreatedAt = new DateTime(2026, 8, 11, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Domain = "REQUEST",
+                            IsActive = true,
+                            SortOrder = 120,
+                            ThaiName = "ไม่รับคำขอ"
+                        },
+                        new
+                        {
+                            Id = new Guid("019fd100-0000-7000-8000-000000000013"),
+                            Code = "CANCELLED",
+                            CreatedAt = new DateTime(2026, 8, 11, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Domain = "REQUEST",
+                            IsActive = true,
+                            SortOrder = 130,
+                            ThaiName = "ยกเลิก"
+                        },
+                        new
+                        {
+                            Id = new Guid("019fd100-0000-7000-8000-000000000014"),
+                            Code = "ABORTED",
+                            CreatedAt = new DateTime(2026, 8, 11, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Domain = "REQUEST",
+                            IsActive = true,
+                            SortOrder = 140,
+                            ThaiName = "ยุติการเดินทาง"
+                        });
+                });
+
+            modelBuilder.Entity("Hop.Api.Models.FleetTripAttachment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("content_type");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by_user_id");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<Guid?>("DeletedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("deleted_by_user_id");
+
+                    b.Property<string>("FilePath")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("file_path");
+
+                    b.Property<long>("FileSize")
+                        .HasColumnType("bigint")
+                        .HasColumnName("file_size");
+
+                    b.Property<string>("IdempotencyKey")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("idempotency_key");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_deleted");
+
+                    b.Property<string>("OriginalFileName")
+                        .IsRequired()
+                        .HasMaxLength(260)
+                        .HasColumnType("character varying(260)")
+                        .HasColumnName("original_file_name");
+
+                    b.Property<string>("StoredFileName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("stored_file_name");
+
+                    b.Property<Guid>("TripId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("trip_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedByUserId");
+
+                    b.HasIndex("IdempotencyKey")
+                        .IsUnique();
+
+                    b.HasIndex("TripId");
+
+                    b.ToTable("fleet_trip_attachments", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_fleet_trip_attachment_size", "file_size > 0");
+                        });
+                });
+
+            modelBuilder.Entity("Hop.Api.Models.FleetTripFeedback", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Comment")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("comment");
+
+                    b.Property<Guid>("ConcurrencyToken")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid")
+                        .HasColumnName("concurrency_token");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("DriverUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("driver_user_id");
+
+                    b.Property<Guid>("FleetRequestId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("fleet_request_id");
+
+                    b.Property<bool>("HasIncident")
+                        .HasColumnType("boolean")
+                        .HasColumnName("has_incident");
+
+                    b.Property<string>("IncidentCategory")
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("incident_category");
+
+                    b.Property<int>("OverallRating")
+                        .HasColumnType("integer")
+                        .HasColumnName("overall_rating");
+
+                    b.Property<int>("PunctualityRating")
+                        .HasColumnType("integer")
+                        .HasColumnName("punctuality_rating");
+
+                    b.Property<int>("SafetyRating")
+                        .HasColumnType("integer")
+                        .HasColumnName("safety_rating");
+
+                    b.Property<int>("ServiceRating")
+                        .HasColumnType("integer")
+                        .HasColumnName("service_rating");
+
+                    b.Property<DateTime>("SubmittedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("submitted_at");
+
+                    b.Property<Guid>("SubmittedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("submitted_by_user_id");
+
+                    b.Property<Guid>("TripId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("trip_id");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid?>("UpdatedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("updated_by_user_id");
+
+                    b.Property<Guid>("VehicleAssignmentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("vehicle_assignment_id");
+
+                    b.Property<int>("VehicleCleanlinessRating")
+                        .HasColumnType("integer")
+                        .HasColumnName("vehicle_cleanliness_rating");
+
+                    b.Property<int>("VehicleConditionRating")
+                        .HasColumnType("integer")
+                        .HasColumnName("vehicle_condition_rating");
+
+                    b.Property<Guid>("VehicleId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("vehicle_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FleetRequestId");
+
+                    b.HasIndex("UpdatedByUserId");
+
+                    b.HasIndex("VehicleAssignmentId");
+
+                    b.HasIndex("DriverUserId", "SubmittedAt");
+
+                    b.HasIndex("SubmittedByUserId", "SubmittedAt");
+
+                    b.HasIndex("TripId", "SubmittedByUserId")
+                        .IsUnique();
+
+                    b.HasIndex("VehicleId", "SubmittedAt");
+
+                    b.ToTable("fleet_trip_feedbacks", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_fleet_trip_feedback_incident", "(has_incident = FALSE AND incident_category IS NULL) OR (has_incident = TRUE AND incident_category IS NOT NULL AND comment IS NOT NULL)");
+
+                            t.HasCheckConstraint("ck_fleet_trip_feedback_incident_category", "incident_category IS NULL OR incident_category IN ('DRIVING','PUNCTUALITY','SERVICE','VEHICLE_CONDITION','CLEANLINESS','OTHER')");
+
+                            t.HasCheckConstraint("ck_fleet_trip_feedback_ratings", "punctuality_rating BETWEEN 1 AND 5 AND safety_rating BETWEEN 1 AND 5 AND service_rating BETWEEN 1 AND 5 AND overall_rating BETWEEN 1 AND 5 AND vehicle_condition_rating BETWEEN 1 AND 5 AND vehicle_cleanliness_rating BETWEEN 1 AND 5");
+                        });
+                });
+
+            modelBuilder.Entity("Hop.Api.Models.FleetTripParticipant", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by_user_id");
+
+                    b.Property<bool>("IsActualParticipant")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_actual_participant");
+
+                    b.Property<bool>("IsRequester")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_requester");
+
+                    b.Property<string>("ParticipantType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("participant_type");
+
+                    b.Property<Guid>("TripId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("trip_id");
+
+                    b.Property<Guid?>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedByUserId");
+
+                    b.HasIndex("TripId", "UserId")
+                        .IsUnique()
+                        .HasFilter("user_id IS NOT NULL");
+
+                    b.HasIndex("UserId", "IsActualParticipant");
+
+                    b.ToTable("fleet_trip_participants", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_fleet_trip_participants_type", "participant_type IN ('EMPLOYEE','EXTERNAL')");
+                        });
+                });
+
+            modelBuilder.Entity("Hop.Api.Models.FleetTripRecord", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("AbortReason")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("abort_reason");
+
+                    b.Property<DateTime?>("AbortedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("aborted_at");
+
+                    b.Property<Guid?>("AbortedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("aborted_by_user_id");
+
+                    b.Property<DateTime?>("ActualEndAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("actual_end_at");
+
+                    b.Property<DateTime?>("ActualStartAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("actual_start_at");
+
+                    b.Property<Guid>("AssignmentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("assignment_id");
+
+                    b.Property<Guid?>("CompletedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("completed_by_user_id");
+
+                    b.Property<string>("CompletionIdempotencyKey")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("completion_idempotency_key");
+
+                    b.Property<string>("CompletionNotes")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("completion_notes");
+
+                    b.Property<Guid>("ConcurrencyToken")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid")
+                        .HasColumnName("concurrency_token");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("DriverUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("driver_user_id");
+
+                    b.Property<decimal?>("EndMileage")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("numeric(12,2)")
+                        .HasColumnName("end_mileage");
+
+                    b.Property<Guid>("FleetRequestId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("fleet_request_id");
+
+                    b.Property<decimal?>("FuelAmount")
+                        .HasPrecision(10, 2)
+                        .HasColumnType("numeric(10,2)")
+                        .HasColumnName("fuel_amount");
+
+                    b.Property<decimal?>("FuelCost")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("numeric(12,2)")
+                        .HasColumnName("fuel_cost");
+
+                    b.Property<bool>("IsAborted")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_aborted");
+
+                    b.Property<string>("OverrideReason")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("override_reason");
+
+                    b.Property<string>("StartIdempotencyKey")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("start_idempotency_key");
+
+                    b.Property<decimal?>("StartMileage")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("numeric(12,2)")
+                        .HasColumnName("start_mileage");
+
+                    b.Property<string>("TripNotes")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("trip_notes");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AbortedByUserId");
+
+                    b.HasIndex("AssignmentId")
+                        .IsUnique();
+
+                    b.HasIndex("CompletedByUserId");
+
+                    b.HasIndex("CompletionIdempotencyKey")
+                        .IsUnique()
+                        .HasFilter("completion_idempotency_key IS NOT NULL");
+
+                    b.HasIndex("DriverUserId");
+
+                    b.HasIndex("FleetRequestId")
+                        .IsUnique();
+
+                    b.HasIndex("StartIdempotencyKey")
+                        .IsUnique()
+                        .HasFilter("start_idempotency_key IS NOT NULL");
+
+                    b.ToTable("fleet_trip_records", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_fleet_trip_mileage", "start_mileage IS NULL OR start_mileage >= 0 AND (end_mileage IS NULL OR end_mileage >= start_mileage)");
+
+                            t.HasCheckConstraint("ck_fleet_trip_time", "actual_start_at IS NULL OR actual_end_at IS NULL OR actual_end_at >= actual_start_at");
+                        });
+                });
+
+            modelBuilder.Entity("Hop.Api.Models.FleetVehicle", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Brand")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("brand");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid?>("CreatedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by_user_id");
+
+                    b.Property<decimal>("CurrentMileage")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("numeric(12,2)")
+                        .HasColumnName("current_mileage");
+
+                    b.Property<string>("FuelType")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("fuel_type");
+
+                    b.Property<string>("ImagePath")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("image_path");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_active");
+
+                    b.Property<int?>("ManufactureYear")
+                        .HasColumnType("integer")
+                        .HasColumnName("manufacture_year");
+
+                    b.Property<string>("Model")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("model");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("note");
+
+                    b.Property<Guid?>("OwningDepartmentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("owning_department_id");
+
+                    b.Property<int>("PassengerCapacity")
+                        .HasColumnType("integer")
+                        .HasColumnName("passenger_capacity");
+
+                    b.Property<string>("RegistrationNumber")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("registration_number");
+
+                    b.Property<string>("RegistrationProvince")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("registration_province");
+
+                    b.Property<Guid?>("ResponsibleUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("responsible_user_id");
+
+                    b.Property<int>("SeatCapacityTotal")
+                        .HasColumnType("integer")
+                        .HasColumnName("seat_capacity_total");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("status");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid?>("UpdatedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("updated_by_user_id");
+
+                    b.Property<string>("VehicleCode")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("vehicle_code");
+
+                    b.Property<Guid>("VehicleTypeId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("vehicle_type_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedByUserId");
+
+                    b.HasIndex("OwningDepartmentId");
+
+                    b.HasIndex("RegistrationNumber")
+                        .IsUnique();
+
+                    b.HasIndex("ResponsibleUserId");
+
+                    b.HasIndex("UpdatedByUserId");
+
+                    b.HasIndex("VehicleCode")
+                        .IsUnique();
+
+                    b.HasIndex("VehicleTypeId");
+
+                    b.HasIndex("IsActive", "Status", "VehicleTypeId");
+
+                    b.ToTable("fleet_vehicles", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_fleet_vehicles_capacity", "seat_capacity_total > 0 AND passenger_capacity > 0 AND passenger_capacity <= seat_capacity_total");
+
+                            t.HasCheckConstraint("ck_fleet_vehicles_mileage", "current_mileage >= 0");
+                        });
+                });
+
+            modelBuilder.Entity("Hop.Api.Models.FleetVehicleCapability", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<bool?>("BooleanValue")
+                        .HasColumnType("boolean")
+                        .HasColumnName("boolean_value");
+
+                    b.Property<Guid>("CapabilityId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("capability_id");
+
+                    b.Property<Guid>("ConcurrencyToken")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid")
+                        .HasColumnName("concurrency_token");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by_user_id");
+
+                    b.Property<DateTime>("EffectiveFrom")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("effective_from");
+
+                    b.Property<DateTime?>("EffectiveTo")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("effective_to");
+
+                    b.Property<string>("EnumValue")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("enum_value");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_active");
+
+                    b.Property<decimal?>("NumericValue")
+                        .HasPrecision(14, 2)
+                        .HasColumnType("numeric(14,2)")
+                        .HasColumnName("numeric_value");
+
+                    b.Property<string>("TextValue")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("text_value");
+
+                    b.Property<Guid>("VehicleId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("vehicle_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CapabilityId");
+
+                    b.HasIndex("VehicleId", "CapabilityId")
+                        .IsUnique()
+                        .HasFilter("is_active = true AND effective_to IS NULL");
+
+                    b.ToTable("fleet_vehicle_capabilities", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_fleet_vehicle_capability_dates", "effective_to IS NULL OR effective_to > effective_from");
+
+                            t.HasCheckConstraint("ck_fleet_vehicle_capability_value", "num_nonnulls(boolean_value,numeric_value,text_value,enum_value)=1");
+                        });
+                });
+
+            modelBuilder.Entity("Hop.Api.Models.FleetVehicleDocument", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("ConcurrencyToken")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid")
+                        .HasColumnName("concurrency_token");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by_user_id");
+
+                    b.Property<string>("DocumentNumber")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("document_number");
+
+                    b.Property<string>("DocumentType")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("document_type");
+
+                    b.Property<DateTime?>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("expires_at");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_active");
+
+                    b.Property<bool>("IsRequired")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_required");
+
+                    b.Property<DateTime?>("IssuedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("issued_at");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("notes");
+
+                    b.Property<string>("Provider")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("provider");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid?>("UpdatedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("updated_by_user_id");
+
+                    b.Property<Guid>("VehicleId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("vehicle_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ExpiresAt");
+
+                    b.HasIndex("VehicleId", "IsActive", "DocumentType");
+
+                    b.ToTable("fleet_vehicle_documents", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_fleet_vehicle_document_dates", "issued_at IS NULL OR expires_at IS NULL OR expires_at >= issued_at");
+                        });
+                });
+
+            modelBuilder.Entity("Hop.Api.Models.FleetVehicleMaintenanceRecord", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("CancellationReason")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("cancellation_reason");
+
+                    b.Property<DateTime?>("CompletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("completed_at");
+
+                    b.Property<decimal?>("CompletedMileage")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("numeric(12,2)")
+                        .HasColumnName("completed_mileage");
+
+                    b.Property<Guid>("ConcurrencyToken")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid")
+                        .HasColumnName("concurrency_token");
+
+                    b.Property<decimal?>("Cost")
+                        .HasPrecision(14, 2)
+                        .HasColumnType("numeric(14,2)")
+                        .HasColumnName("cost");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by_user_id");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("description");
+
+                    b.Property<string>("InvoiceNumber")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("invoice_number");
+
+                    b.Property<bool>("IsCancelled")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_cancelled");
+
+                    b.Property<Guid>("MaintenanceScheduleId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("maintenance_schedule_id");
+
+                    b.Property<Guid>("MaintenanceTypeId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("maintenance_type_id");
+
+                    b.Property<DateTime?>("NextDueDate")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("next_due_date");
+
+                    b.Property<decimal?>("NextDueMileage")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("numeric(12,2)")
+                        .HasColumnName("next_due_mileage");
+
+                    b.Property<string>("PerformedBy")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("performed_by");
+
+                    b.Property<string>("Result")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("result");
+
+                    b.Property<decimal?>("StartMileage")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("numeric(12,2)")
+                        .HasColumnName("start_mileage");
+
+                    b.Property<DateTime>("StartedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("started_at");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid?>("UpdatedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("updated_by_user_id");
+
+                    b.Property<Guid>("VehicleId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("vehicle_id");
+
+                    b.Property<string>("Vendor")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("vendor");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MaintenanceScheduleId");
+
+                    b.HasIndex("VehicleId", "StartedAt");
+
+                    b.ToTable("fleet_vehicle_maintenance_records", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_fleet_maintenance_record_cost", "cost IS NULL OR cost >= 0");
+
+                            t.HasCheckConstraint("ck_fleet_maintenance_record_dates", "completed_at IS NULL OR completed_at >= started_at");
+
+                            t.HasCheckConstraint("ck_fleet_maintenance_record_mileage", "completed_mileage IS NULL OR completed_mileage >= 0");
+
+                            t.HasCheckConstraint("ck_fleet_maintenance_record_start_mileage", "start_mileage IS NULL OR start_mileage >= 0");
+                        });
+                });
+
+            modelBuilder.Entity("Hop.Api.Models.FleetVehicleMaintenanceSchedule", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("ConcurrencyToken")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid")
+                        .HasColumnName("concurrency_token");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by_user_id");
+
+                    b.Property<DateTime?>("DueDate")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("due_date");
+
+                    b.Property<decimal?>("DueMileage")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("numeric(12,2)")
+                        .HasColumnName("due_mileage");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_active");
+
+                    b.Property<Guid?>("LastCompletedRecordId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("last_completed_record_id");
+
+                    b.Property<Guid>("MaintenanceTypeId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("maintenance_type_id");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("notes");
+
+                    b.Property<int?>("RecurrenceDays")
+                        .HasColumnType("integer")
+                        .HasColumnName("recurrence_days");
+
+                    b.Property<decimal?>("RecurrenceMileage")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("numeric(12,2)")
+                        .HasColumnName("recurrence_mileage");
+
+                    b.Property<int?>("ReminderDays")
+                        .HasColumnType("integer")
+                        .HasColumnName("reminder_days");
+
+                    b.Property<decimal?>("ReminderMileage")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("numeric(12,2)")
+                        .HasColumnName("reminder_mileage");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("status");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid?>("UpdatedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("updated_by_user_id");
+
+                    b.Property<Guid>("VehicleId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("vehicle_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DueDate");
+
+                    b.HasIndex("DueMileage");
+
+                    b.HasIndex("MaintenanceTypeId");
+
+                    b.HasIndex("VehicleId", "IsActive", "Status");
+
+                    b.ToTable("fleet_vehicle_maintenance_schedules", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_fleet_maintenance_schedule_values", "(due_mileage IS NULL OR due_mileage >= 0) AND (reminder_days IS NULL OR reminder_days >= 0) AND (reminder_mileage IS NULL OR reminder_mileage >= 0) AND (recurrence_days IS NULL OR recurrence_days > 0) AND (recurrence_mileage IS NULL OR recurrence_mileage > 0)");
+                        });
+                });
+
+            modelBuilder.Entity("Hop.Api.Models.FleetVehicleType", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("code");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("description");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_active");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("name");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer")
+                        .HasColumnName("sort_order");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Code")
+                        .IsUnique();
+
+                    b.HasIndex("IsActive", "SortOrder");
+
+                    b.ToTable("fleet_vehicle_types", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_fleet_vehicle_types_sort_order", "sort_order >= 0");
+                        });
+                });
+
+            modelBuilder.Entity("Hop.Api.Models.FleetVehicleUnavailability", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by_user_id");
+
+                    b.Property<DateTime>("EndAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("end_at");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("reason");
+
+                    b.Property<DateTime>("StartAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("start_at");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("type");
+
+                    b.Property<Guid>("VehicleId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("vehicle_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedByUserId");
+
+                    b.HasIndex("VehicleId", "StartAt", "EndAt");
+
+                    b.ToTable("fleet_vehicle_unavailability", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_fleet_vehicle_unavailability_range", "end_at > start_at");
+                        });
                 });
 
             modelBuilder.Entity("Hop.Api.Models.LeaveApproval", b =>
@@ -2288,6 +4838,248 @@ namespace Hop.Api.Migrations
                     b.ToTable("line_delivery_logs", (string)null);
                 });
 
+            modelBuilder.Entity("Hop.Api.Models.LineGroupDeliveryLog", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<int>("AttemptCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("attempt_count");
+
+                    b.Property<DateTime>("AvailableAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("available_at");
+
+                    b.Property<string>("CanonicalEventType")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("character varying(160)")
+                        .HasColumnName("canonical_event_type");
+
+                    b.Property<string>("CorrelationId")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("correlation_id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("DeduplicationKey")
+                        .IsRequired()
+                        .HasMaxLength(400)
+                        .HasColumnType("character varying(400)")
+                        .HasColumnName("deduplication_key");
+
+                    b.Property<Guid>("DestinationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("destination_id");
+
+                    b.Property<string>("ErrorCode")
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)")
+                        .HasColumnName("error_code");
+
+                    b.Property<string>("ErrorMessage")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("error_message");
+
+                    b.Property<Guid>("EventId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("event_id");
+
+                    b.Property<DateTime?>("FailedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("failed_at");
+
+                    b.Property<string>("MessageText")
+                        .HasMaxLength(5000)
+                        .HasColumnType("character varying(5000)")
+                        .HasColumnName("message_text");
+
+                    b.Property<Guid>("RequestId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("request_id");
+
+                    b.Property<DateTime?>("SentAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("sent_at");
+
+                    b.Property<string>("SourceEventType")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("character varying(160)")
+                        .HasColumnName("source_event_type");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("status");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DeduplicationKey")
+                        .IsUnique();
+
+                    b.HasIndex("DestinationId");
+
+                    b.HasIndex("Status", "AvailableAt");
+
+                    b.HasIndex("EventId", "DestinationId", "CanonicalEventType")
+                        .IsUnique();
+
+                    b.ToTable("line_group_delivery_logs", (string)null);
+                });
+
+            modelBuilder.Entity("Hop.Api.Models.LineGroupDestination", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("AttentionReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("attention_reason");
+
+                    b.Property<bool>("AttentionRequired")
+                        .HasColumnType("boolean")
+                        .HasColumnName("attention_required");
+
+                    b.Property<string>("ClientId")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("client_id");
+
+                    b.Property<string>("ClientSecretProtected")
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)")
+                        .HasColumnName("client_secret_protected");
+
+                    b.Property<Guid>("ConcurrencyToken")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid")
+                        .HasColumnName("concurrency_token");
+
+                    b.Property<DateTime?>("ConfirmedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("confirmed_at");
+
+                    b.Property<Guid?>("ConfirmedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("confirmed_by_user_id");
+
+                    b.Property<string>("DeliveryProvider")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasDefaultValue("LINE_MESSAGING_API")
+                        .HasColumnName("delivery_provider");
+
+                    b.Property<DateTime?>("DisabledAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("disabled_at");
+
+                    b.Property<Guid?>("DisabledByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("disabled_by_user_id");
+
+                    b.Property<string>("DisplayName")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("display_name");
+
+                    b.Property<string>("EndpointUrl")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("endpoint_url");
+
+                    b.Property<DateTime>("FirstDetectedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("first_detected_at");
+
+                    b.Property<DateTime>("LastDetectedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("last_detected_at");
+
+                    b.Property<string>("LineGroupId")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("line_group_id");
+
+                    b.Property<string>("Module")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("module");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("status");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LineGroupId")
+                        .IsUnique();
+
+                    b.HasIndex("Module", "Status");
+
+                    b.ToTable("line_group_destinations", (string)null);
+                });
+
+            modelBuilder.Entity("Hop.Api.Models.LineGroupEventSubscription", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("DestinationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("destination_id");
+
+                    b.Property<string>("EventType")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("character varying(160)")
+                        .HasColumnName("event_type");
+
+                    b.Property<bool>("IsEnabled")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_enabled");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DestinationId", "EventType")
+                        .IsUnique();
+
+                    b.ToTable("line_group_event_subscriptions", (string)null);
+                });
+
             modelBuilder.Entity("Hop.Api.Models.LinePairingCode", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2411,6 +5203,78 @@ namespace Hop.Api.Migrations
                     b.ToTable("line_user_bindings", (string)null);
                 });
 
+            modelBuilder.Entity("Hop.Api.Models.LineWebhookInbox", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<int>("AttemptCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("attempt_count");
+
+                    b.Property<DateTime>("AvailableAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("available_at");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("EventType")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("event_type");
+
+                    b.Property<string>("LastError")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("last_error");
+
+                    b.Property<string>("Payload")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("payload");
+
+                    b.Property<DateTime?>("ProcessedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("processed_at");
+
+                    b.Property<string>("SourceGroupId")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("source_group_id");
+
+                    b.Property<string>("SourceType")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("source_type");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("status");
+
+                    b.Property<string>("WebhookEventId")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("character varying(160)")
+                        .HasColumnName("webhook_event_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("WebhookEventId")
+                        .IsUnique();
+
+                    b.HasIndex("Status", "AvailableAt");
+
+                    b.ToTable("line_webhook_inbox", (string)null);
+                });
+
             modelBuilder.Entity("Hop.Api.Models.Notification", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2509,6 +5373,140 @@ namespace Hop.Api.Migrations
                     b.HasIndex("UserId", "IsRead", "NotificationType");
 
                     b.ToTable("notifications", (string)null);
+                });
+
+            modelBuilder.Entity("Hop.Api.Models.NotificationDelivery", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<int>("AttemptCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("attempt_count");
+
+                    b.Property<string>("Channel")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("channel");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("IdempotencyKey")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("idempotency_key");
+
+                    b.Property<string>("LastError")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("last_error");
+
+                    b.Property<Guid>("OutboxMessageId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("outbox_message_id");
+
+                    b.Property<DateTime?>("ProcessedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("processed_at");
+
+                    b.Property<Guid>("RecipientUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("recipient_user_id");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("status");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("IdempotencyKey")
+                        .IsUnique();
+
+                    b.HasIndex("OutboxMessageId");
+
+                    b.HasIndex("RecipientUserId");
+
+                    b.HasIndex("Status", "CreatedAt");
+
+                    b.ToTable("notification_deliveries", (string)null);
+                });
+
+            modelBuilder.Entity("Hop.Api.Models.OutboxMessage", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<int>("AttemptCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("attempt_count");
+
+                    b.Property<DateTime>("AvailableAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("available_at");
+
+                    b.Property<Guid>("ConcurrencyToken")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid")
+                        .HasColumnName("concurrency_token");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("EventId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("event_id");
+
+                    b.Property<string>("EventType")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("character varying(160)")
+                        .HasColumnName("event_type");
+
+                    b.Property<string>("LastError")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("last_error");
+
+                    b.Property<string>("Payload")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("payload");
+
+                    b.Property<DateTime?>("ProcessedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("processed_at");
+
+                    b.Property<string>("Scope")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("scope");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("status");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EventId")
+                        .IsUnique();
+
+                    b.HasIndex("Status", "AvailableAt");
+
+                    b.ToTable("outbox_messages", (string)null);
                 });
 
             modelBuilder.Entity("Hop.Api.Models.Permission", b =>
@@ -3274,6 +6272,557 @@ namespace Hop.Api.Migrations
                     b.Navigation("CreatedByUser");
                 });
 
+            modelBuilder.Entity("Hop.Api.Models.FleetAssignment", b =>
+                {
+                    b.HasOne("Hop.Api.Models.User", "AssignedByUser")
+                        .WithMany()
+                        .HasForeignKey("AssignedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Hop.Api.Models.User", "DriverUser")
+                        .WithMany()
+                        .HasForeignKey("DriverUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Hop.Api.Models.FleetRequest", "FleetRequest")
+                        .WithMany("Assignments")
+                        .HasForeignKey("FleetRequestId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Hop.Api.Models.FleetAssignment", "ReplacedAssignment")
+                        .WithMany()
+                        .HasForeignKey("ReplacedAssignmentId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Hop.Api.Models.FleetVehicle", "Vehicle")
+                        .WithMany()
+                        .HasForeignKey("VehicleId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("AssignedByUser");
+
+                    b.Navigation("DriverUser");
+
+                    b.Navigation("FleetRequest");
+
+                    b.Navigation("ReplacedAssignment");
+
+                    b.Navigation("Vehicle");
+                });
+
+            modelBuilder.Entity("Hop.Api.Models.FleetCancellationRequest", b =>
+                {
+                    b.HasOne("Hop.Api.Models.FleetRequest", "FleetRequest")
+                        .WithMany("CancellationRequests")
+                        .HasForeignKey("FleetRequestId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Hop.Api.Models.User", "RequestedByUser")
+                        .WithMany()
+                        .HasForeignKey("RequestedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Hop.Api.Models.User", "ReviewedByUser")
+                        .WithMany()
+                        .HasForeignKey("ReviewedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("FleetRequest");
+
+                    b.Navigation("RequestedByUser");
+
+                    b.Navigation("ReviewedByUser");
+                });
+
+            modelBuilder.Entity("Hop.Api.Models.FleetCompatibilityOverride", b =>
+                {
+                    b.HasOne("Hop.Api.Models.User", "ApprovedByUser")
+                        .WithMany()
+                        .HasForeignKey("ApprovedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Hop.Api.Models.FleetAssignment", "Assignment")
+                        .WithMany()
+                        .HasForeignKey("AssignmentId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Hop.Api.Models.FleetRequest", "FleetRequest")
+                        .WithMany()
+                        .HasForeignKey("FleetRequestId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Hop.Api.Models.FleetVehicle", "Vehicle")
+                        .WithMany()
+                        .HasForeignKey("VehicleId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("ApprovedByUser");
+
+                    b.Navigation("Assignment");
+
+                    b.Navigation("FleetRequest");
+
+                    b.Navigation("Vehicle");
+                });
+
+            modelBuilder.Entity("Hop.Api.Models.FleetDriverProfile", b =>
+                {
+                    b.HasOne("Hop.Api.Models.User", "CreatedByUser")
+                        .WithMany()
+                        .HasForeignKey("CreatedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Hop.Api.Models.User", "UpdatedByUser")
+                        .WithMany()
+                        .HasForeignKey("UpdatedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Hop.Api.Models.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("CreatedByUser");
+
+                    b.Navigation("UpdatedByUser");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("Hop.Api.Models.FleetDriverUnavailability", b =>
+                {
+                    b.HasOne("Hop.Api.Models.User", "CreatedByUser")
+                        .WithMany()
+                        .HasForeignKey("CreatedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Hop.Api.Models.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("CreatedByUser");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("Hop.Api.Models.FleetEmergencyPostReview", b =>
+                {
+                    b.HasOne("Hop.Api.Models.FleetRequest", "FleetRequest")
+                        .WithMany()
+                        .HasForeignKey("FleetRequestId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Hop.Api.Models.User", "ReviewedByUser")
+                        .WithMany()
+                        .HasForeignKey("ReviewedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("FleetRequest");
+
+                    b.Navigation("ReviewedByUser");
+                });
+
+            modelBuilder.Entity("Hop.Api.Models.FleetMaintenanceAttachment", b =>
+                {
+                    b.HasOne("Hop.Api.Models.FleetVehicleMaintenanceRecord", "MaintenanceRecord")
+                        .WithMany("Attachments")
+                        .HasForeignKey("MaintenanceRecordId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("MaintenanceRecord");
+                });
+
+            modelBuilder.Entity("Hop.Api.Models.FleetRequest", b =>
+                {
+                    b.HasOne("Hop.Api.Models.User", "CreatedByUser")
+                        .WithMany()
+                        .HasForeignKey("CreatedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Hop.Api.Models.FleetEmergencyPolicy", "EmergencyPolicy")
+                        .WithMany()
+                        .HasForeignKey("EmergencyPolicyId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Hop.Api.Models.FleetVehicleType", "RequestedVehicleType")
+                        .WithMany()
+                        .HasForeignKey("RequestedVehicleTypeId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Hop.Api.Models.Department", "RequesterDepartment")
+                        .WithMany()
+                        .HasForeignKey("RequesterDepartmentId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Hop.Api.Models.User", "RequesterUser")
+                        .WithMany()
+                        .HasForeignKey("RequesterUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Hop.Api.Models.User", "UpdatedByUser")
+                        .WithMany()
+                        .HasForeignKey("UpdatedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("CreatedByUser");
+
+                    b.Navigation("EmergencyPolicy");
+
+                    b.Navigation("RequestedVehicleType");
+
+                    b.Navigation("RequesterDepartment");
+
+                    b.Navigation("RequesterUser");
+
+                    b.Navigation("UpdatedByUser");
+                });
+
+            modelBuilder.Entity("Hop.Api.Models.FleetRequestPassenger", b =>
+                {
+                    b.HasOne("Hop.Api.Models.FleetRequest", "FleetRequest")
+                        .WithMany("Passengers")
+                        .HasForeignKey("FleetRequestId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Hop.Api.Models.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("FleetRequest");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("Hop.Api.Models.FleetRequestRequiredCapability", b =>
+                {
+                    b.HasOne("Hop.Api.Models.FleetCapability", "Capability")
+                        .WithMany()
+                        .HasForeignKey("CapabilityId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Hop.Api.Models.FleetRequest", "FleetRequest")
+                        .WithMany("RequiredCapabilities")
+                        .HasForeignKey("FleetRequestId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Capability");
+
+                    b.Navigation("FleetRequest");
+                });
+
+            modelBuilder.Entity("Hop.Api.Models.FleetRequestStatusHistory", b =>
+                {
+                    b.HasOne("Hop.Api.Models.User", "ActorUser")
+                        .WithMany()
+                        .HasForeignKey("ActorUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Hop.Api.Models.FleetRequest", "FleetRequest")
+                        .WithMany("StatusHistories")
+                        .HasForeignKey("FleetRequestId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ActorUser");
+
+                    b.Navigation("FleetRequest");
+                });
+
+            modelBuilder.Entity("Hop.Api.Models.FleetRolloutSetting", b =>
+                {
+                    b.HasOne("Hop.Api.Models.User", "UpdatedByUser")
+                        .WithMany()
+                        .HasForeignKey("UpdatedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("UpdatedByUser");
+                });
+
+            modelBuilder.Entity("Hop.Api.Models.FleetTripAttachment", b =>
+                {
+                    b.HasOne("Hop.Api.Models.User", "CreatedByUser")
+                        .WithMany()
+                        .HasForeignKey("CreatedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Hop.Api.Models.FleetTripRecord", "Trip")
+                        .WithMany()
+                        .HasForeignKey("TripId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("CreatedByUser");
+
+                    b.Navigation("Trip");
+                });
+
+            modelBuilder.Entity("Hop.Api.Models.FleetTripFeedback", b =>
+                {
+                    b.HasOne("Hop.Api.Models.User", "DriverUser")
+                        .WithMany()
+                        .HasForeignKey("DriverUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Hop.Api.Models.FleetRequest", "FleetRequest")
+                        .WithMany()
+                        .HasForeignKey("FleetRequestId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Hop.Api.Models.User", "SubmittedByUser")
+                        .WithMany()
+                        .HasForeignKey("SubmittedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Hop.Api.Models.FleetTripRecord", "Trip")
+                        .WithMany("Feedbacks")
+                        .HasForeignKey("TripId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Hop.Api.Models.User", "UpdatedByUser")
+                        .WithMany()
+                        .HasForeignKey("UpdatedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Hop.Api.Models.FleetAssignment", "VehicleAssignment")
+                        .WithMany()
+                        .HasForeignKey("VehicleAssignmentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Hop.Api.Models.FleetVehicle", "Vehicle")
+                        .WithMany()
+                        .HasForeignKey("VehicleId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("DriverUser");
+
+                    b.Navigation("FleetRequest");
+
+                    b.Navigation("SubmittedByUser");
+
+                    b.Navigation("Trip");
+
+                    b.Navigation("UpdatedByUser");
+
+                    b.Navigation("Vehicle");
+
+                    b.Navigation("VehicleAssignment");
+                });
+
+            modelBuilder.Entity("Hop.Api.Models.FleetTripParticipant", b =>
+                {
+                    b.HasOne("Hop.Api.Models.User", "CreatedByUser")
+                        .WithMany()
+                        .HasForeignKey("CreatedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Hop.Api.Models.FleetTripRecord", "Trip")
+                        .WithMany("Participants")
+                        .HasForeignKey("TripId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Hop.Api.Models.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("CreatedByUser");
+
+                    b.Navigation("Trip");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("Hop.Api.Models.FleetTripRecord", b =>
+                {
+                    b.HasOne("Hop.Api.Models.User", "AbortedByUser")
+                        .WithMany()
+                        .HasForeignKey("AbortedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Hop.Api.Models.FleetAssignment", "Assignment")
+                        .WithMany()
+                        .HasForeignKey("AssignmentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Hop.Api.Models.User", "CompletedByUser")
+                        .WithMany()
+                        .HasForeignKey("CompletedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Hop.Api.Models.User", "DriverUser")
+                        .WithMany()
+                        .HasForeignKey("DriverUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Hop.Api.Models.FleetRequest", "FleetRequest")
+                        .WithMany()
+                        .HasForeignKey("FleetRequestId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("AbortedByUser");
+
+                    b.Navigation("Assignment");
+
+                    b.Navigation("CompletedByUser");
+
+                    b.Navigation("DriverUser");
+
+                    b.Navigation("FleetRequest");
+                });
+
+            modelBuilder.Entity("Hop.Api.Models.FleetVehicle", b =>
+                {
+                    b.HasOne("Hop.Api.Models.User", "CreatedByUser")
+                        .WithMany()
+                        .HasForeignKey("CreatedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Hop.Api.Models.Department", "OwningDepartment")
+                        .WithMany()
+                        .HasForeignKey("OwningDepartmentId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Hop.Api.Models.User", "ResponsibleUser")
+                        .WithMany()
+                        .HasForeignKey("ResponsibleUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Hop.Api.Models.User", "UpdatedByUser")
+                        .WithMany()
+                        .HasForeignKey("UpdatedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Hop.Api.Models.FleetVehicleType", "VehicleType")
+                        .WithMany("Vehicles")
+                        .HasForeignKey("VehicleTypeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("CreatedByUser");
+
+                    b.Navigation("OwningDepartment");
+
+                    b.Navigation("ResponsibleUser");
+
+                    b.Navigation("UpdatedByUser");
+
+                    b.Navigation("VehicleType");
+                });
+
+            modelBuilder.Entity("Hop.Api.Models.FleetVehicleCapability", b =>
+                {
+                    b.HasOne("Hop.Api.Models.FleetCapability", "Capability")
+                        .WithMany()
+                        .HasForeignKey("CapabilityId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Hop.Api.Models.FleetVehicle", "Vehicle")
+                        .WithMany()
+                        .HasForeignKey("VehicleId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Capability");
+
+                    b.Navigation("Vehicle");
+                });
+
+            modelBuilder.Entity("Hop.Api.Models.FleetVehicleDocument", b =>
+                {
+                    b.HasOne("Hop.Api.Models.FleetVehicle", "Vehicle")
+                        .WithMany()
+                        .HasForeignKey("VehicleId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Vehicle");
+                });
+
+            modelBuilder.Entity("Hop.Api.Models.FleetVehicleMaintenanceRecord", b =>
+                {
+                    b.HasOne("Hop.Api.Models.FleetVehicleMaintenanceSchedule", "Schedule")
+                        .WithMany("Records")
+                        .HasForeignKey("MaintenanceScheduleId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Schedule");
+                });
+
+            modelBuilder.Entity("Hop.Api.Models.FleetVehicleMaintenanceSchedule", b =>
+                {
+                    b.HasOne("Hop.Api.Models.FleetMaintenanceType", "MaintenanceType")
+                        .WithMany()
+                        .HasForeignKey("MaintenanceTypeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Hop.Api.Models.FleetVehicle", "Vehicle")
+                        .WithMany()
+                        .HasForeignKey("VehicleId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("MaintenanceType");
+
+                    b.Navigation("Vehicle");
+                });
+
+            modelBuilder.Entity("Hop.Api.Models.FleetVehicleUnavailability", b =>
+                {
+                    b.HasOne("Hop.Api.Models.User", "CreatedByUser")
+                        .WithMany()
+                        .HasForeignKey("CreatedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Hop.Api.Models.FleetVehicle", "Vehicle")
+                        .WithMany("UnavailabilityPeriods")
+                        .HasForeignKey("VehicleId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("CreatedByUser");
+
+                    b.Navigation("Vehicle");
+                });
+
             modelBuilder.Entity("Hop.Api.Models.LeaveApproval", b =>
                 {
                     b.HasOne("Hop.Api.Models.ApprovalChain", "ApprovalChain")
@@ -3587,6 +7136,28 @@ namespace Hop.Api.Migrations
                     b.Navigation("RecipientUser");
                 });
 
+            modelBuilder.Entity("Hop.Api.Models.LineGroupDeliveryLog", b =>
+                {
+                    b.HasOne("Hop.Api.Models.LineGroupDestination", "Destination")
+                        .WithMany()
+                        .HasForeignKey("DestinationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Destination");
+                });
+
+            modelBuilder.Entity("Hop.Api.Models.LineGroupEventSubscription", b =>
+                {
+                    b.HasOne("Hop.Api.Models.LineGroupDestination", "Destination")
+                        .WithMany("EventSubscriptions")
+                        .HasForeignKey("DestinationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Destination");
+                });
+
             modelBuilder.Entity("Hop.Api.Models.LinePairingCode", b =>
                 {
                     b.HasOne("Hop.Api.Models.User", "User")
@@ -3605,6 +7176,36 @@ namespace Hop.Api.Migrations
                         .HasForeignKey("UserId");
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("Hop.Api.Models.NotificationDelivery", b =>
+                {
+                    b.HasOne("Hop.Api.Models.OutboxMessage", "OutboxMessage")
+                        .WithMany("Deliveries")
+                        .HasForeignKey("OutboxMessageId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Hop.Api.Models.User", "RecipientUser")
+                        .WithMany()
+                        .HasForeignKey("RecipientUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("OutboxMessage");
+
+                    b.Navigation("RecipientUser");
+                });
+
+            modelBuilder.Entity("Hop.Api.Models.OutboxMessage", b =>
+                {
+                    b.HasOne("Hop.Api.Models.DomainEventRecord", "DomainEvent")
+                        .WithOne()
+                        .HasForeignKey("Hop.Api.Models.OutboxMessage", "EventId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("DomainEvent");
                 });
 
             modelBuilder.Entity("Hop.Api.Models.RefreshToken", b =>
@@ -3726,6 +7327,46 @@ namespace Hop.Api.Migrations
                     b.Navigation("Steps");
                 });
 
+            modelBuilder.Entity("Hop.Api.Models.FleetRequest", b =>
+                {
+                    b.Navigation("Assignments");
+
+                    b.Navigation("CancellationRequests");
+
+                    b.Navigation("Passengers");
+
+                    b.Navigation("RequiredCapabilities");
+
+                    b.Navigation("StatusHistories");
+                });
+
+            modelBuilder.Entity("Hop.Api.Models.FleetTripRecord", b =>
+                {
+                    b.Navigation("Feedbacks");
+
+                    b.Navigation("Participants");
+                });
+
+            modelBuilder.Entity("Hop.Api.Models.FleetVehicle", b =>
+                {
+                    b.Navigation("UnavailabilityPeriods");
+                });
+
+            modelBuilder.Entity("Hop.Api.Models.FleetVehicleMaintenanceRecord", b =>
+                {
+                    b.Navigation("Attachments");
+                });
+
+            modelBuilder.Entity("Hop.Api.Models.FleetVehicleMaintenanceSchedule", b =>
+                {
+                    b.Navigation("Records");
+                });
+
+            modelBuilder.Entity("Hop.Api.Models.FleetVehicleType", b =>
+                {
+                    b.Navigation("Vehicles");
+                });
+
             modelBuilder.Entity("Hop.Api.Models.LeaveCancellationRequest", b =>
                 {
                     b.Navigation("Approvals");
@@ -3745,6 +7386,16 @@ namespace Hop.Api.Migrations
                     b.Navigation("LeaveBalances");
 
                     b.Navigation("LeaveRequests");
+                });
+
+            modelBuilder.Entity("Hop.Api.Models.LineGroupDestination", b =>
+                {
+                    b.Navigation("EventSubscriptions");
+                });
+
+            modelBuilder.Entity("Hop.Api.Models.OutboxMessage", b =>
+                {
+                    b.Navigation("Deliveries");
                 });
 
             modelBuilder.Entity("Hop.Api.Models.Permission", b =>
