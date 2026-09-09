@@ -6,9 +6,11 @@ using Hop.Api.DTOs;
 using Hop.Api.Interfaces;
 using Hop.Api.Models;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Hop.Api.Services;
 
+[method: ActivatorUtilitiesConstructor]
 public sealed class LeaveBalanceRolloverService(
     AppDbContext db,
     ILeavePolicyService leavePolicyService,

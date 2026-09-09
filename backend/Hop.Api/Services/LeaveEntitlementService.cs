@@ -2,9 +2,11 @@ using Hop.Api.Data;
 using Hop.Api.Interfaces;
 using Hop.Api.Models;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Hop.Api.Services;
 
+[method: ActivatorUtilitiesConstructor]
 public sealed class LeaveEntitlementService(
     AppDbContext db,
     ILeavePolicyService leavePolicyService,

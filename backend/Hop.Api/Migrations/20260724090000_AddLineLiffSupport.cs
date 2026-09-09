@@ -1,10 +1,14 @@
 using System;
+using Hop.Api.Data;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
 namespace Hop.Api.Migrations;
 
+[DbContext(typeof(AppDbContext))]
+[Migration("20260724090000_AddLineLiffSupport")]
 public partial class AddLineLiffSupport : Migration
 {
     protected override void Up(MigrationBuilder migrationBuilder)

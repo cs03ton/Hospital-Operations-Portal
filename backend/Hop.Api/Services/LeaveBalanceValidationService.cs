@@ -2,9 +2,11 @@ using Hop.Api.Interfaces;
 using Hop.Api.Models;
 using Hop.Api.Data;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Hop.Api.Services;
 
+[method: ActivatorUtilitiesConstructor]
 public sealed class LeaveBalanceValidationService(
     AppDbContext db,
     ILeavePolicyService leavePolicyService,

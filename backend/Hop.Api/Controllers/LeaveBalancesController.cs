@@ -6,6 +6,7 @@ using Hop.Api.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Hop.Api.Services;
 
 namespace Hop.Api.Controllers;
@@ -13,6 +14,7 @@ namespace Hop.Api.Controllers;
 [ApiController]
 [Route("api/leave-balances")]
 [Authorize]
+[method: ActivatorUtilitiesConstructor]
 public class LeaveBalancesController(
     AppDbContext db,
     IAuditLogService auditLogService,
