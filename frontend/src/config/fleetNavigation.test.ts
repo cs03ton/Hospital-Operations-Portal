@@ -4,8 +4,8 @@ import { fleetNavigationBadgeCount, visibleFleetNavigationItems } from "./fleetN
 const labels = (permissions: string[], role?: string) => visibleFleetNavigationItems(permissions, role).map(item => item.label);
 
 describe("Fleet permission-based navigation", () => {
-  it("shows the fleet calendar to every authenticated user", () => {
-    expect(labels([])).toEqual(["ปฏิทินรถ"]);
+  it("hides the fleet calendar without its permission", () => {
+    expect(labels([])).toEqual([]);
   });
 
   it("shows requester navigation without operational menus", () => {
@@ -41,6 +41,6 @@ describe("Fleet permission-based navigation", () => {
   });
 
   it("exposes a delegated Fleet permission through the same navigation union", () => {
-    expect(labels(["FleetDirector.Approve"])).toEqual(["Dashboard รถ", "งานรอตรวจสอบและอนุมัติคำขอใช้รถ", "ปฏิทินรถ"]);
+    expect(labels(["FleetDirector.Approve"])).toEqual(["Dashboard รถ", "งานรอตรวจสอบและอนุมัติคำขอใช้รถ"]);
   });
 });

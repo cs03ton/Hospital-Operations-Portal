@@ -1,3 +1,4 @@
+using Hop.Api.Authorization;
 using Hop.Api.Data;
 using Hop.Api.DTOs;
 using Hop.Api.Services;
@@ -11,6 +12,7 @@ namespace Hop.Api.Controllers;
 public sealed class FleetCalendarController(AppDbContext db, FleetDateRangeService ranges) : ControllerBase
 {
     [HttpGet]
+    [RequirePermission(FleetPermissions.CalendarView)]
     public async Task<ActionResult<ApiResponse<object>>> Get([FromQuery] DateOnly? start, [FromQuery] DateOnly? end, [FromQuery] string? eventTypes, [FromQuery] Guid? vehicleId, [FromQuery] Guid? driverUserId, [FromQuery] Guid? departmentId, [FromQuery] string? statuses, [FromQuery] bool includeCancelled = false, CancellationToken ct = default)
     {
         if (start is null || end is null) return BadRequest(ApiResponse<object>.Fail("start and end are required."));

@@ -559,7 +559,8 @@ public static class DevelopmentDataSeeder
                 "FleetRequest.Cancel",
                 "FleetRequest.Copy",
                 "FleetRequestCapability.ManageOwn",
-                "FleetCompatibility.View");
+                "FleetCompatibility.View",
+                "FleetCalendar.View");
             await GrantPermissions(db, departmentHeadRole.Id,
                 "Dashboard.View",
                 "Documentation.View",
@@ -579,14 +580,16 @@ public static class DevelopmentDataSeeder
                 "LeaveCancellation.ApproveCurrentStep",
                 "LeaveCancellation.ViewDepartment",
                 "FleetRequest.ViewOwn",
-                "FleetRequest.ViewAll",
+                "FleetRequest.ViewDepartment",
                 "FleetRequest.Create",
                 "FleetRequest.EditOwn",
                 "FleetRequest.Submit",
                 "FleetRequest.Cancel",
                 "FleetRequest.Copy",
                 "FleetRequestCapability.ManageOwn",
-                "FleetCompatibility.View");
+                "FleetCompatibility.View",
+                "FleetCalendar.View");
+            await RevokePermissions(db, departmentHeadRole.Id, "FleetRequest.ViewAll");
             await GrantPermissions(db, directorRole.Id,
                 "Dashboard.View",
                 "Documentation.View",
@@ -617,6 +620,7 @@ public static class DevelopmentDataSeeder
                 "FleetRequest.Copy",
                 "FleetRequestCapability.ManageOwn",
                 "FleetCompatibility.View",
+                "FleetCalendar.View",
                 "FleetDirector.Approve",
                 "FleetDirector.Return",
                 "FleetDirector.Reject");

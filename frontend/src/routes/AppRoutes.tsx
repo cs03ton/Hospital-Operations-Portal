@@ -270,7 +270,7 @@ export function AppRoutes() {
           <Route path="/fleet/maintenance/:id/edit" element={withFleetRollout(withPermission(<FleetMaintenanceFormPage />, "FleetMaintenance.Manage"))} />
           <Route path="/fleet/vehicles/:vehicleId/maintenance" element={withFleetRollout(withPermission(<FleetMaintenancePage />, "FleetMaintenance.View"))} />
           <Route path="/fleet/vehicles/:vehicleId/documents" element={withFleetRollout(withPermission(<FleetVehicleDocumentsPage />, "FleetMaintenance.View"))} />
-          <Route path="/fleet/calendar" element={withFleetRollout(<FleetCalendarPage />)} />
+          <Route path="/fleet/calendar" element={withFleetRollout(withPermission(<FleetCalendarPage />, "FleetCalendar.View"))} />
           <Route path="/fleet/admin/capabilities" element={withFleetRollout(withAnyPermission(<FleetCapabilitiesPage />, ["FleetCapability.View", "FleetCapability.Manage"]))} />
           <Route path="/fleet/admin/capabilities/create" element={withFleetRollout(withPermission(<FleetCapabilityFormPage />, "FleetCapability.Manage"))} />
           <Route path="/fleet/admin/capabilities/:id" element={withFleetRollout(withPermission(<FleetCapabilityFormPage readOnly />, "FleetCapability.View"))} />

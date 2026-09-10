@@ -87,6 +87,7 @@ services:
         condition: service_healthy
     volumes:
       - hop_prod_storage:/app/storage
+      - hop_prod_backups:/app/backups
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:8080/healthz || exit 1"]
       interval: 30s
@@ -116,6 +117,11 @@ services:
         VITE_APP_NAME: ${VITE_APP_NAME:-Hospital Operations Portal}
         VITE_HOSPITAL_NAME: ${VITE_HOSPITAL_NAME:?VITE_HOSPITAL_NAME is required}
         VITE_APP_VERSION: ${VITE_APP_VERSION:-2.0.0}
+        VITE_APP_DEVELOPER: ${VITE_APP_DEVELOPER:-งานเทคโนโลยีสารสนเทศ}
+        VITE_LIFF_ID: ${VITE_LIFF_ID:-}
+        VITE_LIFF_BASE_URL: ${VITE_LIFF_BASE_URL:-https://miniapp.line.me}
+        VITE_HIDE_INELIGIBLE_LEAVE_TYPES: ${VITE_HIDE_INELIGIBLE_LEAVE_TYPES:-true}
+        VITE_MAX_UPLOAD_SIZE_MB: ${VITE_MAX_UPLOAD_SIZE_MB:-5}
         VITE_AUTH_TOKEN_STORAGE_MODE: ${VITE_AUTH_TOKEN_STORAGE_MODE:-cookie}
         VITE_AUTH_CSRF_COOKIE_NAME: ${VITE_AUTH_CSRF_COOKIE_NAME:-hop_csrf_token}
         VITE_AUTH_CSRF_HEADER_NAME: ${VITE_AUTH_CSRF_HEADER_NAME:-X-CSRF-TOKEN}
@@ -140,4 +146,5 @@ services:
 volumes:
   hop_prod_postgres_data:
   hop_prod_storage:
+  hop_prod_backups:
   hop_prod_clamav_data:

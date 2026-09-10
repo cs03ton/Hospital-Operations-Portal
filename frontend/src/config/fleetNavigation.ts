@@ -33,7 +33,7 @@ export const fleetNavigationItems: NavigationItem[] = [
   { label: "งานขับรถของฉัน", path: "/fleet/my-trips", icon: DirectionsCarOutlinedIcon, permissions: [...fleetPermissionGroups.driver] },
   { label: "คิวจัดรถ", path: "/fleet/dispatch", icon: DirectionsCarOutlinedIcon, permissions: [...fleetPermissionGroups.dispatcher] },
   { label: "งานรอตรวจสอบและอนุมัติคำขอใช้รถ", path: "/fleet/approvals", icon: FactCheckOutlinedIcon, permissions: [...fleetPermissionGroups.reviewer, ...fleetPermissionGroups.director] },
-  { label: "ปฏิทินรถ", path: "/fleet/calendar", icon: CalendarMonthOutlinedIcon },
+  { label: "ปฏิทินรถ", path: "/fleet/calendar", icon: CalendarMonthOutlinedIcon, permissions: [...fleetPermissionGroups.calendar] },
   { label: "รายงาน", path: "/fleet/reports", icon: BarChartOutlinedIcon, permissions: [...fleetPermissionGroups.reports] },
   { label: "ตั้งค่า", path: "/fleet/settings", icon: SettingsSuggestOutlinedIcon, permissions: [...fleetPermissionGroups.settings] },
   { label: "LINE Groups", path: "/fleet/admin/line-groups", icon: NotificationsActiveOutlinedIcon, permissions: ["FleetLineGroup.View", "FleetLineGroup.Manage"] },
