@@ -11,6 +11,20 @@ namespace Hop.Api.Controllers;
 [Authorize]
 public class ApprovalsController(IPendingApprovalNotificationService notificationService) : ControllerBase
 {
+    [HttpGet("my-pending/count")]
+    [RequireAnyPermission(LeavePermissions.ViewPendingApproval, LeavePermissions.ApproveCurrentStep)]
+    public async Task<ActionResult<ApiResponse<PendingApprovalCountResponse>>> GetMyPendingApprovalCount(CancellationToken cancellationToken)
+    {
+        var userId = GetCurrentUserId();
+        if (userId is null)
+        {
+            return Unauthorized(ApiResponse<PendingApprovalCountResponse>.Fail("Invalid access token."));
+        }
+
+        var count = await notificationService.GetMyPendingApprovalCountAsync(userId.Value, cancellationToken);
+        return ApiResponse<PendingApprovalCountResponse>.Ok(count);
+    }
+
     [HttpGet("my-pending")]
     [RequireAnyPermission(LeavePermissions.ViewPendingApproval, LeavePermissions.ApproveCurrentStep)]
     public async Task<ActionResult<ApiResponse<IReadOnlyList<PendingApprovalNotificationResponse>>>> GetMyPendingApprovals(CancellationToken cancellationToken)

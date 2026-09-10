@@ -705,6 +705,12 @@ public record PendingApprovalNotificationResponse(
     string? DetailPath = null
 );
 
+public record PendingApprovalCountResponse(
+    int LeaveRequests,
+    int LeaveCancellations,
+    int Total
+);
+
 public record LeaveNotificationItemResponse(
     string Id,
     string Type,

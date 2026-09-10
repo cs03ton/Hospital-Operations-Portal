@@ -8,6 +8,34 @@ namespace Hop.Api.Services;
 
 public class PendingApprovalNotificationService(AppDbContext db) : IPendingApprovalNotificationService
 {
+    public async Task<PendingApprovalCountResponse> GetMyPendingApprovalCountAsync(Guid userId, CancellationToken cancellationToken = default)
+    {
+        var leaveRequests = await db.LeaveApprovals
+            .AsNoTracking()
+            .CountAsync(item =>
+                item.ApproverId == userId &&
+                item.Status == "Pending" &&
+                item.LeaveRequest != null &&
+                item.LeaveRequest.Status == "Pending" &&
+                item.LeaveRequest.CurrentApproverId == userId,
+                cancellationToken);
+
+        var leaveCancellations = await db.LeaveCancellationApprovals
+            .AsNoTracking()
+            .CountAsync(item =>
+                item.ApproverId == userId &&
+                item.Status == "Pending" &&
+                item.LeaveCancellationRequest != null &&
+                item.LeaveCancellationRequest.Status == LeaveCancellationStatuses.Pending &&
+                item.LeaveCancellationRequest.CurrentApproverId == userId,
+                cancellationToken);
+
+        return new PendingApprovalCountResponse(
+            leaveRequests,
+            leaveCancellations,
+            leaveRequests + leaveCancellations);
+    }
+
     public async Task<IReadOnlyList<PendingApprovalNotificationResponse>> GetMyPendingApprovalsAsync(Guid userId, CancellationToken cancellationToken = default)
     {
         var leaveItems = await db.LeaveApprovals

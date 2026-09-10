@@ -5,7 +5,7 @@ import { alpha, useTheme } from "@mui/material/styles";
 import { useLocation } from "react-router-dom";
 import hospitalLogo from "../../assets/logo/hospital-logo.png";
 import { appName, hospitalName } from "../../config/appConfig";
-import { navigationModules } from "../../config/menuConfig";
+import { leaveNavigationBadgeCount, navigationModules } from "../../config/menuConfig";
 import { effectiveFleetPermissions, fleetNavigationBadgeCount } from "../../config/fleetNavigation";
 import { useAuth } from "../../context/AuthContext";
 import { usePermission } from "../../context/PermissionContext";
@@ -14,6 +14,7 @@ import { isItemActive, ModuleMenuGroup } from "./ModuleMenuGroup";
 import { useQuery } from "@tanstack/react-query";
 import { FLEET_DASHBOARD_QUERY_KEY, getFleetDashboard, getFleetRolloutAccess } from "../../api/fleetApi";
 import { dashboardPollingOptions } from "../../config/queryPolling";
+import { getMyPendingApprovalCount } from "../../api/leaveApi";
 
 type AppSidebarProps = {
   drawerWidth: number;
@@ -39,6 +40,17 @@ export function AppSidebar({
   const { user } = useAuth();
   const { permissions, hasPermission, hasAnyPermission } = usePermission();
   const location = useLocation();
+  const canViewPendingApprovals =
+    !["Admin", "SuperAdmin"].includes(user?.role ?? "") &&
+    hasAnyPermission(["LeaveRequest.ViewPendingApproval", "LeaveApproval.ApproveCurrentStep"]);
+  const pendingApprovalCount = useQuery({
+    queryKey: ["approvals", "my-pending", "count"],
+    queryFn: getMyPendingApprovalCount,
+    enabled: canViewPendingApprovals,
+    staleTime: 0,
+    ...dashboardPollingOptions,
+    retry: false,
+  });
   const fleetRollout = useQuery({ queryKey: ["fleet-rollout-access"], queryFn: getFleetRolloutAccess, staleTime: 60_000, retry: 1 });
   const fleetDashboard = useQuery({
     queryKey: FLEET_DASHBOARD_QUERY_KEY,
@@ -69,9 +81,17 @@ export function AppSidebar({
         }
 
         return roleAllowed || !item.permission || hasPermission(item.permission);
-      }).map(item => module.moduleId === "VehicleBooking"
-        ? { ...item, badgeCount: fleetNavigationBadgeCount(item.path, fleetDashboard.data?.badges) }
-        : item),
+      }).map(item => {
+        if (module.moduleId === "VehicleBooking") {
+          return { ...item, badgeCount: fleetNavigationBadgeCount(item.path, fleetDashboard.data?.badges) };
+        }
+
+        if (module.moduleId === "LeaveManagement") {
+          return { ...item, badgeCount: leaveNavigationBadgeCount(item.path, pendingApprovalCount.data?.total) };
+        }
+
+        return item;
+      }),
     }))
     .filter((module) => (!module.permission || hasPermission(module.permission)) && module.children.length > 0);
   const activeModule = visibleModules.find((module) =>

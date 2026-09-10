@@ -683,6 +683,12 @@ export type PendingApprovalNotification = {
   detailPath?: string | null;
 };
 
+export type PendingApprovalCount = {
+  leaveRequests: number;
+  leaveCancellations: number;
+  total: number;
+};
+
 export type LeaveNotificationItem = {
   id: string;
   type: string;
@@ -977,6 +983,11 @@ export async function getLeaveApprovals(id: string) {
 
 export async function getMyPendingApprovals() {
   const response = await httpClient.get<ApiResponse<PendingApprovalNotification[]>>("/api/approvals/my-pending");
+  return response.data.data;
+}
+
+export async function getMyPendingApprovalCount() {
+  const response = await httpClient.get<ApiResponse<PendingApprovalCount>>("/api/approvals/my-pending/count");
   return response.data.data;
 }
 

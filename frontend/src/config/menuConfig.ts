@@ -49,6 +49,10 @@ export type NavigationModule = {
   children: NavigationItem[];
 };
 
+export function leaveNavigationBadgeCount(path: string, pendingApprovalCount?: number) {
+  return path === "/leave/pending-approvals" ? pendingApprovalCount ?? 0 : 0;
+}
+
 export const navigationModules: NavigationModule[] = [
   {
     moduleId: "DashboardPortal",

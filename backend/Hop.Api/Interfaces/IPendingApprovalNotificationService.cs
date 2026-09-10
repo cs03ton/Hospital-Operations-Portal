@@ -5,4 +5,5 @@ namespace Hop.Api.Interfaces;
 public interface IPendingApprovalNotificationService
 {
     Task<IReadOnlyList<PendingApprovalNotificationResponse>> GetMyPendingApprovalsAsync(Guid userId, CancellationToken cancellationToken = default);
+    Task<PendingApprovalCountResponse> GetMyPendingApprovalCountAsync(Guid userId, CancellationToken cancellationToken = default);
 }
