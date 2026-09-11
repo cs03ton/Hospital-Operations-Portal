@@ -47,7 +47,6 @@ export function AppSidebar({
     queryKey: ["approvals", "my-pending", "count"],
     queryFn: getMyPendingApprovalCount,
     enabled: canViewPendingApprovals,
-    staleTime: 0,
     ...dashboardPollingOptions,
     retry: false,
   });
@@ -56,7 +55,6 @@ export function AppSidebar({
     queryKey: FLEET_DASHBOARD_QUERY_KEY,
     queryFn: getFleetDashboard,
     enabled: fleetRollout.data?.isAllowed === true,
-    staleTime: 0,
     ...dashboardPollingOptions,
     retry: false,
   });

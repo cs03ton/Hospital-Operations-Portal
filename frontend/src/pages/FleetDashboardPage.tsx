@@ -26,14 +26,12 @@ export function FleetDashboardPage() {
   const query = useQuery({
     queryKey: FLEET_DASHBOARD_QUERY_KEY,
     queryFn: getFleetDashboard,
-    staleTime: 0,
     ...dashboardPollingOptions,
     retry: 1,
   });
   const feedbackQuery = useQuery({
     queryKey: ["fleet-feedback-eligible-trips"],
     queryFn: getFleetFeedbackEligibleTrips,
-    staleTime: 60_000,
     ...dashboardPollingOptions,
     retry: false,
   });

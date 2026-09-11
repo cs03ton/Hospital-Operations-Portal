@@ -55,6 +55,9 @@ export function LeaveCancellationDetailPage() {
     await queryClient.invalidateQueries({ queryKey: ["leave-requests"] });
     await queryClient.invalidateQueries({ queryKey: ["notifications"] });
     await queryClient.invalidateQueries({ queryKey: ["leave-balances"] });
+    await queryClient.invalidateQueries({ queryKey: ["dashboard-summary"] });
+    await queryClient.invalidateQueries({ queryKey: ["leave-calendar"] });
+    await queryClient.invalidateQueries({ queryKey: ["approvals", "my-pending"] });
   };
 
   const submitMutation = useMutation({ mutationFn: () => submitLeaveCancellationRequest(id!), onSuccess: async () => { showSuccess("ส่งคำขอยกเลิกใบลาเรียบร้อยแล้ว"); await invalidate(); }, onError: (error) => showError(getErrorMessage(error, "ส่งคำขอยกเลิกใบลาไม่สำเร็จ")) });

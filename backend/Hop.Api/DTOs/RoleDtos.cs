@@ -67,8 +67,15 @@ public record DashboardSummaryResponse(
     DashboardLeaveRequestGroupResponse? MyPendingRequests = null,
     DashboardLeaveRequestGroupResponse? DepartmentRequests = null,
     DashboardLeaveRequestGroupResponse? MyRecentLeaveRequests = null,
-    DashboardLeaveCancellationSummaryResponse? LeaveCancellationSummary = null
+    DashboardLeaveCancellationSummaryResponse? LeaveCancellationSummary = null,
+    DateTime? GeneratedAtUtc = null,
+    DashboardLeaveTrackingResponse? LeaveTracking = null
 );
+
+public record DashboardLeaveTrackingResponse(
+    string Scope, int Total, int Draft, int Pending, int ReturnedForRevision,
+    int Approved, int Rejected, int Cancelled, int CancellationPending,
+    DashboardLeaveRequestGroupResponse RecentRequests);
 
 public record DashboardLeaveBalanceResponse(
     string LeaveTypeCode,
@@ -96,7 +103,8 @@ public record DashboardLeaveRequestItemResponse(
     string? CurrentApproverName,
     DateTime CreatedAt,
     string SourceType = "LeaveRequest",
-    string? DetailPath = null
+    string? DetailPath = null,
+    DateTime? LastActivityAt = null
 );
 
 public record DashboardLeaveCancellationSummaryResponse(

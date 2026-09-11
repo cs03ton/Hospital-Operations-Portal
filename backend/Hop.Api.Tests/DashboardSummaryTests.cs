@@ -15,6 +15,46 @@ namespace Hop.Api.Tests;
 public class DashboardSummaryTests
 {
     [Theory]
+    [InlineData("Admin", true, true)]
+    [InlineData("SuperAdmin", true, true)]
+    [InlineData("Admin", false, false)]
+    [InlineData("Staff", true, false)]
+    public async Task Tracking_UsesAuthorizedScopeAndNewestCreatedRequests(string role, bool viewAll, bool expectAll)
+    {
+        await using var db = CreateDbContext();
+        var user = new User { Id = Guid.NewGuid(), Username = "tracking", FullName = "Tracking", PasswordHash = "hash", IsActive = true };
+        var other = new User { Id = Guid.NewGuid(), Username = "other", FullName = "Other", PasswordHash = "hash", IsActive = true };
+        db.Users.AddRange(user, other);
+        GrantRoleWithPermissions(db, user.Id, role, viewAll ? LeavePermissions.ViewAll : LeavePermissions.ViewOwn);
+        var type = AddLeaveType(db, "PERSONAL_LEAVE", "Personal");
+        var now = DateTime.UtcNow;
+        var today = DateOnly.FromDateTime(now);
+        var old = AddLeaveRequest(db, user.Id, type.Id, today, 1, "Cancelled");
+        old.CreatedAt = now.AddDays(-10);
+        old.UpdatedAt = now;
+        var latest = AddLeaveRequest(db, other.Id, type.Id, today, 1, "Pending");
+        latest.CreatedAt = now.AddMinutes(-1);
+        await db.SaveChangesAsync();
+        var controller = new DashboardController(db);
+        SetUserContext(controller, user.Id);
+        var result = await controller.GetSummary();
+        var summary = Assert.IsType<ApiResponse<DashboardSummaryResponse>>(result.Value).Data!;
+        var tracking = summary.LeaveTracking!;
+        Assert.Equal(expectAll ? "all" : "mine", tracking.Scope);
+        Assert.Equal(expectAll ? 2 : 1, tracking.Total);
+        Assert.Equal(expectAll ? 1 : 0, tracking.Pending);
+        Assert.Equal(1, tracking.Cancelled);
+        Assert.Equal(expectAll ? latest.Id : old.Id, tracking.RecentRequests.Items[0].Id);
+        Assert.Equal(1, summary.MyLeaveRequestsTotal);
+        latest.Status = "Approved";
+        await db.SaveChangesAsync();
+        result = await controller.GetSummary();
+        tracking = Assert.IsType<ApiResponse<DashboardSummaryResponse>>(result.Value).Data!.LeaveTracking!;
+        Assert.Equal(0, tracking.Pending);
+        Assert.Equal(expectAll ? 1 : 0, tracking.Approved);
+    }
+
+    [Theory]
     [InlineData("2026-08-16T16:59:59Z", 2026, 8, 16)]
     [InlineData("2026-08-16T17:00:00Z", 2026, 8, 17)]
     [InlineData("2026-08-17T23:59:59Z", 2026, 8, 18)]
@@ -53,6 +93,12 @@ public class DashboardSummaryTests
         AddBalance(db, user.Id, sick.Id, fiscalYear, entitled: 30, used: 3, pending: 0.5m);
         AddBalance(db, user.Id, maternity.Id, fiscalYear, entitled: 90, used: 0, pending: 0);
         AddBalance(db, user.Id, ordination.Id, fiscalYear, entitled: 120, used: 0, pending: 0);
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        AddLeaveRequest(db, user.Id, vacation.Id, today, 2, "Approved");
+        AddLeaveRequest(db, user.Id, vacation.Id, today, 1, "Pending");
+        AddLeaveRequest(db, user.Id, personal.Id, today, 1, "Approved");
+        AddLeaveRequest(db, user.Id, sick.Id, today, 3, "Approved");
+        AddLeaveRequest(db, user.Id, sick.Id, today, 0.5m, "Pending");
         await db.SaveChangesAsync();
 
         var controller = new DashboardController(db);
@@ -63,6 +109,7 @@ public class DashboardSummaryTests
         var response = Assert.IsType<ApiResponse<DashboardSummaryResponse>>(result.Value);
         Assert.NotNull(response.Data);
         var summary = response.Data!;
+        Assert.NotNull(summary.GeneratedAtUtc);
         Assert.Equal(0, summary.MyRemainingLeaveDays);
         Assert.NotNull(summary.MyCoreLeaveBalances);
         var balances = summary.MyCoreLeaveBalances!;

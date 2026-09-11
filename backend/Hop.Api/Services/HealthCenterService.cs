@@ -35,7 +35,6 @@ public sealed class HealthCenterService(
             database.Status,
             storage.Status,
             NormalizeStatus(line.Status),
-            queue.Status,
             disk.Status,
             memory.Status,
             cpu.Status,
@@ -440,15 +439,14 @@ public sealed class HealthCenterService(
             var pending = deliveryStats?.Pending ?? 0;
             var failed = deliveryStats?.Failed ?? 0;
             var pendingRetries = deliveryStats?.PendingRetries ?? 0;
-            var status = failed > 0 || pending > 100 ? "Warning" : "Healthy";
-            var message = status == "Warning"
+            var message = failed > 0 || pending > 100
                 ? $"LINE queue มี pending {pending} รายการ, failed {failed} รายการ, retry พร้อมส่ง {pendingRetries} รายการ"
                 : lineRetryEnabled || approvalEscalationEnabled
                     ? "worker พร้อมใช้งาน"
                     : "worker ยังปิดใช้งานตาม configuration";
 
             return new QueueHealthResponse(
-                status,
+                "Info",
                 lineRetryEnabled,
                 approvalEscalationEnabled,
                 pending,
@@ -461,7 +459,7 @@ public sealed class HealthCenterService(
         catch (Exception)
         {
             return new QueueHealthResponse(
-                "Warning",
+                "Info",
                 lineRetryEnabled,
                 approvalEscalationEnabled,
                 0,

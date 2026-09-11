@@ -123,6 +123,7 @@ function OverallStatusCard({ data, isLoading, isFetching }: { data?: AdminHealth
 function buildQueueMessage(data?: AdminHealth) {
   if (!data) return undefined;
   const parts = [
+    "ข้อมูลประกอบ ไม่กระทบสถานะสุขภาพรวม",
     `LINE pending ${data.queue.pendingLineDeliveries.toLocaleString("th-TH")}`,
     `failed ${data.queue.failedLineDeliveries.toLocaleString("th-TH")}`,
     `retry ${data.queue.pendingRetries.toLocaleString("th-TH")}`,

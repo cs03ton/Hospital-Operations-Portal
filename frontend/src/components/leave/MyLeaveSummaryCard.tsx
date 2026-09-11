@@ -9,6 +9,7 @@ import { getLeaveStatusColor, getLeaveStatusLabel, getLeaveTypeLabel } from "../
 import { getLeaveRequestCode } from "../../utils/leaveTrackingLabels";
 
 type MyLeaveSummaryCardProps = {
+  scope?: "all" | "mine";
   total: number;
   draft: number;
   pending: number;
@@ -22,6 +23,7 @@ type MyLeaveSummaryCardProps = {
 };
 
 export function MyLeaveSummaryCard({
+  scope = "mine",
   total,
   draft,
   pending,
@@ -56,14 +58,14 @@ export function MyLeaveSummaryCard({
             <AssignmentOutlinedIcon color="primary" />
             <Box>
               <Typography color="text.secondary" variant="body2">
-                คำขอลาของฉัน
+                {scope === "all" ? "คำขอลาทั้งระบบ" : "คำขอลาของฉัน"}
               </Typography>
               <Typography variant="h5" fontWeight={800}>
                 ติดตามสถานะคำขอลา
               </Typography>
             </Box>
           </Stack>
-          <Button component={RouterLink} to="/leave" size="small" variant="outlined">
+          <Button component={RouterLink} to={scope === "all" ? "/leave" : "/leave?scope=mine"} size="small" variant="outlined">
             ดูรายละเอียด
           </Button>
         </Stack>

@@ -74,6 +74,7 @@ export function LeaveBalanceManagementPage() {
     onSuccess: () => {
       showSuccess("ปรับปรุงวันลาคงเหลือเรียบร้อยแล้ว");
       queryClient.invalidateQueries({ queryKey: ["leave-balances"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-summary"] });
       closeDialog();
     },
   });
@@ -83,6 +84,7 @@ export function LeaveBalanceManagementPage() {
     onSuccess: () => {
       showSuccess("ลบข้อมูลวันลาคงเหลือเรียบร้อยแล้ว");
       queryClient.invalidateQueries({ queryKey: ["leave-balances"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-summary"] });
     },
   });
 
@@ -108,6 +110,7 @@ export function LeaveBalanceManagementPage() {
       showSuccess(`ยืนยันการยกยอดวันลาเรียบร้อยแล้ว สร้าง ${result.created} อัปเดต ${result.updated} ข้าม ${result.skipped} รายการ`);
       setRolloverPreview(result);
       queryClient.invalidateQueries({ queryKey: ["leave-balances"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-summary"] });
     },
   });
 
@@ -121,6 +124,7 @@ export function LeaveBalanceManagementPage() {
     onSuccess: () => {
       showSuccess("ปรับยอดวันลาเรียบร้อยแล้ว");
       queryClient.invalidateQueries({ queryKey: ["leave-balances"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-summary"] });
       closeAdjustDialog();
     },
   });

@@ -6,6 +6,7 @@ export const dashboardPollingOptions = {
   refetchIntervalInBackground: false,
   refetchOnWindowFocus: true,
   refetchOnReconnect: true,
+  staleTime: 0,
 } as const;
 
 export const notificationPollingOptions = {

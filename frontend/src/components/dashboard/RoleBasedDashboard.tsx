@@ -14,7 +14,8 @@ import { alpha, useTheme } from "@mui/material/styles";
 import type { SvgIconComponent } from "@mui/icons-material";
 import { Link as RouterLink } from "react-router-dom";
 import type { ReactNode } from "react";
-import type { DashboardLeaveBalance, DashboardLeaveRequestGroup, DashboardLeaveRequestItem, DashboardSummary } from "../../api/adminApi";
+import type { AdminDashboard, DashboardLeaveBalance, DashboardLeaveRequestGroup, DashboardLeaveRequestItem, DashboardSummary, ExecutiveDashboard } from "../../api/adminApi";
+import type { LeaveCalendarItem, LeaveNotificationItem } from "../../api/leaveApi";
 import { MyLeaveSummaryCard } from "../leave/MyLeaveSummaryCard";
 import { brandColors } from "../../theme/theme";
 import { formatThaiDate } from "../../utils/dateFormat";
@@ -29,6 +30,10 @@ type WidgetContext = {
   isLoading: boolean;
   role: DashboardRole;
   userName: string;
+  notifications?: LeaveNotificationItem[];
+  calendarItems?: LeaveCalendarItem[];
+  executive?: ExecutiveDashboard;
+  admin?: AdminDashboard;
 };
 type DashboardWidgetDefinition = {
   id: string;
@@ -44,14 +49,15 @@ const roleLayouts: Record<DashboardRole, string[]> = {
   SuperAdmin: ["welcome", "myLeaveRequests", "leaveCancellationSummary", "userSummary", "departmentSummary", "leaveTypeSummary", "approvalRules", "pendingApprovalOverview", "notificationQueue", "auditLog", "holidayManagement", "systemHealth", "backgroundJobs", "storageUsage", "backupStatus", "versionInfo", "securityEvents", "failedLogin", "permissionDenied", "lineDelivery", "databaseStatus", "apiHealth", "queueMonitoring"],
 };
 
-export function RoleBasedDashboard({ data, isLoading, role, userName }: WidgetContext) {
+export function RoleBasedDashboard(context: WidgetContext) {
+  const { role } = context;
   const widgets = roleLayouts[role].map((widgetId) => widgetRegistry[widgetId]).filter(Boolean);
 
   return (
     <Grid container spacing={2}>
       {widgets.map((widget) => (
         <Grid item xs={widget.size.xs} sm={widget.size.sm} md={widget.size.md} lg={widget.size.lg} key={widget.id}>
-          {widget.render({ data, isLoading, role, userName })}
+          {widget.render(context)}
         </Grid>
       ))}
     </Grid>
@@ -105,15 +111,16 @@ const widgetRegistry: Record<string, DashboardWidgetDefinition> = {
     size: { xs: 12 },
     render: ({ data, isLoading }) => (
       <MyLeaveSummaryCard
-        total={data?.myLeaveRequestsTotal ?? 0}
-        draft={data?.myLeaveRequestsDraft ?? 0}
-        pending={data?.myLeaveRequestsPending ?? 0}
-        returnedForRevision={data?.myLeaveRequestsReturnedForRevision ?? 0}
-        approved={data?.myLeaveRequestsApproved ?? 0}
-        rejected={data?.myLeaveRequestsRejected ?? 0}
-        cancelled={data?.myLeaveRequestsCancelled ?? 0}
-        cancellationPending={data?.myLeaveCancellationRequestsPending ?? 0}
-        recentRequests={data?.myRecentLeaveRequests ?? emptyLeaveRequestGroup}
+        scope={data?.leaveTracking?.scope ?? "mine"}
+        total={data?.leaveTracking?.total ?? data?.myLeaveRequestsTotal ?? 0}
+        draft={data?.leaveTracking?.draft ?? data?.myLeaveRequestsDraft ?? 0}
+        pending={data?.leaveTracking?.pending ?? data?.myLeaveRequestsPending ?? 0}
+        returnedForRevision={data?.leaveTracking?.returnedForRevision ?? data?.myLeaveRequestsReturnedForRevision ?? 0}
+        approved={data?.leaveTracking?.approved ?? data?.myLeaveRequestsApproved ?? 0}
+        rejected={data?.leaveTracking?.rejected ?? data?.myLeaveRequestsRejected ?? 0}
+        cancelled={data?.leaveTracking?.cancelled ?? data?.myLeaveRequestsCancelled ?? 0}
+        cancellationPending={data?.leaveTracking?.cancellationPending ?? data?.myLeaveCancellationRequestsPending ?? 0}
+        recentRequests={data?.leaveTracking?.recentRequests ?? data?.myRecentLeaveRequests ?? emptyLeaveRequestGroup}
         isLoading={isLoading}
       />
     ),
@@ -134,20 +141,36 @@ const widgetRegistry: Record<string, DashboardWidgetDefinition> = {
       />
     ),
   },
-  myLeaveCalendar: placeholderWidget("myLeaveCalendar", "ปฏิทินลาของฉัน", "ดูปฏิทินการลาที่เกี่ยวข้องกับคุณ", CalendarMonthOutlinedIcon, "/leave/calendar"),
-  recentNotifications: placeholderWidget("recentNotifications", "แจ้งเตือนล่าสุด", "ไม่มีรายการแจ้งเตือนใหม่", NotificationsActiveOutlinedIcon),
-  teamCalendar: placeholderWidget("teamCalendar", "ปฏิทินทีม", "ดูภาพรวมการลาของทีม", CalendarMonthOutlinedIcon, "/leave/calendar"),
-  teamLeaveStats: trendWidget("teamLeaveStats", "สถิติการลาของทีม", { xs: 12, md: 4 }),
-  employeesNearLeaveLimit: placeholderWidget("employeesNearLeaveLimit", "เจ้าหน้าที่ใกล้ใช้สิทธิ์เต็ม", "ยังไม่มีข้อมูลที่ต้องติดตาม", TrendingUpOutlinedIcon),
-  departmentComparison: placeholderWidget("departmentComparison", "เปรียบเทียบรายหน่วยงาน", "พร้อมต่อยอดเป็นกราฟเปรียบเทียบ", TrendingUpOutlinedIcon, undefined, { xs: 12, md: 6 }),
-  monthlyLeaveStats: trendWidget("monthlyLeaveStats", "สถิติรายเดือน", { xs: 12, md: 6 }),
+  myLeaveCalendar: calendarWidget("myLeaveCalendar", "ปฏิทินลาของฉันเดือนนี้"),
+  recentNotifications: {
+    id: "recentNotifications",
+    size: { xs: 12, md: 6 },
+    render: ({ notifications = [], isLoading }) => <RecentNotificationsWidget items={notifications} isLoading={isLoading} />,
+  },
+  teamCalendar: calendarWidget("teamCalendar", "ปฏิทินทีมเดือนนี้"),
+  teamLeaveStats: calendarStatsWidget("teamLeaveStats", "สถิติการลาของทีม", { xs: 12, md: 4 }),
+  employeesNearLeaveLimit: {
+    id: "employeesNearLeaveLimit",
+    size: { xs: 12, md: 8 },
+    render: ({ data, isLoading }) => <LeaveRequestGroupPanel title="รายการล่าสุดของหน่วยงาน" subtitle="ข้อมูลล่าสุดตามสิทธิ์ของหัวหน้าหน่วยงาน" emptyText="ยังไม่มีรายการลาของหน่วยงาน" group={data?.departmentRequests ?? emptyLeaveRequestGroup} isLoading={isLoading} actionTo="/leave?scope=department" showRequester />,
+  },
+  departmentComparison: {
+    id: "departmentComparison",
+    size: { xs: 12, md: 6 },
+    render: ({ executive, isLoading }) => <DepartmentComparisonWidget data={executive} isLoading={isLoading} />,
+  },
+  monthlyLeaveStats: executiveTrendWidget("monthlyLeaveStats", "สถิติรายเดือน", { xs: 12, md: 6 }),
   approvalQueue: metricWidget("approvalQueue", "คิวอนุมัติ", "งานอนุมัติที่ถึงคิวของคุณ", ApprovalOutlinedIcon, (data) => data.pendingApprovals, "warning.main", "/leave/pending-approvals", { xs: 12, md: 4 }),
-  executiveCalendar: placeholderWidget("executiveCalendar", "ปฏิทินผู้บริหาร", "ภาพรวมปฏิทินสำหรับผู้บริหาร", CalendarMonthOutlinedIcon, "/leave/calendar", { xs: 12, md: 4 }),
-  leaveTrend: trendWidget("leaveTrend", "แนวโน้มการลา", { xs: 12, md: 4 }),
-  hospitalLeaveSummary: trendWidget("hospitalLeaveSummary", "ภาพรวมการลาทั้งโรงพยาบาล", { xs: 12 }),
-  backgroundJobs: placeholderWidget("backgroundJobs", "Background Jobs", "ไม่มี job ผิดปกติ", SettingsSuggestOutlinedIcon),
-  storageUsage: placeholderWidget("storageUsage", "Storage Usage", "พร้อมเชื่อมต่อ storage metrics ในอนาคต", SettingsSuggestOutlinedIcon),
-  backupStatus: placeholderWidget("backupStatus", "Backup Status", "ตรวจสอบตาม runbook backup/restore", SettingsSuggestOutlinedIcon),
+  executiveCalendar: calendarWidget("executiveCalendar", "ปฏิทินผู้บริหารเดือนนี้", { xs: 12, md: 4 }),
+  leaveTrend: executiveTrendWidget("leaveTrend", "แนวโน้มการลา", { xs: 12, md: 4 }),
+  hospitalLeaveSummary: {
+    id: "hospitalLeaveSummary",
+    size: { xs: 12 },
+    render: ({ executive, isLoading }) => <HospitalLeaveSummaryWidget data={executive} isLoading={isLoading} />,
+  },
+  backgroundJobs: metricWidget("backgroundJobs", "Background Jobs", "LINE queue ที่รอดำเนินการหรือล้มเหลว", SettingsSuggestOutlinedIcon, (data) => data.lineQueued + data.lineFailed, "warning.main"),
+  storageUsage: adminHealthWidget("storageUsage", "Storage", "สถานะพื้นที่จัดเก็บ", (admin) => admin.health.storage.status),
+  backupStatus: adminHealthWidget("backupStatus", "Backup", "สถานะข้อมูลสำรองล่าสุด", (admin) => admin.health.backup.status),
   securityEvents: metricWidget("securityEvents", "Security Events วันนี้", "Failed login และ permission denied", SecurityOutlinedIcon, (data) => data.failedLoginEventsToday + data.permissionDeniedEventsToday, "error.main", "/admin/audit-logs"),
 };
 
@@ -173,6 +196,123 @@ function statusWidget(id: string, title: string, note: string, selector: (data: 
       </DashboardPanel>
     ),
   };
+}
+
+function adminHealthWidget(id: string, title: string, note: string, selector: (data: AdminDashboard) => string): DashboardWidgetDefinition {
+  return {
+    id,
+    size: { xs: 12, sm: 6, lg: 4 },
+    render: ({ admin, isLoading }) => (
+      <DashboardPanel title={title} subtitle={note} icon={HealthAndSafetyOutlinedIcon} actionTo="/admin/health">
+        {isLoading ? <Skeleton width={120} height={44} /> : (
+          <Typography variant="h5" fontWeight={800} color={admin && selector(admin).toLowerCase() === "healthy" ? "success.main" : "warning.main"}>
+            {admin ? selector(admin) : "ไม่พบข้อมูล"}
+          </Typography>
+        )}
+      </DashboardPanel>
+    ),
+  };
+}
+
+function calendarWidget(id: string, title: string, size: WidgetSize = { xs: 12, md: 6, lg: 4 }): DashboardWidgetDefinition {
+  return {
+    id,
+    size,
+    render: ({ calendarItems = [], isLoading }) => (
+      <DashboardPanel title={title} subtitle="ข้อมูลตามสิทธิ์การมองเห็นจากปฏิทินการลา" icon={CalendarMonthOutlinedIcon} actionTo="/leave/calendar">
+        {isLoading ? <Skeleton variant="rounded" height={120} /> : (
+          <Stack spacing={1}>
+            <Typography variant="h4" fontWeight={900} color="primary.main">{calendarItems.length.toLocaleString("th-TH")} รายการ</Typography>
+            {calendarItems.slice(0, 3).map((item) => (
+              <Stack key={item.id} direction="row" justifyContent="space-between" spacing={1}>
+                <Typography variant="body2" noWrap>{item.fullname || "-"} · {getLeaveTypeLabel(item.leaveTypeName ?? "-")}</Typography>
+                <Typography variant="caption" color="text.secondary" whiteSpace="nowrap">{formatThaiDate(item.startDate)}</Typography>
+              </Stack>
+            ))}
+            {!calendarItems.length && <Typography color="text.secondary">ไม่มีรายการลาในเดือนนี้</Typography>}
+          </Stack>
+        )}
+      </DashboardPanel>
+    ),
+  };
+}
+
+function calendarStatsWidget(id: string, title: string, size: WidgetSize): DashboardWidgetDefinition {
+  return {
+    id,
+    size,
+    render: ({ calendarItems = [], isLoading }) => {
+      const approved = calendarItems.filter((item) => item.status === "Approved").length;
+      const pending = calendarItems.filter((item) => item.status === "Pending").length;
+      return (
+        <DashboardPanel title={title} subtitle="สรุปรายการในเดือนปัจจุบัน" icon={TrendingUpOutlinedIcon} actionTo="/leave/calendar">
+          <MetricBar label="อนุมัติแล้ว" value={approved} total={Math.max(calendarItems.length, 1)} color="success.main" isLoading={isLoading} />
+          <MetricBar label="รออนุมัติ" value={pending} total={Math.max(calendarItems.length, 1)} color="warning.main" isLoading={isLoading} />
+        </DashboardPanel>
+      );
+    },
+  };
+}
+
+function RecentNotificationsWidget({ items, isLoading }: { items: LeaveNotificationItem[]; isLoading: boolean }) {
+  return (
+    <DashboardPanel title="แจ้งเตือนล่าสุด" subtitle="ข้อมูลแจ้งเตือนของผู้ใช้ปัจจุบัน" icon={NotificationsActiveOutlinedIcon} actionTo="/notifications">
+      {isLoading ? <Skeleton variant="rounded" height={120} /> : (
+        <Stack spacing={1}>
+          {items.slice(0, 3).map((item) => (
+            <Box key={item.id} component={RouterLink} to={item.path || "/notifications"} sx={{ color: "inherit", textDecoration: "none" }}>
+              <Typography variant="body2" fontWeight={item.unread ? 800 : 600} noWrap>{item.title}</Typography>
+              <Typography variant="caption" color="text.secondary" noWrap>{item.message}</Typography>
+            </Box>
+          ))}
+          {!items.length && <Typography color="text.secondary">ไม่มีรายการแจ้งเตือน</Typography>}
+        </Stack>
+      )}
+    </DashboardPanel>
+  );
+}
+
+function executiveTrendWidget(id: string, title: string, size: WidgetSize): DashboardWidgetDefinition {
+  return {
+    id,
+    size,
+    render: ({ executive, isLoading }) => {
+      const recent = executive?.monthlyTrend.slice(-3) ?? [];
+      const max = Math.max(...recent.map((item) => item.totalDays), 1);
+      return (
+        <DashboardPanel title={title} subtitle="จำนวนวันลาจากข้อมูลที่อนุมัติแล้ว" icon={TrendingUpOutlinedIcon} actionTo="/dashboard/executive">
+          <Stack spacing={1}>
+            {recent.map((item) => <MetricBar key={item.month} label={item.month} value={item.totalDays} total={max} color="primary.main" isLoading={isLoading} />)}
+            {!recent.length && !isLoading && <Typography color="text.secondary">ยังไม่มีข้อมูลในช่วงนี้</Typography>}
+          </Stack>
+        </DashboardPanel>
+      );
+    },
+  };
+}
+
+function DepartmentComparisonWidget({ data, isLoading }: { data?: ExecutiveDashboard; isLoading: boolean }) {
+  const rows = data?.leaveByDepartment.slice(0, 5) ?? [];
+  return (
+    <DashboardPanel title="เปรียบเทียบรายหน่วยงาน" subtitle="หน่วยงานที่มีจำนวนวันลาสูงสุดในช่วงที่แสดง" icon={TrendingUpOutlinedIcon} actionTo="/dashboard/executive">
+      {isLoading ? <Skeleton variant="rounded" height={140} /> : (
+        <Stack spacing={1}>{rows.map((item) => <MetricBar key={item.departmentName} label={item.departmentName} value={item.totalDays} total={Math.max(rows[0]?.totalDays ?? 0, 1)} color="secondary.main" isLoading={false} />)}{!rows.length && <Typography color="text.secondary">ยังไม่มีข้อมูล</Typography>}</Stack>
+      )}
+    </DashboardPanel>
+  );
+}
+
+function HospitalLeaveSummaryWidget({ data, isLoading }: { data?: ExecutiveDashboard; isLoading: boolean }) {
+  return (
+    <DashboardPanel title="ภาพรวมการลาทั้งโรงพยาบาล" subtitle="ข้อมูลวันนี้จาก Executive Dashboard" icon={HealthAndSafetyOutlinedIcon} actionTo="/dashboard/executive">
+      <Grid container spacing={1.5}>
+        <Grid item xs={6} md={3}><MetricValue value={data?.kpis.onLeaveToday ?? 0} isLoading={isLoading} color="success.main" /><Typography variant="caption">ลาวันนี้</Typography></Grid>
+        <Grid item xs={6} md={3}><MetricValue value={data?.kpis.pendingApprovals ?? 0} isLoading={isLoading} color="warning.main" /><Typography variant="caption">รออนุมัติ</Typography></Grid>
+        <Grid item xs={6} md={3}><MetricValue value={data?.kpis.approvedToday ?? 0} isLoading={isLoading} color="success.main" /><Typography variant="caption">อนุมัติวันนี้</Typography></Grid>
+        <Grid item xs={6} md={3}><MetricValue value={data?.kpis.rejectedToday ?? 0} isLoading={isLoading} color="error.main" /><Typography variant="caption">ไม่อนุมัติวันนี้</Typography></Grid>
+      </Grid>
+    </DashboardPanel>
+  );
 }
 
 const coreLeaveTypes = [
@@ -493,34 +633,6 @@ function LeaveCancellationSummaryWidget({ data, isLoading }: { data?: DashboardS
       </Box>
     </DashboardPanel>
   );
-}
-
-function placeholderWidget(id: string, title: string, message: string, icon: SvgIconComponent, to?: string, size: WidgetSize = { xs: 12, md: 6, lg: 4 }): DashboardWidgetDefinition {
-  return {
-    id,
-    size,
-    render: () => (
-      <DashboardPanel title={title} subtitle={message} icon={icon} actionTo={to}>
-        <Typography color="text.secondary">ยังไม่มีข้อมูลที่ต้องแสดง</Typography>
-      </DashboardPanel>
-    ),
-  };
-}
-
-function trendWidget(id: string, title: string, size: WidgetSize = { xs: 12, lg: 6 }): DashboardWidgetDefinition {
-  return {
-    id,
-    size,
-    render: ({ data, isLoading }) => (
-      <DashboardPanel title={title} subtitle="แนวโน้มการลาในช่วงเวลาปัจจุบัน" icon={TrendingUpOutlinedIcon}>
-        <Stack spacing={1.5}>
-          <MetricBar label="วันนี้" value={data?.staffOnLeaveToday ?? 0} total={Math.max(data?.staffOnLeaveThisMonth ?? 0, 1)} color="success.main" isLoading={isLoading} />
-          <MetricBar label="สัปดาห์นี้" value={data?.staffOnLeaveThisWeek ?? 0} total={Math.max(data?.staffOnLeaveThisMonth ?? 0, 1)} color="info.main" isLoading={isLoading} />
-          <MetricBar label="เดือนนี้" value={data?.staffOnLeaveThisMonth ?? 0} total={Math.max(data?.staffOnLeaveThisMonth ?? 0, 1)} color="secondary.main" isLoading={isLoading} />
-        </Stack>
-      </DashboardPanel>
-    ),
-  };
 }
 
 function DashboardPanel({ title, subtitle, icon: Icon, actionTo, children }: { title: string; subtitle?: string; icon: SvgIconComponent; actionTo?: string; children: ReactNode }) {

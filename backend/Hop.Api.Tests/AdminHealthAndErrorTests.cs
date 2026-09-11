@@ -22,6 +22,34 @@ namespace Hop.Api.Tests;
 
 public class AdminHealthAndErrorTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Queue_BacklogIsInformationalWithWorkersEnabledOrDisabled(bool enabled)
+    {
+        await using var db = CreateDbContext($"queue-info-{Guid.NewGuid()}");
+        var configuration = CreateConfiguration(new Dictionary<string, string?>
+        {
+            ["Storage:RootPath"] = Path.GetTempPath(),
+            ["Line:Enabled"] = "false",
+            ["LineRetry:Enabled"] = enabled.ToString(),
+            ["ApprovalEscalation:Enabled"] = enabled.ToString()
+        });
+        var service = CreateService(db, configuration, "Production");
+        var before = await service.GetHealthAsync();
+        Assert.Equal("Info", before.Queue.Status);
+        Assert.Equal(enabled, before.Queue.LineRetryEnabled);
+        Assert.Equal(enabled, before.Queue.ApprovalEscalationEnabled);
+        for (var i = 0; i < 101; i++)
+            db.LineDeliveryLogs.Add(new LineDeliveryLog { EventName = "Test", Status = "Queued", Payload = "{}" });
+        await db.SaveChangesAsync();
+        var after = await service.GetHealthAsync();
+        Assert.Equal("Info", after.Queue.Status);
+        Assert.Equal(101, after.Queue.PendingLineDeliveries);
+        Assert.Contains("101", after.Queue.Message);
+        Assert.Equal(before.OverallStatus, after.OverallStatus);
+    }
+
     [Fact]
     public async Task Get_AdminRoleCanAccessHealthCenter()
     {
@@ -107,6 +135,9 @@ public class AdminHealthAndErrorTests
         var response = await service.GetHealthAsync(CancellationToken.None);
 
         Assert.Equal("Unhealthy", response.Database.Status);
+        Assert.Equal("Unhealthy", response.OverallStatus);
+        Assert.Equal("Info", response.Queue.Status);
+        Assert.Contains("ไม่สามารถตรวจสอบ", response.Queue.Message);
     }
 
     [Fact]
@@ -141,7 +172,7 @@ public class AdminHealthAndErrorTests
 
         var response = await service.GetHealthAsync(CancellationToken.None);
 
-        Assert.Equal("Warning", response.Queue.Status);
+        Assert.Equal("Info", response.Queue.Status);
         Assert.True(response.Queue.LineRetryEnabled);
         Assert.Equal(1, response.Queue.PendingLineDeliveries);
         Assert.Equal(1, response.Queue.FailedLineDeliveries);

@@ -27,7 +27,11 @@ export function LeaveBalanceAdjustmentPage() {
     onSuccess: async () => {
       showSuccess("ปรับปรุงวันลาคงเหลือเรียบร้อยแล้ว");
       reset({ year: new Date().getFullYear(), adjustmentDays: 0, reason: "" });
-      await queryClient.invalidateQueries({ queryKey: ["leave-balance-adjustments"] });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["leave-balance-adjustments"] }),
+        queryClient.invalidateQueries({ queryKey: ["leave-balances"] }),
+        queryClient.invalidateQueries({ queryKey: ["dashboard-summary"] }),
+      ]);
     },
   });
 

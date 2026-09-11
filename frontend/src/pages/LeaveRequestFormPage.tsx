@@ -1,7 +1,7 @@
 import { Alert, Box, Button, Card, CardContent, Chip, FormControl, FormControlLabel, FormHelperText, FormLabel, MenuItem, Radio, RadioGroup, Stack, TextField, Typography } from "@mui/material";
 import SaveOutlinedIcon from "@mui/icons-material/SaveOutlined";
 import SendOutlinedIcon from "@mui/icons-material/SendOutlined";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { isAxiosError } from "axios";
 import dayjs from "dayjs";
 import { useEffect } from "react";
@@ -18,6 +18,7 @@ import { getLeaveTypeLabel } from "../utils/leaveLabels";
 
 export function LeaveRequestFormPage() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { id } = useParams();
   const isEditMode = Boolean(id);
   const { showSuccess } = useNotification();
@@ -93,7 +94,7 @@ export function LeaveRequestFormPage() {
       const saved = isEditMode ? await updateLeaveRequest(id!, payload) : await createLeaveRequest(payload);
       return submit ? submitLeaveRequest(saved.id) : saved;
     },
-    onSuccess: (data, variables) => {
+    onSuccess: async (data, variables) => {
       showSuccess(
         variables.submit
           ? "ส่งคำขอลาเข้าสู่กระบวนการอนุมัติเรียบร้อยแล้ว"
@@ -101,6 +102,12 @@ export function LeaveRequestFormPage() {
             ? "บันทึกการแก้ไขคำขอลาเรียบร้อยแล้ว"
             : "บันทึกแบบร่างคำขอลาเรียบร้อยแล้ว",
       );
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["dashboard-summary"] }),
+        queryClient.invalidateQueries({ queryKey: ["leave-calendar"] }),
+        queryClient.invalidateQueries({ queryKey: ["leave-balances"] }),
+        queryClient.invalidateQueries({ queryKey: ["approvals", "my-pending"] }),
+      ]);
       navigate(`/leave/${data.id}`);
     },
   });

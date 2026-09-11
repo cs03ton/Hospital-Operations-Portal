@@ -5,6 +5,7 @@ using Hop.Api.DTOs;
 using Hop.Api.Interfaces;
 using Hop.Api.Models;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 
 namespace Hop.Api.Services;
 
@@ -386,24 +387,25 @@ public sealed class BackupCenterService(
         return new BackupVerificationResponse(backup.Id, backup.Status, verification.Message, checksum, backup.VerifiedAt.Value);
     }
 
-    private async Task SyncFileSystemBackupsAsync(CancellationToken cancellationToken)
+    internal async Task SyncFileSystemBackupsAsync(CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         var backupRoot = ResolveBackupRoot();
         var postgresDir = Path.Combine(backupRoot, "postgres");
         var storageDir = Path.Combine(backupRoot, "storage");
         var files = EnumerateBackupFiles(postgresDir, BackupTypes.Database)
             .Concat(EnumerateBackupFiles(storageDir, BackupTypes.Storage))
+            .Select(file => (Path: Path.GetFullPath(file.Path), file.Type))
+            .DistinctBy(file => file.Path, StringComparer.Ordinal)
+            .OrderBy(file => file.Path, StringComparer.Ordinal)
             .ToList();
 
+        var discovered = new List<BackupRun>();
         foreach (var file in files)
         {
-            if (await db.BackupRuns.AnyAsync(item => item.FilePath == file.Path, cancellationToken))
-            {
-                continue;
-            }
-
+            cancellationToken.ThrowIfCancellationRequested();
             var info = new FileInfo(file.Path);
-            db.BackupRuns.Add(new BackupRun
+            discovered.Add(new BackupRun
             {
                 Id = Guid.NewGuid(),
                 BackupType = file.Type,
@@ -418,7 +420,53 @@ public sealed class BackupCenterService(
             });
         }
 
-        await db.SaveChangesAsync(cancellationToken);
+        if (discovered.Count == 0)
+        {
+            return;
+        }
+
+        // Retry only this idempotent database sync, never filesystem operations or audits.
+        const int maxAttempts = 3;
+        for (var attempt = 1; ; attempt++)
+        {
+            try
+            {
+                await InsertDiscoveredBackupsAsync(discovered, cancellationToken);
+                logger.LogDebug("Backup sync completed. FileCount={FileCount} Attempt={Attempt}", discovered.Count, attempt);
+                return;
+            }
+            catch (PostgresException ex) when (ex.SqlState == PostgresErrorCodes.DeadlockDetected)
+            {
+                if (attempt >= maxAttempts)
+                {
+                    logger.LogError("Backup sync deadlock retry limit reached. Attempt={Attempt} SqlState={SqlState}", attempt, ex.SqlState);
+                    throw;
+                }
+
+                logger.LogWarning("Backup sync deadlock; retrying. Attempt={Attempt} SqlState={SqlState}", attempt, ex.SqlState);
+                await Task.Delay(TimeSpan.FromMilliseconds(100 * attempt + Random.Shared.Next(50)), cancellationToken);
+            }
+        }
+    }
+
+    private async Task InsertDiscoveredBackupsAsync(IReadOnlyList<BackupRun> backups, CancellationToken cancellationToken)
+    {
+        // Disposing a failed transaction rolls it back before the next attempt starts.
+        await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+        foreach (var backup in backups)
+        {
+            await db.Database.ExecuteSqlInterpolatedAsync($"""
+                INSERT INTO backup_runs
+                    (id, backup_type, status, file_name, file_path, file_size_bytes,
+                     started_at, completed_at, duration_ms, created_at)
+                VALUES
+                    ({backup.Id}, {backup.BackupType}, {backup.Status}, {backup.FileName},
+                     {backup.FilePath}, {backup.FileSizeBytes}, {backup.StartedAt},
+                     {backup.CompletedAt}, {backup.DurationMs}, {backup.CreatedAt})
+                ON CONFLICT (file_path) DO NOTHING
+                """, cancellationToken);
+        }
+        await transaction.CommitAsync(cancellationToken);
     }
 
     private IEnumerable<(string Path, string Type)> EnumerateBackupFiles(string directory, string type)

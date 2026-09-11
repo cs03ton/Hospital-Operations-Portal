@@ -133,6 +133,19 @@ export type DashboardSummary = {
   departmentRequests: DashboardLeaveRequestGroup;
   myRecentLeaveRequests: DashboardLeaveRequestGroup;
   leaveCancellationSummary?: DashboardLeaveCancellationSummary | null;
+  generatedAtUtc?: string | null;
+  leaveTracking?: {
+    scope: "all" | "mine";
+    total: number;
+    draft: number;
+    pending: number;
+    returnedForRevision: number;
+    approved: number;
+    rejected: number;
+    cancelled: number;
+    cancellationPending: number;
+    recentRequests: DashboardLeaveRequestGroup;
+  } | null;
 };
 
 export type DashboardLeaveBalance = {
@@ -162,6 +175,7 @@ export type DashboardLeaveRequestItem = {
   createdAt: string;
   sourceType?: string | null;
   detailPath?: string | null;
+  lastActivityAt?: string | null;
 };
 
 export type DashboardLeaveCancellationSummary = {

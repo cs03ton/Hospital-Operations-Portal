@@ -9,6 +9,7 @@
 .env.*
 !.env.example
 !.env.production.example
+!.env.exam.production
 !**/.env.example
 !frontend/.env.development
 appsettings.Production.json

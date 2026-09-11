@@ -14,7 +14,6 @@ export function FleetPermissionGuard({ children, permissions, denyMode = "redire
     queryKey: FLEET_DASHBOARD_QUERY_KEY,
     queryFn: getFleetDashboard,
     enabled: !directlyAllowed,
-    staleTime: 0,
     ...dashboardPollingOptions,
     retry: false,
   });

@@ -2,6 +2,7 @@ using Hop.Api.Authorization;
 using Hop.Api.Configuration;
 using Hop.Api.Data;
 using Hop.Api.DTOs;
+using Hop.Api.Interfaces;
 using Hop.Api.Models;
 using Hop.Api.Services;
 using Microsoft.AspNetCore.Authorization;
@@ -18,7 +19,8 @@ public class DashboardController(
     AppDbContext db,
     IConfiguration? configuration = null,
     IWebHostEnvironment? environment = null,
-    LineConfigurationResolver? lineConfiguration = null) : ControllerBase
+    LineConfigurationResolver? lineConfiguration = null,
+    ILeaveBalanceReconciliationService? reconciliationService = null) : ControllerBase
 {
     private static readonly string[] CoreLeaveTypeCodes = ["VACATION_LEAVE", "PERSONAL_LEAVE", "SICK_LEAVE"];
     private static readonly string[] ActiveFleetRequestStatuses =
@@ -40,9 +42,11 @@ public class DashboardController(
     private readonly LineConfigurationResolver lineConfiguration = lineConfiguration ?? new LineConfigurationResolver(
         Options.Create(new LineOptions()),
         configuration ?? new ConfigurationBuilder().Build());
+    private readonly ILeaveBalanceReconciliationService reconciliationService = reconciliationService ?? new LeaveBalanceReconciliationService(db);
 
     [HttpGet("summary")]
     [RequirePermission("Dashboard.View")]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
     public async Task<ActionResult<ApiResponse<DashboardSummaryResponse>>> GetSummary()
     {
         var userId = GetCurrentUserId();
@@ -113,7 +117,7 @@ public class DashboardController(
 
         var myLeaveQuery = userId is null
             ? db.LeaveRequests.Where(item => false)
-            : db.LeaveRequests.Where(item => item.UserId == userId);
+            : db.LeaveRequests.AsNoTracking().Where(item => item.UserId == userId);
         var myLeaveRequestsTotal = await myLeaveQuery.CountAsync();
         var myLeaveRequestsDraft = await myLeaveQuery.CountAsync(item => item.Status == "Draft");
         var myLeaveRequestsPending = await myLeaveQuery.CountAsync(item => item.Status == "Pending");
@@ -134,11 +138,33 @@ public class DashboardController(
             : await BuildMixedLeaveRequestGroup(
                 LoadDashboardLeaveRequests()
                     .Where(item => item.UserId == userId)
-                    .OrderByDescending(item => item.CreatedAt),
-                LoadDashboardCancellationRequests().Where(item => false));
+                    .OrderByDescending(item => item.CreatedAt).ThenByDescending(item => item.Id),
+                LoadDashboardCancellationRequests().Where(item => false),
+                orderByCreatedAt: true);
         var departmentRequests = userId is null
             ? EmptyLeaveRequestGroup()
             : await LoadDepartmentLeaveRequests(userId.Value, canViewTeamDashboard);
+        var trackAll = isAdmin && (permissionCodes.Contains(LeavePermissions.ViewAll)
+            || permissionCodes.Contains(LeavePermissions.SupportViewAll));
+        var trackingQuery = trackAll ? LoadDashboardLeaveRequests() : myLeaveQuery;
+        var trackingCounts = await trackingQuery.GroupBy(item => item.Status)
+            .Select(group => new { Status = group.Key, Count = group.Count() })
+            .ToDictionaryAsync(item => item.Status, item => item.Count);
+        var trackingRecent = trackAll
+            ? await BuildMixedLeaveRequestGroup(
+                trackingQuery.OrderByDescending(item => item.CreatedAt).ThenByDescending(item => item.Id),
+                LoadDashboardCancellationRequests().Where(item => false), orderByCreatedAt: true)
+            : myRecentLeaveRequests;
+        var trackingCancellationPending = trackAll
+            ? await db.LeaveCancellationRequests.AsNoTracking().CountAsync(item => item.Status == LeaveCancellationStatuses.Pending)
+            : myLeaveCancellationRequestsPending;
+        var leaveTracking = new DashboardLeaveTrackingResponse(
+            trackAll ? "all" : "mine", trackingCounts.Values.Sum(),
+            trackingCounts.GetValueOrDefault("Draft"), trackingCounts.GetValueOrDefault("Pending"),
+            trackingCounts.GetValueOrDefault("ReturnedForRevision"), trackingCounts.GetValueOrDefault("Approved"),
+            trackingCounts.GetValueOrDefault("Rejected"),
+            trackingCounts.GetValueOrDefault("Cancelled") + trackingCounts.GetValueOrDefault("CancelledAfterApproval"),
+            trackingCancellationPending, trackingRecent);
         var leaveCancellationSummary = userId is null
             ? EmptyLeaveCancellationSummary()
             : await BuildLeaveCancellationSummaryAsync(
@@ -216,7 +242,9 @@ public class DashboardController(
             myPendingRequests,
             departmentRequests,
             myRecentLeaveRequests,
-            leaveCancellationSummary
+            leaveCancellationSummary,
+            DateTime.UtcNow,
+            leaveTracking
         ));
     }
 
@@ -383,7 +411,7 @@ public class DashboardController(
             .Where(item => item.UserId == userId && leaveTypeIds.Contains(item.LeaveTypeId))
             .ToListAsync();
 
-        return leaveTypes
+        var balanceInputs = leaveTypes
             .OrderBy(item => Array.IndexOf(CoreLeaveTypeCodes, item.Code))
             .Select(leaveType =>
             {
@@ -396,28 +424,34 @@ public class DashboardController(
                 var entitled = balance?.EntitledDays ?? leaveType.DefaultDaysPerYear;
                 var carriedOver = balance?.CarriedOverDays ?? 0;
                 var adjusted = balance?.AdjustedDays ?? 0;
-                var used = balance?.UsedDays ?? 0;
-                var pending = balance?.PendingDays ?? 0;
-
-                return new DashboardLeaveBalanceResponse(
-                    leaveType.Code,
-                    leaveType.Name,
-                    entitled + carriedOver + adjusted,
-                    used,
-                    pending,
-                    FiscalYearHelper.CalculateAvailableDays(entitled, carriedOver, used, pending, adjusted));
+                return (leaveType, entitled, carriedOver, adjusted, targetYear);
             })
             .ToList();
+
+        var result = new List<DashboardLeaveBalanceResponse>(balanceInputs.Count);
+        foreach (var input in balanceInputs)
+        {
+            var usage = await reconciliationService.GetUsageAsync(userId, input.leaveType.Id, input.targetYear, HttpContext.RequestAborted);
+            result.Add(new DashboardLeaveBalanceResponse(
+                input.leaveType.Code,
+                input.leaveType.Name,
+                input.entitled + input.carriedOver + input.adjusted,
+                usage.UsedDays,
+                usage.PendingDays,
+                FiscalYearHelper.CalculateAvailableDays(input.entitled, input.carriedOver, usage.UsedDays, usage.PendingDays, input.adjusted)));
+        }
+
+        return result;
     }
 
     private async Task<DashboardLeaveRequestGroupResponse> LoadMyPendingLeaveRequests(Guid userId)
     {
         var leaveQuery = LoadDashboardLeaveRequests()
             .Where(item => item.UserId == userId && item.Status == "Pending")
-            .OrderByDescending(item => item.CreatedAt);
+            .OrderByDescending(item => item.UpdatedAt ?? item.CreatedAt);
         var cancellationQuery = LoadDashboardCancellationRequests()
             .Where(item => item.RequesterUserId == userId && item.Status == LeaveCancellationStatuses.Pending)
-            .OrderByDescending(item => item.CreatedAt);
+            .OrderByDescending(item => item.UpdatedAt ?? item.CreatedAt);
 
         return await BuildMixedLeaveRequestGroup(leaveQuery, cancellationQuery);
     }
@@ -455,21 +489,22 @@ public class DashboardController(
                 item.User != null &&
                 item.User.DepartmentId == departmentId &&
                 departmentStatuses.Contains(item.Status))
-            .OrderByDescending(item => item.CreatedAt);
+            .OrderByDescending(item => item.UpdatedAt ?? item.CreatedAt);
         var cancellationQuery = LoadDashboardCancellationRequests()
             .Where(item =>
                 item.RequesterUserId != userId &&
                 item.RequesterUser != null &&
                 item.RequesterUser.DepartmentId == departmentId &&
                 cancellationStatuses.Contains(item.Status))
-            .OrderByDescending(item => item.CreatedAt);
+            .OrderByDescending(item => item.UpdatedAt ?? item.CreatedAt);
 
         return await BuildMixedLeaveRequestGroup(leaveQuery, cancellationQuery);
     }
 
     private async Task<DashboardLeaveRequestGroupResponse> BuildMixedLeaveRequestGroup(
         IQueryable<LeaveRequest> leaveQuery,
-        IQueryable<LeaveCancellationRequest> cancellationQuery)
+        IQueryable<LeaveCancellationRequest> cancellationQuery,
+        bool orderByCreatedAt = false)
     {
         var leaveCount = await leaveQuery.CountAsync();
         var cancellationCount = await cancellationQuery.CountAsync();
@@ -487,7 +522,8 @@ public class DashboardController(
                 item.CurrentApprover != null ? item.CurrentApprover.FullName : null,
                 item.CreatedAt,
                 "LeaveRequest",
-                $"/leave/{item.Id}"))
+                $"/leave/{item.Id}",
+                item.UpdatedAt ?? item.CreatedAt))
             .ToListAsync();
         var cancellationRows = await cancellationQuery
             .Take(5)
@@ -502,7 +538,8 @@ public class DashboardController(
                 item.OriginalLeaveDays,
                 item.Status,
                 CurrentApproverName = item.CurrentApprover != null ? item.CurrentApprover.FullName : null,
-                item.CreatedAt
+                item.CreatedAt,
+                LastActivityAt = item.UpdatedAt ?? item.CreatedAt
             })
             .ToListAsync();
         var cancellationItems = cancellationRows
@@ -522,13 +559,15 @@ public class DashboardController(
                     item.CurrentApproverName,
                     item.CreatedAt,
                     "LeaveCancellationRequest",
-                    $"/leave/cancellations/{item.Id}");
+                    $"/leave/cancellations/{item.Id}",
+                    item.LastActivityAt);
             })
             .ToList();
 
         var items = leaveItems
             .Concat(cancellationItems)
-            .OrderByDescending(item => item.CreatedAt)
+            .OrderByDescending(item => orderByCreatedAt ? item.CreatedAt : item.LastActivityAt ?? item.CreatedAt)
+            .ThenByDescending(item => item.Id)
             .Take(5)
             .ToList();
 
@@ -656,7 +695,7 @@ public class DashboardController(
             .ToList();
         var recentRequests = await BuildMixedLeaveRequestGroup(
             LoadDashboardLeaveRequests().Where(item => false),
-            query.OrderByDescending(item => item.CreatedAt));
+            query.OrderByDescending(item => item.UpdatedAt ?? item.CreatedAt));
 
         return new DashboardLeaveCancellationSummaryResponse(
             rows.Count,
