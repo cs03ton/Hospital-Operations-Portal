@@ -19,7 +19,10 @@ export type PageBreadcrumb = {
 const pageTitleEntries: PageTitleEntry[] = [
   { path: "/dashboard/leave", title: "แดชบอร์ดระบบลา", subtitle: "ภาพรวมคำขอลา งานอนุมัติ และปฏิทินการลา", exact: true, breadcrumbs: [{ label: "Dashboard", path: "/dashboard" }, { label: "ระบบลา" }] },
   { path: "/dashboard/vehicle", title: "แดชบอร์ดระบบจองรถ/ยืมรถ", subtitle: "กำลังนำไปยัง Fleet Dashboard", exact: true, breadcrumbs: [{ label: "Dashboard", path: "/dashboard" }, { label: "ระบบจองรถ/ยืมรถ" }] },
-  { path: "/dashboard/repair", title: "แดชบอร์ดระบบแจ้งซ่อม", subtitle: "ระบบอยู่ระหว่างเตรียมเปิดใช้งาน", exact: true, breadcrumbs: [{ label: "Dashboard", path: "/dashboard" }, { label: "ระบบแจ้งซ่อม" }] },
+  { path: "/dashboard/repair", title: "Dashboard แจ้งซ่อม", subtitle: "ภาพรวมสถานะงาน IT และช่างทั่วไป", exact: true, breadcrumbs: [{ label: "Dashboard", path: "/dashboard" }, { label: "Dashboard แจ้งซ่อม" }] },
+  { path: "/repairs/new", title: "แจ้งซ่อม", subtitle: "ส่งงานเข้าคิวทีมที่รับผิดชอบ", exact: true, breadcrumbs: [{ label: "งานแจ้งซ่อม", path: "/repairs" }, { label: "แจ้งซ่อมใหม่" }] },
+  { path: "/repairs/settings", title: "ตั้งค่าระบบแจ้งซ่อม", subtitle: "หมวดงานและปลายทางแจ้งเตือน", exact: true, breadcrumbs: [{ label: "งานแจ้งซ่อม", path: "/repairs" }, { label: "ตั้งค่า" }] },
+  { path: "/repairs", title: "งานแจ้งซ่อม", subtitle: "IT และช่างทั่วไป", breadcrumbs: [{ label: "งานแจ้งซ่อม", path: "/repairs" }] },
   { path: "/dashboard/inventory", title: "แดชบอร์ด Inventory", subtitle: "ระบบอยู่ระหว่างเตรียมเปิดใช้งาน", exact: true, breadcrumbs: [{ label: "Dashboard", path: "/dashboard" }, { label: "Inventory" }] },
   { path: "/dashboard/executive", title: "Executive Dashboard", subtitle: "ภาพรวมเชิงบริหารและ KPI สำคัญ", exact: true, breadcrumbs: [{ label: "Dashboard", path: "/dashboard" }, { label: "Executive Dashboard" }] },
   { path: "/dashboard", title: "Dashboard Hub", subtitle: "ศูนย์กลางแดชบอร์ดของระบบงานโรงพยาบาล", exact: true, breadcrumbs: [{ label: "Dashboard" }] },

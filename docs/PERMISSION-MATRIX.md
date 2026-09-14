@@ -1,6 +1,19 @@
 # Permission Matrix
 
-Phase 1 Production Deploy exposes only User Management and Leave Management capabilities.
+The Phase 1 matrix below is retained for the leave/user modules. Fleet permissions are documented separately; Repair v1 adds the following explicit permissions.
+
+## Repair v1
+
+| Permission | Scope |
+| --- | --- |
+| RepairManagement.ViewOwn / Create | Requester's own work; standard roles and both technician roles |
+| RepairManagement.WorkIT | All IT queue work; role ช่าง IT |
+| RepairManagement.WorkGeneral | All general maintenance queue work; role ช่างทั่วไป |
+| RepairManagement.ViewAll / Manage | Admin and SuperAdmin: visibility, settings and administrative cancellation |
+
+Department membership does not grant technician access. A user can hold both technician roles.
+Admin is not automatically a solver; add the relevant technician role only when authorized.
+See [workflow and deployment](repair-management.md) and [user guide](user-guide/repairs.md).
 
 ## Phase 1 Permission Groups
 

@@ -15,6 +15,7 @@ import { useQuery } from "@tanstack/react-query";
 import { FLEET_DASHBOARD_QUERY_KEY, getFleetDashboard, getFleetRolloutAccess } from "../../api/fleetApi";
 import { dashboardPollingOptions } from "../../config/queryPolling";
 import { getMyPendingApprovalCount } from "../../api/leaveApi";
+import { repairSummary, repairWorkPermissions } from "../../api/repairApi";
 
 type AppSidebarProps = {
   drawerWidth: number;
@@ -59,6 +60,8 @@ export function AppSidebar({
     retry: false,
   });
   const fleetPermissions = effectiveFleetPermissions(permissions, fleetDashboard.data?.capabilities);
+  const repairs = useQuery({ queryKey: ["repairs", "summary"], queryFn: repairSummary,
+    enabled: hasAnyPermission(repairWorkPermissions), ...dashboardPollingOptions, retry: false });
   const visibleModules = navigationModules
     .filter((module) => module.enabled && (module.moduleId !== "VehicleBooking" || fleetRollout.data?.isAllowed === true))
     .map((module) => ({
@@ -80,6 +83,8 @@ export function AppSidebar({
 
         return roleAllowed || !item.permission || hasPermission(item.permission);
       }).map(item => {
+        if (module.moduleId === "RepairManagement" && item.path === "/repairs")
+          return { ...item, badgeCount: repairs.data?.teamPending ?? 0 };
         if (module.moduleId === "VehicleBooking") {
           return { ...item, badgeCount: fleetNavigationBadgeCount(item.path, fleetDashboard.data?.badges) };
         }

@@ -1,5 +1,7 @@
 # API Reference
 
+For repair workflow, team scope, protected images and settings under `/api/repairs`, see [Repair Management API](repair-management.md#api).
+
 ## Leave Policy Preview
 
 ใช้สำหรับให้ frontend ตรวจ policy ก่อนสร้างหรือแก้ไขคำขอลา โดย backend ยัง validate ซ้ำเสมอเมื่อ create/update/submit

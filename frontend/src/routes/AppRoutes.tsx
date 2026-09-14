@@ -29,6 +29,10 @@ import { LeaveHolidayManagementPage } from "../pages/LeaveHolidayManagementPage"
 import { LeaveCalendarPage } from "../pages/LeaveCalendarPage";
 import { LeaveRequestDetailPage } from "../pages/LeaveRequestDetailPage";
 import { FleetRequestsPage } from "../pages/FleetRequestsPage";
+import { RepairListPage, RepairCreatePage, RepairDetailPage } from "../pages/RepairPages";
+import { RepairDashboardPage } from "../pages/RepairDashboardPage";
+import { RepairSettingsPage } from "../pages/RepairSettingsPage";
+import { repairViewPermissions } from "../api/repairApi";
 import { FleetRequestFormPage } from "../pages/FleetRequestFormPage";
 import { FleetRequestDetailPage } from "../pages/FleetRequestDetailPage";
 import { FleetDispatcherQueuePage } from "../pages/FleetDispatcherQueuePage";
@@ -187,7 +191,7 @@ export function AppRoutes() {
           <Route path="/dashboard" element={withPermission(<DashboardHubPage />, "Dashboard.View")} />
           <Route path="/dashboard/leave" element={<DashboardModuleGuard moduleKey="leave"><DashboardPage /></DashboardModuleGuard>} />
           <Route path="/dashboard/vehicle" element={<Navigate to="/fleet/dashboard" replace />} />
-          <Route path="/dashboard/repair" element={<DashboardModuleGuard moduleKey="repair" />} />
+          <Route path="/dashboard/repair" element={<DashboardModuleGuard moduleKey="repair"><RepairDashboardPage /></DashboardModuleGuard>} />
           <Route path="/dashboard/inventory" element={<DashboardModuleGuard moduleKey="inventory" />} />
           <Route path="/dashboard/executive" element={<DashboardModuleGuard moduleKey="executive"><ExecutiveDashboardPage /></DashboardModuleGuard>} />
           <Route path="/notifications" element={withPermission(<NotificationCenterPage />, "Dashboard.View")} />
@@ -264,6 +268,10 @@ export function AppRoutes() {
           <Route path="/fleet/approvals" element={withFleetRollout(withFleetPermission(<FleetApprovalsLandingPage />, [...fleetPermissionGroups.reviewer, ...fleetPermissionGroups.director]))} />
           <Route path="/fleet/reports" element={withFleetRollout(withAnyPermission(<FleetReportsLandingPage />, [...fleetPermissionGroups.reports]))} />
           <Route path="/fleet/settings" element={withFleetRollout(withAnyPermission(<FleetSettingsLandingPage />, [...fleetPermissionGroups.settings]))} />
+          <Route path="/repairs" element={<PermissionGuard permissions={repairViewPermissions} redirectTo="/dashboard"><RepairListPage /></PermissionGuard>} />
+          <Route path="/repairs/new" element={withPermission(<RepairCreatePage />, "RepairManagement.Create")} />
+          <Route path="/repairs/settings" element={withPermission(<RepairSettingsPage />, "RepairManagement.Manage")} />
+          <Route path="/repairs/:id" element={<PermissionGuard permissions={repairViewPermissions} redirectTo="/dashboard"><RepairDetailPage /></PermissionGuard>} />
           <Route path="/fleet/maintenance" element={withFleetRollout(withPermission(<FleetMaintenancePage />, "FleetMaintenance.View"))} />
           <Route path="/fleet/maintenance/create" element={withFleetRollout(withPermission(<FleetMaintenanceFormPage />, "FleetMaintenance.Manage"))} />
           <Route path="/fleet/maintenance/:id" element={withFleetRollout(withPermission(<FleetMaintenanceDetailPage />, "FleetMaintenance.View"))} />

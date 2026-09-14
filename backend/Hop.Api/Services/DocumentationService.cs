@@ -22,6 +22,7 @@ public sealed class DocumentationService(
 
     private static readonly IReadOnlyList<DocumentationDefinition> Definitions =
     [
+        new("repair-guide", "repairs.md", "คู่มือแจ้งซ่อม IT และช่างทั่วไป", "แจ้งซ่อม คิวทีม ตรวจรับ เปิดงานซ้ำ และตั้งค่าหมอพร้อม", "Repair Guide", ["Staff", "DepartmentHead", "Director", "Admin", "SuperAdmin", "LeaveAdmin", "FleetAdminReviewer", "พนักงานขับรถ", "ช่าง IT", "ช่างทั่วไป"]),
         new("staff-guide", "staff.md", "คู่มือผู้ใช้งานทั่วไป", "วิธีเข้าสู่ระบบ ขอลา ติดตามสถานะ และเชื่อมต่อ LINE", "User Guide", ["Staff", "DepartmentHead", "Director", "Admin", "SuperAdmin"]),
         new("head-guide", "head.md", "คู่มือหัวหน้าหน่วยงาน", "วิธีดูงานรออนุมัติ ตรวจคำขอ และอนุมัติ/ไม่อนุมัติ", "Approval Guide", ["DepartmentHead", "Admin", "SuperAdmin"]),
         new("director-guide", "director.md", "คู่มือผู้อำนวยการ/ผู้อนุมัติ", "งานอนุมัติขั้นสุดท้าย Executive Dashboard และ Leave Analytics", "Executive Guide", ["Director", "Admin", "SuperAdmin"]),

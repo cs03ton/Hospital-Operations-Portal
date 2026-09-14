@@ -9,10 +9,15 @@ EF Core migrations and `AppDbContext` are the source of truth.
 Current latest migration:
 
 ```text
-20260618075042_LeaveOperationsReliability
+20260911074410_AddRepairManagement
 ```
 
 ## Production Database Initialization
+
+Repair v1 deployment uses the EF-generated idempotent script `deploy/sql/06-prd-repair-schema.sql`
+followed by `deploy/sql/07-prd-repair-master-data.sql`. It requires the existing migrations through
+`20260909090000_CorrectFleetRolePermissions`. See [Repair deployment](repair-management.md#deployment).
+These scripts do not assign technician roles to people or insert test repair requests.
 
 Production flow:
 

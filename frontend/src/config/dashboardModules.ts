@@ -54,13 +54,13 @@ export const dashboardModules: DashboardModuleDefinition[] = [
   {
     key: "repair",
     title: "ระบบแจ้งซ่อม",
-    description: "เตรียมรองรับงานแจ้งซ่อม การมอบหมายผู้รับผิดชอบ และ SLA",
+    description: "แจ้งซ่อม IT และงานทั่วไป ติดตามคิวทีมและผลการแก้ไข",
     route: "/dashboard/repair",
     icon: BuildOutlinedIcon,
-    status: "coming_soon",
-    allowedRoles: ["SuperAdmin"],
-    metricLabel: "งานเปิดอยู่",
-    metricSelector: (summary) => summary?.openRepairRequests ?? 0,
+    status: "active",
+    requiredPermissions: ["RepairManagement.ViewOwn", "RepairManagement.WorkIT", "RepairManagement.WorkGeneral", "RepairManagement.ViewAll"],
+    metricLabel: "บริการ",
+    metricSelector: () => "IT / ช่างทั่วไป",
     order: 30,
   },
   {

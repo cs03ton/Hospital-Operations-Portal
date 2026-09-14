@@ -104,6 +104,18 @@ export const navigationModules: NavigationModule[] = [
     children: fleetNavigationItems,
   },
   {
+    moduleId: "RepairManagement",
+    moduleLabel: "แจ้งซ่อม",
+    moduleIcon: BuildOutlinedIcon,
+    enabled: true,
+    children: [
+      { label: "Dashboard แจ้งซ่อม", path: "/dashboard/repair", icon: DashboardOutlinedIcon, permissions: ["RepairManagement.ViewOwn", "RepairManagement.WorkIT", "RepairManagement.WorkGeneral", "RepairManagement.ViewAll"] },
+      { label: "รายการแจ้งซ่อม", path: "/repairs", icon: BuildOutlinedIcon, permissions: ["RepairManagement.ViewOwn", "RepairManagement.WorkIT", "RepairManagement.WorkGeneral", "RepairManagement.ViewAll"], activePatterns: ["/repairs", "/repairs/:id"] },
+      { label: "แจ้งซ่อมใหม่", path: "/repairs/new", icon: BuildOutlinedIcon, permission: "RepairManagement.Create" },
+      { label: "ตั้งค่าแจ้งซ่อม", path: "/repairs/settings", icon: SettingsSuggestOutlinedIcon, permission: "RepairManagement.Manage" },
+    ],
+  },
+  {
     moduleId: "UserManagement",
     moduleLabel: "จัดการระบบผู้ใช้",
     moduleIcon: GroupOutlinedIcon,
@@ -157,13 +169,6 @@ export const navigationModules: NavigationModule[] = [
     moduleId: "MeetingRoomBooking",
     moduleLabel: "จองห้องประชุม",
     moduleIcon: MeetingRoomOutlinedIcon,
-    enabled: false,
-    children: [],
-  },
-  {
-    moduleId: "RepairManagement",
-    moduleLabel: "แจ้งซ่อม",
-    moduleIcon: BuildOutlinedIcon,
     enabled: false,
     children: [],
   },

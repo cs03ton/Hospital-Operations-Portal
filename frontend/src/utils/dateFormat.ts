@@ -7,6 +7,14 @@ const uiDateFormat = "DD/MM/YYYY";
 const uiDateTimeFormat = "DD/MM/YYYY HH:mm";
 const apiDateFormat = "YYYY-MM-DD";
 
+export function formatThaiBuddhistDateTime(value?: string | Date | null) {
+  if (!value || !dayjs(value).isValid()) return "-";
+  return new Intl.DateTimeFormat("th-TH", {
+    calendar: "buddhist", day: "2-digit", month: "2-digit", year: "numeric",
+    hour: "2-digit", minute: "2-digit", hourCycle: "h23",
+  }).format(new Date(value));
+}
+
 export function formatThaiDate(value?: string | Date | null) {
   if (!value) {
     return "-";

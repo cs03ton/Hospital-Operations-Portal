@@ -63,7 +63,6 @@ public static class DevelopmentDataSeeder
 
     private static readonly string[] DisabledPhase1PermissionGroups =
     [
-        "RepairManagement",
         "BorrowManagement",
         "InventoryManagement"
     ];
@@ -751,6 +750,7 @@ public static class DevelopmentDataSeeder
             await EnsureLeaveTypesAndPolicyRules(db);
             await EnsureAnnouncementCategories(db);
             await db.SaveChangesAsync();
+            if (db.Database.IsNpgsql()) await db.Database.ExecuteSqlRawAsync(RepairSeed.Sql);
         }
         catch (Exception ex)
         {
@@ -967,6 +967,8 @@ public static class DevelopmentDataSeeder
         ILogger logger)
     {
         var usersByUsername = new Dictionary<string, User>(StringComparer.OrdinalIgnoreCase);
+        var technicianRoleIds = await db.Roles.Where(x => x.Name == "ช่าง IT" || x.Name == "ช่างทั่วไป")
+            .Select(x => x.Id).ToListAsync();
 
         foreach (var userSeed in StandardItUsers)
         {
@@ -997,7 +999,7 @@ public static class DevelopmentDataSeeder
 
             var role = rolesByName[userSeed.RoleName];
             var existingRoles = user.UserRoles.ToList();
-            foreach (var existingRole in existingRoles.Where(item => item.RoleId != role.Id))
+            foreach (var existingRole in existingRoles.Where(item => item.RoleId != role.Id && !technicianRoleIds.Contains(item.RoleId)))
             {
                 db.UserRoles.Remove(existingRole);
             }
