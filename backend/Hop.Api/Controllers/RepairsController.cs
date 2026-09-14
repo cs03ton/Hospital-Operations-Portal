@@ -165,7 +165,8 @@ public sealed class RepairsController(AppDbContext db) : ControllerBase
             round.ClosedAt = now;
             if (operation == "accept") { round.AcceptedById = Actor; round.AcceptanceNote = input.Note; }
         }
-        if (operation is "resubmit" or "reopen") Dispatch(r, e);
+        if (operation is "start" or "resume" or "reject-solution" or "solve" or "accept" or "resubmit" or "reopen")
+            Dispatch(r, e);
         if (operation is "return" or "solve" or "cancel")
             db.Notifications.Add(new Notification { Id = Guid.NewGuid(), UserId = r.RequesterId, Category = "Repair",
                 Title = "อัปเดตงานแจ้งซ่อม", Message = $"งาน REP-{r.Number:D6} มีสถานะใหม่ กรุณาตรวจสอบรายละเอียด",

@@ -131,7 +131,18 @@ public sealed class RepairsPostgresTests : IAsyncLifetime
         Assert.Equal(2, await db.Set<RepairRound>().CountAsync(x => x.RequestId == r.Id));
         Assert.Equal(2, await db.Set<RepairEvent>().CountAsync(x => x.RequestId == r.Id && x.Action == "solve"));
         Assert.NotNull((await db.Set<RepairWaitingPeriod>().SingleAsync(x => x.RequestId == r.Id)).EndedAt);
-        Assert.Equal(2, await db.Set<RepairDispatch>().CountAsync(x => x.RequestId == r.Id));
+        var dispatchedActions = await db.Set<RepairDispatch>()
+            .Where(x => x.RequestId == r.Id)
+            .Join(db.Set<RepairEvent>(), dispatch => dispatch.EventId, repairEvent => repairEvent.Id, (_, repairEvent) => repairEvent.Action)
+            .ToListAsync();
+        Assert.Equal(8, dispatchedActions.Count);
+        Assert.Contains("submit", dispatchedActions);
+        Assert.Contains("start", dispatchedActions);
+        Assert.Contains("resume", dispatchedActions);
+        Assert.Equal(2, dispatchedActions.Count(x => x == "solve"));
+        Assert.Contains("reject-solution", dispatchedActions);
+        Assert.Contains("accept", dispatchedActions);
+        Assert.Contains("reopen", dispatchedActions);
     }
 
     [RepairPostgresFact]
@@ -207,6 +218,38 @@ public sealed class RepairsPostgresTests : IAsyncLifetime
         Assert.Contains("ความเร่งด่วน", client.FlexContents);
         await using var verify = Db();
         Assert.Equal("Sent", (await verify.Set<RepairDispatch>().SingleAsync(x => x.RequestId == r.Id)).Status);
+    }
+
+    [RepairPostgresFact]
+    public async Task NotificationDispatch_RendersWorkflowStatusEvents()
+    {
+        var r = await Create();
+        r = await Act(r, it, "start");
+        r = await Act(r, it, "solve", it);
+        r = await Act(r, requester, "accept");
+        await using (var setup = Db())
+        {
+            var group = await setup.LineGroupDestinations.SingleAsync(x => x.Module == "REPAIR_IT");
+            group.Status = "Active"; group.EndpointUrl = "https://notify.example.test/send";
+            group.ClientId = "test"; group.ClientSecretProtected = "test";
+            await setup.SaveChangesAsync();
+        }
+        var config = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?> {
+            ["Line:PublicAppUrl"] = "https://hop.example.test", ["Repairs:AllowedNotificationHosts:0"] = "notify.example.test"
+        }).Build();
+        var client = new TestPushClient(failFirst: false);
+        await using (var db = Db())
+            await new RepairDeliveryService(db, client, new LineConfigurationResolver(Options.Create(new LineOptions()), config), config).ProcessAsync(default);
+
+        Assert.Equal(4, client.Calls);
+        Assert.Contains("Repair.Submitted", client.EventNames);
+        Assert.Contains("Repair.Started", client.EventNames);
+        Assert.Contains("Repair.Solved", client.EventNames);
+        Assert.Contains("Repair.Closed", client.EventNames);
+        Assert.Contains(client.FlexMessages, message => message.Contains("กำลังดำเนินการ") && message.Contains("ผู้ดำเนินการ"));
+        Assert.Contains(client.FlexMessages, message => message.Contains("ซ่อมเสร็จ รอตรวจรับ") && message.Contains("ผู้แก้ไขหลัก"));
+        Assert.Contains(client.FlexMessages, message => message.Contains("ปิดใบงานแล้ว") && message.Contains("ผู้ตรวจรับ"));
+        Assert.DoesNotContain(client.FlexMessages, message => message.Contains("Contact") || message.Contains("broken"));
     }
 
     [RepairPostgresFact]
@@ -359,15 +402,26 @@ public sealed class RepairsPostgresTests : IAsyncLifetime
             });
         }
     }
-    private sealed class TestPushClient : ILineGroupPushClient
+    private sealed class TestPushClient(bool failFirst = true) : ILineGroupPushClient
     {
+        private readonly object gate = new();
         public int Calls;
         public string? Module, Text, FlexContents;
+        public List<string> EventNames { get; } = [];
+        public List<string> FlexMessages { get; } = [];
         public Task<LineGroupPushResult> PushTextAsync(string groupId, string text, CancellationToken ct) => throw new InvalidOperationException();
         public Task<LineGroupPushResult> PushMessageAsync(LineGroupDestination destination, FleetGroupRenderedMessage message, CancellationToken ct)
         {
-            Module = destination.Module; Text = message.Text; FlexContents = message.FlexContentsJson;
-            return Task.FromResult(Interlocked.Increment(ref Calls) == 1
+            bool shouldFail;
+            lock (gate)
+            {
+                Calls++;
+                Module = destination.Module; Text = message.Text; FlexContents = message.FlexContentsJson;
+                EventNames.Add(message.CanonicalEventType);
+                FlexMessages.Add(message.FlexContentsJson ?? "");
+                shouldFail = failFirst && Calls == 1;
+            }
+            return Task.FromResult(shouldFail
                 ? new LineGroupPushResult(false, true, false, "CUSTOM_HTTP_503", "test")
                 : new LineGroupPushResult(true, false, false, null, null));
         }

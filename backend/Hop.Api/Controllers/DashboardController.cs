@@ -249,11 +249,14 @@ public class DashboardController(
     }
 
     [HttpGet("executive")]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
     public async Task<ActionResult<ApiResponse<ExecutiveDashboardResponse>>> GetExecutiveDashboard(
         [FromQuery] int? trendMonth,
         [FromQuery] int? trendYear,
         [FromQuery] int? fiscalYear,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        [FromQuery] DateOnly? startDate = null,
+        [FromQuery] DateOnly? endDate = null)
     {
         var currentUserId = GetCurrentUserId();
         if (currentUserId is null || !await CanAccessExecutiveDashboard(currentUserId.Value))
@@ -268,15 +271,18 @@ public class DashboardController(
         var selectedYear = Math.Clamp(NormalizeCalendarYear(trendYear ?? today.Year), 2000, 2200);
         var requestedTrendMonth = trendMonth.GetValueOrDefault(0);
         var selectedMonth = requestedTrendMonth is >= 1 and <= 12 ? requestedTrendMonth : (int?)null;
-        var trendStart = selectedMonth.HasValue
-            ? new DateOnly(selectedYear, selectedMonth.Value, 1)
-            : new DateOnly(selectedYear, 1, 1);
-        var trendEnd = selectedMonth.HasValue
-            ? trendStart.AddMonths(1).AddDays(-1)
-            : new DateOnly(selectedYear, 12, 31);
         var selectedFiscalYear = Math.Clamp(NormalizeCalendarYear(fiscalYear ?? FiscalYearHelper.GetFiscalYear(today)), 2000, 2600);
         var fiscalYearStart = new DateOnly(selectedFiscalYear - 1, FiscalYearHelper.StartMonth, FiscalYearHelper.StartDay);
         var fiscalYearEnd = fiscalYearStart.AddYears(1).AddDays(-1);
+        var hasCustomRange = startDate.HasValue && endDate.HasValue && startDate <= endDate;
+        var trendStart = hasCustomRange
+            ? startDate!.Value
+            : selectedMonth.HasValue
+                ? new DateOnly(trendYear.HasValue ? selectedYear : selectedMonth.Value >= FiscalYearHelper.StartMonth ? selectedFiscalYear - 1 : selectedFiscalYear, selectedMonth.Value, 1)
+                : trendYear.HasValue ? new DateOnly(selectedYear, 1, 1) : fiscalYearStart;
+        var trendEnd = hasCustomRange
+            ? endDate!.Value
+            : selectedMonth.HasValue ? trendStart.AddMonths(1).AddDays(-1) : trendYear.HasValue ? new DateOnly(selectedYear, 12, 31) : fiscalYearEnd;
 
         var totalActiveUsers = await db.Users.CountAsync(user => user.IsActive, cancellationToken);
         var approvedTodayQuery = db.LeaveRequests
@@ -340,6 +346,7 @@ public class DashboardController(
         var leaveByType = await BuildLeaveByType(trendStart, trendEnd, cancellationToken);
         var yearlySummary = await BuildYearlySummary(selectedFiscalYear, fiscalYearStart, fiscalYearEnd, cancellationToken);
         var systemHealth = await BuildExecutiveSystemHealth(cancellationToken);
+        var (fleet, repairs, attentionItems) = await BuildExecutiveOperations(trendStart, trendEnd, cancellationToken);
 
         return ApiResponse<ExecutiveDashboardResponse>.Ok(new ExecutiveDashboardResponse(
             new ExecutiveKpiResponse(
@@ -357,8 +364,101 @@ public class DashboardController(
             leaveByDepartment,
             leaveByType,
             yearlySummary,
-            systemHealth));
+            systemHealth,
+            utcNow,
+            new ExecutivePeriodResponse(trendStart, trendEnd, selectedFiscalYear, selectedMonth),
+            fleet,
+            repairs,
+            attentionItems));
     }
+
+    private async Task<(ExecutiveFleetResponse Fleet, ExecutiveRepairResponse Repairs, IReadOnlyList<ExecutiveAttentionItemResponse> AttentionItems)>
+        BuildExecutiveOperations(DateOnly startDate, DateOnly endDate, CancellationToken ct)
+    {
+        var utcStart = BangkokDateStartUtc(startDate);
+        var utcEnd = BangkokDateStartUtc(endDate.AddDays(1));
+        var fleetRows = await db.FleetRequests.AsNoTracking()
+            .Where(x => x.CreatedAt >= utcStart && x.CreatedAt < utcEnd)
+            .Select(x => new
+            {
+                x.Id, x.RequestNo, x.Purpose, x.Destination, x.Status, x.Priority, x.CreatedAt, x.DepartureAt,
+                LastActivityAt = x.UpdatedAt ?? x.CreatedAt,
+                Department = x.RequesterDepartment != null ? x.RequesterDepartment.Name : "ไม่ระบุหน่วยงาน"
+            }).ToListAsync(ct);
+        var repairRows = await db.Set<RepairRequest>().AsNoTracking()
+            .Where(x => x.CreatedAt >= utcStart && x.CreatedAt < utcEnd)
+            .Select(x => new
+            {
+                x.Id, x.Number, x.Title, x.Status, x.Priority, x.TeamCode, x.CreatedAt, x.UpdatedAt,
+                Category = db.Set<RepairCategory>().Where(c => c.Id == x.CategoryId).Select(c => c.Name).FirstOrDefault() ?? "ไม่ระบุประเภท",
+                Department = db.Departments.Where(d => d.Id == x.DepartmentId).Select(d => d.Name).FirstOrDefault() ?? "ไม่ระบุหน่วยงาน"
+            }).ToListAsync(ct);
+        var leaveAttention = await db.LeaveRequests.AsNoTracking()
+            .Where(x => x.CreatedAt >= utcStart && x.CreatedAt < utcEnd && x.Status == "Pending")
+            .OrderBy(x => x.SubmittedAt ?? x.CreatedAt)
+            .Take(5)
+            .Select(x => new ExecutiveAttentionItemResponse(
+                "Leave", x.Id, x.RequestNumber ?? "-",
+                x.LeaveType != null ? x.LeaveType.Name : "คำขอลา",
+                x.Status, null, x.UpdatedAt ?? x.SubmittedAt ?? x.CreatedAt, $"/leave/{x.Id}"))
+            .ToListAsync(ct);
+
+        var fleetCompleted = fleetRows.Count(x => x.Status == FleetRequestStatuses.Completed);
+        var fleetActive = fleetRows.Count(x => ActiveFleetRequestStatuses.Contains(x.Status));
+        var fleet = new ExecutiveFleetResponse(
+            fleetRows.Count,
+            fleetActive,
+            fleetCompleted,
+            fleetRows.Count(x => x.Status == FleetRequestStatuses.Cancelled),
+            fleetRows.Count(x => x.Priority == FleetPriorities.Emergency && ActiveFleetRequestStatuses.Contains(x.Status)),
+            fleetRows.Count == 0 ? 0 : Math.Round(fleetCompleted * 100m / fleetRows.Count, 2),
+            BuildExecutiveTrend(fleetRows.Select(x => (x.CreatedAt, x.Status, x.Status == FleetRequestStatuses.Completed, x.Priority == FleetPriorities.Emergency && ActiveFleetRequestStatuses.Contains(x.Status)))),
+            Rank(fleetRows.Select(x => x.Department)),
+            Rank(fleetRows.Select(x => string.IsNullOrWhiteSpace(x.Destination) ? "ไม่ระบุปลายทาง" : x.Destination.Trim())));
+
+        var repairOpenStatuses = new[] { "Submitted", "InProgress", "WaitingParts", "Resolved", "Returned" };
+        var repairs = new ExecutiveRepairResponse(
+            repairRows.Count,
+            repairRows.Count(x => x.Status == "Submitted"),
+            repairRows.Count(x => x.Status == "InProgress"),
+            repairRows.Count(x => x.Status == "WaitingParts"),
+            repairRows.Count(x => x.Status == "Resolved"),
+            repairRows.Count(x => x.Status == "Closed"),
+            repairRows.Count(x => x.Status == "Cancelled"),
+            repairRows.Count(x => repairOpenStatuses.Contains(x.Status) && x.Priority is "Urgent" or "Emergency"),
+            BuildExecutiveTrend(repairRows.Select(x => (x.CreatedAt, x.Status, x.Status == "Closed", repairOpenStatuses.Contains(x.Status) && x.Priority is "Urgent" or "Emergency"))),
+            Rank(repairRows.Select(x => x.Category)),
+            Rank(repairRows.Select(x => x.Department)),
+            Rank(repairRows.Select(x => x.TeamCode == "IT" ? "ทีม IT" : "ทีมช่างทั่วไป")));
+
+        var attention = leaveAttention.Concat(fleetRows
+            .Where(x => ActiveFleetRequestStatuses.Contains(x.Status) && (x.Priority == FleetPriorities.Emergency || x.DepartureAt < DateTime.UtcNow))
+            .Select(x => new ExecutiveAttentionItemResponse("Fleet", x.Id, x.RequestNo, x.Purpose, x.Status, x.Priority, x.LastActivityAt, $"/fleet/requests/{x.Id}"))
+            .Concat(repairRows
+                .Where(x => repairOpenStatuses.Contains(x.Status) && (x.Priority is "Urgent" or "Emergency" || x.Status == "WaitingParts"))
+                .Select(x => new ExecutiveAttentionItemResponse("Repair", x.Id, $"REP-{x.Number:D6}", x.Title, x.Status, x.Priority, x.UpdatedAt, $"/repairs/{x.Id}"))))
+            .OrderByDescending(x => x.Priority is "Emergency")
+            .ThenByDescending(x => x.Priority is "Urgent")
+            .ThenByDescending(x => x.LastActivityAt)
+            .Take(5)
+            .ToList();
+        return (fleet, repairs, attention);
+    }
+
+    private static IReadOnlyList<ExecutiveTrendPointResponse> BuildExecutiveTrend(
+        IEnumerable<(DateTime CreatedAt, string Status, bool Completed, bool Attention)> rows) => rows
+        .GroupBy(x => x.CreatedAt.ToString("yyyy-MM"))
+        .OrderBy(x => x.Key)
+        .Select(x => new ExecutiveTrendPointResponse(x.Key, x.Count(), x.Count(y => y.Completed), x.Count(y => y.Attention)))
+        .ToList();
+
+    private static IReadOnlyList<ExecutiveRankResponse> Rank(IEnumerable<string> values) => values
+        .GroupBy(x => x, StringComparer.OrdinalIgnoreCase)
+        .Select(x => new ExecutiveRankResponse(x.Key, x.Count()))
+        .OrderByDescending(x => x.Count)
+        .ThenBy(x => x.Name)
+        .Take(5)
+        .ToList();
 
     private async Task<HashSet<string>> GetPermissionCodesAsync(Guid userId)
     {

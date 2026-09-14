@@ -148,8 +148,33 @@ public record ExecutiveDashboardResponse(
     IReadOnlyList<ExecutiveDepartmentLeaveResponse> LeaveByDepartment,
     IReadOnlyList<ExecutiveLeaveTypeResponse> LeaveByType,
     IReadOnlyList<ExecutiveYearlySummaryResponse> YearlySummary,
-    ExecutiveSystemHealthResponse SystemHealth
+    ExecutiveSystemHealthResponse SystemHealth,
+    DateTime GeneratedAtUtc,
+    ExecutivePeriodResponse Period,
+    ExecutiveFleetResponse Fleet,
+    ExecutiveRepairResponse Repairs,
+    IReadOnlyList<ExecutiveAttentionItemResponse> AttentionItems
 );
+
+public record ExecutivePeriodResponse(DateOnly StartDate, DateOnly EndDate, int FiscalYear, int? Month);
+public record ExecutiveTrendPointResponse(string Month, int Total, int Completed, int Attention);
+public record ExecutiveRankResponse(string Name, int Count);
+public record ExecutiveFleetResponse(
+    int TotalRequests, int ActiveRequests, int CompletedTrips, int CancelledRequests,
+    int EmergencyOpen, decimal CompletionRate,
+    IReadOnlyList<ExecutiveTrendPointResponse> MonthlyTrend,
+    IReadOnlyList<ExecutiveRankResponse> TopDepartments,
+    IReadOnlyList<ExecutiveRankResponse> TopDestinations);
+public record ExecutiveRepairResponse(
+    int TotalRequests, int Submitted, int InProgress, int WaitingParts, int AwaitingAcceptance,
+    int Closed, int Cancelled, int UrgentOpen,
+    IReadOnlyList<ExecutiveTrendPointResponse> MonthlyTrend,
+    IReadOnlyList<ExecutiveRankResponse> TopCategories,
+    IReadOnlyList<ExecutiveRankResponse> TopDepartments,
+    IReadOnlyList<ExecutiveRankResponse> TeamDistribution);
+public record ExecutiveAttentionItemResponse(
+    string Module, Guid Id, string ReferenceNo, string Title, string Status,
+    string? Priority, DateTime LastActivityAt, string Url);
 
 public record ExecutiveKpiResponse(
     int TotalActiveUsers,

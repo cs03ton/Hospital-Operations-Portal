@@ -25,6 +25,7 @@ public static class RepairSeed
          SELECT r.id,p.id FROM roles r CROSS JOIN permissions p WHERE r.is_active AND p.is_active AND (
          (r.name IN('Staff','DepartmentHead','Director','Admin','SuperAdmin','LeaveAdmin','FleetAdminReviewer','พนักงานขับรถ','ช่าง IT','ช่างทั่วไป')
          AND p.code IN('RepairManagement.ViewOwn','RepairManagement.Create'))
+         OR (r.name='Director' AND p.code='RepairManagement.ViewAll')
          OR (r.name IN('Admin','SuperAdmin') AND p.code IN('RepairManagement.ViewAll','RepairManagement.Manage'))
          OR (r.name='ช่าง IT' AND p.code='RepairManagement.WorkIT')
          OR (r.name='ช่างทั่วไป' AND p.code='RepairManagement.WorkGeneral')

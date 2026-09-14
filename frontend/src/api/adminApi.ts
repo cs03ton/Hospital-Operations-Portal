@@ -696,12 +696,38 @@ export type ExecutiveDashboard = {
   leaveByType: ExecutiveLeaveType[];
   yearlySummary: ExecutiveYearlySummary[];
   systemHealth: ExecutiveSystemHealth;
+  generatedAtUtc: string;
+  period: ExecutivePeriod;
+  fleet: ExecutiveFleet;
+  repairs: ExecutiveRepairs;
+  attentionItems: ExecutiveAttentionItem[];
+};
+
+export type ExecutivePeriod = { startDate: string; endDate: string; fiscalYear: number; month?: number | null };
+export type ExecutiveTrendPoint = { month: string; total: number; completed: number; attention: number };
+export type ExecutiveRank = { name: string; count: number };
+export type ExecutiveFleet = {
+  totalRequests: number; activeRequests: number; completedTrips: number; cancelledRequests: number;
+  emergencyOpen: number; completionRate: number; monthlyTrend: ExecutiveTrendPoint[];
+  topDepartments: ExecutiveRank[]; topDestinations: ExecutiveRank[];
+};
+export type ExecutiveRepairs = {
+  totalRequests: number; submitted: number; inProgress: number; waitingParts: number;
+  awaitingAcceptance: number; closed: number; cancelled: number; urgentOpen: number;
+  monthlyTrend: ExecutiveTrendPoint[]; topCategories: ExecutiveRank[];
+  topDepartments: ExecutiveRank[]; teamDistribution: ExecutiveRank[];
+};
+export type ExecutiveAttentionItem = {
+  module: "Leave" | "Fleet" | "Repair"; id: string; referenceNo: string; title: string;
+  status: string; priority?: string | null; lastActivityAt: string; url: string;
 };
 
 export type ExecutiveDashboardQuery = {
   trendMonth?: number;
   trendYear?: number;
   fiscalYear?: number;
+  startDate?: string;
+  endDate?: string;
 };
 
 export type PagedResponse<T> = {

@@ -1,3 +1,4 @@
+using System.Text.Encodings.Web;
 using System.Text.Json;
 using Hop.Api.Configuration;
 using Hop.Api.Data;
@@ -72,10 +73,18 @@ public sealed class RepairDeliveryService(AppDbContext db, ILineGroupPushClient 
             var departmentName = r.DepartmentId is null ? null : await db.Departments.AsNoTracking()
                 .Where(x => x.Id == r.DepartmentId).Select(x => x.Name).SingleOrDefaultAsync(ct);
             var teamLabel = job.TeamCode == "IT" ? "ทีม IT" : "ทีมช่างทั่วไป";
-            var eventAction = await db.Set<RepairEvent>().AsNoTracking()
-                .Where(x => x.Id == job.EventId).Select(x => x.Action).SingleOrDefaultAsync(ct);
-            var eventLabel = eventAction == "reopen" ? "เปิดงานซ่อมอีกครั้ง" : eventAction == "resubmit" ? "ส่งงานซ่อมใหม่" : "งานแจ้งซ่อมใหม่";
-            var text = $"🔧 {eventLabel} REP-{r.Number:D6}\n{Safe(r.Title, 120)} · {teamLabel}\n📍 {Safe(r.Location, 100)}\nดูรายละเอียด: {link}";
+            var repairEvent = await db.Set<RepairEvent>().AsNoTracking()
+                .Where(x => x.Id == job.EventId)
+                .Select(x => new { x.Action, x.ActorId, x.SolverId, x.Priority, x.CreatedAt })
+                .SingleAsync(ct);
+            var presentation = EventPresentation(repairEvent.Action);
+            var personId = repairEvent.Action == "solve" ? repairEvent.SolverId ?? repairEvent.ActorId : repairEvent.ActorId;
+            var personName = await db.Users.AsNoTracking()
+                .Where(x => x.Id == personId).Select(x => x.FullName).SingleOrDefaultAsync(ct);
+            var personLabel = repairEvent.Action == "solve" ? "ผู้แก้ไขหลัก"
+                : repairEvent.Action == "accept" ? "ผู้ตรวจรับ"
+                : "ผู้ดำเนินการ";
+            var text = $"{presentation.Icon} {presentation.Label} REP-{r.Number:D6}\n{Safe(r.Title, 120)} · {teamLabel}\n{presentation.StatusText}\n📍 {Safe(r.Location, 100)}\nดูรายละเอียด: {link}";
             var flex = JsonSerializer.Serialize(new {
                 type = "bubble",
                 size = "kilo",
@@ -85,12 +94,12 @@ public sealed class RepairDeliveryService(AppDbContext db, ILineGroupPushClient 
                 },
                 header = new { type = "box", layout = "vertical", paddingAll = "18px", contents = new object[] {
                     new { type = "text", text = "HOP · ระบบแจ้งซ่อม", color = "#E8D29B", size = "xs", weight = "bold" },
-                    new { type = "text", text = $"🔧 {eventLabel}", color = "#FFFFFF", size = "lg", weight = "bold", margin = "sm", wrap = true }
+                    new { type = "text", text = $"{presentation.Icon} {presentation.Label}", color = "#FFFFFF", size = "lg", weight = "bold", margin = "sm", wrap = true }
                 }},
                 body = new { type = "box", layout = "vertical", paddingAll = "18px", spacing = "md", contents = new object[] {
-                    new { type = "box", layout = "vertical", backgroundColor = "#E5F5EE", cornerRadius = "10px", paddingAll = "14px", spacing = "xs", contents = new object[] {
-                        new { type = "text", text = "สถานะปัจจุบัน", size = "xs", color = "#0B6B4F", weight = "bold" },
-                        new { type = "text", text = "🆕 ส่งเข้าคิวแล้ว", size = "md", color = "#0B6B4F", weight = "bold", wrap = true }
+                    new { type = "box", layout = "vertical", backgroundColor = presentation.BackgroundColor, cornerRadius = "10px", paddingAll = "14px", spacing = "xs", contents = new object[] {
+                        new { type = "text", text = "สถานะจากเหตุการณ์ล่าสุด", size = "xs", color = presentation.TextColor, weight = "bold" },
+                        new { type = "text", text = presentation.StatusText, size = "md", color = presentation.TextColor, weight = "bold", wrap = true }
                     }},
                     new { type = "separator", color = "#E7E3D8" },
                     FlexRow("🎫 เลขที่ใบงาน", $"REP-{r.Number:D6}", true),
@@ -100,14 +109,15 @@ public sealed class RepairDeliveryService(AppDbContext db, ILineGroupPushClient 
                     FlexRow("📍 สถานที่", Safe(r.Location, 120)),
                     FlexRow("🏥 หน่วยงานผู้แจ้ง", Safe(departmentName, 140)),
                     FlexRow("👤 ผู้แจ้ง", Safe(requesterName, 100)),
-                    FlexRow("⏰ แจ้งเมื่อ", FormatBangkok(r.CreatedAt)),
-                    FlexRow("⚡ ความเร่งด่วน", PriorityLabel(r.Priority))
+                    FlexRow($"👷 {personLabel}", Safe(personName, 100)),
+                    FlexRow("⏰ อัปเดตเมื่อ", FormatBangkok(repairEvent.CreatedAt)),
+                    FlexRow("⚡ ความเร่งด่วน", PriorityLabel(repairEvent.Priority))
                 }},
                 footer = new { type = "box", layout = "vertical", paddingAll = "14px", contents = new[] {
                     new { type = "button", style = "primary", color = "#155E4B", height = "sm", action = new { type = "uri", label = "เปิดดูรายละเอียดใบงาน", uri = link } }
                 }}
-            });
-            var result = await client.PushMessageAsync(destination, new FleetGroupRenderedMessage("Flex", text, "Repair.Submitted", r.Id, flex, $"{eventLabel} · REP-{r.Number:D6}"), ct);
+            }, new JsonSerializerOptions { Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping });
+            var result = await client.PushMessageAsync(destination, new FleetGroupRenderedMessage("Flex", text, presentation.EventName, r.Id, flex, $"{presentation.Label} · REP-{r.Number:D6}"), ct);
             job.ErrorCode = result.ErrorCode;
             if (result.Success) { job.Status = "Sent"; job.SentAt = DateTime.UtcNow; }
             else if (result.IsTransient && result.ErrorCode != "CUSTOM_ENDPOINT_NETWORK_ERROR" && job.Attempts < 3)
@@ -117,6 +127,21 @@ public sealed class RepairDeliveryService(AppDbContext db, ILineGroupPushClient 
             await db.SaveChangesAsync(ct);
         }
     }
+
+    private static RepairEventPresentation EventPresentation(string action) => action switch
+    {
+        "start" => new("Repair.Started", "เริ่มดำเนินการ", "🛠️", "🛠️ กำลังดำเนินการ", "#E8F2FF", "#175EA8"),
+        "resume" => new("Repair.Resumed", "กลับมาดำเนินการ", "▶️", "▶️ กลับมาดำเนินการแล้ว", "#E8F2FF", "#175EA8"),
+        "reject-solution" => new("Repair.SolutionRejected", "ดำเนินการแก้ไขเพิ่มเติม", "🔁", "🔁 ผู้แจ้งขอให้แก้ไขเพิ่มเติม", "#FFF4DB", "#8A5A00"),
+        "solve" => new("Repair.Solved", "ช่างซ่อมเสร็จ", "✅", "✅ ซ่อมเสร็จ รอตรวจรับ", "#E5F5EE", "#0B6B4F"),
+        "accept" => new("Repair.Closed", "ปิดใบงาน", "🏁", "🏁 ผู้แจ้งตรวจรับและปิดใบงานแล้ว", "#E5F5EE", "#0B6B4F"),
+        "reopen" => new("Repair.Reopened", "เปิดงานซ่อมอีกครั้ง", "🔄", "🔄 เปิดรอบซ่อมใหม่แล้ว", "#FFF4DB", "#8A5A00"),
+        "resubmit" => new("Repair.Resubmitted", "ส่งงานซ่อมใหม่", "📨", "📨 ส่งเข้าคิวทีมใหม่แล้ว", "#E5F5EE", "#0B6B4F"),
+        _ => new("Repair.Submitted", "งานแจ้งซ่อมใหม่", "🔧", "🆕 ส่งเข้าคิวแล้ว", "#E5F5EE", "#0B6B4F")
+    };
+
+    private sealed record RepairEventPresentation(string EventName, string Label, string Icon, string StatusText,
+        string BackgroundColor, string TextColor);
 
     private static object FlexRow(string label, string value, bool highlight = false) => new
     {

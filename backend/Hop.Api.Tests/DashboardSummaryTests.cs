@@ -320,6 +320,23 @@ public class DashboardSummaryTests
         AddLeaveRequest(db, user.Id, leaveType.Id, today, 0.5m, "Approved");
         AddLeaveRequest(db, otherUser.Id, leaveType.Id, today, 1m, "Rejected");
         AddLeaveRequest(db, otherUser.Id, leaveType.Id, today, 1m, "Cancelled");
+        db.FleetRequests.Add(new FleetRequest
+        {
+            Id = Guid.NewGuid(), RequestNo = "FR-001", RequesterUserId = user.Id,
+            RequesterDepartmentId = department.Id, RequesterDepartment = department,
+            Purpose = "ประชุม", Destination = "สำนักงานสาธารณสุขจังหวัด",
+            Status = FleetRequestStatuses.InProgress, Priority = FleetPriorities.Emergency,
+            DepartureAt = DateTime.UtcNow.AddHours(-1), ExpectedReturnAt = DateTime.UtcNow.AddHours(2),
+            CreatedByUserId = user.Id
+        });
+        var repairCategory = new RepairCategory { Id = Guid.NewGuid(), Name = "คอมพิวเตอร์", TeamCode = "IT" };
+        db.Set<RepairCategory>().Add(repairCategory);
+        db.Set<RepairRequest>().Add(new RepairRequest
+        {
+            Id = Guid.NewGuid(), Number = 1, RequesterId = user.Id, DepartmentId = department.Id,
+            CategoryId = repairCategory.Id, TeamCode = "IT", Title = "เปิดเครื่องไม่ได้",
+            Location = "OPD", Contact = "ภายใน", Status = "WaitingParts", Priority = "Urgent"
+        });
         await db.SaveChangesAsync();
 
         var controller = new DashboardController(db);
@@ -336,6 +353,14 @@ public class DashboardSummaryTests
         Assert.Equal(1, response.Data.TodaySummary.SickLeaveToday);
         Assert.Equal("OPD", response.Data.TodaySummary.TopDepartmentToday);
         Assert.Equal(12, response.Data.MonthlyTrend.Count);
+        Assert.Equal(1, response.Data.Fleet.TotalRequests);
+        Assert.Equal(1, response.Data.Fleet.ActiveRequests);
+        Assert.Equal(1, response.Data.Fleet.EmergencyOpen);
+        Assert.Equal(1, response.Data.Repairs.TotalRequests);
+        Assert.Equal(1, response.Data.Repairs.WaitingParts);
+        Assert.Equal(1, response.Data.Repairs.UrgentOpen);
+        Assert.Contains(response.Data.AttentionItems, item => item.Module == "Fleet" && item.ReferenceNo == "FR-001");
+        Assert.Contains(response.Data.AttentionItems, item => item.Module == "Repair" && item.ReferenceNo == "REP-000001");
     }
 
     [Fact]
