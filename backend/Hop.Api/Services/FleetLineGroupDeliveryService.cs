@@ -20,7 +20,7 @@ public sealed class FleetLineGroupDeliveryService(
     {
         if (!Enabled) return 0;
         var earliest = await db.LineGroupDestinations.AsNoTracking()
-            .Where(x => x.Module == "FLEET" && x.Status == LineGroupDestinationStatuses.Active && x.ConfirmedAt != null)
+            .Where(x => !x.Module.StartsWith("REPAIR_") && x.Status == LineGroupDestinationStatuses.Active && x.ConfirmedAt != null)
             .MinAsync(x => (DateTime?)x.ConfirmedAt, ct);
         if (earliest is null) return 0;
         string[] projectedActions = ["Fleet.RequestSubmitted", "Fleet.VehicleAssigned", "Fleet.RequestCancelled"];
@@ -81,12 +81,12 @@ public sealed class FleetLineGroupDeliveryService(
     {
         if (!Enabled) return 0;
         var destinations = await db.LineGroupDestinations.AsNoTracking().Include(x => x.EventSubscriptions)
-            .Where(x => x.Module == "FLEET" && x.Status == LineGroupDestinationStatuses.Active && x.ConfirmedAt != null)
+            .Where(x => !x.Module.StartsWith("REPAIR_") && x.Status == LineGroupDestinationStatuses.Active && x.ConfirmedAt != null)
             .ToListAsync(ct);
         if (destinations.Count == 0) return 0;
         var earliest = destinations.Min(x => x.ConfirmedAt!.Value);
         var events = await db.DomainEvents.AsNoTracking()
-            .Where(x => x.Scope == "FLEET" && x.AggregateType == "FleetRequest" && x.OccurredAt >= earliest && db.OutboxMessages.Any(o => o.EventId == x.EventId))
+            .Where(x => (x.Scope == "FLEET" || x.Scope == "MEETING_ROOM" || x.Scope == "REPAIR") && x.OccurredAt >= earliest && db.OutboxMessages.Any(o => o.EventId == x.EventId))
             .OrderBy(x => x.OccurredAt).Take(Math.Clamp(options.Value.BatchSize * 5, 20, 500)).ToListAsync(ct);
         var created = 0;
         foreach (var domainEvent in events)

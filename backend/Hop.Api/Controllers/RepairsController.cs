@@ -14,7 +14,7 @@ namespace Hop.Api.Controllers;
 [ApiController, Route("api/repairs"), Authorize, RepairActiveUser]
 [RequireAnyPermission(RepairPermissions.ViewOwn, RepairPermissions.Create, RepairPermissions.WorkIT,
     RepairPermissions.WorkGeneral, RepairPermissions.ViewAll, RepairPermissions.Manage)]
-public sealed class RepairsController(AppDbContext db) : ControllerBase
+public sealed class RepairsController(AppDbContext db, IDomainEventPublisher events) : ControllerBase
 {
     private Guid Actor => Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
     private Task<RepairAccess> Access(CancellationToken ct) => RepairWorkflow.Access(db, Actor, ct);
@@ -108,6 +108,7 @@ public sealed class RepairsController(AppDbContext db) : ControllerBase
         db.Add(new RepairRound { RequestId = r.Id, Number = 1 });
         var e = Event(r, "submit", "", $"ส่งแจ้งซ่อม · {category.Name} · ทีม {r.TeamCode}");
         Dispatch(r, e);
+        await PublishRepair(e, r, ct);
         await db.SaveChangesAsync(ct);
         return Ok(OkData(r));
     }
@@ -166,7 +167,10 @@ public sealed class RepairsController(AppDbContext db) : ControllerBase
             if (operation == "accept") { round.AcceptedById = Actor; round.AcceptanceNote = input.Note; }
         }
         if (operation is "start" or "resume" or "reject-solution" or "solve" or "accept" or "resubmit" or "reopen")
+        {
             Dispatch(r, e);
+            await PublishRepair(e, r, ct);
+        }
         if (operation is "return" or "solve" or "cancel")
             db.Notifications.Add(new Notification { Id = Guid.NewGuid(), UserId = r.RequesterId, Category = "Repair",
                 Title = "อัปเดตงานแจ้งซ่อม", Message = $"งาน REP-{r.Number:D6} มีสถานะใหม่ กรุณาตรวจสอบรายละเอียด",
@@ -183,6 +187,17 @@ public sealed class RepairsController(AppDbContext db) : ControllerBase
         db.Add(e); return e;
     }
     private void Dispatch(RepairRequest r, RepairEvent e) => db.Add(new RepairDispatch { RequestId = r.Id, EventId = e.Id, TeamCode = r.TeamCode });
+    private Task PublishRepair(RepairEvent e, RepairRequest r, CancellationToken ct)
+    {
+        var eventType = e.Action switch
+        {
+            "start" => "Repair.Started", "resume" or "reject-solution" => "Repair.Resumed",
+            "solve" => "Repair.Solved", "accept" => "Repair.Closed", "reopen" => "Repair.Reopened",
+            "resubmit" => "Repair.Resubmitted", _ => "Repair.Submitted"
+        };
+        return events.PublishAsync(new DomainEventEnvelope(eventType, "REPAIR", nameof(RepairRequest), r.Id, Actor,
+            HttpContext.TraceIdentifier, new { r.Number, r.TeamCode, r.Status, e.Action, e.SolverId }, []), ct);
+    }
 }
 
 public sealed record RepairInput(

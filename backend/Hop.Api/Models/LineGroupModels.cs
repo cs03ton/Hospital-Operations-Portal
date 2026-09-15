@@ -97,3 +97,18 @@ public static class FleetLineGroupEvents
         ["Fleet.TripOverdue"] = true
     };
 }
+
+public static class LineGroupEvents
+{
+    public static readonly IReadOnlyDictionary<string, bool> Defaults = new Dictionary<string, bool>(FleetLineGroupEvents.Defaults)
+    {
+        ["Repair.Submitted"] = true,
+        ["Repair.Resubmitted"] = true,
+        ["Repair.Reopened"] = true,
+        ["Repair.Started"] = true,
+        ["Repair.Resumed"] = true,
+        ["Repair.Solved"] = true,
+        ["Repair.Closed"] = true,
+        ["MeetingRoom.BookingCreated"] = true
+    };
+}

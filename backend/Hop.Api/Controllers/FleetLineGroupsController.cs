@@ -14,14 +14,14 @@ using Microsoft.AspNetCore.DataProtection;
 
 namespace Hop.Api.Controllers;
 
-[ApiController, Route("api/fleet/line-groups"), Authorize]
+[ApiController, Route("api/fleet/line-groups"), Route("api/admin/line-groups"), Authorize]
 public sealed partial class FleetLineGroupsController(AppDbContext db, ILineGroupPushClient groupLine, IOptions<LineGroupNotificationsOptions> groupOptions, IDataProtectionProvider? dataProtectionProvider = null, IWebHostEnvironment? environment = null) : ControllerBase
 {
     private readonly IDataProtector credentialProtector = (dataProtectionProvider ?? new EphemeralDataProtectionProvider()).CreateProtector("HOP.LineGroupDestinationCredentials.v1");
-    [HttpGet, RequireAnyPermission(FleetPermissions.LineGroupView, FleetPermissions.LineGroupManage)]
+    [HttpGet, RequireAnyPermission("LineGroup.View", "LineGroup.Manage", FleetPermissions.LineGroupView, FleetPermissions.LineGroupManage)]
     public async Task<ActionResult<ApiResponse<object>>> List([FromQuery] string? status, [FromQuery] string? search, CancellationToken ct)
     {
-        var query = db.LineGroupDestinations.AsNoTracking().Include(x => x.EventSubscriptions).Where(x => x.Module == "FLEET");
+        IQueryable<LineGroupDestination> query = db.LineGroupDestinations.AsNoTracking().Include(x => x.EventSubscriptions);
         if (!string.IsNullOrWhiteSpace(status)) query = query.Where(x => x.Status == status.Trim());
         if (!string.IsNullOrWhiteSpace(search)) query = query.Where(x => EF.Functions.ILike(x.DisplayName, $"%{search.Trim()}%"));
         var rows = await query.OrderBy(x => x.Status).ThenBy(x => x.DisplayName).Select(x => new
@@ -47,7 +47,7 @@ public sealed partial class FleetLineGroupsController(AppDbContext db, ILineGrou
         return ApiResponse<object>.Ok(rows);
     }
 
-    [HttpPost, RequirePermission(FleetPermissions.LineGroupManage)]
+    [HttpPost, RequireAnyPermission("LineGroup.Manage", FleetPermissions.LineGroupManage)]
     public async Task<ActionResult<ApiResponse<object>>> Create(LineGroupConfigurationRequest body, CancellationToken ct)
     {
         var validation = ValidateConfiguration(body, requireSecret: true, requireGroupId: true);
@@ -56,21 +56,21 @@ public sealed partial class FleetLineGroupsController(AppDbContext db, ILineGrou
         var now = DateTime.UtcNow;
         var item = new LineGroupDestination
         {
-            DisplayName = body.DisplayName.Trim(), LineGroupId = body.GroupId.Trim(), Module = "FLEET", Status = LineGroupDestinationStatuses.Pending,
+            DisplayName = body.DisplayName.Trim(), LineGroupId = body.GroupId.Trim(), Module = "CENTRAL", Status = LineGroupDestinationStatuses.Pending,
             DeliveryProvider = "CUSTOM_ENDPOINT", EndpointUrl = body.EndpointUrl.Trim(), ClientId = body.ClientId.Trim(),
             ClientSecretProtected = credentialProtector.Protect(body.ClientSecret!.Trim()), FirstDetectedAt = now, LastDetectedAt = now
         };
-        foreach (var definition in FleetLineGroupEvents.Defaults) item.EventSubscriptions.Add(new LineGroupEventSubscription { EventType = definition.Key, IsEnabled = definition.Value });
+        foreach (var definition in LineGroupEvents.Defaults) item.EventSubscriptions.Add(new LineGroupEventSubscription { EventType = definition.Key, IsEnabled = false });
         db.LineGroupDestinations.Add(item); Audit("Fleet.LineGroupConfigurationCreated", item, Actor(), null); await db.SaveChangesAsync(ct);
         return ApiResponse<object>.Ok(new { item.Id, item.Status, item.ConcurrencyToken });
     }
 
-    [HttpPut("{id:guid}/configuration"), RequirePermission(FleetPermissions.LineGroupManage)]
+    [HttpPut("{id:guid}/configuration"), RequireAnyPermission("LineGroup.Manage", FleetPermissions.LineGroupManage)]
     public async Task<ActionResult<ApiResponse<object>>> UpdateConfiguration(Guid id, LineGroupConfigurationRequest body, CancellationToken ct)
     {
         var validation = ValidateConfiguration(body, requireSecret: false, requireGroupId: false);
         if (validation is not null) return BadRequest(ApiResponse<object>.Fail(validation));
-        var item = await db.LineGroupDestinations.SingleOrDefaultAsync(x => x.Id == id && x.Module == "FLEET", ct);
+        var item = await db.LineGroupDestinations.SingleOrDefaultAsync(x => x.Id == id, ct);
         if (item is null) return NotFound(ApiResponse<object>.Fail("ไม่พบปลายทาง LINE Group"));
         if (item.ConcurrencyToken != body.ConcurrencyToken) return Conflict(ApiResponse<object>.Fail("ข้อมูลถูกแก้ไขโดยผู้ใช้อื่น กรุณาโหลดใหม่"));
         if (!string.IsNullOrWhiteSpace(body.GroupId) && await db.LineGroupDestinations.AnyAsync(x => x.Id != id && x.LineGroupId == body.GroupId.Trim(), ct)) return Conflict(ApiResponse<object>.Fail("Group ID นี้มีอยู่ในระบบแล้ว"));
@@ -84,10 +84,10 @@ public sealed partial class FleetLineGroupsController(AppDbContext db, ILineGrou
         return ApiResponse<object>.Ok(new { item.Id, item.Status, item.ConcurrencyToken });
     }
 
-    [HttpPost("{id:guid}/confirm"), RequirePermission(FleetPermissions.LineGroupManage)]
+    [HttpPost("{id:guid}/confirm"), RequireAnyPermission("LineGroup.Manage", FleetPermissions.LineGroupManage)]
     public async Task<ActionResult<ApiResponse<object>>> Confirm(Guid id, LineGroupStateRequest body, CancellationToken ct)
     {
-        var item = await db.LineGroupDestinations.SingleOrDefaultAsync(x => x.Id == id && x.Module == "FLEET", ct);
+        var item = await db.LineGroupDestinations.SingleOrDefaultAsync(x => x.Id == id, ct);
         if (item is null) return NotFound(ApiResponse<object>.Fail("LINE group destination not found."));
         if (item.ConcurrencyToken != body.ConcurrencyToken) return Conflict(ApiResponse<object>.Fail("Concurrency conflict."));
         var actor = Actor();
@@ -104,11 +104,11 @@ public sealed partial class FleetLineGroupsController(AppDbContext db, ILineGrou
         return ApiResponse<object>.Ok(new { item.Id, item.Status, item.ConcurrencyToken });
     }
 
-    [HttpPost("{id:guid}/disable"), RequirePermission(FleetPermissions.LineGroupManage)]
+    [HttpPost("{id:guid}/disable"), RequireAnyPermission("LineGroup.Manage", FleetPermissions.LineGroupManage)]
     public async Task<ActionResult<ApiResponse<object>>> Disable(Guid id, LineGroupStateRequest body, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(body.Reason)) return BadRequest(ApiResponse<object>.Fail("Reason is required."));
-        var item = await db.LineGroupDestinations.SingleOrDefaultAsync(x => x.Id == id && x.Module == "FLEET", ct);
+        var item = await db.LineGroupDestinations.SingleOrDefaultAsync(x => x.Id == id, ct);
         if (item is null) return NotFound(ApiResponse<object>.Fail("LINE group destination not found."));
         if (item.ConcurrencyToken != body.ConcurrencyToken) return Conflict(ApiResponse<object>.Fail("Concurrency conflict."));
         var actor = Actor();
@@ -123,16 +123,17 @@ public sealed partial class FleetLineGroupsController(AppDbContext db, ILineGrou
         return ApiResponse<object>.Ok(new { item.Id, item.Status, item.ConcurrencyToken });
     }
 
-    [HttpPut("{id:guid}/subscriptions"), RequirePermission(FleetPermissions.LineGroupManage)]
+    [HttpPut("{id:guid}/subscriptions"), RequireAnyPermission("LineGroup.Manage", FleetPermissions.LineGroupManage)]
     public async Task<ActionResult<ApiResponse<object>>> Subscriptions(Guid id, LineGroupSubscriptionsRequest body, CancellationToken ct)
     {
-        var item = await db.LineGroupDestinations.Include(x => x.EventSubscriptions).SingleOrDefaultAsync(x => x.Id == id && x.Module == "FLEET", ct);
+        var item = await db.LineGroupDestinations.Include(x => x.EventSubscriptions).SingleOrDefaultAsync(x => x.Id == id, ct);
         if (item is null) return NotFound(ApiResponse<object>.Fail("LINE group destination not found."));
         if (item.ConcurrencyToken != body.ConcurrencyToken) return Conflict(ApiResponse<object>.Fail("Concurrency conflict."));
-        if (body.Events.Keys.Any(x => !FleetLineGroupEvents.Defaults.ContainsKey(x))) return BadRequest(ApiResponse<object>.Fail("Unsupported Fleet event."));
-        foreach (var definition in FleetLineGroupEvents.Defaults)
+        if (body.Events.Keys.Any(x => !LineGroupEvents.Defaults.ContainsKey(x))) return BadRequest(ApiResponse<object>.Fail("Unsupported notification event."));
+        foreach (var definition in LineGroupEvents.Defaults)
         {
-            var subscription = item.EventSubscriptions.Single(x => x.EventType == definition.Key);
+            var subscription = item.EventSubscriptions.SingleOrDefault(x => x.EventType == definition.Key);
+            if (subscription is null) { subscription = new LineGroupEventSubscription { EventType = definition.Key }; item.EventSubscriptions.Add(subscription); }
             subscription.IsEnabled = body.Events.GetValueOrDefault(definition.Key, false);
             subscription.UpdatedAt = DateTime.UtcNow;
         }
@@ -142,7 +143,7 @@ public sealed partial class FleetLineGroupsController(AppDbContext db, ILineGrou
         return ApiResponse<object>.Ok(new { item.Id, item.ConcurrencyToken });
     }
 
-    [HttpPost("{id:guid}/test"), RequirePermission(FleetPermissions.LineGroupManage)]
+    [HttpPost("{id:guid}/test"), RequireAnyPermission("LineGroup.Manage", FleetPermissions.LineGroupManage)]
     public async Task<ActionResult<ApiResponse<object>>> Test(Guid id, LineGroupTestRequest body, CancellationToken ct)
     {
         if (!groupOptions.Value.Enabled) return Conflict(ApiResponse<object>.Fail("LINE group notifications are disabled."));
@@ -150,7 +151,7 @@ public sealed partial class FleetLineGroupsController(AppDbContext db, ILineGrou
         if (requestedMessage?.Length > 1000) return BadRequest(ApiResponse<object>.Fail("Test message is too long."));
         if (!string.IsNullOrWhiteSpace(requestedMessage) && SensitiveTestMessage().IsMatch(requestedMessage))
             return BadRequest(ApiResponse<object>.Fail("Test message may contain sensitive information."));
-        var item = await db.LineGroupDestinations.SingleOrDefaultAsync(x => x.Id == id && x.Module == "FLEET", ct);
+        var item = await db.LineGroupDestinations.SingleOrDefaultAsync(x => x.Id == id, ct);
         if (item is null) return NotFound(ApiResponse<object>.Fail("LINE group destination not found."));
         if (item.Status == LineGroupDestinationStatuses.Disabled) return Conflict(ApiResponse<object>.Fail("Destination is disabled."));
         var eventId = Guid.NewGuid();
@@ -177,11 +178,11 @@ public sealed partial class FleetLineGroupsController(AppDbContext db, ILineGrou
         return ApiResponse<object>.Ok(response, "ส่งข้อความทดสอบสำเร็จ");
     }
 
-    [HttpGet("{id:guid}/deliveries"), RequireAnyPermission(FleetPermissions.LineGroupView, FleetPermissions.LineGroupManage)]
+    [HttpGet("{id:guid}/deliveries"), RequireAnyPermission("LineGroup.View", "LineGroup.Manage", FleetPermissions.LineGroupView, FleetPermissions.LineGroupManage)]
     public async Task<ActionResult<ApiResponse<object>>> Deliveries(Guid id, [FromQuery] int page = 1, [FromQuery] int pageSize = 20, CancellationToken ct = default)
     {
         page = Math.Max(1, page); pageSize = Math.Clamp(pageSize, 1, 100);
-        if (!await db.LineGroupDestinations.AnyAsync(x => x.Id == id && x.Module == "FLEET", ct)) return NotFound(ApiResponse<object>.Fail("LINE group destination not found."));
+        if (!await db.LineGroupDestinations.AnyAsync(x => x.Id == id, ct)) return NotFound(ApiResponse<object>.Fail("LINE group destination not found."));
         var query = db.LineGroupDeliveryLogs.AsNoTracking().Where(x => x.DestinationId == id);
         var totalItems = await query.CountAsync(ct);
         var rows = await query.OrderByDescending(x => x.CreatedAt).Skip((page - 1) * pageSize).Take(pageSize).Select(x => new

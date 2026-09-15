@@ -299,6 +299,7 @@ export function AppRoutes() {
             <Route path="/fleet/driver/trips/:id/action" element={withFleetRollout(withAnyPermission(<FleetDriverTripPage />, ["FleetDriver.ViewOwnJobs", "FleetDriver.ViewJobs", "FleetTrip.Start", "FleetTrip.Complete", "FleetDriver.Start", "FleetDriver.Complete", "FleetDriver.StartTrip", "FleetDriver.CompleteTrip"]))} />
           <Route path="/fleet/health" element={withFleetRollout(withAnyPermission(<FleetHealthPage />, ["FleetHealth.View", "FleetHealth.Manage"]))} />
           <Route path="/fleet/admin/line-groups" element={withFleetRollout(withAnyPermission(<FleetLineGroupsPage />, ["FleetLineGroup.View", "FleetLineGroup.Manage"]))} />
+          <Route path="/admin/line-groups" element={withAnyPermission(<FleetLineGroupsPage />, ["LineGroup.View", "LineGroup.Manage"])} />
           <Route path="/reports/leaves" element={withAnyPermissionOrRole(<LeaveReportsPage />, ["ReportManagement.View", "LeaveAnalytics.View"], ["Director", "Admin", "SuperAdmin"])} />
           <Route path="/reports/leave-analytics" element={withAnyPermissionOrRole(<LeaveAnalyticsPage />, ["LeaveAnalytics.View", "ReportManagement.View"], ["Director", "Admin", "SuperAdmin"])} />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />

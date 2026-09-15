@@ -93,8 +93,12 @@ public sealed class RepairsPostgresTests : IAsyncLifetime
         db.Add(user); db.Add(new UserRole { UserId = user.Id, RoleId = role.Id });
         await db.SaveChangesAsync(); return user.Id;
     }
-    private RepairsController Controller(AppDbContext db, Guid user) => new(db) { ControllerContext = new ControllerContext {
+    private RepairsController Controller(AppDbContext db, Guid user) => new(db, new NoopEvents()) { ControllerContext = new ControllerContext {
         HttpContext = new DefaultHttpContext { User = new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, user.ToString())], "test")) } } };
+    private sealed class NoopEvents : IDomainEventPublisher
+    {
+        public Task PublishAsync(DomainEventEnvelope envelope, CancellationToken ct) => Task.CompletedTask;
+    }
     private async Task<RepairRequest> Create()
     {
         await using var db = Db();

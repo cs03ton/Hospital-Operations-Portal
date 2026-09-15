@@ -30,6 +30,25 @@ public sealed class FleetLineGroupDeliveryTests
         Assert.Equal("Fleet.RequestSubmitted", log.CanonicalEventType);
     }
 
+    [Fact]
+    public async Task Discovery_fans_out_meeting_booking_to_every_subscribed_group()
+    {
+        await using var db = Database();
+        var fixture = await Seed(db, "MEETING_ROOM", "MeetingRoom.BookingCreated", active: true, subscribed: false);
+        db.LineGroupEventSubscriptions.Add(new LineGroupEventSubscription { DestinationId = fixture.Destination.Id, EventType = "MeetingRoom.BookingCreated", IsEnabled = true });
+        var second = new LineGroupDestination
+        {
+            LineGroupId = "C22222222222222222222", DisplayName = "Meeting Group", Status = LineGroupDestinationStatuses.Active,
+            Module = "CENTRAL", ConfirmedAt = DateTime.UtcNow.AddMinutes(-5)
+        };
+        second.EventSubscriptions.Add(new LineGroupEventSubscription { EventType = "MeetingRoom.BookingCreated", IsEnabled = true });
+        db.Add(second); await db.SaveChangesAsync();
+
+        Assert.Equal(2, await Service(db, new SequenceClient(Success())).DiscoverAsync(CancellationToken.None));
+        Assert.Equal(2, await db.LineGroupDeliveryLogs.CountAsync());
+        Assert.Equal(0, await Service(db, new SequenceClient(Success())).DiscoverAsync(CancellationToken.None));
+    }
+
     [Theory]
     [InlineData("LEAVE", "LeaveSubmitted", true, true)]
     [InlineData("FLEET", "Fleet.Unknown", true, true)]

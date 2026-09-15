@@ -13,7 +13,7 @@ using Microsoft.EntityFrameworkCore;
 namespace Hop.Api.Controllers;
 
 [ApiController, Authorize, Route("api/meeting-rooms")]
-public sealed class MeetingRoomsController(AppDbContext db, MeetingRoomAttachmentStorage storage) : ControllerBase
+public sealed class MeetingRoomsController(AppDbContext db, MeetingRoomAttachmentStorage storage, IDomainEventPublisher events) : ControllerBase
 {
     private Guid Actor => Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
 
@@ -79,6 +79,9 @@ public sealed class MeetingRoomsController(AppDbContext db, MeetingRoomAttachmen
         var row = new MeetingRoomBooking { RoomId = input.RoomId, BookerId = Actor, DepartmentId = actor.DepartmentId };
         Apply(row, input, times); db.Add(row); AddHistory(row, "Created", "", "Confirmed", null);
         await db.SaveChangesAsync(ct);
+        await events.PublishAsync(new DomainEventEnvelope(
+            "MeetingRoom.BookingCreated", "MEETING_ROOM", nameof(MeetingRoomBooking), row.Id, Actor,
+            HttpContext.TraceIdentifier, new { row.Number, row.RoomId, row.Subject, row.StartAt, row.EndAt }, []), ct);
         await NotifyManagers(row, actor.FullName, ct); Audit("MeetingRoom.BookingCreated", row.Id, null); await db.SaveChangesAsync(ct); await transaction.CommitAsync(ct);
         return Ok(ApiResponse<object>.Ok(row));
     }

@@ -149,6 +149,7 @@ export const navigationModules: NavigationModule[] = [
       { label: "ตั้งค่าระบบ", path: "/admin/system-settings", icon: TuneOutlinedIcon, permission: "SystemSettings.View" },
       { label: "Fleet Rollout", path: "/admin/fleet-rollout", icon: DirectionsCarOutlinedIcon, permission: "SystemSettings.View", allowedRoles: ["Admin", "SuperAdmin"] },
       { label: "ตั้งค่า LINE", path: "/admin/line-settings", icon: NotificationsActiveOutlinedIcon, permissions: ["System.Line.TestSend", "SystemSettings.View"] },
+      { label: "กลุ่มแจ้งเตือนส่วนกลาง", path: "/admin/line-groups", icon: NotificationsActiveOutlinedIcon, permissions: ["LineGroup.View", "LineGroup.Manage"], allowedRoles: ["Admin", "SuperAdmin"] },
       { label: "ผู้ใช้ LINE", path: "/admin/line-users", icon: NotificationsActiveOutlinedIcon, permissions: ["System.Line.TestSend", "SystemSettings.View"] },
     ],
   },

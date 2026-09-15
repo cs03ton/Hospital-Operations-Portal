@@ -21,12 +21,16 @@ public sealed class FleetLineGroupEventMapper : IFleetLineGroupEventMapper
         ["Fleet.AssignmentReplaced"] = "Fleet.AssignmentChanged",
         ["Fleet.DriverAccepted"] = "Fleet.DriverAcknowledged",
         ["Fleet.TripCompleted"] = "Fleet.TripCompleted",
-        ["Fleet.TripOverdue"] = "Fleet.TripOverdue"
+        ["Fleet.TripOverdue"] = "Fleet.TripOverdue",
+        ["MeetingRoom.BookingCreated"] = "MeetingRoom.BookingCreated",
+        ["Repair.Submitted"] = "Repair.Submitted", ["Repair.Resubmitted"] = "Repair.Resubmitted",
+        ["Repair.Reopened"] = "Repair.Reopened", ["Repair.Started"] = "Repair.Started",
+        ["Repair.Resumed"] = "Repair.Resumed", ["Repair.Solved"] = "Repair.Solved", ["Repair.Closed"] = "Repair.Closed"
     };
 
     public string? ToCanonical(string scope, string sourceEventType)
     {
-        if (!string.Equals(scope, "FLEET", StringComparison.Ordinal) || string.IsNullOrWhiteSpace(sourceEventType)) return null;
+        if (string.IsNullOrWhiteSpace(sourceEventType) || (scope != "FLEET" && scope != "MEETING_ROOM" && scope != "REPAIR")) return null;
         return ExactMappings.GetValueOrDefault(sourceEventType);
     }
 }

@@ -43,6 +43,10 @@ public sealed partial class FleetLineGroupMessageTemplateService(
 
     public async Task<FleetGroupRenderedMessage?> RenderAsync(DomainEventRecord domainEvent, string canonicalEventType, CancellationToken ct)
     {
+        if (canonicalEventType == "MeetingRoom.BookingCreated" && domainEvent.Scope == "MEETING_ROOM")
+            return await RenderMeetingBookingAsync(domainEvent, ct);
+        if (canonicalEventType.StartsWith("Repair.", StringComparison.Ordinal) && domainEvent.Scope == "REPAIR")
+            return await RenderRepairAsync(domainEvent, canonicalEventType, ct);
         if (!EventLabels.TryGetValue(canonicalEventType, out var label) || !string.Equals(domainEvent.Scope, "FLEET", StringComparison.Ordinal)) return null;
         var request = await db.FleetRequests.AsNoTracking()
             .Include(x => x.RequesterUser).Include(x => x.RequesterDepartment)
@@ -97,6 +101,83 @@ public sealed partial class FleetLineGroupMessageTemplateService(
             : $"{Safe(assignment.Vehicle?.VehicleCode, 60)} · {Safe(assignment.Vehicle?.RegistrationNumber, 40)} / {Safe(assignment.DriverUser?.FullName, 120)}";
         var flex = BuildFlexContents(label.Icon, label.Title, label.Status, request, assignmentText, actorName, canonicalEventType, deepLink);
         return new FleetGroupRenderedMessage("text", text, canonicalEventType, request.Id, flex, $"{label.Title} · {request.RequestNo}");
+    }
+
+    private async Task<FleetGroupRenderedMessage?> RenderMeetingBookingAsync(DomainEventRecord domainEvent, CancellationToken ct)
+    {
+        var row = await db.MeetingRoomBookings.AsNoTracking().SingleOrDefaultAsync(x => x.Id == domainEvent.AggregateId, ct);
+        if (row is null) return null;
+        var roomName = await db.MeetingRooms.AsNoTracking().Where(x => x.Id == row.RoomId).Select(x => x.Name).SingleOrDefaultAsync(ct);
+        var bookerName = await db.Users.AsNoTracking().Where(x => x.Id == row.BookerId).Select(x => x.FullName).SingleOrDefaultAsync(ct);
+        var departmentName = row.DepartmentId is null ? null : await db.Departments.AsNoTracking()
+            .Where(x => x.Id == row.DepartmentId).Select(x => x.Name).SingleOrDefaultAsync(ct);
+        var booking = new { row.Id, row.Number, row.Subject, row.StartAt, row.EndAt, row.AttendeeCount,
+            Room = roomName, Booker = bookerName, Department = departmentName };
+
+        var number = $"MR-{booking.Number:D6}";
+        var period = $"{FormatBangkok(booking.StartAt)} - {FormatBangkokTime(booking.EndAt)}";
+        var deepLink = BuildMeetingDeepLink(booking.Id);
+        var text = $"📅 มีการจองห้องประชุมใหม่\nเลขที่: {number}\nหัวข้อ: {Safe(booking.Subject, 180)}\nห้อง: {Safe(booking.Room, 120)}\nวันเวลา: {period}\nผู้จอง: {Safe(booking.Booker, 120)}\nหน่วยงาน: {Safe(booking.Department, 160)}\nผู้เข้าร่วม: {booking.AttendeeCount} คน\nดูรายละเอียด: {deepLink}";
+        var rows = new object[]
+        {
+            FlexRow("เลขที่การจอง", number, true), FlexRow("หัวข้อประชุม", Safe(booking.Subject, 180)),
+            FlexRow("ห้องประชุม", Safe(booking.Room, 120)), FlexRow("วันและเวลา", period),
+            FlexRow("ผู้จอง", Safe(booking.Booker, 120)), FlexRow("กลุ่มงาน", Safe(booking.Department, 160)),
+            FlexRow("จำนวนผู้เข้าร่วม", $"{booking.AttendeeCount} คน")
+        };
+        var bubble = new
+        {
+            type = "bubble", size = "kilo",
+            styles = new { header = new { backgroundColor = "#155E4B" }, footer = new { separator = true, separatorColor = "#D5B36A" } },
+            header = new { type = "box", layout = "vertical", paddingAll = "18px", contents = new object[] {
+                new { type = "text", text = "HOP · จองห้องประชุม", color = "#E8D29B", size = "xs", weight = "bold" },
+                new { type = "text", text = "📅 มีการจองห้องประชุมใหม่", color = "#FFFFFF", size = "lg", weight = "bold", margin = "sm", wrap = true }
+            }},
+            body = new { type = "box", layout = "vertical", paddingAll = "18px", spacing = "md", contents = rows },
+            footer = new { type = "box", layout = "vertical", paddingAll = "14px", contents = new object[] {
+                new { type = "button", style = "primary", color = "#155E4B", height = "sm", action = new { type = "uri", label = "ดูรายละเอียดการประชุม", uri = deepLink } }
+            }}
+        };
+        return new FleetGroupRenderedMessage("flex", text, "MeetingRoom.BookingCreated", booking.Id, JsonSerializer.Serialize(bubble), $"จองห้องประชุมใหม่ · {number}");
+    }
+
+    private async Task<FleetGroupRenderedMessage?> RenderRepairAsync(DomainEventRecord domainEvent, string eventType, CancellationToken ct)
+    {
+        var row = await db.Set<RepairRequest>().AsNoTracking().SingleOrDefaultAsync(x => x.Id == domainEvent.AggregateId, ct);
+        if (row is null) return null;
+        var category = await db.Set<RepairCategory>().AsNoTracking().Where(x => x.Id == row.CategoryId).Select(x => x.Name).SingleOrDefaultAsync(ct);
+        var department = row.DepartmentId is null ? null : await db.Departments.AsNoTracking().Where(x => x.Id == row.DepartmentId).Select(x => x.Name).SingleOrDefaultAsync(ct);
+        var label = eventType switch
+        {
+            "Repair.Started" => ("🛠️", "เริ่มดำเนินการ", "กำลังดำเนินการ"),
+            "Repair.Resumed" => ("▶️", "กลับมาดำเนินการ", "กำลังดำเนินการ"),
+            "Repair.Solved" => ("✅", "ช่างซ่อมเสร็จ", "รอตรวจรับ"),
+            "Repair.Closed" => ("🏁", "ปิดใบงานแล้ว", "ปิดงาน"),
+            "Repair.Reopened" => ("🔄", "เปิดงานซ้ำ", "เริ่มรอบซ่อมใหม่"),
+            "Repair.Resubmitted" => ("📨", "ส่งงานซ่อมใหม่", "ส่งเข้าคิวทีม"),
+            _ => ("🔧", "มีงานแจ้งซ่อมใหม่", "แจ้งใหม่")
+        };
+        var number = $"REP-{row.Number:D6}";
+        var team = row.TeamCode == "IT" ? "ทีม IT" : "ทีมช่างทั่วไป";
+        var link = BuildRepairDeepLink(row.Id);
+        var text = $"{label.Item1} {label.Item2}\nเลขที่: {number}\nหัวข้อ: {Safe(row.Title, 180)}\nประเภท: {Safe(category, 120)}\nทีม: {team}\nสถานที่: {Safe(row.Location, 120)}\nหน่วยงาน: {Safe(department, 160)}\nสถานะ: {label.Item3}\nดูรายละเอียด: {link}";
+        var bubble = new
+        {
+            type = "bubble", size = "kilo", styles = new { header = new { backgroundColor = "#155E4B" }, footer = new { separator = true, separatorColor = "#D5B36A" } },
+            header = new { type = "box", layout = "vertical", paddingAll = "18px", contents = new object[] {
+                new { type = "text", text = "HOP · ระบบแจ้งซ่อม", color = "#E8D29B", size = "xs", weight = "bold" },
+                new { type = "text", text = $"{label.Item1} {label.Item2}", color = "#FFFFFF", size = "lg", weight = "bold", margin = "sm", wrap = true }
+            }},
+            body = new { type = "box", layout = "vertical", paddingAll = "18px", spacing = "md", contents = new object[] {
+                FlexRow("สถานะ", label.Item3, true), FlexRow("เลขที่ใบงาน", number), FlexRow("หัวข้องาน", Safe(row.Title, 180)),
+                FlexRow("ประเภทงาน", Safe(category, 120)), FlexRow("ทีมรับผิดชอบ", team), FlexRow("สถานที่", Safe(row.Location, 120)),
+                FlexRow("หน่วยงานผู้แจ้ง", Safe(department, 160)), FlexRow("อัปเดตเมื่อ", FormatBangkok(row.UpdatedAt))
+            }},
+            footer = new { type = "box", layout = "vertical", paddingAll = "14px", contents = new object[] {
+                new { type = "button", style = "primary", color = "#155E4B", height = "sm", action = new { type = "uri", label = "ดูรายละเอียดใบงาน", uri = link } }
+            }}
+        };
+        return new FleetGroupRenderedMessage("flex", text, eventType, row.Id, JsonSerializer.Serialize(bubble), $"{label.Item2} · {number}");
     }
 
     private static string BuildFlexContents(
@@ -229,6 +310,27 @@ public sealed partial class FleetLineGroupMessageTemplateService(
     {
         var root = (lineConfiguration.PublicAppUrl ?? string.Empty).TrimEnd('/');
         return string.IsNullOrWhiteSpace(root) ? $"/fleet/requests/{requestId}" : $"{root}/fleet/requests/{requestId}";
+    }
+
+    private string BuildMeetingDeepLink(Guid bookingId)
+    {
+        var root = (lineConfiguration.PublicAppUrl ?? string.Empty).TrimEnd('/');
+        return string.IsNullOrWhiteSpace(root) ? $"/meeting-rooms/bookings/{bookingId}" : $"{root}/meeting-rooms/bookings/{bookingId}";
+    }
+
+    private string BuildRepairDeepLink(Guid requestId)
+    {
+        var root = (lineConfiguration.PublicAppUrl ?? string.Empty).TrimEnd('/');
+        return string.IsNullOrWhiteSpace(root) ? $"/repairs/{requestId}" : $"{root}/repairs/{requestId}";
+    }
+
+    private static string FormatBangkokTime(DateTime value)
+    {
+        var utc = value.Kind == DateTimeKind.Utc ? value : DateTime.SpecifyKind(value, DateTimeKind.Utc);
+        TimeZoneInfo zone;
+        try { zone = TimeZoneInfo.FindSystemTimeZoneById("Asia/Bangkok"); }
+        catch (TimeZoneNotFoundException) { zone = TimeZoneInfo.FindSystemTimeZoneById("SE Asia Standard Time"); }
+        return $"{TimeZoneInfo.ConvertTimeFromUtc(utc, zone):HH:mm} น.";
     }
 
     private static string FormatBangkok(DateTime value)

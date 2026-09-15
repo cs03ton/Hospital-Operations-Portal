@@ -30,6 +30,10 @@ const eventLabels: Record<string, string> = {
   "Fleet.Cancelled": "ยกเลิก", "Fleet.AssignmentChanged": "เปลี่ยนรถ/คนขับ",
   "Fleet.DriverAcknowledged": "คนขับรับทราบ", "Fleet.TripCompleted": "จบภารกิจ",
   "Fleet.TripOverdue": "ภารกิจเกินกำหนด",
+  "Repair.Submitted": "แจ้งซ่อมใหม่", "Repair.Resubmitted": "ส่งงานซ่อมใหม่", "Repair.Reopened": "เปิดงานซ้ำ",
+  "Repair.Started": "เริ่มดำเนินการซ่อม", "Repair.Resumed": "กลับมาดำเนินการซ่อม",
+  "Repair.Solved": "ซ่อมเสร็จรอตรวจรับ", "Repair.Closed": "ปิดใบงานซ่อม",
+  "MeetingRoom.BookingCreated": "มีการจองห้องประชุมใหม่",
 };
 
 type DialogState = { type: "confirm" | "disable" | "test"; group: FleetLineGroup } | null;
@@ -38,7 +42,7 @@ type ConfigState = { group?: FleetLineGroup; displayName: string; groupId: strin
 export function FleetLineGroupsPage() {
   const queryClient = useQueryClient();
   const { hasPermission } = usePermission();
-  const canManage = hasPermission("FleetLineGroup.Manage");
+  const canManage = hasPermission("LineGroup.Manage") || hasPermission("FleetLineGroup.Manage");
   const [search, setSearch] = useState("");
   const deferredSearch = useDeferredValue(search.trim());
   const [status, setStatus] = useState("");
@@ -104,7 +108,7 @@ export function FleetLineGroupsPage() {
   const activeCount = useMemo(() => rows.filter(x => x.status === "Active").length, [rows]);
 
   return <>
-    <PageHeader title="ตั้งค่าการแจ้งเตือน LINE Group" subtitle="เชื่อมต่อกลุ่ม LINE สำหรับรับข่าวสารและสถานะงานยานพาหนะ" />
+    <PageHeader title="จัดการกลุ่มแจ้งเตือนส่วนกลาง" subtitle="เพิ่มกลุ่มครั้งเดียว แล้วเลือกเหตุการณ์จากระบบรถ แจ้งซ่อม และจองห้องประชุม" />
     {notice && <Alert severity={notice.severity} onClose={() => setNotice(null)} sx={{ mb: 2 }}>{notice.text}</Alert>}
     <Card sx={{ mb: 2, background: "linear-gradient(135deg, #F0F8F5 0%, #FFFFFF 70%)" }}><CardContent><Stack direction={{ xs: "column", md: "row" }} justifyContent="space-between" alignItems={{ md: "center" }} spacing={2}>
       <Stack direction="row" spacing={1.5} alignItems="center"><Box sx={{ width: 48, height: 48, borderRadius: 2.5, bgcolor: "primary.main", color: "white", display: "grid", placeItems: "center" }}><LinkOutlinedIcon /></Box><Box><Typography variant="h6" fontWeight={900}>เชื่อมต่อ LINE Endpoint</Typography><Typography variant="body2" color="text.secondary">กรอก Endpoint URL, Group ID, Client ID และ Client Secret จากผู้ให้บริการ แล้วทดสอบส่งก่อนเปิดใช้งานจริง</Typography></Box></Stack>
@@ -142,7 +146,7 @@ export function FleetLineGroupsPage() {
         </TableRow>)}</TableBody></Table></TableContainer>}
     </CardContent></Card>
     {selected && <Card sx={{ mt: 2 }}><CardContent><Stack spacing={2}>
-      <Box><Typography variant="h6" fontWeight={900}>เหตุการณ์ที่ต้องการแจ้งเตือน: {selected.displayName}</Typography><Typography variant="body2" color="text.secondary">เลือกเฉพาะเหตุการณ์งานยานพาหนะที่ต้องการส่งเข้ากลุ่ม</Typography></Box>
+      <Box><Typography variant="h6" fontWeight={900}>เหตุการณ์ที่ต้องการแจ้งเตือน: {selected.displayName}</Typography><Typography variant="body2" color="text.secondary">หนึ่งเหตุการณ์เลือกส่งได้หลายกลุ่ม และแต่ละกลุ่มรับเหตุการณ์จากหลายระบบได้</Typography></Box>
       <Grid container>{selected.events.map(event => <Grid item xs={12} sm={6} md={4} key={event.eventType}><FormControlLabel
         control={<Checkbox disabled={!canManage || selected.status === "Disabled"} checked={subscriptionDraft[event.eventType] ?? false} onChange={(_, checked) => setSubscriptionDraft(x => ({ ...x, [event.eventType]: checked }))} />}
         label={eventLabels[event.eventType] ?? event.eventType} /></Grid>)}</Grid>

@@ -126,7 +126,7 @@ export async function getEmergencyReview(id:string){return unwrap(await httpClie
 export type FleetLineGroupEventSubscription = { eventType: string; isEnabled: boolean };
 export type FleetLineGroup = {
   id: string; displayName: string; groupIdMasked: string; status: "Pending" | "Active" | "Disabled";
-  module: "FLEET"; attentionRequired: boolean; attentionReason?: string | null; firstDetectedAt: string;
+  module: string; attentionRequired: boolean; attentionReason?: string | null; firstDetectedAt: string;
   lastDetectedAt: string; confirmedAt?: string | null; disabledAt?: string | null; concurrencyToken: string;
   deliveryProvider?: "LINE_MESSAGING_API" | "CUSTOM_ENDPOINT"; endpointUrl?: string | null; clientId?: string | null; hasClientSecret?: boolean;
   events: FleetLineGroupEventSubscription[];
@@ -138,29 +138,29 @@ export type FleetLineGroupDelivery = {
 };
 export type FleetLineGroupDeliveries = { items: FleetLineGroupDelivery[]; page: number; pageSize: number; totalItems: number; totalPages: number };
 export async function getFleetLineGroups(params?: { status?: string; search?: string }) {
-  return unwrap(await httpClient.get<ApiResponse<FleetLineGroup[]>>("/fleet/line-groups", { params }));
+  return unwrap(await httpClient.get<ApiResponse<FleetLineGroup[]>>("/admin/line-groups", { params }));
 }
 export type SaveFleetLineGroupEndpoint = { displayName: string; groupId: string; endpointUrl: string; clientId: string; clientSecret?: string; concurrencyToken?: string };
 export async function createFleetLineGroupEndpoint(data: SaveFleetLineGroupEndpoint) {
-  return unwrap(await httpClient.post<ApiResponse<{ id: string; status: string; concurrencyToken: string }>>("/fleet/line-groups", data));
+  return unwrap(await httpClient.post<ApiResponse<{ id: string; status: string; concurrencyToken: string }>>("/admin/line-groups", data));
 }
 export async function updateFleetLineGroupEndpoint(id: string, data: SaveFleetLineGroupEndpoint) {
-  return unwrap(await httpClient.put<ApiResponse<{ id: string; status: string; concurrencyToken: string }>>(`/fleet/line-groups/${id}/configuration`, data));
+  return unwrap(await httpClient.put<ApiResponse<{ id: string; status: string; concurrencyToken: string }>>(`/admin/line-groups/${id}/configuration`, data));
 }
 export async function confirmFleetLineGroup(id: string, concurrencyToken: string, reason?: string) {
-  return unwrap(await httpClient.post<ApiResponse<{ id: string; status: string; concurrencyToken: string }>>(`/fleet/line-groups/${id}/confirm`, { concurrencyToken, reason }));
+  return unwrap(await httpClient.post<ApiResponse<{ id: string; status: string; concurrencyToken: string }>>(`/admin/line-groups/${id}/confirm`, { concurrencyToken, reason }));
 }
 export async function disableFleetLineGroup(id: string, concurrencyToken: string, reason: string) {
-  return unwrap(await httpClient.post<ApiResponse<{ id: string; status: string; concurrencyToken: string }>>(`/fleet/line-groups/${id}/disable`, { concurrencyToken, reason }));
+  return unwrap(await httpClient.post<ApiResponse<{ id: string; status: string; concurrencyToken: string }>>(`/admin/line-groups/${id}/disable`, { concurrencyToken, reason }));
 }
 export async function updateFleetLineGroupSubscriptions(id: string, concurrencyToken: string, events: Record<string, boolean>) {
-  return unwrap(await httpClient.put<ApiResponse<{ id: string; concurrencyToken: string }>>(`/fleet/line-groups/${id}/subscriptions`, { concurrencyToken, events }));
+  return unwrap(await httpClient.put<ApiResponse<{ id: string; concurrencyToken: string }>>(`/admin/line-groups/${id}/subscriptions`, { concurrencyToken, events }));
 }
 export async function testFleetLineGroup(id: string, message?: string) {
-  return unwrap(await httpClient.post<ApiResponse<{ id: string; status: string; attemptCount: number; errorCode?: string | null }>>(`/fleet/line-groups/${id}/test`, { message }));
+  return unwrap(await httpClient.post<ApiResponse<{ id: string; status: string; attemptCount: number; errorCode?: string | null }>>(`/admin/line-groups/${id}/test`, { message }));
 }
 export async function getFleetLineGroupDeliveries(id: string, page = 1, pageSize = 20) {
-  return unwrap(await httpClient.get<ApiResponse<FleetLineGroupDeliveries>>(`/fleet/line-groups/${id}/deliveries`, { params: { page, pageSize } }));
+  return unwrap(await httpClient.get<ApiResponse<FleetLineGroupDeliveries>>(`/admin/line-groups/${id}/deliveries`, { params: { page, pageSize } }));
 }
 
 export type FleetFeedbackStatus = "AVAILABLE" | "SUBMITTED" | "EXPIRED" | "NOT_ELIGIBLE";

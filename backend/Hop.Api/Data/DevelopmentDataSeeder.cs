@@ -223,6 +223,8 @@ public static class DevelopmentDataSeeder
         ,("FleetTrip.UploadAttachment", "อัปโหลดไฟล์ Trip", "FleetTrip", "UploadAttachment")
         ,("FleetLineGroup.View", "ดู LINE Group ของโมดูล Fleet", "FleetLineGroup", "View")
         ,("FleetLineGroup.Manage", "ยืนยันและจัดการ LINE Group ของโมดูล Fleet", "FleetLineGroup", "Manage")
+        ,("LineGroup.View", "ดูกลุ่มแจ้งเตือนส่วนกลาง", "LineGroup", "View")
+        ,("LineGroup.Manage", "จัดการกลุ่มและเหตุการณ์แจ้งเตือนส่วนกลาง", "LineGroup", "Manage")
     ];
 
     private static readonly (string Code, string Name, string Group, string Action)[] MeetingRoomPermissionSeeds =
@@ -560,6 +562,8 @@ public static class DevelopmentDataSeeder
                 .Select(permission => permission.Id)
                 .ToListAsync();
             await GrantPermissionIds(db, adminRole.Id, fleetPermissionIds);
+            await GrantPermissions(db, adminRole.Id, "LineGroup.View", "LineGroup.Manage");
+            await GrantPermissions(db, superAdminRole.Id, "LineGroup.View", "LineGroup.Manage");
             var meetingBasicPermissions = new[] { "MeetingRoom.Calendar.View", "MeetingRoom.Booking.ViewOwn", "MeetingRoom.Booking.Create" };
             foreach (var role in await db.Roles.Where(role => role.IsActive).ToListAsync())
             {
