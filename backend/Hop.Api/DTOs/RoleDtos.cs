@@ -69,7 +69,8 @@ public record DashboardSummaryResponse(
     DashboardLeaveRequestGroupResponse? MyRecentLeaveRequests = null,
     DashboardLeaveCancellationSummaryResponse? LeaveCancellationSummary = null,
     DateTime? GeneratedAtUtc = null,
-    DashboardLeaveTrackingResponse? LeaveTracking = null
+    DashboardLeaveTrackingResponse? LeaveTracking = null,
+    int MeetingBookingsToday = 0
 );
 
 public record DashboardLeaveTrackingResponse(

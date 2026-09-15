@@ -3,12 +3,13 @@ import DashboardOutlinedIcon from "@mui/icons-material/DashboardOutlined";
 import DirectionsCarOutlinedIcon from "@mui/icons-material/DirectionsCarOutlined";
 import EventAvailableOutlinedIcon from "@mui/icons-material/EventAvailableOutlined";
 import Inventory2OutlinedIcon from "@mui/icons-material/Inventory2Outlined";
+import MeetingRoomOutlinedIcon from "@mui/icons-material/MeetingRoomOutlined";
 import QueryStatsOutlinedIcon from "@mui/icons-material/QueryStatsOutlined";
 import type { SvgIconComponent } from "@mui/icons-material";
 import type { DashboardSummary } from "../api/adminApi";
 import type { AuthUser } from "../types/auth";
 
-export type DashboardModuleKey = "leave" | "vehicle" | "repair" | "inventory" | "executive";
+export type DashboardModuleKey = "leave" | "vehicle" | "repair" | "meeting" | "inventory" | "executive";
 export type DashboardModuleStatus = "active" | "coming_soon" | "planned";
 
 export type DashboardModuleDefinition = {
@@ -59,9 +60,21 @@ export const dashboardModules: DashboardModuleDefinition[] = [
     icon: BuildOutlinedIcon,
     status: "active",
     requiredPermissions: ["RepairManagement.ViewOwn", "RepairManagement.WorkIT", "RepairManagement.WorkGeneral", "RepairManagement.ViewAll"],
-    metricLabel: "บริการ",
-    metricSelector: () => "IT / ช่างทั่วไป",
+    metricLabel: "งานที่ดำเนินการอยู่",
+    metricSelector: (summary) => summary?.openRepairRequests ?? 0,
     order: 30,
+  },
+  {
+    key: "meeting",
+    title: "ระบบจองห้องประชุม",
+    description: "ดูปฏิทินการใช้ห้องและจองห้องประชุมของโรงพยาบาล",
+    route: "/meeting-rooms/calendar",
+    icon: MeetingRoomOutlinedIcon,
+    status: "active",
+    requiredPermissions: ["MeetingRoom.Calendar.View"],
+    metricLabel: "การจองวันนี้",
+    metricSelector: (summary) => summary?.meetingBookingsToday ?? 0,
+    order: 40,
   },
   {
     key: "inventory",
@@ -73,7 +86,7 @@ export const dashboardModules: DashboardModuleDefinition[] = [
     allowedRoles: ["SuperAdmin"],
     metricLabel: "รายการพัสดุ",
     metricSelector: (summary) => summary?.inventoryItems ?? 0,
-    order: 40,
+    order: 50,
   },
   {
     key: "executive",
@@ -86,7 +99,7 @@ export const dashboardModules: DashboardModuleDefinition[] = [
     allowedRoles: ["Director", "Admin", "SuperAdmin"],
     metricLabel: "สถานะระบบ",
     metricSelector: (summary) => summary?.apiHealth ?? "พร้อมใช้งาน",
-    order: 50,
+    order: 60,
   },
 ];
 

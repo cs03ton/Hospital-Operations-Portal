@@ -44,6 +44,7 @@ import { repairSelectProps } from "../components/repairs/repairSelectProps";
 import { DataTableCard } from "../components/common/DataTableCard";
 import { EmptyState } from "../components/common/EmptyState";
 import { PageToolbar } from "../components/common/PageToolbar";
+import { ListPagination } from "../components/common/ListPagination";
 import { RepairRefresh, RepairUpdating } from "../components/repairs/RepairUi";
 import {
   repairTeamLabel,
@@ -64,6 +65,8 @@ export function RepairSettingsPage() {
   const [search, setSearch] = useState("");
   const [team, setTeam] = useState("");
   const [active, setActive] = useState("");
+  const [categoryPage, setCategoryPage] = useState(1);
+  const [categoryPageSize, setCategoryPageSize] = useState(10);
   const query = useQuery({
     queryKey: ["repairs", "settings"],
     queryFn: api.repairSettings,
@@ -79,6 +82,12 @@ export function RepairSettingsPage() {
         (!team || c.teamCode === team) &&
         (!active || c.isActive === (active === "active")),
     ) ?? [];
+  const categoryPageCount = Math.max(1, Math.ceil(categories.length / categoryPageSize));
+  const safeCategoryPage = Math.min(categoryPage, categoryPageCount);
+  const pagedCategories = categories.slice(
+    (safeCategoryPage - 1) * categoryPageSize,
+    safeCategoryPage * categoryPageSize,
+  );
   const [category, setCategory] = useState<Partial<api.RepairCategory> | null>(
     null,
   );
@@ -258,7 +267,10 @@ export function RepairSettingsPage() {
                   size="small"
                   label="ค้นหาประเภทงาน"
                   value={search}
-                  onChange={(e) => setSearch(e.target.value)}
+                  onChange={(e) => {
+                    setSearch(e.target.value);
+                    setCategoryPage(1);
+                  }}
                   sx={{ flex: 1, minWidth: 160 }}
                 />
                 <TextField
@@ -267,7 +279,10 @@ export function RepairSettingsPage() {
                   SelectProps={repairSelectProps}
                   label="ทีม"
                   value={team}
-                  onChange={(e) => setTeam(e.target.value)}
+                  onChange={(e) => {
+                    setTeam(e.target.value);
+                    setCategoryPage(1);
+                  }}
                   sx={{ minWidth: 150 }}
                 >
                   <MenuItem value="">ทุกทีม</MenuItem>
@@ -280,7 +295,10 @@ export function RepairSettingsPage() {
                   SelectProps={repairSelectProps}
                   label="สถานะการใช้งาน"
                   value={active}
-                  onChange={(e) => setActive(e.target.value)}
+                  onChange={(e) => {
+                    setActive(e.target.value);
+                    setCategoryPage(1);
+                  }}
                   sx={{ minWidth: 160 }}
                 >
                   <MenuItem value="">ทั้งหมด</MenuItem>
@@ -292,6 +310,7 @@ export function RepairSettingsPage() {
                     setSearch("");
                     setTeam("");
                     setActive("");
+                    setCategoryPage(1);
                   }}
                 >
                   ล้างตัวกรอง
@@ -323,7 +342,7 @@ export function RepairSettingsPage() {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {categories.map((c) => (
+                  {pagedCategories.map((c) => (
                     <TableRow key={c.id} hover>
                       <TableCell
                         sx={{ overflowWrap: "anywhere", maxWidth: 500 }}
@@ -339,7 +358,7 @@ export function RepairSettingsPage() {
               </DataTableCard>
             ) : (
               !desktop &&
-              categories.map((c) => (
+              pagedCategories.map((c) => (
                 <Card key={c.id} sx={{ borderRadius: 2 }}>
                   <CardContent>
                     <Stack
@@ -369,6 +388,20 @@ export function RepairSettingsPage() {
                   </CardContent>
                 </Card>
               ))
+            )}
+            {categories.length > 0 && (
+              <ListPagination
+                page={safeCategoryPage}
+                pageSize={categoryPageSize}
+                totalItems={categories.length}
+                onPageChange={setCategoryPage}
+                onPageSizeChange={(nextPageSize) => {
+                  setCategoryPageSize(nextPageSize);
+                  setCategoryPage(1);
+                }}
+                pageSizeOptions={[10, 20, 50]}
+                disabled={query.isFetching}
+              />
             )}
           </Stack>
         )}

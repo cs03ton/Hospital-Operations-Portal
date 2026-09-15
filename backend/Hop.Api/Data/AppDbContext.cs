@@ -82,6 +82,10 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<FleetEmergencyPostReview> FleetEmergencyPostReviews => Set<FleetEmergencyPostReview>();
     public DbSet<FleetTripAttachment> FleetTripAttachments => Set<FleetTripAttachment>();
     public DbSet<FleetEmergencyPolicy> FleetEmergencyPolicies => Set<FleetEmergencyPolicy>();
+    public DbSet<MeetingRoom> MeetingRooms => Set<MeetingRoom>();
+    public DbSet<MeetingRoomBooking> MeetingRoomBookings => Set<MeetingRoomBooking>();
+    public DbSet<MeetingRoomBookingHistory> MeetingRoomBookingHistories => Set<MeetingRoomBookingHistory>();
+    public DbSet<MeetingRoomAttachment> MeetingRoomAttachments => Set<MeetingRoomAttachment>();
 
     public override int SaveChanges(bool acceptAllChangesOnSuccess)
     {
@@ -99,6 +103,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     {
         modelBuilder.ConfigureRepairs();
         modelBuilder.ConfigureFleet();
+        modelBuilder.ConfigureMeetingRooms();
 
         modelBuilder.Entity<Department>(entity =>
         {

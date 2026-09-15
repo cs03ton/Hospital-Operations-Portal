@@ -116,6 +116,18 @@ export const navigationModules: NavigationModule[] = [
     ],
   },
   {
+    moduleId: "MeetingRoomBooking",
+    moduleLabel: "จองห้องประชุม",
+    moduleIcon: MeetingRoomOutlinedIcon,
+    enabled: true,
+    children: [
+      { label: "ปฏิทินห้องประชุม", path: "/meeting-rooms/calendar", icon: CalendarMonthOutlinedIcon, permission: "MeetingRoom.Calendar.View" },
+      { label: "รายการจองของฉัน", path: "/meeting-rooms/my-bookings", icon: EventAvailableOutlinedIcon, permission: "MeetingRoom.Booking.ViewOwn" },
+      { label: "จองห้องประชุม", path: "/meeting-rooms/new", icon: MeetingRoomOutlinedIcon, permission: "MeetingRoom.Booking.Create" },
+      { label: "จัดการรายการและห้อง", path: "/meeting-rooms/manage", icon: SettingsSuggestOutlinedIcon, permissions: ["MeetingRoom.Booking.Manage", "MeetingRoom.Room.Manage"] },
+    ],
+  },
+  {
     moduleId: "UserManagement",
     moduleLabel: "จัดการระบบผู้ใช้",
     moduleIcon: GroupOutlinedIcon,
@@ -162,13 +174,6 @@ export const navigationModules: NavigationModule[] = [
     moduleId: "AssetBorrowing",
     moduleLabel: "ยืมคืนครุภัณฑ์",
     moduleIcon: WarehouseOutlinedIcon,
-    enabled: false,
-    children: [],
-  },
-  {
-    moduleId: "MeetingRoomBooking",
-    moduleLabel: "จองห้องประชุม",
-    moduleIcon: MeetingRoomOutlinedIcon,
     enabled: false,
     children: [],
   },

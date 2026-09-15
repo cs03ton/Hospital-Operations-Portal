@@ -32,6 +32,7 @@ import { FleetRequestsPage } from "../pages/FleetRequestsPage";
 import { RepairListPage, RepairCreatePage, RepairDetailPage } from "../pages/RepairPages";
 import { RepairDashboardPage } from "../pages/RepairDashboardPage";
 import { RepairSettingsPage } from "../pages/RepairSettingsPage";
+import { MeetingRoomBookingsPage, MeetingRoomCalendarPage, MeetingRoomCreatePage, MeetingRoomDetailPage, MeetingRoomManagePage } from "../pages/MeetingRoomPages";
 import { repairViewPermissions } from "../api/repairApi";
 import { FleetRequestFormPage } from "../pages/FleetRequestFormPage";
 import { FleetRequestDetailPage } from "../pages/FleetRequestDetailPage";
@@ -272,6 +273,12 @@ export function AppRoutes() {
           <Route path="/repairs/new" element={withPermission(<RepairCreatePage />, "RepairManagement.Create")} />
           <Route path="/repairs/settings" element={withPermission(<RepairSettingsPage />, "RepairManagement.Manage")} />
           <Route path="/repairs/:id" element={<PermissionGuard permissions={repairViewPermissions} redirectTo="/dashboard"><RepairDetailPage /></PermissionGuard>} />
+          <Route path="/meeting-rooms" element={<Navigate to="/meeting-rooms/calendar" replace />} />
+          <Route path="/meeting-rooms/calendar" element={withPermission(<MeetingRoomCalendarPage />, "MeetingRoom.Calendar.View")} />
+          <Route path="/meeting-rooms/my-bookings" element={withPermission(<MeetingRoomBookingsPage />, "MeetingRoom.Booking.ViewOwn")} />
+          <Route path="/meeting-rooms/new" element={withPermission(<MeetingRoomCreatePage />, "MeetingRoom.Booking.Create")} />
+          <Route path="/meeting-rooms/bookings/:id" element={withPermission(<MeetingRoomDetailPage />, "MeetingRoom.Calendar.View")} />
+          <Route path="/meeting-rooms/manage" element={withAnyPermission(<MeetingRoomManagePage />, ["MeetingRoom.Booking.Manage", "MeetingRoom.Room.Manage"])} />
           <Route path="/fleet/maintenance" element={withFleetRollout(withPermission(<FleetMaintenancePage />, "FleetMaintenance.View"))} />
           <Route path="/fleet/maintenance/create" element={withFleetRollout(withPermission(<FleetMaintenanceFormPage />, "FleetMaintenance.Manage"))} />
           <Route path="/fleet/maintenance/:id" element={withFleetRollout(withPermission(<FleetMaintenanceDetailPage />, "FleetMaintenance.View"))} />

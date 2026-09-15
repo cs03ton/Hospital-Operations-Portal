@@ -110,6 +110,7 @@ builder.Services.AddScoped<FleetLineGroupDeliveryService>();
 builder.Services.AddScoped<ILeaveAttachmentStorageService, LeaveAttachmentStorageService>();
 builder.Services.AddScoped<IFileTypeValidationService, FileTypeValidationService>();
 builder.Services.AddScoped<IAnnouncementMediaStorageService, AnnouncementMediaStorageService>();
+builder.Services.AddScoped<MeetingRoomAttachmentStorage>();
 builder.Services.AddScoped<ILeavePdfService, LeavePdfService>();
 builder.Services.AddScoped<IFileScanningService>(provider =>
 {

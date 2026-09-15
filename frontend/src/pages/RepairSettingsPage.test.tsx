@@ -51,8 +51,8 @@ vi.mock("../api/repairApi", async (original) => ({
   saveRepairCategory: vi.fn(),
   saveRepairGroup: vi.fn(),
 }));
-function mount() {
-  vi.mocked(api.repairSettings).mockResolvedValue(data);
+function mount(settings = data) {
+  vi.mocked(api.repairSettings).mockResolvedValue(settings);
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
@@ -72,6 +72,32 @@ function mount() {
   };
 }
 describe("repair settings", () => {
+  it("paginates filtered categories for both table and mobile card layouts", async () => {
+    const categories = Array.from({ length: 12 }, (_, index) => ({
+      id: String(index + 1),
+      name: `Category ${String(index + 1).padStart(2, "0")}`,
+      teamCode: index % 2 === 0 ? "IT" : "GENERAL",
+      isActive: true,
+      concurrencyToken: "old",
+    }));
+    const { cleanup } = mount({ ...data, categories });
+    expect(await screen.findByText("Category 01")).toBeInTheDocument();
+    expect(screen.getByText("Category 10")).toBeInTheDocument();
+    expect(screen.queryByText("Category 11")).not.toBeInTheDocument();
+    expect(screen.getByText("แสดง 1-10 จาก 12 รายการ")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "ไปหน้าถัดไป" }));
+    expect(await screen.findByText("Category 11")).toBeInTheDocument();
+    expect(screen.queryByText("Category 01")).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("ค้นหาประเภทงาน"), {
+      target: { value: "Category 01" },
+    });
+    expect(screen.getByText("Category 01")).toBeInTheDocument();
+    expect(screen.getByText("แสดง 1-1 จาก 1 รายการ")).toBeInTheDocument();
+    cleanup();
+  });
+
   it("filters categories and separates groups and deliveries without exposing secrets", async () => {
     const { cleanup } = mount();
     await screen.findByText("Printer");

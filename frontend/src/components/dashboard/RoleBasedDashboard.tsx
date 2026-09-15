@@ -697,6 +697,7 @@ const emptyDashboard: DashboardSummary = {
   totalPendingLeaveRequests: 0,
   openRepairRequests: 0,
   activeBorrowRequests: 0,
+  meetingBookingsToday: 0,
   inventoryItems: 0,
   staffOnLeaveToday: 0,
   staffOnLeaveThisWeek: 0,

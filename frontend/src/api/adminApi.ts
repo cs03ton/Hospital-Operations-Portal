@@ -102,6 +102,7 @@ export type DashboardSummary = {
   totalPendingLeaveRequests: number;
   openRepairRequests: number;
   activeBorrowRequests: number;
+  meetingBookingsToday: number;
   inventoryItems: number;
   staffOnLeaveToday: number;
   staffOnLeaveThisWeek: number;

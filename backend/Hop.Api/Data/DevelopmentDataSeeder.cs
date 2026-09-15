@@ -41,7 +41,8 @@ public static class DevelopmentDataSeeder
         ("LeaveAdmin", "Leave administration access"),
         ("Director", "Executive approval and reporting access"),
         ("DepartmentHead", "Department approval access"),
-        ("Staff", "Standard user access")
+        ("Staff", "Standard user access"),
+        ("ผู้ดูแลห้องประชุม", "Meeting room booking administration")
     ];
 
     private static readonly string[] PermissionGroups =
@@ -222,6 +223,15 @@ public static class DevelopmentDataSeeder
         ,("FleetTrip.UploadAttachment", "อัปโหลดไฟล์ Trip", "FleetTrip", "UploadAttachment")
         ,("FleetLineGroup.View", "ดู LINE Group ของโมดูล Fleet", "FleetLineGroup", "View")
         ,("FleetLineGroup.Manage", "ยืนยันและจัดการ LINE Group ของโมดูล Fleet", "FleetLineGroup", "Manage")
+    ];
+
+    private static readonly (string Code, string Name, string Group, string Action)[] MeetingRoomPermissionSeeds =
+    [
+        ("MeetingRoom.Calendar.View", "ดูปฏิทินห้องประชุม", "MeetingRoom", "CalendarView"),
+        ("MeetingRoom.Booking.ViewOwn", "ดูรายการจองห้องของตนเอง", "MeetingRoom", "BookingViewOwn"),
+        ("MeetingRoom.Booking.Create", "จองห้องประชุม", "MeetingRoom", "BookingCreate"),
+        ("MeetingRoom.Booking.Manage", "จัดการรายการจองห้องทั้งหมด", "MeetingRoom", "BookingManage"),
+        ("MeetingRoom.Room.Manage", "จัดการทะเบียนห้องประชุม", "MeetingRoom", "RoomManage")
     ];
 
     private static readonly (string Code, string Name, string Description, int SortOrder)[] FleetVehicleTypeSeeds =
@@ -450,6 +460,21 @@ public static class DevelopmentDataSeeder
                 permission.UpdatedAt = DateTime.UtcNow;
             }
 
+            foreach (var permissionSeed in MeetingRoomPermissionSeeds)
+            {
+                if (!permissionsByCode.TryGetValue(permissionSeed.Code, out var permission))
+                {
+                    permission = new Permission { Code = permissionSeed.Code, CreatedAt = DateTime.UtcNow };
+                    db.Permissions.Add(permission);
+                    permissionsByCode[permissionSeed.Code] = permission;
+                }
+                permission.Name = permissionSeed.Name;
+                permission.Group = permissionSeed.Group;
+                permission.Action = permissionSeed.Action;
+                permission.IsActive = true;
+                permission.UpdatedAt = DateTime.UtcNow;
+            }
+
             foreach (var typeSeed in FleetVehicleTypeSeeds)
             {
                 var vehicleType = await db.FleetVehicleTypes.FirstOrDefaultAsync(item => item.Code == typeSeed.Code);
@@ -480,6 +505,7 @@ public static class DevelopmentDataSeeder
             var directorRole = await db.Roles.SingleAsync(role => role.Name == "Director");
             var departmentHeadRole = await db.Roles.SingleAsync(role => role.Name == "DepartmentHead");
             var staffRole = await db.Roles.SingleAsync(role => role.Name == "Staff");
+            var meetingRoomAdminRole = await db.Roles.SingleAsync(role => role.Name == "ผู้ดูแลห้องประชุม");
             var adminUsername = configuration["Seed:AdminUsername"] ?? configuration["SEED_ADMIN_USERNAME"] ?? "admin";
             var admin = await db.Users
                 .Include(user => user.UserRoles)
@@ -534,6 +560,14 @@ public static class DevelopmentDataSeeder
                 .Select(permission => permission.Id)
                 .ToListAsync();
             await GrantPermissionIds(db, adminRole.Id, fleetPermissionIds);
+            var meetingBasicPermissions = new[] { "MeetingRoom.Calendar.View", "MeetingRoom.Booking.ViewOwn", "MeetingRoom.Booking.Create" };
+            foreach (var role in await db.Roles.Where(role => role.IsActive).ToListAsync())
+            {
+                await GrantPermissions(db, role.Id, meetingBasicPermissions);
+            }
+            await GrantPermissions(db, meetingRoomAdminRole.Id, MeetingRoomPermissionSeeds.Select(item => item.Code).ToArray());
+            await GrantPermissions(db, adminRole.Id, MeetingRoomPermissionSeeds.Select(item => item.Code).ToArray());
+            await GrantPermissions(db, superAdminRole.Id, MeetingRoomPermissionSeeds.Select(item => item.Code).ToArray());
             await RevokePermissions(db, superAdminRole.Id, "LeaveRequest.Create");
             await RevokePermissions(db, adminRole.Id, "LeaveRequest.Create");
             await RevokePermissions(db, superAdminRole.Id, "LeaveCancellation.Create", "LeaveCancellation.Submit", "LeaveCancellation.CancelOwn");

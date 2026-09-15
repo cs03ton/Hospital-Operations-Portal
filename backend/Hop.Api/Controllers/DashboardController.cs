@@ -200,6 +200,23 @@ public class DashboardController(
                 : await db.FleetRequests.CountAsync(item =>
                     item.RequesterUserId == userId &&
                     ActiveFleetRequestStatuses.Contains(item.Status));
+        var canViewAllRepairs = permissionCodes.Contains(RepairPermissions.ViewAll) ||
+            permissionCodes.Contains(RepairPermissions.Manage);
+        var canWorkItRepairs = permissionCodes.Contains(RepairPermissions.WorkIT);
+        var canWorkGeneralRepairs = permissionCodes.Contains(RepairPermissions.WorkGeneral);
+        var canViewOwnRepairs = permissionCodes.Contains(RepairPermissions.ViewOwn);
+        var openRepairRequests = userId is null
+            ? 0
+            : await db.Set<RepairRequest>().AsNoTracking().CountAsync(item =>
+                (item.Status == "Submitted" || item.Status == "InProgress" || item.Status == "WaitingParts") &&
+                (canViewAllRepairs ||
+                 (canWorkItRepairs && item.TeamCode == "IT") ||
+                 (canWorkGeneralRepairs && item.TeamCode == "GENERAL") ||
+                 (canViewOwnRepairs && item.RequesterId == userId.Value)));
+        var meetingBookingsToday = permissionCodes.Contains(MeetingRoomPermissions.ViewCalendar)
+            ? await db.MeetingRoomBookings.AsNoTracking().CountAsync(item =>
+                item.Status == "Confirmed" && item.StartAt < tomorrowStart && item.EndAt > todayStart)
+            : 0;
         var lineQueued = canViewSecurityDashboard ? await db.LineDeliveryLogs.CountAsync(item => item.Status == "Queued") : 0;
         var lineFailed = canViewSecurityDashboard ? await db.LineDeliveryLogs.CountAsync(item => item.Status == "Failed") : 0;
         var databaseStatus = canViewSecurityDashboard ? (await db.Database.CanConnectAsync() ? "Healthy" : "Unavailable") : "Restricted";
@@ -210,7 +227,7 @@ public class DashboardController(
             totalDepartments,
             pendingApprovals,
             totalPendingLeaveRequests,
-            OpenRepairRequests: 0,
+            OpenRepairRequests: openRepairRequests,
             ActiveBorrowRequests: activeBorrowRequests,
             InventoryItems: 0,
             staffOnLeaveToday,
@@ -244,7 +261,8 @@ public class DashboardController(
             myRecentLeaveRequests,
             leaveCancellationSummary,
             DateTime.UtcNow,
-            leaveTracking
+            leaveTracking,
+            MeetingBookingsToday: meetingBookingsToday
         ));
     }
 
