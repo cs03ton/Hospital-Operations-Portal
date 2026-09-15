@@ -39,3 +39,13 @@ describe("Leave task navigation badge", () => {
     );
   });
 });
+
+describe("documentation navigation", () => {
+  it("uses Documentation.View without restricting specialist roles by name", () => {
+    const helpCenter = navigationModules.find((module) => module.moduleId === "HelpCenter");
+    const docs = helpCenter?.children.find((item) => item.path === "/docs");
+
+    expect(docs?.permission).toBe("Documentation.View");
+    expect(docs?.allowedRoles).toBeUndefined();
+  });
+});

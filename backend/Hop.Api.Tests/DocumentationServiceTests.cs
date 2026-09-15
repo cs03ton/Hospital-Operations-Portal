@@ -25,6 +25,8 @@ public class DocumentationServiceTests
         Assert.Contains(docs, item => item.Slug == "staff-guide");
         Assert.Contains(docs, item => item.Slug == "faq");
         Assert.Contains(docs, item => item.Slug == "fleet-requester-guide");
+        Assert.Contains(docs, item => item.Slug == "meeting-room-guide");
+        Assert.DoesNotContain(docs, item => item.Slug == "meeting-room-admin-guide");
         Assert.DoesNotContain(docs, item => item.Slug == "fleet-driver-guide");
         Assert.DoesNotContain(docs, item => item.Slug == "admin-guide");
         Assert.DoesNotContain(docs, item => item.Slug == "release-notes");
@@ -34,6 +36,8 @@ public class DocumentationServiceTests
     [InlineData("พนักงานขับรถ", "fleet-driver-guide")]
     [InlineData("FleetAdminReviewer", "fleet-reviewer-guide")]
     [InlineData("Director", "fleet-director-guide")]
+    [InlineData("ช่าง IT", "repair-guide")]
+    [InlineData("พนักงานขับรถ", "meeting-room-guide")]
     public async Task Fleet_role_sees_its_own_manual(string role, string expectedSlug)
     {
         using var temp = new TempDocumentationRoot();
@@ -63,6 +67,9 @@ public class DocumentationServiceTests
         Assert.Contains(docs, item => item.Slug == "director-guide");
         Assert.Contains(docs, item => item.Slug == "admin-guide");
         Assert.Contains(docs, item => item.Slug == "release-notes");
+        Assert.Contains(docs, item => item.Slug == "meeting-room-guide");
+        Assert.Contains(docs, item => item.Slug == "meeting-room-admin-guide");
+        Assert.Contains(docs, item => item.Slug == "fleet-line-group-admin-guide");
     }
 
     [Fact]
@@ -128,13 +135,31 @@ public class DocumentationServiceTests
         Assert.Equal((byte)'F', bytes[3]);
     }
 
+    [Fact]
+    public async Task MeetingRoomGuide_CanBeOpenedAndDownloadedByStaff()
+    {
+        using var temp = new TempDocumentationRoot();
+        var service = temp.CreateService();
+        var access = new DocumentationAccessContext(
+            new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "Staff" },
+            new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "Documentation.View" });
+
+        var doc = await service.GetDocumentAsync("meeting-room-guide", access);
+        var pdf = await service.GeneratePdfAsync("meeting-room-guide", access);
+
+        Assert.NotNull(doc);
+        Assert.Equal("Meeting Room Guide", doc!.Category);
+        Assert.NotNull(pdf);
+        Assert.True(pdf!.Length > 100);
+    }
+
     private sealed class TempDocumentationRoot : IDisposable
     {
         public TempDocumentationRoot()
         {
             Root = Path.Combine(Path.GetTempPath(), $"hop-docs-{Guid.NewGuid():N}");
             Directory.CreateDirectory(Root);
-            foreach (var file in new[] { "staff.md", "head.md", "director.md", "admin.md", "announcement.md", "faq.md", "release-notes.md", "fleet-requester.md", "fleet-dispatcher.md", "fleet-reviewer.md", "fleet-director.md", "fleet-driver.md", "fleet-admin.md" })
+            foreach (var file in new[] { "staff.md", "head.md", "director.md", "admin.md", "announcement.md", "faq.md", "release-notes.md", "fleet-requester.md", "fleet-dispatcher.md", "fleet-reviewer.md", "fleet-director.md", "fleet-driver.md", "fleet-admin.md", "fleet-line-group-admin.md", "meeting-room.md", "meeting-room-admin.md", "repairs.md" })
             {
                 File.WriteAllText(Path.Combine(Root, file), $"# {file}\n\nเนื้อหาทดสอบ");
             }

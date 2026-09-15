@@ -38,8 +38,6 @@ const leaveViewPermissions = [
   "LeaveRequest.ViewAll",
 ];
 
-const documentationViewerRoles = ["Staff", "DepartmentHead", "Director", "LeaveAdmin", "Admin", "SuperAdmin"];
-
 export type NavigationModule = {
   moduleId: string;
   moduleLabel: string;
@@ -165,7 +163,6 @@ export const navigationModules: NavigationModule[] = [
         path: "/docs",
         icon: MenuBookOutlinedIcon,
         permission: "Documentation.View",
-        allowedRoles: documentationViewerRoles,
         activePatterns: ["/docs", "/docs/:slug"],
       },
     ],
