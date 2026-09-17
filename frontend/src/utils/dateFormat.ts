@@ -42,6 +42,18 @@ export function formatDateForApi(value?: string | Date | null) {
   return parsed.isValid() ? parsed.format(apiDateFormat) : "";
 }
 
+export function normalizeBuddhistApiDate(value?: string | null) {
+  if (!value) return "";
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) return "";
+  const year = Number(match[1]);
+  const gregorianYear = year >= 2500 && year <= 2599 ? year - 543 : year;
+  if (gregorianYear < 1900 || gregorianYear > 2100) return "";
+  const normalized = `${gregorianYear}-${match[2]}-${match[3]}`;
+  const parsed = dayjs(normalized);
+  return parsed.isValid() && parsed.format(apiDateFormat) === normalized ? normalized : "";
+}
+
 export function isValidApiDate(value?: string | null) {
   return Boolean(value && dayjs(value).format(apiDateFormat) === value);
 }

@@ -13,7 +13,7 @@ import { AppDatePicker } from "../components/common/AppDatePicker";
 import { PageHeader } from "../components/PageHeader";
 import { appConfig } from "../config/appConfig";
 import { useNotification } from "../hooks/useNotification";
-import { isStartDateBeforeOrSameEndDate, isValidApiDate } from "../utils/dateFormat";
+import { isStartDateBeforeOrSameEndDate, isValidApiDate, normalizeBuddhistApiDate } from "../utils/dateFormat";
 import { getLeaveTypeLabel } from "../utils/leaveLabels";
 
 export function LeaveRequestFormPage() {
@@ -71,8 +71,8 @@ export function LeaveRequestFormPage() {
 
     reset({
       leaveTypeId: editingRequest.leaveTypeId,
-      startDate: editingRequest.startDate,
-      endDate: editingRequest.endDate,
+      startDate: normalizeBuddhistApiDate(editingRequest.startDate),
+      endDate: normalizeBuddhistApiDate(editingRequest.endDate),
       durationType: editingRequest.durationType,
       totalDays: editingRequest.totalDays,
       reason: editingRequest.reason,
@@ -212,6 +212,7 @@ export function LeaveRequestFormPage() {
               render={({ field }) => (
                 <AppDatePicker
                   label="วันที่เริ่มลา"
+                  buddhistYear
                   value={field.value ?? ""}
                   onChange={field.onChange}
                   error={Boolean(errors.startDate)}
@@ -234,6 +235,7 @@ export function LeaveRequestFormPage() {
               render={({ field }) => (
                 <AppDatePicker
                   label="วันที่สิ้นสุด"
+                  buddhistYear
                   value={field.value ?? ""}
                   onChange={field.onChange}
                   disabled={isHalfDay}

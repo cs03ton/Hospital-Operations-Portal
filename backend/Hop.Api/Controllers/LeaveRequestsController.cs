@@ -234,6 +234,11 @@ public class LeaveRequestsController(
     [RequirePermission(LeavePermissions.Create)]
     public async Task<ActionResult<ApiResponse<LeaveRequestResponse>>> CreateLeaveRequest(SaveLeaveRequestRequest request)
     {
+        if (!LeaveDateNormalizer.TryNormalizeRange(request.StartDate, request.EndDate, out var startDate, out var endDate))
+        {
+            return BadRequest(ApiResponse<LeaveRequestResponse>.Fail("วันที่ลาไม่ถูกต้อง กรุณาตรวจสอบปีและช่วงวันที่"));
+        }
+
         var userId = GetCurrentUserId();
         if (userId is null)
         {
@@ -251,18 +256,13 @@ public class LeaveRequestsController(
             return BadRequest(ApiResponse<LeaveRequestResponse>.Fail("Leave type not found."));
         }
 
-        if (request.EndDate < request.StartDate)
-        {
-            return BadRequest(ApiResponse<LeaveRequestResponse>.Fail("วันที่ลาไม่ถูกต้อง"));
-        }
-
         var createdAt = DateTime.UtcNow;
         var leaveRequest = new LeaveRequest
         {
             UserId = userId.Value,
             LeaveTypeId = request.LeaveTypeId,
-            StartDate = request.StartDate,
-            EndDate = request.EndDate,
+            StartDate = startDate,
+            EndDate = endDate,
             DurationType = LeaveDurationTypes.Normalize(request.DurationType),
             TotalDays = request.TotalDays,
             Reason = request.Reason.Trim(),
@@ -293,6 +293,11 @@ public class LeaveRequestsController(
     [RequirePermission(LeavePermissions.Create)]
     public async Task<ActionResult<ApiResponse<LeavePolicyPreviewResponse>>> PreviewLeavePolicy(LeavePolicyPreviewRequest request)
     {
+        if (!LeaveDateNormalizer.TryNormalizeRange(request.StartDate, request.EndDate, out var startDate, out var endDate))
+        {
+            return BadRequest(ApiResponse<LeavePolicyPreviewResponse>.Fail("วันที่ลาไม่ถูกต้อง กรุณาตรวจสอบปีและช่วงวันที่"));
+        }
+
         var userId = GetCurrentUserId();
         if (userId is null)
         {
@@ -302,19 +307,19 @@ public class LeaveRequestsController(
         var durationType = LeaveDurationTypes.Normalize(request.DurationType);
         var requestedDays = LeaveDurationTypes.IsHalfDay(durationType)
             ? 0.5m
-            : await leaveCalendarService.CalculateBusinessDaysAsync(request.StartDate, request.EndDate, false);
+            : await leaveCalendarService.CalculateBusinessDaysAsync(startDate, endDate, false);
         var preview = await leavePolicyService.ValidateLeaveRequestAsync(
             userId.Value,
             request.LeaveTypeId,
-            request.StartDate,
-            request.EndDate,
+            startDate,
+            endDate,
             durationType,
             requestedDays,
             HttpContext.RequestAborted);
 
         var holidaysInRange = await db.LeaveHolidays
             .AsNoTracking()
-            .Where(item => item.IsActive && item.HolidayDate >= request.StartDate && item.HolidayDate <= request.EndDate)
+            .Where(item => item.IsActive && item.HolidayDate >= startDate && item.HolidayDate <= endDate)
             .Select(item => item.Name)
             .ToListAsync(HttpContext.RequestAborted);
         if (holidaysInRange.Count > 0)
@@ -353,6 +358,11 @@ public class LeaveRequestsController(
     [RequirePermission(LeavePermissions.EditOwn)]
     public async Task<ActionResult<ApiResponse<LeaveRequestResponse>>> UpdateLeaveRequest(Guid id, SaveLeaveRequestRequest request)
     {
+        if (!LeaveDateNormalizer.TryNormalizeRange(request.StartDate, request.EndDate, out var startDate, out var endDate))
+        {
+            return BadRequest(ApiResponse<LeaveRequestResponse>.Fail("วันที่ลาไม่ถูกต้อง กรุณาตรวจสอบปีและช่วงวันที่"));
+        }
+
         var leaveRequest = await db.LeaveRequests.FirstOrDefaultAsync(item => item.Id == id);
         if (leaveRequest is null)
         {
@@ -370,8 +380,8 @@ public class LeaveRequestsController(
         }
 
         leaveRequest.LeaveTypeId = request.LeaveTypeId;
-        leaveRequest.StartDate = request.StartDate;
-        leaveRequest.EndDate = request.EndDate;
+        leaveRequest.StartDate = startDate;
+        leaveRequest.EndDate = endDate;
         leaveRequest.DurationType = LeaveDurationTypes.Normalize(request.DurationType);
         leaveRequest.TotalDays = request.TotalDays;
         leaveRequest.Reason = request.Reason.Trim();
