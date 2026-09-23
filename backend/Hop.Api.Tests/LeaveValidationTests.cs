@@ -63,7 +63,7 @@ public class LeaveValidationTests
             Reason = "Full day leave"
         });
 
-        Assert.True(result.IsValid);
+        Assert.True(result.IsValid, result.Message);
         Assert.Equal(1m, result.CalculatedDays);
     }
 
@@ -88,7 +88,7 @@ public class LeaveValidationTests
             Reason = "Half day leave"
         });
 
-        Assert.True(result.IsValid);
+        Assert.True(result.IsValid, result.Message);
         Assert.Equal(0.5m, result.CalculatedDays);
     }
 
@@ -116,7 +116,7 @@ public class LeaveValidationTests
     }
 
     [Fact]
-    public async Task ValidateDraftAsync_RejectsLeaveOnActiveHoliday()
+    public async Task ValidateDraftAsync_RejectsGeneralStaffWhenRangeHasNoCountableDay()
     {
         await using var db = CreateDbContext();
         var leaveType = await AddLeaveType(db);
@@ -143,8 +143,60 @@ public class LeaveValidationTests
         });
 
         Assert.False(result.IsValid);
-        Assert.Contains("วันหยุด", result.Message);
-        Assert.Contains("วันหยุดทดสอบ", result.Message);
+        Assert.Contains("ไม่มีวันทำการ", result.Message);
+    }
+
+    [Fact]
+    public async Task NursingDepartmentCanLeaveOnActiveHoliday()
+    {
+        await using var db = CreateDbContext();
+        var department = new Department { Id = Guid.NewGuid(), Name = LeaveBusinessRules.NursingDepartmentName };
+        var user = new User { Id = Guid.NewGuid(), Username = "nurse", FullName = "Nurse", PasswordHash = "x", Department = department, EmploymentType = EmploymentTypes.CivilServant, EmploymentStartDate = new DateOnly(2020, 1, 1) };
+        var leaveType = await AddLeaveType(db, requiresBalance: false);
+        var holiday = new DateOnly(2026, 10, 13);
+        db.AddRange(department, user,
+            new LeavePolicyRule { Id = Guid.NewGuid(), EmploymentType = EmploymentTypes.CivilServant, LeaveTypeId = leaveType.Id, EntitlementDays = 30, AllowRequest = true, IsActive = true },
+            new LeaveHoliday { Id = Guid.NewGuid(), HolidayDate = holiday, Name = "วันหยุดทดสอบ", IsActive = true });
+        await db.SaveChangesAsync();
+
+        var result = await CreateService(db).ValidateDraftAsync(new LeaveRequest
+        {
+            UserId = user.Id, LeaveTypeId = leaveType.Id, LeaveType = leaveType,
+            StartDate = holiday, EndDate = holiday, DurationType = LeaveDurationTypes.FullDay, Reason = "Nursing coverage"
+        });
+
+        Assert.True(result.IsValid, result.Message);
+        Assert.Equal(1m, result.CalculatedDays);
+    }
+
+    [Fact]
+    public async Task VacationLeaveRequiresThreeCalendarDaysOnlyWhenSubmitting()
+    {
+        await using var db = CreateDbContext();
+        var leaveType = await AddLeaveType(db, requiresBalance: false);
+        leaveType.Code = "VACATION_LEAVE";
+        var department = new Department { Id = Guid.NewGuid(), Name = LeaveBusinessRules.NursingDepartmentName };
+        var user = new User { Id = Guid.NewGuid(), Username = "vacation-nurse", FullName = "Vacation Nurse", PasswordHash = "x", Department = department, EmploymentType = EmploymentTypes.CivilServant, EmploymentStartDate = new DateOnly(2020, 1, 1) };
+        db.AddRange(department, user,
+            new LeavePolicyRule { Id = Guid.NewGuid(), EmploymentType = EmploymentTypes.CivilServant, LeaveTypeId = leaveType.Id, EntitlementDays = 30, AllowRequest = true, IsActive = true });
+        await db.SaveChangesAsync();
+        var start = HospitalTime.Today.AddDays(2);
+        var request = new LeaveRequest
+        {
+            Id = Guid.NewGuid(), UserId = user.Id, LeaveTypeId = leaveType.Id, LeaveType = leaveType,
+            StartDate = start, EndDate = start, DurationType = LeaveDurationTypes.FullDay, Reason = "Vacation", Status = "Draft"
+        };
+
+        var draft = await CreateService(db).ValidateDraftAsync(request);
+        Assert.True(draft.IsValid, draft.Message);
+        var rejected = await CreateService(db).ValidateSubmitAsync(request);
+        Assert.False(rejected.IsValid);
+        Assert.Contains("3 วันปฏิทิน", rejected.Message);
+
+        request.StartDate = HospitalTime.Today.AddDays(3);
+        request.EndDate = request.StartDate;
+        var allowed = await CreateService(db).ValidateSubmitAsync(request);
+        Assert.True(allowed.IsValid, allowed.Message);
     }
 
     [Fact]

@@ -39,6 +39,26 @@ public class LeaveCalendarDayCountTests
             new DateOnly(2026, 9, 24), new DateOnly(2026, 9, 24), true));
     }
 
+    [Fact]
+    public async Task GeneralStaffExcludeWeekendAndHolidayWhileNursingCountsEveryCalendarDay()
+    {
+        await using var db = CreateDbContext();
+        db.LeaveHolidays.Add(new LeaveHoliday
+        {
+            Id = Guid.NewGuid(), HolidayDate = new DateOnly(2026, 10, 13), Name = "วันหยุดทดสอบ", IsActive = true
+        });
+        await db.SaveChangesAsync();
+        var calendar = new LeaveCalendarService(db);
+        var start = new DateOnly(2026, 10, 9);
+        var end = new DateOnly(2026, 10, 14);
+
+        Assert.Equal(3m, await calendar.CalculateLeaveDaysAsync(start, end, false, false));
+        Assert.Equal(6m, await calendar.CalculateLeaveDaysAsync(start, end, false, true));
+        Assert.Equal(0m, await calendar.CalculateLeaveDaysAsync(new DateOnly(2026, 10, 13), new DateOnly(2026, 10, 13), false, false));
+        Assert.Equal(1m, await calendar.CalculateLeaveDaysAsync(new DateOnly(2026, 10, 13), new DateOnly(2026, 10, 13), false, true));
+        Assert.Equal(0.5m, await calendar.CalculateLeaveDaysAsync(new DateOnly(2026, 10, 11), new DateOnly(2026, 10, 11), true, true));
+    }
+
     private static AppDbContext CreateDbContext()
     {
         var options = new DbContextOptionsBuilder<AppDbContext>()

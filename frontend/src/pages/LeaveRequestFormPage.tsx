@@ -3,12 +3,11 @@ import SaveOutlinedIcon from "@mui/icons-material/SaveOutlined";
 import SendOutlinedIcon from "@mui/icons-material/SendOutlined";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { isAxiosError } from "axios";
-import dayjs from "dayjs";
 import { useEffect } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { useNavigate, useParams } from "react-router-dom";
 import { getMyProfile } from "../api/profileApi";
-import { createLeaveRequest, getLeaveHolidays, getLeaveRequest, getLeaveTypes, previewLeavePolicy, submitLeaveRequest, updateLeaveRequest, type SaveLeaveRequest } from "../api/leaveApi";
+import { createLeaveRequest, getLeaveRequest, getLeaveTypes, previewLeavePolicy, submitLeaveRequest, updateLeaveRequest, type SaveLeaveRequest } from "../api/leaveApi";
 import { AppDatePicker } from "../components/common/AppDatePicker";
 import { PageHeader } from "../components/PageHeader";
 import { appConfig } from "../config/appConfig";
@@ -33,15 +32,11 @@ export function LeaveRequestFormPage() {
   const leaveTypeId = watch("leaveTypeId");
   const durationType = watch("durationType") ?? "FULL_DAY";
   const isHalfDay = durationType === "HALF_DAY_AM" || durationType === "HALF_DAY_PM";
-  const holidayYear = startDate && dayjs(startDate).isValid() ? dayjs(startDate).year() : dayjs().year();
-  const { data: holidays = [] } = useQuery({ queryKey: ["leave-holidays", holidayYear], queryFn: () => getLeaveHolidays({ year: holidayYear }) });
   const visibleLeaveTypes = leaveTypes
     .filter((item) => item.isActive)
     .filter((item) => !appConfig.hideIneligibleLeaveTypes || isLeaveTypeEligibleByGender(item.code, profile?.gender));
   const selectedLeaveType = leaveTypes.find((item) => item.id === leaveTypeId);
   const shouldValidateBalance = selectedLeaveType?.requiresBalance !== false;
-  const holidayNamesInRange = getHolidayNamesInRange(startDate, isHalfDay ? startDate : endDate, holidays);
-  const hasHolidayInRange = holidayNamesInRange.length > 0;
   const canPreviewPolicy = Boolean(
     leaveTypeId &&
     startDate &&
@@ -112,7 +107,13 @@ export function LeaveRequestFormPage() {
     },
   });
 
-  const saveRequest = (submit: boolean) => handleSubmit((values) => mutation.mutate({ values, submit }))();
+  const saveRequest = (submit: boolean) => {
+    if (submit && hasPolicyError) {
+      window.alert(policyErrors.join("\n") || "คำขอนี้ยังไม่ผ่านเงื่อนไขการลา กรุณาตรวจสอบข้อมูลอีกครั้ง");
+      return;
+    }
+    void handleSubmit((values) => mutation.mutate({ values, submit }))();
+  };
 
   return (
     <>
@@ -172,11 +173,6 @@ export function LeaveRequestFormPage() {
                     </Box>
                   )}
                 </Stack>
-              </Alert>
-            )}
-            {hasHolidayInRange && (
-              <Alert severity="warning">
-                ไม่สามารถขอลาในวันหยุดได้: {holidayNamesInRange.join(", ")}
               </Alert>
             )}
             <TextField fullWidth select label="ประเภทการลา" InputLabelProps={{ shrink: true }} error={Boolean(errors.leaveTypeId)} helperText={errors.leaveTypeId?.message} {...register("leaveTypeId", { required: "กรุณาเลือกประเภทการลา" })}>
@@ -266,7 +262,7 @@ export function LeaveRequestFormPage() {
                 <Button
                   variant="contained"
                   startIcon={<SaveOutlinedIcon />}
-                  disabled={mutation.isPending || hasPolicyError || hasHolidayInRange}
+                  disabled={mutation.isPending}
                   onClick={() => void saveRequest(false)}
                   sx={{ minHeight: 48 }}
                 >
@@ -277,7 +273,7 @@ export function LeaveRequestFormPage() {
                   <Button
                     variant="outlined"
                     startIcon={<SaveOutlinedIcon />}
-                    disabled={mutation.isPending || hasPolicyError || hasHolidayInRange}
+                    disabled={mutation.isPending}
                     onClick={() => void saveRequest(false)}
                     sx={{ minHeight: 48 }}
                   >
@@ -286,7 +282,7 @@ export function LeaveRequestFormPage() {
                   <Button
                     variant="contained"
                     startIcon={<SendOutlinedIcon />}
-                    disabled={mutation.isPending || hasPolicyError || hasHolidayInRange}
+                    disabled={mutation.isPending || isPolicyPreviewLoading}
                     onClick={() => void saveRequest(true)}
                     sx={{ minHeight: 48 }}
                   >
@@ -301,26 +297,6 @@ export function LeaveRequestFormPage() {
       </Card>
     </>
   );
-}
-
-function getHolidayNamesInRange(startDate?: string, endDate?: string, holidays: { holidayDate: string; name: string; isActive: boolean }[] = []) {
-  if (!startDate || !endDate || !dayjs(startDate).isValid() || !dayjs(endDate).isValid()) {
-    return [];
-  }
-
-  const start = dayjs(startDate).startOf("day");
-  const end = dayjs(endDate).startOf("day");
-  if (end.isBefore(start)) {
-    return [];
-  }
-
-  return holidays
-    .filter((holiday) => holiday.isActive)
-    .filter((holiday) => {
-      const date = dayjs(holiday.holidayDate).startOf("day");
-      return (date.isAfter(start) || date.isSame(start)) && (date.isBefore(end) || date.isSame(end));
-    })
-    .map((holiday) => holiday.name);
 }
 
 function isLeaveTypeEligibleByGender(code?: string | null, gender?: string | null) {

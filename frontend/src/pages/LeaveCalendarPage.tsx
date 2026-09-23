@@ -31,6 +31,7 @@ import { brandColors } from "../theme/theme";
 import { formatThaiDate } from "../utils/dateFormat";
 import { getLeaveDurationTypeLabel, getLeaveTypeColor, getLeaveTypeLabel, getLeaveTypeWithDurationLabel } from "../utils/leaveLabels";
 import { dashboardPollingOptions } from "../config/queryPolling";
+import { getLeaveCalendarGrid, leaveCalendarWeekdays } from "../utils/leaveCalendarGrid";
 
 const thaiMonths = [
   "มกราคม",
@@ -46,8 +47,6 @@ const thaiMonths = [
   "พฤศจิกายน",
   "ธันวาคม",
 ];
-
-const thaiShortDays = ["อา.", "จ.", "อ.", "พ.", "พฤ.", "ศ.", "ส."];
 
 export function LeaveCalendarPage() {
   const { hasAnyPermission } = usePermission();
@@ -82,8 +81,7 @@ export function LeaveCalendarPage() {
     ...dashboardPollingOptions,
   });
 
-  const selectedMonth = dayjs(`${year}-${String(month).padStart(2, "0")}-01`);
-  const daysInMonth = selectedMonth.daysInMonth();
+  const { firstDay: selectedMonth, daysInMonth, leadingEmptyDays, trailingEmptyDays } = getLeaveCalendarGrid(year, month);
   const years = Array.from({ length: 5 }, (_, index) => current.year() - 2 + index);
   const filteredData = status ? data.filter((item) => item.status === status) : data;
   const activeHolidays = useMemo(() => holidays.filter((item) => item.isActive), [holidays]);
@@ -195,7 +193,16 @@ export function LeaveCalendarPage() {
               <LeaveStatusLegend />
             </Stack>
           </Stack>
-          <Grid container spacing={1.25}>
+          <Box sx={{ overflowX: "auto", pb: 0.5 }}>
+            <Box sx={{ minWidth: { xs: 840, md: 0 }, display: "grid", gridTemplateColumns: "repeat(7, minmax(0, 1fr))", gap: 1.25 }}>
+              {leaveCalendarWeekdays.map((label, index) => (
+                <Typography key={label} textAlign="center" fontWeight={900} color={index === 0 || index === 6 ? "warning.dark" : "text.secondary"}>
+                  {label}
+                </Typography>
+              ))}
+              {Array.from({ length: leadingEmptyDays }, (_, index) => (
+                <Box key={`leading-${index}`} aria-hidden="true" sx={{ minHeight: 168 }} />
+              ))}
             {Array.from({ length: daysInMonth }, (_, index) => {
               const date = selectedMonth.date(index + 1);
               const dateKey = date.format("YYYY-MM-DD");
@@ -208,7 +215,7 @@ export function LeaveCalendarPage() {
               const isWeekend = date.day() === 0 || date.day() === 6;
               const hasHoliday = dayHolidays.length > 0;
               return (
-                <Grid item xs={12} sm={6} md={3} lg={2} key={dateKey}>
+                <Box key={dateKey}>
                   <Card
                     variant="outlined"
                     onClick={() => openDayDetail(date, items, dayHolidays)}
@@ -245,7 +252,7 @@ export function LeaveCalendarPage() {
                       <Stack direction="row" justifyContent="space-between" alignItems="baseline">
                         <Typography fontWeight={800}>{date.format("D")}</Typography>
                         <Typography variant="caption" color="text.secondary">
-                          {thaiShortDays[date.day()]}
+                          {leaveCalendarWeekdays[date.day()]}
                         </Typography>
                       </Stack>
                       {visibleHolidays.length > 0 && (
@@ -287,10 +294,14 @@ export function LeaveCalendarPage() {
                       )}
                     </CardContent>
                   </Card>
-                </Grid>
+                </Box>
               );
             })}
-          </Grid>
+              {Array.from({ length: trailingEmptyDays }, (_, index) => (
+                <Box key={`trailing-${index}`} aria-hidden="true" sx={{ minHeight: 168 }} />
+              ))}
+            </Box>
+          </Box>
         </CardContent>
       </Card>
       <Dialog open={Boolean(selectedDay)} onClose={() => setSelectedDay(null)} fullWidth maxWidth="md">

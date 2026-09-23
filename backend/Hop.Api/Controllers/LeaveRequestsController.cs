@@ -305,9 +305,15 @@ public class LeaveRequestsController(
         }
 
         var durationType = LeaveDurationTypes.Normalize(request.DurationType);
-        var requestedDays = LeaveDurationTypes.IsHalfDay(durationType)
-            ? 0.5m
-            : await leaveCalendarService.CalculateBusinessDaysAsync(startDate, endDate, false);
+        var requesterDepartmentName = await db.Users.AsNoTracking()
+            .Where(item => item.Id == userId.Value)
+            .Select(item => item.Department != null ? item.Department.Name : null)
+            .SingleOrDefaultAsync(HttpContext.RequestAborted);
+        var requestedDays = await leaveCalendarService.CalculateLeaveDaysAsync(
+            startDate,
+            endDate,
+            LeaveDurationTypes.IsHalfDay(durationType),
+            LeaveBusinessRules.IsNursingDepartment(requesterDepartmentName));
         var preview = await leavePolicyService.ValidateLeaveRequestAsync(
             userId.Value,
             request.LeaveTypeId,
@@ -317,15 +323,18 @@ public class LeaveRequestsController(
             requestedDays,
             HttpContext.RequestAborted);
 
-        var holidaysInRange = await db.LeaveHolidays
-            .AsNoTracking()
-            .Where(item => item.IsActive && item.HolidayDate >= startDate && item.HolidayDate <= endDate)
-            .Select(item => item.Name)
-            .ToListAsync(HttpContext.RequestAborted);
-        if (holidaysInRange.Count > 0)
+        var previewLeaveTypeCode = await db.LeaveTypes.AsNoTracking()
+            .Where(item => item.Id == request.LeaveTypeId)
+            .Select(item => item.Code)
+            .SingleOrDefaultAsync(HttpContext.RequestAborted);
+        if (LeaveBusinessRules.IsVacationLeave(previewLeaveTypeCode))
         {
-            var errors = preview.Errors.Concat([$"ไม่สามารถขอลาในวันหยุดได้: {string.Join(", ", holidaysInRange)}"]).Distinct().ToList();
-            preview = preview with { CanSubmit = false, Errors = errors };
+            var earliestStart = LeaveBusinessRules.EarliestVacationStart(HospitalTime.Today);
+            if (startDate < earliestStart)
+            {
+                var errors = preview.Errors.Concat([$"ลาพักผ่อนต้องยื่นล่วงหน้าอย่างน้อย 3 วันปฏิทิน โดยเริ่มลาได้เร็วที่สุดวันที่ {ThaiDateDisplay.Date(earliestStart)}"]).Distinct().ToList();
+                preview = preview with { CanSubmit = false, Errors = errors };
+            }
         }
 
         return ApiResponse<LeavePolicyPreviewResponse>.Ok(new LeavePolicyPreviewResponse(

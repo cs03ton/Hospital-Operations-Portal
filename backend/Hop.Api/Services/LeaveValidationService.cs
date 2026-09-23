@@ -33,23 +33,15 @@ public sealed class LeaveValidationService(
             return new LeaveValidationResult(false, "การลาครึ่งวันต้องเลือกวันที่เริ่มลาและวันที่สิ้นสุดเป็นวันเดียวกัน", 0);
         }
 
-        var holidaysInRange = await db.LeaveHolidays
-            .AsNoTracking()
-            .Where(item => item.IsActive)
-            .Where(item => item.HolidayDate >= leaveRequest.StartDate && item.HolidayDate <= leaveRequest.EndDate)
-            .OrderBy(item => item.HolidayDate)
-            .Select(item => item.Name)
-            .ToListAsync();
-
-        if (holidaysInRange.Count > 0)
-        {
-            return new LeaveValidationResult(false, $"ไม่สามารถขอลาในวันหยุดได้: {string.Join(", ", holidaysInRange)}", 0);
-        }
-
-        var calculatedDays = await calendarService.CalculateBusinessDaysAsync(
+        var departmentName = await db.Users.AsNoTracking()
+            .Where(item => item.Id == leaveRequest.UserId)
+            .Select(item => item.Department != null ? item.Department.Name : null)
+            .SingleOrDefaultAsync();
+        var calculatedDays = await calendarService.CalculateLeaveDaysAsync(
             leaveRequest.StartDate,
             leaveRequest.EndDate,
-            requestedHalfDay);
+            requestedHalfDay,
+            LeaveBusinessRules.IsNursingDepartment(departmentName));
 
         if (calculatedDays <= 0)
         {
@@ -95,6 +87,17 @@ public sealed class LeaveValidationService(
         if (leaveType is null || !leaveType.IsActive)
         {
             return new LeaveValidationResult(false, "ไม่พบประเภทการลาที่เปิดใช้งาน", draftValidation.CalculatedDays);
+        }
+
+        if (LeaveBusinessRules.IsVacationLeave(leaveType.Code))
+        {
+            var earliestStart = LeaveBusinessRules.EarliestVacationStart(HospitalTime.Today);
+            if (leaveRequest.StartDate < earliestStart)
+            {
+                return new LeaveValidationResult(false,
+                    $"ลาพักผ่อนต้องยื่นล่วงหน้าอย่างน้อย 3 วันปฏิทิน โดยเริ่มลาได้เร็วที่สุดวันที่ {ThaiDateDisplay.Date(earliestStart)}",
+                    draftValidation.CalculatedDays);
+            }
         }
 
         if (leaveType.RequiresAttachment)
