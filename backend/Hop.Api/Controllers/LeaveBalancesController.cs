@@ -135,8 +135,8 @@ public class LeaveBalancesController(
         {
             new[] { "ตัวอย่างนำเข้ายอดวันลา" },
             new[] { "username", "leaveTypeCode", "fiscalYear", "entitledDays", "carriedOverDays", "usedDays", "pendingDays" },
-            new[] { "staff.it01", "AnnualLeave", FiscalYearHelper.GetFiscalYear(DateOnly.FromDateTime(DateTime.UtcNow)).ToString(), "10", "0", "0", "0" },
-            new[] { "staff.it01", "SickLeave", FiscalYearHelper.GetFiscalYear(DateOnly.FromDateTime(DateTime.UtcNow)).ToString(), "30", "0", "0", "0" },
+            new[] { "staff.it01", "AnnualLeave", FiscalYearHelper.GetFiscalYear(Hop.Api.Services.HospitalTime.Today).ToString(), "10", "0", "0", "0" },
+            new[] { "staff.it01", "SickLeave", FiscalYearHelper.GetFiscalYear(Hop.Api.Services.HospitalTime.Today).ToString(), "30", "0", "0", "0" },
             Array.Empty<string>(),
             new[] { "หมายเหตุ: username และ leaveTypeCode ต้องตรงกับข้อมูลในระบบ" }
         };
@@ -457,7 +457,7 @@ public class LeaveBalancesController(
             .ToListAsync();
 
         var relevantYears = leaveTypes
-            .Select(item => requestedYear ?? FiscalYearHelper.ResolveBalanceYear(DateOnly.FromDateTime(DateTime.UtcNow), item))
+            .Select(item => requestedYear ?? FiscalYearHelper.ResolveBalanceYear(Hop.Api.Services.HospitalTime.Today, item))
             .Distinct()
             .ToList();
         var balances = await db.LeaveBalances
@@ -468,7 +468,7 @@ public class LeaveBalancesController(
         var rows = new List<LeaveBalanceResponse>();
         foreach (var leaveType in leaveTypes)
         {
-            var year = requestedYear ?? FiscalYearHelper.ResolveBalanceYear(DateOnly.FromDateTime(DateTime.UtcNow), leaveType);
+            var year = requestedYear ?? FiscalYearHelper.ResolveBalanceYear(Hop.Api.Services.HospitalTime.Today, leaveType);
             var balance = balances.FirstOrDefault(item => item.LeaveTypeId == leaveType.Id && item.Year == year);
             var policyPreview = balance is null
                 ? await leavePolicyService.CalculateAvailableDaysAsync(userId, leaveType.Id, year)

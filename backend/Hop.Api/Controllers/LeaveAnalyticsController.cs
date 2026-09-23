@@ -134,7 +134,7 @@ public class LeaveAnalyticsController(AppDbContext db, IAuditLogService auditLog
         bool coreOnly,
         CancellationToken cancellationToken)
     {
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var today = Hop.Api.Services.HospitalTime.Today;
         var normalizedFiscalYear = NormalizeYear(fiscalYear ?? FiscalYearHelper.GetFiscalYear(today));
         var normalizedYear = year.HasValue ? NormalizeYear(year.Value) : (int?)null;
         var normalizedMonth = month is >= 1 and <= 12 ? month : null;

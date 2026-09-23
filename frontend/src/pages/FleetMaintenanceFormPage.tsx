@@ -1,3 +1,5 @@
+import { AppDateTimeInput } from "../components/common/AppDateTimeInput";
+import { bangkokInputToUtc, utcToBangkokInput } from "../utils/dateFormat";
 import { useState } from "react";
 import {
   Alert,
@@ -45,7 +47,7 @@ export function FleetMaintenanceFormPage() {
   );
   const mutation = useMutation({
     mutationFn: async () => {
-      const dueDate = value("dueDate", initial?.dueDate);
+      const dueDate = value("dueDate", utcToBangkokInput(initial?.dueDate));
       const dueMileage = value("dueMileage", initial?.dueMileage);
       if (selectedType?.isDateBased && !dueDate)
         throw new Error("ประเภทนี้ต้องระบุวันครบกำหนด");
@@ -57,7 +59,7 @@ export function FleetMaintenanceFormPage() {
           "maintenanceTypeId",
           initial?.maintenanceTypeId,
         ),
-        dueDate: dueDate ? new Date(dueDate).toISOString() : null,
+        dueDate: dueDate ? bangkokInputToUtc(dueDate) : null,
         dueMileage: dueMileage ? Number(dueMileage) : null,
         reminderDays:
           Number(value("reminderDays", initial?.reminderDays) || 0) || null,
@@ -126,11 +128,11 @@ export function FleetMaintenanceFormPage() {
                 </MenuItem>
               ))}
           </TextField>
-          <TextField
+          <AppDateTimeInput
             label="วันครบกำหนด (Asia/Bangkok)"
-            type="datetime-local"
+
             InputLabelProps={{ shrink: true }}
-            value={value("dueDate", initial?.dueDate?.slice(0, 16))}
+            value={value("dueDate", utcToBangkokInput(initial?.dueDate))}
             onChange={set("dueDate")}
           />
           <TextField

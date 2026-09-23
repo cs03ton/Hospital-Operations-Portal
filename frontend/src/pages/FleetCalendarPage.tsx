@@ -32,7 +32,8 @@ import {
 } from "@mui/material";
 import { useQuery } from "@tanstack/react-query";
 import { alpha } from "@mui/material/styles";
-import dayjs, { type Dayjs } from "dayjs";
+import { type Dayjs } from "dayjs";
+import { bangkokDayjs as dayjs } from "../utils/dateFormat";
 import "dayjs/locale/th";
 import { useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
@@ -43,7 +44,7 @@ import { formatThaiDateTime } from "../utils/dateFormat";
 import { getFleetStatusLabel } from "../utils/fleetLabels";
 import { brandColors } from "../theme/theme";
 
-dayjs.locale("th");
+
 
 type CalendarView = "week" | "month" | "agenda";
 

@@ -1,3 +1,4 @@
+import { bangkokDayjs } from "../utils/dateFormat";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useParams } from "react-router-dom";
@@ -87,13 +88,13 @@ const queryKeys = {
     ] as const,
 };
 const thDate = (value: string) =>
-  new Intl.DateTimeFormat("th-TH", {
+  new Intl.DateTimeFormat("th-TH", { calendar: "buddhist",
     dateStyle: "medium",
     timeStyle: "short",
     timeZone: "Asia/Bangkok",
   }).format(new Date(value));
 const dateOnly = (date: Date) =>
-  date.toLocaleDateString("en-CA", { timeZone: "Asia/Bangkok" });
+  bangkokDayjs(date).format("YYYY-MM-DD");
 const panelSx = {
   border: "1px solid",
   borderColor: "divider",
@@ -207,21 +208,17 @@ function BookingCard({ item }: { item: MeetingBooking }) {
 }
 
 export function MeetingRoomCalendarPage() {
-  const [cursor, setCursor] = useState(new Date());
+  const [cursor, setCursor] = useState(() => new Date(`${bangkokDayjs().format("YYYY-MM-DD")}T12:00:00+07:00`));
   const [view, setView] = useState("month");
   const [roomId, setRoomId] = useState("");
   const [selected, setSelected] = useState<MeetingBooking | null>(null);
-  const first = new Date(cursor.getFullYear(), cursor.getMonth(), 1),
-    last = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 0);
+  const first = bangkokDayjs(cursor).date(1).month(bangkokDayjs(cursor).month()).date(1).toDate(),
+    last = bangkokDayjs(cursor).date(1).month(bangkokDayjs(cursor).month() + 1).date(0).toDate();
   const start = dateOnly(
-    new Date(first.getFullYear(), first.getMonth(), 1 - first.getDay()),
+    bangkokDayjs(first).startOf("week").toDate(),
   );
   const end = dateOnly(
-    new Date(
-      last.getFullYear(),
-      last.getMonth(),
-      last.getDate() + 6 - last.getDay(),
-    ),
+    bangkokDayjs(last).endOf("week").toDate(),
   );
   const rooms = useQuery({
     queryKey: queryKeys.rooms,
@@ -235,8 +232,7 @@ export function MeetingRoomCalendarPage() {
     staleTime: 0,
   });
   const days = Array.from({ length: 42 }, (_, i) => {
-    const d = new Date(`${start}T12:00:00`);
-    d.setDate(d.getDate() + i);
+    const d = bangkokDayjs(start).add(i, "day").toDate();
     return d;
   });
   const byDay = (d: Date) =>
@@ -287,7 +283,7 @@ export function MeetingRoomCalendarPage() {
           <Button
             onClick={() =>
               setCursor(
-                new Date(cursor.getFullYear(), cursor.getMonth() - 1, 1),
+                bangkokDayjs(cursor).date(1).month(bangkokDayjs(cursor).month() - 1).date(1).toDate(),
               )
             }
           >
@@ -306,7 +302,7 @@ export function MeetingRoomCalendarPage() {
               boxShadow: "0 3px 10px rgba(139,105,47,.18)",
             }}
           >
-            {cursor.toLocaleDateString("th-TH", {
+            {cursor.toLocaleDateString("th-TH", { timeZone: "Asia/Bangkok", calendar: "buddhist",
               month: "long",
               year: "numeric",
             })}
@@ -314,7 +310,7 @@ export function MeetingRoomCalendarPage() {
           <Button
             onClick={() =>
               setCursor(
-                new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1),
+                bangkokDayjs(cursor).date(1).month(bangkokDayjs(cursor).month() + 1).date(1).toDate(),
               )
             }
           >
@@ -398,7 +394,7 @@ export function MeetingRoomCalendarPage() {
                 borderBottom: "1px solid",
                 borderColor: "divider",
                 bgcolor:
-                  d.getMonth() === cursor.getMonth()
+                  bangkokDayjs(d).month() === bangkokDayjs(cursor).month()
                     ? "background.paper"
                     : "action.hover",
               }}
@@ -412,7 +408,7 @@ export function MeetingRoomCalendarPage() {
                     : "text.primary"
                 }
               >
-                {d.getDate()}
+                {bangkokDayjs(d).date()}
               </Typography>
               {byDay(d)
                 .slice(0, 3)

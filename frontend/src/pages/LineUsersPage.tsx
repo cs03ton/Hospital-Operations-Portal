@@ -202,7 +202,7 @@ function formatDateTime(value?: string | null) {
     return "-";
   }
 
-  return new Intl.DateTimeFormat("th-TH", {
+  return new Intl.DateTimeFormat("th-TH", { calendar: "buddhist", timeZone: "Asia/Bangkok",
     day: "2-digit",
     month: "2-digit",
     year: "numeric",

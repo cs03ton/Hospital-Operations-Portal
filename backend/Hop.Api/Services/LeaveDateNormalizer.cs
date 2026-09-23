@@ -5,7 +5,7 @@ public static class LeaveDateNormalizer
     public static bool TryNormalize(DateOnly value, out DateOnly normalized)
     {
         normalized = value;
-        if (value.Year is >= 2500 and <= 2599)
+        if (value.Year is >= 2443 and <= 2643)
         {
             try
             {

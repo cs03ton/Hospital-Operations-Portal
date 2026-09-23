@@ -17,6 +17,10 @@ using Microsoft.IdentityModel.Tokens;
 
 EnvFileLoader.LoadForEnvironment();
 
+// Machine identifiers and protocols must not inherit a server's Buddhist calendar.
+// Human date rendering uses ThaiDateDisplay explicitly.
+System.Globalization.CultureInfo.DefaultThreadCurrentCulture = System.Globalization.CultureInfo.InvariantCulture;
+
 var builder = WebApplication.CreateBuilder(args);
 builder.Configuration.AddEnvironmentVariables();
 
@@ -37,7 +41,7 @@ var allowCredentials = builder.Configuration.GetValue<bool?>("Cors:AllowCredenti
     ?? builder.Configuration.GetValue<bool?>("CORS_ALLOW_CREDENTIALS")
     ?? builder.Environment.IsDevelopment();
 
-builder.Services.AddControllers();
+builder.Services.AddControllers().AddCalendarInput();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.Configure<LineOptions>(builder.Configuration.GetSection("Line"));

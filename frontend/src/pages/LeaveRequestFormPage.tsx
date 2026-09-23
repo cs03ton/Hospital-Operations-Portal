@@ -79,17 +79,17 @@ export function LeaveRequestFormPage() {
     });
   }, [editingRequest, reset]);
   useEffect(() => {
-    setValue("totalDays", isHalfDay ? 0.5 : 1);
+    setValue("totalDays", policyPreview?.requestedDays ?? (isHalfDay ? 0.5 : 0));
     if (isHalfDay && startDate) {
       setValue("endDate", startDate, { shouldValidate: true });
     }
-  }, [isHalfDay, setValue, startDate]);
+  }, [isHalfDay, setValue, startDate, policyPreview?.requestedDays]);
   const mutation = useMutation({
     mutationFn: async ({ values, submit }: { values: SaveLeaveRequest; submit: boolean }) => {
       const payload = {
         ...values,
         endDate: isHalfDay ? values.startDate : values.endDate,
-        totalDays: isHalfDay ? 0.5 : Number(values.totalDays || 1),
+        totalDays: policyPreview?.requestedDays ?? (isHalfDay ? 0.5 : 0),
       };
       const saved = isEditMode ? await updateLeaveRequest(id!, payload) : await createLeaveRequest(payload);
       return submit ? submitLeaveRequest(saved.id) : saved;

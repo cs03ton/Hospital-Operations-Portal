@@ -973,7 +973,7 @@ public sealed class LeavePdfService(IWebHostEnvironment environment, IConfigurat
 
     private static string FormatDateTime(DateTime value)
     {
-        var local = value.ToLocalTime();
+        var local = TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(value, DateTimeKind.Utc), TimeZoneInfo.FindSystemTimeZoneById("Asia/Bangkok"));
         return $"{local.Day:00}/{local.Month:00}/{local.Year + 543} {local:HH:mm}";
     }
 

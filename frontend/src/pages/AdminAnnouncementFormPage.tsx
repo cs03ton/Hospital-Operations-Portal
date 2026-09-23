@@ -1,3 +1,5 @@
+import { AppDateTimeInput } from "../components/common/AppDateTimeInput";
+import { bangkokInputToUtc, utcToBangkokInput } from "../utils/dateFormat";
 import ArrowBackOutlinedIcon from "@mui/icons-material/ArrowBackOutlined";
 import AttachFileOutlinedIcon from "@mui/icons-material/AttachFileOutlined";
 import CampaignOutlinedIcon from "@mui/icons-material/CampaignOutlined";
@@ -304,8 +306,8 @@ export function AdminAnnouncementFormPage() {
                   <MenuItem value="">ไม่ระบุ</MenuItem>
                   {categories.map((category) => <MenuItem key={category.id} value={category.id}>{category.name}</MenuItem>)}
                 </TextField>
-                <TextField type="datetime-local" label="เวลาเผยแพร่" value={form.publishAt} onChange={(event) => update("publishAt", event.target.value)} InputLabelProps={{ shrink: true }} />
-                <TextField type="datetime-local" label="หมดอายุ" value={form.expiresAt} onChange={(event) => update("expiresAt", event.target.value)} InputLabelProps={{ shrink: true }} />
+                <AppDateTimeInput  label="เวลาเผยแพร่" value={form.publishAt} onChange={(event) => update("publishAt", event.target.value)} InputLabelProps={{ shrink: true }} />
+                <AppDateTimeInput  label="หมดอายุ" value={form.expiresAt} onChange={(event) => update("expiresAt", event.target.value)} InputLabelProps={{ shrink: true }} />
                 <TextField select label="กลุ่มเป้าหมาย" value={form.targetType} onChange={(event) => updateTargetType(event.target.value as TargetType)}>
                   <MenuItem value="Everyone">ทุกคน</MenuItem>
                   <MenuItem value="Role">บทบาท</MenuItem>
@@ -758,11 +760,11 @@ function toInputDateTime(value?: string | null) {
   if (!value) return "";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "";
-  return date.toISOString().slice(0, 16);
+  return utcToBangkokInput(date);
 }
 
 function fromInputDateTime(value: string) {
-  return value ? new Date(value).toISOString() : null;
+  return value ? bangkokInputToUtc(value) : null;
 }
 
 type TargetOption = {

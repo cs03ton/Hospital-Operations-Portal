@@ -12,6 +12,9 @@ public sealed class LeaveValidationService(
 {
     public async Task<LeaveValidationResult> ValidateDraftAsync(LeaveRequest leaveRequest, Guid? excludeLeaveRequestId = null)
     {
+        // Historical corrupt requests require explicit repair including their balance ledger.
+        if (leaveRequest.StartDate.Year is < 1900 or > 2100 || leaveRequest.EndDate.Year is < 1900 or > 2100)
+            return new LeaveValidationResult(false, "ปีวันลาไม่ถูกต้อง กรุณาแก้ไขวันที่เป็น ค.ศ. และตรวจยอดวันลาก่อนดำเนินการ", 0);
         var durationType = LeaveDurationTypes.Normalize(leaveRequest.DurationType);
         if (string.IsNullOrWhiteSpace(durationType))
         {

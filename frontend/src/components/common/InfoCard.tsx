@@ -27,7 +27,7 @@ export function InfoCard({ title, subtitle, actions, children }: InfoCardProps) 
               </Typography>
             )}
           </Box>
-          {actions && <Box sx={{ flexShrink: 0 }}>{actions}</Box>}
+          {actions && <Box sx={{ minWidth: 0, maxWidth: "100%", flexShrink: { xs: 1, md: 0 } }}>{actions}</Box>}
         </Stack>
         {children}
       </CardContent>

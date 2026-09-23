@@ -1,3 +1,4 @@
+import { bangkokDayjs } from "../utils/dateFormat";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import DownloadOutlinedIcon from "@mui/icons-material/DownloadOutlined";
 import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
@@ -27,7 +28,7 @@ const emptyHoliday: SaveLeaveHolidayRequest = {
 export function LeaveHolidayManagementPage() {
   const queryClient = useQueryClient();
   const { showSaveError, showSuccessAndRedirect } = useSaveFeedback();
-  const currentYear = new Date().getFullYear();
+  const currentYear = bangkokDayjs().year();
   const [year, setYear] = useState(currentYear);
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");

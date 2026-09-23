@@ -1,3 +1,4 @@
+import type { Dayjs } from "dayjs";
 import {
   Alert,
   Box,
@@ -17,7 +18,7 @@ import {
 } from "@mui/material";
 import { alpha } from "@mui/material/styles";
 import { useQuery } from "@tanstack/react-query";
-import dayjs from "dayjs";
+import { bangkokDayjs as dayjs } from "../utils/dateFormat";
 import { useMemo, useState } from "react";
 import { getDepartmentOptions } from "../api/adminApi";
 import { getLeaveCalendar, getLeaveHolidays, getLeaveTypes, type LeaveCalendarItem, type LeaveHoliday } from "../api/leaveApi";
@@ -57,7 +58,7 @@ export function LeaveCalendarPage() {
   const [departmentId, setDepartmentId] = useState("");
   const [leaveTypeId, setLeaveTypeId] = useState("");
   const [status, setStatus] = useState("");
-  const [selectedDay, setSelectedDay] = useState<{ date: dayjs.Dayjs; items: LeaveCalendarItem[]; holidays: LeaveHoliday[] } | null>(null);
+  const [selectedDay, setSelectedDay] = useState<{ date: Dayjs; items: LeaveCalendarItem[]; holidays: LeaveHoliday[] } | null>(null);
   const [detailLeaveTypeId, setDetailLeaveTypeId] = useState("");
   const [detailDepartmentId, setDetailDepartmentId] = useState("");
   const [detailSearch, setDetailSearch] = useState("");
@@ -150,7 +151,7 @@ export function LeaveCalendarPage() {
     });
   }, [detailDepartmentId, detailLeaveTypeId, detailSearch, selectedDay]);
 
-  function openDayDetail(date: dayjs.Dayjs, items: LeaveCalendarItem[], dayHolidays: LeaveHoliday[]) {
+  function openDayDetail(date: Dayjs, items: LeaveCalendarItem[], dayHolidays: LeaveHoliday[]) {
     setDetailLeaveTypeId("");
     setDetailDepartmentId("");
     setDetailSearch("");

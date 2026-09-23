@@ -2,6 +2,7 @@ using Hop.Api.Authorization;
 using Hop.Api.Data;
 using Hop.Api.DTOs;
 using Hop.Api.Models;
+using Hop.Api.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -12,11 +13,11 @@ namespace Hop.Api.Controllers;
 public sealed class FleetEmergencyReviewsController(AppDbContext db):ControllerBase
 {
     [HttpGet,RequirePermission(FleetPermissions.EmergencyReview)]
-    public async Task<ActionResult<ApiResponse<object>>> Queue([FromQuery]string? search,[FromQuery]string? status,[FromQuery]bool? slaBreached,[FromQuery]DateTime? from,[FromQuery]DateTime? to,[FromQuery]int page=1,[FromQuery]int pageSize=25,CancellationToken ct=default)
+    public async Task<ActionResult<ApiResponse<object>>> Queue([FromQuery]string? search,[FromQuery]string? status,[FromQuery]bool? slaBreached,[FromQuery]DateOnly? from,[FromQuery]DateOnly? to,[FromQuery]int page=1,[FromQuery]int pageSize=25,CancellationToken ct=default)
     {
         page=Math.Max(1,page);pageSize=Math.Clamp(pageSize,1,100);var now=DateTime.UtcNow;
         var q=db.FleetRequests.AsNoTracking().Where(x=>x.Priority==FleetPriorities.Emergency&&x.Status==FleetRequestStatuses.Completed);
-        if(!string.IsNullOrWhiteSpace(search))q=q.Where(x=>x.RequestNo.Contains(search)||x.Destination.Contains(search));if(status=="PENDING")q=q.Where(x=>x.RequiresPostReview);else if(status=="COMPLETED")q=q.Where(x=>!x.RequiresPostReview);if(from.HasValue)q=q.Where(x=>x.CreatedAt>=from);if(to.HasValue)q=q.Where(x=>x.CreatedAt<to);
+        if(!string.IsNullOrWhiteSpace(search))q=q.Where(x=>x.RequestNo.Contains(search)||x.Destination.Contains(search));if(status=="PENDING")q=q.Where(x=>x.RequiresPostReview);else if(status=="COMPLETED")q=q.Where(x=>!x.RequiresPostReview);if(from.HasValue)q=q.Where(x=>x.CreatedAt>=HospitalTime.StartOfDayUtc(from.Value));if(to.HasValue)q=q.Where(x=>x.CreatedAt<HospitalTime.EndExclusiveUtc(to.Value));
         if(slaBreached.HasValue)q=q.Where(x=>x.SubmittedAt!=null&&x.Assignments.Any()&&(x.Assignments.Min(a=>a.AssignedAt)>x.SubmittedAt.Value.AddMinutes(x.ResponseTargetMinutesSnapshot??15))==slaBreached.Value);
         var total=await q.CountAsync(ct);var items=await q.OrderByDescending(x=>x.RequiresPostReview).ThenByDescending(x=>x.CreatedAt).Skip((page-1)*pageSize).Take(pageSize).Select(x=>new{x.Id,x.RequestNo,x.Priority,x.Status,x.CreatedAt,x.RequiresPostReview,x.EmergencyPolicyCode,ResponseTargetMinutes=x.ResponseTargetMinutesSnapshot??15,SlaBreached=x.SubmittedAt!=null&&x.Assignments.Any()&&x.Assignments.Min(a=>a.AssignedAt)>x.SubmittedAt.Value.AddMinutes(x.ResponseTargetMinutesSnapshot??15),BypassUsed=x.StatusHistories.Any(h=>h.Action=="FleetEmergency.ApprovalBypassed"),Review=x.RequiresPostReview?null:x.StatusHistories.Where(h=>h.Action=="FleetEmergency.PostReviewCompleted").OrderByDescending(h=>h.CreatedAt).Select(h=>new{h.ActorUserId,h.CreatedAt}).FirstOrDefault()}).ToListAsync(ct);return ApiResponse<object>.Ok(new{items,total,page,pageSize,generatedAt=now});
     }

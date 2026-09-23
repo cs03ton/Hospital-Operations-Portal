@@ -11,6 +11,7 @@ import { useAuth } from "../context/AuthContext";
 import { Link as RouterLink } from "react-router-dom";
 import { PermissionGuard } from "../context/PermissionContext";
 import { dashboardPollingOptions } from "../config/queryPolling";
+import { bangkokDayjs, formatThaiDateTime } from "../utils/dateFormat";
 
 export function DashboardPage() {
   const { user } = useAuth();
@@ -20,20 +21,20 @@ export function DashboardPage() {
     queryFn: getDashboardSummary,
     ...dashboardPollingOptions,
   });
-  const now = new Date();
+  const now = bangkokDayjs();
   const notificationQuery = useQuery({
     queryKey: ["notifications", "dashboard"],
     queryFn: getMyNotifications,
     ...dashboardPollingOptions,
   });
   const calendarQuery = useQuery({
-    queryKey: ["leave-calendar", "dashboard", now.getFullYear(), now.getMonth() + 1],
-    queryFn: () => getLeaveCalendar({ year: now.getFullYear(), month: now.getMonth() + 1 }),
+    queryKey: ["leave-calendar", "dashboard", now.year(), now.month() + 1],
+    queryFn: () => getLeaveCalendar({ year: now.year(), month: now.month() + 1 }),
     ...dashboardPollingOptions,
   });
   const executiveQuery = useQuery({
-    queryKey: ["executive-dashboard", "leave-dashboard", now.getFullYear(), now.getMonth() + 1],
-    queryFn: () => getExecutiveDashboard({ trendYear: now.getFullYear() }),
+    queryKey: ["executive-dashboard", "leave-dashboard", now.year(), now.month() + 1],
+    queryFn: () => getExecutiveDashboard({ trendYear: now.year() }),
     enabled: role === "Director",
     ...dashboardPollingOptions,
   });
@@ -84,7 +85,7 @@ export function DashboardPage() {
         </Button>
         {updatedAt && (
           <Typography variant="caption" color="text.secondary" sx={{ alignSelf: "center" }}>
-            อัปเดตล่าสุด {updatedAt.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+            อัปเดตล่าสุด {formatThaiDateTime(updatedAt, true)}
           </Typography>
         )}
       </Stack>

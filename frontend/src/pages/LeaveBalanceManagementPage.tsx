@@ -1,3 +1,4 @@
+import { bangkokDayjs } from "../utils/dateFormat";
 import AddOutlinedIcon from "@mui/icons-material/AddOutlined";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import DownloadOutlinedIcon from "@mui/icons-material/DownloadOutlined";
@@ -532,8 +533,8 @@ export function LeaveBalanceManagementPage() {
 }
 
 function getCurrentFiscalYear() {
-  const now = new Date();
-  return now.getMonth() >= 9 ? now.getFullYear() + 1 : now.getFullYear();
+  const now = bangkokDayjs();
+  return now.month() >= 9 ? now.year() + 1 : now.year();
 }
 
 function formatFiscalYear(year: number) {

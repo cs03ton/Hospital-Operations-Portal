@@ -5,7 +5,7 @@ import { getUsers } from "../api/adminApi";
 import { createLeaveBalanceAdjustment, getLeaveBalanceAdjustments, getLeaveTypes, type CreateLeaveBalanceAdjustmentRequest } from "../api/leaveApi";
 import { PageHeader } from "../components/PageHeader";
 import { useNotification } from "../hooks/useNotification";
-import { formatThaiDateTime } from "../utils/dateFormat";
+import { formatThaiDateTime, bangkokDayjs } from "../utils/dateFormat";
 import { getLeaveTypeLabel } from "../utils/leaveLabels";
 
 export function LeaveBalanceAdjustmentPage() {
@@ -15,18 +15,18 @@ export function LeaveBalanceAdjustmentPage() {
   const { data: leaveTypes = [] } = useQuery({ queryKey: ["leave-types"], queryFn: getLeaveTypes });
   const { data: adjustments = [] } = useQuery({ queryKey: ["leave-balance-adjustments"], queryFn: getLeaveBalanceAdjustments });
   const { register, handleSubmit, reset, formState: { errors } } = useForm<CreateLeaveBalanceAdjustmentRequest>({
-    defaultValues: { year: new Date().getFullYear(), adjustmentDays: 0, reason: "" },
+    defaultValues: { year: bangkokDayjs().year() + 543, adjustmentDays: 0, reason: "" },
   });
 
   const mutation = useMutation({
     mutationFn: (values: CreateLeaveBalanceAdjustmentRequest) => createLeaveBalanceAdjustment({
       ...values,
-      year: Number(values.year),
+      year: Number(values.year) >= 2443 && Number(values.year) <= 2643 ? Number(values.year) - 543 : Number(values.year),
       adjustmentDays: Number(values.adjustmentDays),
     }),
     onSuccess: async () => {
       showSuccess("ปรับปรุงวันลาคงเหลือเรียบร้อยแล้ว");
-      reset({ year: new Date().getFullYear(), adjustmentDays: 0, reason: "" });
+      reset({ year: bangkokDayjs().year() + 543, adjustmentDays: 0, reason: "" });
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["leave-balance-adjustments"] }),
         queryClient.invalidateQueries({ queryKey: ["leave-balances"] }),
@@ -55,7 +55,7 @@ export function LeaveBalanceAdjustmentPage() {
                   </TextField>
                 </Grid>
                 <Grid item xs={12} md={3}>
-                  <TextField fullWidth type="number" label="ปี ค.ศ." {...register("year", { required: "กรุณากรอกปี" })} />
+                  <TextField fullWidth type="number" label="ปี พ.ศ." {...register("year", { required: "กรุณากรอกปี" })} />
                 </Grid>
                 <Grid item xs={12} md={3}>
                   <TextField fullWidth type="number" label="จำนวนวันที่ปรับ" inputProps={{ step: 0.5 }} error={Boolean(errors.adjustmentDays)} helperText={errors.adjustmentDays?.message} {...register("adjustmentDays", { required: "กรุณากรอกจำนวนวัน" })} />
@@ -89,7 +89,7 @@ export function LeaveBalanceAdjustmentPage() {
                     <TableCell>{formatThaiDateTime(item.createdAt)}</TableCell>
                     <TableCell>{item.fullname ?? "-"}</TableCell>
                     <TableCell>{getLeaveTypeLabel(item.leaveTypeName)}</TableCell>
-                    <TableCell>{item.year}</TableCell>
+                    <TableCell>{item.year + 543}</TableCell>
                     <TableCell>{item.adjustmentDays}</TableCell>
                     <TableCell>{item.reason}</TableCell>
                     <TableCell>{item.adjustedByName ?? "-"}</TableCell>

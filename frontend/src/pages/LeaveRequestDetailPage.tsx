@@ -219,7 +219,14 @@ export function LeaveRequestDetailPage() {
           title={`เลขที่คำขอ ${requestCode}`}
           subtitle={`สร้างเมื่อ ${formatThaiDateTime(request.createdAt)} · ผู้อนุมัติปัจจุบัน ${request.currentApproverName ?? "-"}`}
           actions={
-            <Stack direction="row" spacing={1} justifyContent={{ xs: "flex-start", md: "flex-end" }} flexWrap="wrap" useFlexGap>
+            <Stack
+              direction={{ xs: "column", sm: "row" }}
+              spacing={1}
+              justifyContent={{ xs: "flex-start", md: "flex-end" }}
+              flexWrap="wrap"
+              useFlexGap
+              sx={{ minWidth: 0, maxWidth: "100%", "& > span": { width: { xs: "100%", sm: "auto" } }, "& > span > button": { width: { xs: "100%", sm: "auto" } } }}
+            >
               <ActionTooltip title="กลับไปหน้ารายการคำขอลา">
                 <Button variant="outlined" startIcon={<ArrowBackOutlinedIcon />} onClick={() => navigate("/leave")}>
                   กลับ

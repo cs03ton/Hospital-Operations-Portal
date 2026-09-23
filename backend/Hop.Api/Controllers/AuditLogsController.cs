@@ -23,8 +23,8 @@ public class AuditLogsController(AppDbContext db, IAuditRetentionService auditRe
         [FromQuery] string? search = null,
         [FromQuery] Guid? userId = null,
         [FromQuery] string? action = null,
-        [FromQuery] DateTime? from = null,
-        [FromQuery] DateTime? to = null)
+        [FromQuery] DateOnly? from = null,
+        [FromQuery] DateOnly? to = null)
     {
         page = Math.Max(page, 1);
         pageSize = Math.Clamp(pageSize, 1, 100);
@@ -50,12 +50,12 @@ public class AuditLogsController(AppDbContext db, IAuditRetentionService auditRe
 
         if (from is not null)
         {
-            query = query.Where(auditLog => auditLog.CreatedAt >= from.Value.ToUniversalTime());
+            query = query.Where(auditLog => auditLog.CreatedAt >= HospitalTime.StartOfDayUtc(from.Value));
         }
 
         if (to is not null)
         {
-            query = query.Where(auditLog => auditLog.CreatedAt <= to.Value.ToUniversalTime());
+            query = query.Where(auditLog => auditLog.CreatedAt < HospitalTime.EndExclusiveUtc(to.Value));
         }
 
         if (!string.IsNullOrWhiteSpace(search))
@@ -110,8 +110,8 @@ public class AuditLogsController(AppDbContext db, IAuditRetentionService auditRe
         [FromQuery] string? search = null,
         [FromQuery] Guid? userId = null,
         [FromQuery] string? action = null,
-        [FromQuery] DateTime? from = null,
-        [FromQuery] DateTime? to = null)
+        [FromQuery] DateOnly? from = null,
+        [FromQuery] DateOnly? to = null)
     {
         var query = db.AuditLogs
             .AsNoTracking()
@@ -134,12 +134,12 @@ public class AuditLogsController(AppDbContext db, IAuditRetentionService auditRe
 
         if (from is not null)
         {
-            query = query.Where(item => item.CreatedAt >= from.Value.ToUniversalTime());
+            query = query.Where(item => item.CreatedAt >= HospitalTime.StartOfDayUtc(from.Value));
         }
 
         if (to is not null)
         {
-            query = query.Where(item => item.CreatedAt <= to.Value.ToUniversalTime());
+            query = query.Where(item => item.CreatedAt < HospitalTime.EndExclusiveUtc(to.Value));
         }
 
         if (!string.IsNullOrWhiteSpace(search))
@@ -183,8 +183,8 @@ public class AuditLogsController(AppDbContext db, IAuditRetentionService auditRe
         [FromQuery] string? search = null,
         [FromQuery] Guid? userId = null,
         [FromQuery] string? action = null,
-        [FromQuery] DateTime? from = null,
-        [FromQuery] DateTime? to = null)
+        [FromQuery] DateOnly? from = null,
+        [FromQuery] DateOnly? to = null)
     {
         var rows = await BuildExportRows(search, userId, action, from, to);
         var worksheetRows = new List<IReadOnlyList<string>>
@@ -197,7 +197,7 @@ public class AuditLogsController(AppDbContext db, IAuditRetentionService auditRe
         {
             worksheetRows.Add(new[]
             {
-                row.CreatedAt.ToString("dd/MM/yyyy HH:mm"),
+                ThaiDateDisplay.Instant(row.CreatedAt),
                 SafeExcelCell(row.User?.Username),
                 SafeExcelCell(row.User?.FullName),
                 SafeExcelCell(row.Action),
@@ -219,8 +219,8 @@ public class AuditLogsController(AppDbContext db, IAuditRetentionService auditRe
         [FromQuery] string? search = null,
         [FromQuery] Guid? userId = null,
         [FromQuery] string? action = null,
-        [FromQuery] DateTime? from = null,
-        [FromQuery] DateTime? to = null)
+        [FromQuery] DateOnly? from = null,
+        [FromQuery] DateOnly? to = null)
     {
         const int rowsPerPage = 30;
         var rows = await BuildExportRows(search, userId, action, from, to);
@@ -240,7 +240,7 @@ public class AuditLogsController(AppDbContext db, IAuditRetentionService auditRe
             var y = 713;
             foreach (var row in chunks[pageIndex])
             {
-                lines.Add(new($"{row.CreatedAt:dd/MM/yyyy HH:mm} | {row.User?.Username ?? "-"} | {row.Action} | {row.Result}", 50, y, 9));
+                lines.Add(new($"{ThaiDateDisplay.Instant(row.CreatedAt)} | {row.User?.Username ?? "-"} | {row.Action} | {row.Result}", 50, y, 9));
                 y -= 20;
             }
 
@@ -288,7 +288,7 @@ public class AuditLogsController(AppDbContext db, IAuditRetentionService auditRe
         return $"\"{value.Replace("\"", "\"\"")}\"";
     }
 
-    private async Task<List<AuditLog>> BuildExportRows(string? search, Guid? userId, string? action, DateTime? from, DateTime? to)
+    private async Task<List<AuditLog>> BuildExportRows(string? search, Guid? userId, string? action, DateOnly? from, DateOnly? to)
     {
         var query = db.AuditLogs
             .AsNoTracking()
@@ -311,12 +311,12 @@ public class AuditLogsController(AppDbContext db, IAuditRetentionService auditRe
 
         if (from is not null)
         {
-            query = query.Where(item => item.CreatedAt >= from.Value.ToUniversalTime());
+            query = query.Where(item => item.CreatedAt >= HospitalTime.StartOfDayUtc(from.Value));
         }
 
         if (to is not null)
         {
-            query = query.Where(item => item.CreatedAt <= to.Value.ToUniversalTime());
+            query = query.Where(item => item.CreatedAt < HospitalTime.EndExclusiveUtc(to.Value));
         }
 
         if (!string.IsNullOrWhiteSpace(search))

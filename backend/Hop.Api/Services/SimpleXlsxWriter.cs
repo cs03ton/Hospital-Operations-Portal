@@ -9,7 +9,8 @@ public static class SimpleXlsxWriter
     private static readonly XNamespace Relationships = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
     private static readonly XNamespace PackageRelationships = "http://schemas.openxmlformats.org/package/2006/relationships";
 
-    public static byte[] CreateWorkbook(IReadOnlyList<IReadOnlyList<string>> rows, IReadOnlyList<double> columnWidths)
+    public static byte[] CreateWorkbook(IReadOnlyList<IReadOnlyList<string>> rows, IReadOnlyList<double> columnWidths,
+        IReadOnlyDictionary<(int Row, int Column), DateOnly>? dateCells = null)
     {
         using var output = new MemoryStream();
         using (var archive = new ZipArchive(output, ZipArchiveMode.Create, leaveOpen: true))
@@ -19,7 +20,19 @@ public static class SimpleXlsxWriter
             WriteEntry(archive, "xl/workbook.xml", CreateWorkbookXml());
             WriteEntry(archive, "xl/_rels/workbook.xml.rels", CreateWorkbookRelationships());
             WriteEntry(archive, "xl/styles.xml", CreateStyles());
-            WriteEntry(archive, "xl/worksheets/sheet1.xml", CreateWorksheet(rows, columnWidths));
+            var sheet = CreateWorksheet(rows, columnWidths);
+            if (dateCells is not null)
+                foreach (var (position, date) in dateCells)
+                {
+                    var address = $"{ColumnName(position.Column)}{position.Row}";
+                    var cell = sheet.Descendants(Spreadsheet + "c").Single(c => (string?)c.Attribute("r") == address);
+                    cell.SetAttributeValue("t", "n");
+                    cell.SetAttributeValue("s", "1");
+                    var serial = date.ToDateTime(TimeOnly.MinValue).ToOADate();
+                    if (date < new DateOnly(1900, 3, 1)) serial--; // Excel's fictitious 29 February 1900.
+                    cell.ReplaceNodes(new XElement(Spreadsheet + "v", serial.ToString(System.Globalization.CultureInfo.InvariantCulture)));
+                }
+            WriteEntry(archive, "xl/worksheets/sheet1.xml", sheet);
         }
 
         return output.ToArray();
@@ -75,13 +88,20 @@ public static class SimpleXlsxWriter
 
     private static XDocument CreateStyles()
     {
-        return new XDocument(
+        var result = new XDocument(
             new XElement(Spreadsheet + "styleSheet",
                 new XElement(Spreadsheet + "fonts", new XAttribute("count", "1"), new XElement(Spreadsheet + "font")),
                 new XElement(Spreadsheet + "fills", new XAttribute("count", "1"), new XElement(Spreadsheet + "fill", new XElement(Spreadsheet + "patternFill", new XAttribute("patternType", "none")))),
                 new XElement(Spreadsheet + "borders", new XAttribute("count", "1"), new XElement(Spreadsheet + "border")),
                 new XElement(Spreadsheet + "cellStyleXfs", new XAttribute("count", "1"), new XElement(Spreadsheet + "xf", new XAttribute("numFmtId", "0"), new XAttribute("fontId", "0"), new XAttribute("fillId", "0"), new XAttribute("borderId", "0"))),
                 new XElement(Spreadsheet + "cellXfs", new XAttribute("count", "1"), new XElement(Spreadsheet + "xf", new XAttribute("numFmtId", "0"), new XAttribute("fontId", "0"), new XAttribute("fillId", "0"), new XAttribute("borderId", "0"), new XAttribute("xfId", "0")))));
+        result.Root!.AddFirst(new XElement(Spreadsheet + "numFmts", new XAttribute("count", "1"),
+            new XElement(Spreadsheet + "numFmt", new XAttribute("numFmtId", "164"), new XAttribute("formatCode", "[$-107041E]dd/mm/yyyy"))));
+        var formats = result.Root.Element(Spreadsheet + "cellXfs")!;
+        formats.SetAttributeValue("count", "2");
+        formats.Add(new XElement(Spreadsheet + "xf", new XAttribute("numFmtId", "164"), new XAttribute("fontId", "0"),
+            new XAttribute("fillId", "0"), new XAttribute("borderId", "0"), new XAttribute("xfId", "0"), new XAttribute("applyNumberFormat", "1")));
+        return result;
     }
 
     private static XDocument CreateWorksheet(IReadOnlyList<IReadOnlyList<string>> rows, IReadOnlyList<double> columnWidths)

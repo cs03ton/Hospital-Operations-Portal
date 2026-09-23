@@ -1,11 +1,11 @@
 import AddCircleOutlineOutlinedIcon from "@mui/icons-material/AddCircleOutlineOutlined";
 import VisibilityOutlinedIcon from "@mui/icons-material/VisibilityOutlined";
-import { Box, Button, Card, CardContent, Chip, Grid, IconButton, MenuItem, Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField } from "@mui/material";
+import { Box, Button, Card, CardContent, Chip, Grid, IconButton, MenuItem, Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography } from "@mui/material";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { Link as RouterLink, useSearchParams } from "react-router-dom";
 import { getDepartmentOptions } from "../api/adminApi";
-import { getLeaveRequestsPaged, getLeaveTypes, type LeaveRequestQuery } from "../api/leaveApi";
+import { getLeaveRequestsPaged, getLeaveTypes, type LeaveRequest, type LeaveRequestQuery } from "../api/leaveApi";
 import { AppDatePicker } from "../components/common/AppDatePicker";
 import { ListPagination } from "../components/common/ListPagination";
 import { PageHeader } from "../components/PageHeader";
@@ -169,7 +169,8 @@ export function LeaveManagementPage() {
       </Card>
       <Card>
         <CardContent>
-          <Table size="small">
+          <Box sx={{ display: { xs: "none", md: "block" }, overflowX: "auto" }}>
+          <Table size="small" sx={{ minWidth: 1050 }}>
             <TableHead>
               <TableRow>
                 <TableCell>ผู้ขอ</TableCell>
@@ -220,6 +221,16 @@ export function LeaveManagementPage() {
               )}
             </TableBody>
           </Table>
+          </Box>
+          <Stack spacing={1.5} sx={{ display: { xs: "flex", md: "none" }, minWidth: 0 }} aria-label="รายการคำขอลาสำหรับมือถือ">
+            {isLoading ? (
+              <Typography color="text.secondary">กำลังโหลดคำขอลา...</Typography>
+            ) : visibleData.length ? (
+              visibleData.map((item) => <LeaveMobileRequestCard key={item.id} item={item} />)
+            ) : (
+              <Typography color="text.secondary">ไม่พบคำขอลา</Typography>
+            )}
+          </Stack>
           <ListPagination
             page={page + 1}
             pageSize={pageSize}
@@ -235,6 +246,26 @@ export function LeaveManagementPage() {
         </CardContent>
       </Card>
     </>
+  );
+}
+
+export function LeaveMobileRequestCard({ item }: { item: LeaveRequest }) {
+  return (
+    <Box sx={{ border: "1px solid", borderColor: "divider", borderRadius: 2, p: 1.5, minWidth: 0 }}>
+      <Stack spacing={1}>
+        <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={1}>
+          <Typography fontWeight={700} sx={{ overflowWrap: "anywhere" }}>{getLeaveRequestCode(item.requestNumber, item.id)}</Typography>
+          <Chip size="small" label={getLeaveStatusLabel(item.status)} color={getLeaveStatusColor(item.status)} sx={{ flexShrink: 0 }} />
+        </Stack>
+        <Typography variant="body2" sx={{ overflowWrap: "anywhere" }}>{getLeaveTypeWithDurationLabel(item.leaveTypeName, item.durationType)}</Typography>
+        <Typography variant="body2" color="text.secondary">{formatThaiDate(item.startDate)} - {formatThaiDate(item.endDate)} · {item.totalDays} วัน</Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ overflowWrap: "anywhere" }}>ผู้ขอ: {item.fullname ?? "-"}</Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ overflowWrap: "anywhere" }}>ผู้อนุมัติปัจจุบัน: {item.currentApproverName ?? "-"}</Typography>
+        <Button component={RouterLink} to={`/leave/${item.id}`} variant="outlined" startIcon={<VisibilityOutlinedIcon />} fullWidth sx={{ minHeight: 44 }}>
+          ดูรายละเอียด
+        </Button>
+      </Stack>
+    </Box>
   );
 }
 

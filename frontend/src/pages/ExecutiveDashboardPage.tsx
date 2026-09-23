@@ -1,3 +1,5 @@
+import { AppDatePicker } from "../components/common/AppDatePicker";
+import { bangkokDayjs, formatThaiDate } from "../utils/dateFormat";
 import ArrowBackOutlinedIcon from "@mui/icons-material/ArrowBackOutlined";
 import GroupsOutlinedIcon from "@mui/icons-material/GroupsOutlined";
 import PendingActionsOutlinedIcon from "@mui/icons-material/PendingActionsOutlined";
@@ -24,9 +26,9 @@ import { executiveViewOptions, parseExecutiveView, type ExecutiveView } from "./
 export function ExecutiveDashboardPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const selectedView = parseExecutiveView(searchParams.get("view"));
-  const now = new Date();
-  const currentYear = now.getFullYear();
-  const currentMonth = now.getMonth() + 1;
+  const now = bangkokDayjs();
+  const currentYear = now.year();
+  const currentMonth = now.month() + 1;
   const currentFiscalYear = getFiscalYear(currentYear, currentMonth);
   const [trendMonth, setTrendMonth] = useState(0);
   const [fiscalYear, setFiscalYear] = useState(currentFiscalYear);
@@ -100,8 +102,8 @@ export function ExecutiveDashboardPage() {
             <TextField select size="small" label="ปีงบประมาณ" value={fiscalYear} onChange={(event) => setFiscalYear(Number(event.target.value))} sx={{ minWidth: 170 }}>
               {fiscalYearOptions.map((year) => <MenuItem key={year} value={year}>{toThaiDisplayYear(year)}</MenuItem>)}
             </TextField>
-            <TextField size="small" type="date" label="ตั้งแต่วันที่" value={startDate} onChange={(event) => setStartDate(event.target.value)} InputLabelProps={{ shrink: true }} />
-            <TextField size="small" type="date" label="ถึงวันที่" value={endDate} onChange={(event) => setEndDate(event.target.value)} InputLabelProps={{ shrink: true }} />
+            <AppDatePicker label="ตั้งแต่วันที่" value={startDate} onChange={setStartDate} />
+            <AppDatePicker label="ถึงวันที่" value={endDate} onChange={setEndDate} />
             {(startDate || endDate) && <Button onClick={() => { setStartDate(""); setEndDate(""); }}>ล้างช่วงวันที่</Button>}
           </Stack>
         </CardContent>
@@ -513,11 +515,11 @@ function buildFiscalYearOptions(currentFiscalYear: number) {
 }
 
 function formatDateTime(value: string) {
-  return new Date(value).toLocaleString("th-TH", { dateStyle: "short", timeStyle: "short" });
+  return new Date(value).toLocaleString("th-TH", { dateStyle: "short", timeStyle: "short", timeZone: "Asia/Bangkok", calendar: "buddhist" });
 }
 
 function formatDate(value: string) {
-  return new Date(`${value}T00:00:00`).toLocaleDateString("th-TH", { dateStyle: "medium" });
+  return formatThaiDate(value);
 }
 
 function statusLabel(status: string) {

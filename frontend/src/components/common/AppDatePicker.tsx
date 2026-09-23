@@ -5,7 +5,7 @@ import type { Dayjs } from "dayjs";
 import dayjs from "dayjs";
 import buddhistEra from "dayjs/plugin/buddhistEra";
 import "dayjs/locale/th";
-import { formatDateForApi, normalizeBuddhistApiDate } from "../../utils/dateFormat";
+import { normalizeBuddhistApiDate } from "../../utils/dateFormat";
 
 dayjs.extend(buddhistEra);
 
@@ -31,7 +31,7 @@ export class AdapterDayjsBuddhist extends AdapterDayjs {
       const normalizedFormat = format.replace(/BBBB/g, "YYYY");
       const normalizedValue = value.replace(/\d{4}(?!.*\d{4})/, (yearText) => {
         const year = Number(yearText);
-        return year >= 2500 && year <= 2599 ? String(year - 543) : yearText;
+        return year >= 2443 && year <= 2643 ? String(year - 543) : yearText;
       });
 
       return baseParse(normalizedValue, normalizedFormat);
@@ -48,6 +48,7 @@ type AppDatePickerProps = {
   fullWidth?: boolean;
   size?: "small" | "medium";
   disabled?: boolean;
+  required?: boolean;
   buddhistYear?: boolean;
 };
 
@@ -60,10 +61,11 @@ export function AppDatePicker({
   fullWidth = true,
   size = "small",
   disabled = false,
-  buddhistYear = false,
+  required = false,
+  buddhistYear = true,
 }: AppDatePickerProps) {
   function handleChange(nextValue: Dayjs | null) {
-    const formatted = nextValue?.isValid() ? formatDateForApi(nextValue.toDate()) : "";
+    const formatted = nextValue?.isValid() ? nextValue.format("YYYY-MM-DD") : "";
     onChange(buddhistYear ? normalizeBuddhistApiDate(formatted) : formatted);
   }
 
@@ -91,10 +93,13 @@ export function AppDatePicker({
         value={value ? dayjs(buddhistYear ? normalizeBuddhistApiDate(value) : value) : null}
         onChange={handleChange}
         disabled={disabled}
+        minDate={dayjs("1900-01-01")}
+        maxDate={dayjs("2100-12-31")}
         format={buddhistYear ? "DD/MM/BBBB" : "DD/MM/YYYY"}
         slotProps={{
           textField: {
             fullWidth,
+            required,
             size,
             error,
             helperText,

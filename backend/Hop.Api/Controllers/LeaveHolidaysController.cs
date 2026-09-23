@@ -1,3 +1,4 @@
+using Hop.Api.Services;
 using Hop.Api.Authorization;
 using Hop.Api.Data;
 using Hop.Api.DTOs;
@@ -305,7 +306,7 @@ public class LeaveHolidaysController(AppDbContext db, IAuditLogService auditLogS
         var duplicateNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var seenDates = new HashSet<DateOnly>();
         var seenNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        var currentYear = DateTime.UtcNow.Year;
+        var currentYear = Hop.Api.Services.HospitalTime.Today.Year;
         var result = new List<LeaveHolidayImportPreviewRow>();
 
         foreach (var row in rows)
@@ -320,7 +321,7 @@ public class LeaveHolidaysController(AppDbContext db, IAuditLogService auditLogS
             var holidayType = string.IsNullOrWhiteSpace(row.HolidayType) ? "National" : row.HolidayType.Trim();
             DateOnly? date = null;
 
-            if (!DateOnly.TryParseExact(row.Date.Trim(), "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsedDate))
+            if (!CalendarDateInput.TryParse(row.Date.Trim(), out var parsedDate))
             {
                 errors.Add("วันที่ไม่ถูกต้อง ต้องใช้รูปแบบ yyyy-MM-dd");
             }

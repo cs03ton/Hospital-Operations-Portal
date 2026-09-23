@@ -274,7 +274,7 @@ public class NotificationsController(IPendingApprovalNotificationService notific
             return [];
         }
 
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var today = Hop.Api.Services.HospitalTime.Today;
         var tomorrow = today.AddDays(1);
         var teamToday = await db.LeaveRequests
             .AsNoTracking()
@@ -311,7 +311,7 @@ public class NotificationsController(IPendingApprovalNotificationService notific
 
     private async Task<IReadOnlyList<LeaveNotificationItemResponse>> GetDirectorNotificationsAsync(CancellationToken cancellationToken)
     {
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var today = Hop.Api.Services.HospitalTime.Today;
         var onLeaveToday = await db.LeaveRequests
             .AsNoTracking()
             .Where(item => item.Status == "Approved" && item.StartDate <= today && item.EndDate >= today)
@@ -536,7 +536,7 @@ public class NotificationsController(IPendingApprovalNotificationService notific
 
     private static string FormatDateTime(DateTime? value)
     {
-        return value is null ? "-" : value.Value.ToString("dd/MM/yyyy HH:mm");
+        return value is null ? "-" : Hop.Api.Services.ThaiDateDisplay.Instant(value.Value);
     }
 
     private Guid? GetCurrentUserId()

@@ -1,3 +1,4 @@
+import { bangkokDayjs } from "../utils/dateFormat";
 import DownloadOutlinedIcon from "@mui/icons-material/DownloadOutlined";
 import InsightsOutlinedIcon from "@mui/icons-material/InsightsOutlined";
 import PieChartOutlineOutlinedIcon from "@mui/icons-material/PieChartOutlineOutlined";
@@ -20,9 +21,9 @@ import { dashboardPollingOptions } from "../config/queryPolling";
 const coreLeaveCodes = new Set(["SICK_LEAVE", "PERSONAL_LEAVE", "VACATION_LEAVE"]);
 
 export function LeaveAnalyticsPage() {
-  const now = new Date();
-  const currentYear = now.getFullYear();
-  const currentMonth = now.getMonth() + 1;
+  const now = bangkokDayjs();
+  const currentYear = now.year();
+  const currentMonth = now.month() + 1;
   const currentFiscalYear = getFiscalYear(currentYear, currentMonth);
   const [filters, setFilters] = useState<LeaveAnalyticsQuery>({
     fiscalYear: currentFiscalYear,

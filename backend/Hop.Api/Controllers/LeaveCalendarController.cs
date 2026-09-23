@@ -22,7 +22,7 @@ public class LeaveCalendarController(AppDbContext db, ILeaveRequestAccessService
         [FromQuery] Guid? leaveTypeId,
         [FromQuery] string? status)
     {
-        var now = DateOnly.FromDateTime(DateTime.UtcNow);
+        var now = Hop.Api.Services.HospitalTime.Today;
         var selectedYear = year ?? now.Year;
         var selectedMonth = month ?? now.Month;
         var startDate = new DateOnly(selectedYear, selectedMonth, 1);

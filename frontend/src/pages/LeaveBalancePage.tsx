@@ -10,7 +10,7 @@ import type { SvgIconComponent } from "@mui/icons-material";
 import { Alert, Box, Button, Card, CardContent, Chip, Grid, LinearProgress, Skeleton, Stack, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Typography } from "@mui/material";
 import { alpha, useTheme } from "@mui/material/styles";
 import { useQuery } from "@tanstack/react-query";
-import dayjs from "dayjs";
+import { bangkokDayjs as dayjs } from "../utils/dateFormat";
 import { useMemo } from "react";
 import { Link as RouterLink } from "react-router-dom";
 import { getMyLeaveBalances, type LeaveBalance } from "../api/leaveApi";

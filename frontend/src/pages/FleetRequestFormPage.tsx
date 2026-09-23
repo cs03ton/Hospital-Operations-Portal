@@ -5,7 +5,7 @@ import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import { Alert, Autocomplete, Box, Button, Card, CardContent, Chip, FormControlLabel, Grid, IconButton, MenuItem, Popover, Stack, Switch, TextField, Typography } from "@mui/material";
 import { DateCalendar, LocalizationProvider } from "@mui/x-date-pickers";
-import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
+import { AdapterDayjsBuddhist } from "../components/common/AppDatePicker";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
@@ -65,7 +65,7 @@ function ThaiDateTimeField({ label, value, onChange, error = false, helperText }
       <Grid item xs={12} sm={6}>
         <Button fullWidth variant="outlined" startIcon={<CalendarMonthOutlinedIcon />} onClick={event => { setCalendarMonth(selectedDate ?? dayjs()); setAnchorEl(event.currentTarget); }} sx={{ height: 40, justifyContent: "flex-start", color: selectedDate ? "text.primary" : "text.secondary", borderColor: "divider" }}>{dateLabel}</Button>
         <Popover open={Boolean(anchorEl)} anchorEl={anchorEl} onClose={() => setAnchorEl(null)} anchorOrigin={{ vertical: "bottom", horizontal: "left" }}>
-          <LocalizationProvider dateAdapter={AdapterDayjs} adapterLocale="th">
+          <LocalizationProvider dateAdapter={AdapterDayjsBuddhist} dateFormats={{ year: "BBBB" }} adapterLocale="th">
             <Box sx={{ p: 1 }}>
               <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ px: 1, pt: 0.5 }}>
                 <IconButton size="small" aria-label="เดือนก่อนหน้า" onClick={() => setCalendarMonth(current => current.subtract(1, "month"))}><ChevronLeftIcon /></IconButton>

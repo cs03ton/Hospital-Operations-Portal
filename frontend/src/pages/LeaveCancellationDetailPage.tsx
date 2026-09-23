@@ -166,7 +166,7 @@ function Info({ label, value }: { label: string; value: string }) {
 }
 
 function formatDateTime(value: string) {
-  return new Intl.DateTimeFormat("th-TH", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
+  return new Intl.DateTimeFormat("th-TH", { calendar: "buddhist", timeZone: "Asia/Bangkok", dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
 }
 
 function getErrorMessage(error: unknown, fallback: string) {

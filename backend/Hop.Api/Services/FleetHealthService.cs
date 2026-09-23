@@ -23,7 +23,7 @@ public sealed class FleetHealthService(AppDbContext db, IOptions<FleetRolloutOpt
         var statusCounts = await db.FleetRequests.AsNoTracking().Where(x => ActiveStates.Contains(x.Status)).GroupBy(x => x.Status).Select(x => new { x.Key, Count = x.LongCount() }).ToDictionaryAsync(x => x.Key, x => x.Count, ct);
         var outbox = await db.OutboxMessages.AsNoTracking().GroupBy(x => x.Status).Select(x => new { x.Key, Count = x.LongCount() }).ToDictionaryAsync(x => x.Key, x => x.Count, ct);
         var delivery = await db.NotificationDeliveries.AsNoTracking().GroupBy(x => new { x.Channel, x.Status }).Select(x => new { x.Key.Channel, x.Key.Status, Count = x.LongCount() }).ToListAsync(ct);
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var today = Hop.Api.Services.HospitalTime.Today;
         var vehiclesUnavailable = await db.FleetVehicles.CountAsync(x => !x.IsActive || x.Status != FleetVehicleStatuses.Available, ct);
         var driversUnavailable = await db.FleetDriverProfiles.CountAsync(x => !x.IsActive || x.DriverStatus != FleetDriverStatuses.Available, ct);
         var expiredLicenses = await db.FleetDriverProfiles.CountAsync(x => x.LicenseExpiryDate != null && x.LicenseExpiryDate < today, ct);

@@ -772,7 +772,7 @@ public class UsersController(
 
     private async Task InitializeLeaveEntitlementsIfReadyAsync(Guid userId, string reason)
     {
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var today = Hop.Api.Services.HospitalTime.Today;
         var fiscalYear = FiscalYearHelper.GetFiscalYear(today);
         var result = await leaveEntitlementService.InitializeAsync(
             userId,

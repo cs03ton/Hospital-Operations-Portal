@@ -136,7 +136,7 @@ public class PendingApprovalNotificationService(AppDbContext db) : IPendingAppro
 
     private static string GetPriority(DateOnly startDate)
     {
-        var daysUntilLeave = startDate.DayNumber - DateOnly.FromDateTime(DateTime.UtcNow).DayNumber;
+        var daysUntilLeave = startDate.DayNumber - Hop.Api.Services.HospitalTime.Today.DayNumber;
         return daysUntilLeave switch
         {
             <= 1 => "High",

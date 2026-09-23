@@ -74,8 +74,8 @@ public class LeaveReportsController(AppDbContext db, IAuditLogService auditLogSe
 
     private async Task<LeaveReportResponse> BuildReport(DateOnly? from, DateOnly? to, Guid? departmentId, Guid? leaveTypeId)
     {
-        var startDate = from ?? new DateOnly(DateTime.UtcNow.Year, 1, 1);
-        var endDate = to ?? new DateOnly(DateTime.UtcNow.Year, 12, 31);
+        var startDate = from ?? new DateOnly(Hop.Api.Services.HospitalTime.Today.Year, 1, 1);
+        var endDate = to ?? new DateOnly(Hop.Api.Services.HospitalTime.Today.Year, 12, 31);
 
         var leaveQuery = db.LeaveRequests
             .AsNoTracking()
@@ -171,7 +171,7 @@ public class LeaveReportsController(AppDbContext db, IAuditLogService auditLogSe
             rows.Add([
                 SafeExcelCell(item.Fullname),
                 SafeExcelCell(item.LeaveTypeName),
-                item.Year.ToString(),
+                (item.Year + 543).ToString(),
                 item.EntitledDays.ToString("0.##"),
                 item.UsedDays.ToString("0.##"),
                 item.PendingDays.ToString("0.##"),
@@ -179,7 +179,12 @@ public class LeaveReportsController(AppDbContext db, IAuditLogService auditLogSe
             ]);
         }
 
-        return SimpleXlsxWriter.CreateWorkbook(rows, [18, 24, 24, 18, 14, 14, 18, 12, 14]);
+        var dateCells = new Dictionary<(int Row, int Column), DateOnly>();
+        for (var i = 0; i < report.LeaveRequests.Count; i++) {
+            dateCells[(i + 3, 5)] = report.LeaveRequests[i].StartDate;
+            dateCells[(i + 3, 6)] = report.LeaveRequests[i].EndDate;
+        }
+        return SimpleXlsxWriter.CreateWorkbook(rows, [18, 24, 24, 18, 14, 14, 18, 12, 14], dateCells);
     }
 
     internal static string SafeExcelCell(string? value)
@@ -226,7 +231,7 @@ public class LeaveReportsController(AppDbContext db, IAuditLogService auditLogSe
             var y = 696;
             foreach (var item in chunks[pageIndex])
             {
-                lines.Add(new($"{item.RequestNumber ?? "-"} | {item.Fullname ?? "-"} | {item.DepartmentName ?? "-"} | {item.LeaveTypeName ?? "-"} | {TranslateDurationType(item.DurationType)} | {item.StartDate:dd/MM/yyyy}-{item.EndDate:dd/MM/yyyy} | {item.TotalDays:0.##} | {item.Status}", 50, y, 9));
+                lines.Add(new($"{item.RequestNumber ?? "-"} | {item.Fullname ?? "-"} | {item.DepartmentName ?? "-"} | {item.LeaveTypeName ?? "-"} | {TranslateDurationType(item.DurationType)} | {item.StartDate:dd/MM}/{item.StartDate.Year + 543}-{item.EndDate:dd/MM}/{item.EndDate.Year + 543} | {item.TotalDays:0.##} | {item.Status}", 50, y, 9));
                 y -= 18;
             }
 
