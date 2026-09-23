@@ -26,13 +26,49 @@ public sealed class FleetWorkflowTests
     }
 
     [Fact]
-    public void SaveRequestValidation_RequiresUtcRangeAndMatchingPassengers()
+    public void SaveRequestValidation_RequiresUtcRangeButLetsServerCalculatePassengerCount()
     {
         var dto = new SaveFleetRequestDto { Purpose = "ประชุม", MissionType = "ทั่วไป", Destination = "จังหวัด", ContactPersonName = "ผู้ประสาน", ContactPhone = "1", DepartureAt = DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Local), ExpectedReturnAt = DateTime.UtcNow.AddHours(-1), PassengerCount = 2, Passengers = [] };
         var results = new List<ValidationResult>();
         Assert.False(Validator.TryValidateObject(dto, new ValidationContext(dto), results, true));
         Assert.Contains(results, x => x.ErrorMessage!.Contains("UTC"));
-        Assert.Contains(results, x => x.ErrorMessage!.Contains("Passenger count"));
+        Assert.DoesNotContain(results, x => x.ErrorMessage!.Contains("Passenger count"));
+    }
+
+    [Fact]
+    public void NormalizePassengers_AddsCanonicalRequesterAndIgnoresClientCountAndIdentity()
+    {
+        var requester = new User { Id = Guid.NewGuid(), Username = "requester", FullName = "ผู้ขอจริง", PhoneNumber = "0812345678", Department = new Department { Name = "บริหารทั่วไป" } };
+        var other = Guid.NewGuid();
+        var dto = new SaveFleetRequestDto
+        {
+            RequesterTravels = true,
+            PassengerCount = 99,
+            Passengers =
+            [
+                new SaveFleetPassengerDto { UserId = Guid.NewGuid(), FullName = "ผู้ขอปลอม", PassengerType = FleetPassengerTypes.Employee, IsRequester = true },
+                new SaveFleetPassengerDto { UserId = requester.Id, FullName = "ชื่อปลอม", PassengerType = FleetPassengerTypes.Employee },
+                new SaveFleetPassengerDto { UserId = other, FullName = "ผู้ร่วมเดินทาง", PassengerType = FleetPassengerTypes.Employee }
+            ]
+        };
+
+        var result = FleetRequestsController.NormalizePassengers(dto, requester);
+
+        Assert.Equal(2, result.Count);
+        var canonical = Assert.Single(result, x => x.IsRequester);
+        Assert.Equal(requester.Id, canonical.UserId); Assert.Equal(requester.FullName, canonical.FullName); Assert.Equal(requester.PhoneNumber, canonical.Phone);
+        Assert.Single(result, x => x.UserId == other);
+    }
+
+    [Fact]
+    public void NormalizePassengers_SupportsRequesterAloneAndLegacyPayload()
+    {
+        var requester = new User { Id = Guid.NewGuid(), Username = "requester", FullName = "ผู้ขอ" };
+        var alone = FleetRequestsController.NormalizePassengers(new SaveFleetRequestDto { RequesterTravels = true }, requester);
+        var legacy = FleetRequestsController.NormalizePassengers(new SaveFleetRequestDto { Passengers = [new SaveFleetPassengerDto { UserId = requester.Id, FullName = "ชื่อเดิม", PassengerType = FleetPassengerTypes.Employee, IsRequester = true }] }, requester);
+
+        Assert.Single(alone); Assert.True(alone[0].IsRequester);
+        Assert.Single(legacy); Assert.True(legacy[0].IsRequester); Assert.Equal(requester.FullName, legacy[0].FullName);
     }
 
     [Fact]
@@ -67,7 +103,8 @@ public sealed class FleetWorkflowTests
         var controller = new FleetRequestsController(
             db,
             new FleetRequestNumberService(db),
-            new FleetAvailabilityService(db));
+            new FleetAvailabilityService(db),
+            new NoopEvents());
         controller.ControllerContext = new ControllerContext
         {
             HttpContext = new DefaultHttpContext
@@ -110,4 +147,8 @@ public sealed class FleetWorkflowTests
 
     private static FleetRequest MinimalRequest(string no, Guid? userId = null) => new() { Id = Guid.NewGuid(), RequestNo = no, RequesterUserId = userId ?? Guid.NewGuid(), CreatedByUserId = userId ?? Guid.NewGuid(), Purpose = "Test", MissionType = "GENERAL", Destination = "Test", ContactPersonName = "Test", ContactPhone = "1", DepartureAt = new DateTime(2026, 8, 1, 1, 0, 0, DateTimeKind.Utc), ExpectedReturnAt = new DateTime(2026, 8, 1, 5, 0, 0, DateTimeKind.Utc), PassengerCount = 1 };
     private static AppDbContext CreateDb() => new(new DbContextOptionsBuilder<AppDbContext>().UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
+    private sealed class NoopEvents : IDomainEventPublisher
+    {
+        public Task PublishAsync(DomainEventEnvelope envelope, CancellationToken ct) => Task.CompletedTask;
+    }
 }

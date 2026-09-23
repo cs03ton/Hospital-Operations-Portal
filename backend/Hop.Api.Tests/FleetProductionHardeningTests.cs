@@ -39,6 +39,30 @@ public sealed class FleetProductionHardeningTests
     }
 
     [Fact]
+    public async Task RecipientResolver_RoutesAssignmentAndAdminApprovalToCurrentApprovers()
+    {
+        await using var db = CreateDb();
+        var requester = User("requester"); var admin = User("admin"); var director = User("director"); var delegateUser = User("delegate");
+        var adminPermission = Permission(FleetPermissions.AdminReviewApprove); var directorPermission = Permission(FleetPermissions.DirectorApprove);
+        var adminRole = Role("FleetAdminReviewer"); var directorRole = Role("Director");
+        db.AddRange(requester, admin, director, delegateUser, adminPermission, directorPermission, adminRole, directorRole,
+            new RolePermission { RoleId = adminRole.Id, PermissionId = adminPermission.Id },
+            new RolePermission { RoleId = directorRole.Id, PermissionId = directorPermission.Id },
+            new UserRole { UserId = admin.Id, RoleId = adminRole.Id },
+            new UserRole { UserId = director.Id, RoleId = directorRole.Id });
+        var request = Request(requester.Id); db.FleetRequests.Add(request);
+        db.ApprovalDelegations.Add(new ApprovalDelegation { ApproverUserId = admin.Id, DelegateUserId = delegateUser.Id, Scope = "FLEET", RequiredPermissionCode = FleetPermissions.AdminReviewApprove, StartDate = DateOnly.FromDateTime(DateTime.UtcNow), EndDate = DateOnly.FromDateTime(DateTime.UtcNow), StartAt = DateTime.UtcNow.AddHours(-1), EndAt = DateTime.UtcNow.AddHours(1), Reason = "cover", CreatedByUserId = admin.Id });
+        await db.SaveChangesAsync();
+
+        var resolver = new FleetNotificationRecipientResolver(db);
+        var assigned = await resolver.ResolveAsync("Fleet.Assigned", request.Id, default);
+        var reviewed = await resolver.ResolveAsync("Fleet.AdminReviewApproved", request.Id, default);
+
+        Assert.Contains(admin.Id, assigned); Assert.Contains(delegateUser.Id, assigned); Assert.DoesNotContain(director.Id, assigned);
+        Assert.Contains(director.Id, reviewed); Assert.DoesNotContain(admin.Id, reviewed);
+    }
+
+    [Fact]
     public async Task Publisher_CreatesIdempotentPerChannelDeliveries()
     {
         await using var db = CreateDb(); var requester = User("requester"); db.Users.Add(requester); var request = Request(requester.Id); db.FleetRequests.Add(request); await db.SaveChangesAsync();
@@ -53,6 +77,8 @@ public sealed class FleetProductionHardeningTests
     public void MileageRule_RejectsNegativeOrDecreasing(decimal start, decimal end, bool expected) => Assert.Equal(expected, start >= 0 && end >= start);
 
     private static User User(string name) => new() { Id = Guid.NewGuid(), Username = name, FullName = name, IsActive = true };
+    private static Permission Permission(string code) => new() { Id = Guid.NewGuid(), Code = code, Name = code, Group = "Fleet", Action = "Approve", IsActive = true };
+    private static Role Role(string name) => new() { Id = Guid.NewGuid(), Name = name, IsActive = true };
     private static FleetRequest Request(Guid requesterId) => new() { Id = Guid.NewGuid(), RequestNo = "VH-202608-9999", RequesterUserId = requesterId, CreatedByUserId = requesterId, Purpose = "Test", MissionType = "GENERAL", Destination = "Test", ContactPersonName = "Test", ContactPhone = "1", DepartureAt = DateTime.UtcNow.AddDays(1), ExpectedReturnAt = DateTime.UtcNow.AddDays(1).AddHours(2), PassengerCount = 1, Status = FleetRequestStatuses.PendingDispatch };
     private static AppDbContext CreateDb() => new(new DbContextOptionsBuilder<AppDbContext>().UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
 }

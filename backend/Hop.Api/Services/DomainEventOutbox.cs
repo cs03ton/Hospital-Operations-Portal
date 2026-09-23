@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Hop.Api.Configuration;
 using Hop.Api.Data;
 using Hop.Api.Interfaces;
 using Hop.Api.Models;
@@ -47,22 +48,36 @@ public sealed class OutboxProcessor(IServiceScopeFactory scopeFactory, ILogger<O
     }
     private async Task ProcessBatch(CancellationToken ct)
     {
-        using var scope = scopeFactory.CreateScope(); var db = scope.ServiceProvider.GetRequiredService<AppDbContext>(); var line = scope.ServiceProvider.GetRequiredService<ILineMessagingService>(); var templates = scope.ServiceProvider.GetRequiredService<FleetNotificationTemplateService>();
+        using var scope = scopeFactory.CreateScope(); var db = scope.ServiceProvider.GetRequiredService<AppDbContext>(); var line = scope.ServiceProvider.GetRequiredService<ILineMessagingService>(); var templates = scope.ServiceProvider.GetRequiredService<FleetNotificationTemplateService>(); var lineConfiguration = scope.ServiceProvider.GetRequiredService<LineConfigurationResolver>();
         var messages = await db.OutboxMessages.Include(x => x.Deliveries).Where(x => (x.Status == "PENDING" || x.Status == "RETRY") && x.AvailableAt <= DateTime.UtcNow).OrderBy(x => x.CreatedAt).Take(20).ToListAsync(ct);
         foreach (var message in messages)
         {
+            var fleetRequestId = FleetRequestId(message.Payload);
+            var request = fleetRequestId is null ? null : await db.FleetRequests.AsNoTracking().Include(x => x.Assignments).FirstOrDefaultAsync(x => x.Id == fleetRequestId, ct);
+            var actionPath = fleetRequestId is null ? "/fleet/requests" : $"/fleet/requests/{fleetRequestId}";
             foreach (var delivery in message.Deliveries.Where(x => x.Status is "PENDING" or "RETRY"))
             {
                 try
                 {
                     var text = templates.Resolve(message.EventType);
+                    var messageText = text.Message;
+                    if (message.EventType == "Fleet.DirectorApproved" && request is not null)
+                        messageText = request.Assignments.Any(x => x.IsActive && x.DriverUserId == delivery.RecipientUserId)
+                            ? "คำขอได้รับอนุมัติแล้ว กรุณาตรวจสอบรายละเอียดและตอบรับงาน"
+                            : "คำขอใช้รถของคุณได้รับอนุมัติแล้ว";
+                    var detail = request is null ? messageText : $"{messageText}\nเลขที่ {request.RequestNo}\nปลายทาง: {request.Destination}\nออกเดินทาง: {BangkokDateTime(request.DepartureAt)}";
                     if (delivery.Channel == "IN_APP")
                     {
                         var referenceId = delivery.Id.ToString();
                         if (!await db.Notifications.AnyAsync(x => x.ReferenceEntity == "FleetOutboxDelivery" && x.ReferenceId == referenceId, ct))
-                            db.Notifications.Add(new Notification { UserId = delivery.RecipientUserId, Category = "Fleet", NotificationType = message.EventType, Title = text.Title, Message = text.Message, ReferenceEntity = "FleetOutboxDelivery", ReferenceId = referenceId, ActionUrl = "/fleet/requests" });
+                            db.Notifications.Add(new Notification { UserId = delivery.RecipientUserId, Category = "Fleet", NotificationType = message.EventType, Title = text.Title, Message = detail, ReferenceEntity = "FleetOutboxDelivery", ReferenceId = referenceId, ActionUrl = actionPath });
                     }
-                    else await line.NotifyUserAsync(delivery.RecipientUserId, message.EventType, text.Message, null, ct);
+                    else
+                    {
+                        var root = lineConfiguration.PublicAppUrl.TrimEnd('/');
+                        var url = string.IsNullOrWhiteSpace(root) ? actionPath : $"{root}{actionPath}";
+                        await line.NotifyUserAsync(delivery.RecipientUserId, message.EventType, $"{detail}\nดูรายละเอียด: {url}", null, ct);
+                    }
                     delivery.Status = "PROCESSED"; delivery.ProcessedAt = DateTime.UtcNow;
                 }
                 catch (Exception ex) { delivery.AttemptCount++; delivery.LastError = ex.Message[..Math.Min(ex.Message.Length, 1000)]; delivery.Status = delivery.AttemptCount >= 5 ? "FAILED" : "RETRY"; }
@@ -72,5 +87,23 @@ public sealed class OutboxProcessor(IServiceScopeFactory scopeFactory, ILogger<O
             await db.SaveChangesAsync(ct);
             logger.LogInformation("Fleet outbox processed. EventType={EventType} OutboxMessageId={OutboxMessageId} Status={OutboxStatus} RetryCount={RetryCount}", message.EventType, message.Id, message.Status, message.AttemptCount);
         }
+    }
+
+    private static Guid? FleetRequestId(string payload)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(payload);
+            if (document.RootElement.TryGetProperty("FleetRequestId", out var id) && Guid.TryParse(id.ToString(), out var result)) return result;
+            if (document.RootElement.TryGetProperty("fleetRequestId", out id) && Guid.TryParse(id.ToString(), out result)) return result;
+        }
+        catch (JsonException) { }
+        return null;
+    }
+
+    private static string BangkokDateTime(DateTime utc)
+    {
+        var bangkok = TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(utc, DateTimeKind.Utc), TimeZoneInfo.FindSystemTimeZoneById(OperatingSystem.IsWindows() ? "SE Asia Standard Time" : "Asia/Bangkok"));
+        return $"{bangkok:dd/MM}/{bangkok.Year + 543} {bangkok:HH:mm} น.";
     }
 }

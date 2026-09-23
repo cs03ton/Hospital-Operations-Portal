@@ -9,10 +9,11 @@ public sealed class SaveFleetRequestDto : IValidatableObject
     public Guid? RequestedVehicleTypeId { get; init; }
     [Required, StringLength(1000)] public string Destination { get; init; } = string.Empty;
     [Required, StringLength(200)] public string ContactPersonName { get; init; } = string.Empty;
-    [Required, StringLength(50)] public string ContactPhone { get; init; } = string.Empty;
+    [StringLength(50)] public string ContactPhone { get; init; } = string.Empty;
     public DateTime DepartureAt { get; init; }
     public DateTime ExpectedReturnAt { get; init; }
-    [Range(1, 200)] public int PassengerCount { get; init; }
+    [Range(0, 200)] public int PassengerCount { get; init; }
+    public bool? RequesterTravels { get; init; }
     [StringLength(2000)] public string? SpecialRequirement { get; init; }
     public bool IsUrgent { get; init; }
     [StringLength(1000)] public string? UrgentReason { get; init; }
@@ -29,10 +30,8 @@ public sealed class SaveFleetRequestDto : IValidatableObject
                 [nameof(ExpectedReturnAt)]);
         if (IsUrgent && string.IsNullOrWhiteSpace(UrgentReason))
             yield return new ValidationResult("Urgent reason is required.", [nameof(UrgentReason)]);
-        if (Passengers.Count != PassengerCount)
-            yield return new ValidationResult("Passenger count must match the passenger list.", [nameof(PassengerCount)]);
-        if (Passengers.Count(x => x.IsRequester) > 1)
-            yield return new ValidationResult("Only one passenger can be marked as requester.", [nameof(Passengers)]);
+        if (Passengers.Count > 200)
+            yield return new ValidationResult("Passenger list cannot exceed 200 people.", [nameof(Passengers)]);
     }
 }
 

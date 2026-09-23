@@ -65,7 +65,8 @@ public sealed class FleetNotificationRecipientResolver(AppDbContext db) : INotif
         var now = DateTime.UtcNow;
         var delegates = await db.ApprovalDelegations.AsNoTracking()
             .Where(x => x.IsActive && x.Scope == "FLEET" && x.RequiredPermissionCode == permission && x.StartAt <= now && x.EndAt > now &&
-                db.UserRoles.Any(ur => ur.UserId == x.DelegateUserId && ur.Role != null && ur.Role.IsActive && ur.Role.RolePermissions.Any(rp => rp.Permission != null && rp.Permission.IsActive && rp.Permission.Code == permission)))
+                x.DelegateUser != null && x.DelegateUser.IsActive &&
+                db.UserRoles.Any(ur => ur.UserId == x.ApproverUserId && ur.Role != null && ur.Role.IsActive && ur.Role.RolePermissions.Any(rp => rp.Permission != null && rp.Permission.IsActive && rp.Permission.Code == permission)))
             .Select(x => x.DelegateUserId).Distinct().ToListAsync(ct);
         foreach (var id in delegates) recipients.Add(id);
     }
