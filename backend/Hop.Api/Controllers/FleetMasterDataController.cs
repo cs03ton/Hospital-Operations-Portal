@@ -74,6 +74,19 @@ public sealed class FleetMasterDataController(AppDbContext db, IAuditLogService 
     [RequirePermission(FleetPermissions.VehicleManage)]
     public Task<ActionResult<ApiResponse<FleetVehicleResponse>>> UpdateVehicle(Guid id, SaveFleetVehicleRequest request, CancellationToken cancellationToken) => SaveVehicle(id, request, cancellationToken);
 
+    [HttpPost("vehicles/{id:guid}/active")]
+    [RequirePermission(FleetPermissions.VehicleManage)]
+    public async Task<ActionResult<ApiResponse<object>>> SetVehicleActive(Guid id, FleetActiveRequest request, CancellationToken ct)
+    {
+        var item = await db.FleetVehicles.FindAsync([id], ct);
+        if (item is null) return NotFound(ApiResponse<object>.Fail("Vehicle not found."));
+        if (!request.IsActive && await HasOpenAssignment(id, null, ct)) return Conflict(ApiResponse<object>.Fail("รถยังมีงานที่ดำเนินอยู่ กรุณาจัดรถใหม่ก่อนปิดใช้งาน"));
+        item.IsActive = request.IsActive; item.UpdatedAt = DateTime.UtcNow; item.UpdatedByUserId = CurrentUserId();
+        await db.SaveChangesAsync(ct);
+        await Audit(request.IsActive ? "Fleet.VehicleActivated" : "Fleet.VehicleDeactivated", "FleetVehicle", id, item.VehicleCode);
+        return ApiResponse<object>.Ok(new { item.Id, item.IsActive });
+    }
+
     [HttpGet("driver-profiles")]
     [RequirePermission(FleetPermissions.DriverManage)]
     public async Task<ActionResult<ApiResponse<IReadOnlyList<FleetDriverProfileResponse>>>> GetDriverProfiles(CancellationToken cancellationToken)
@@ -93,6 +106,38 @@ public sealed class FleetMasterDataController(AppDbContext db, IAuditLogService 
     [RequirePermission(FleetPermissions.DriverManage)]
     public Task<ActionResult<ApiResponse<FleetDriverProfileResponse>>> UpdateDriverProfile(Guid id, SaveFleetDriverProfileRequest request, CancellationToken cancellationToken) => SaveDriverProfile(id, request, cancellationToken);
 
+    [HttpGet("master-data/personnel-options")]
+    [RequireAnyPermission(FleetPermissions.DriverManage, FleetPermissions.VehicleManage)]
+    public async Task<ActionResult<ApiResponse<object>>> PersonnelOptions(CancellationToken ct)
+    {
+        var items = await db.Users.AsNoTracking().Where(x => x.IsActive)
+            .OrderBy(x => x.FullName)
+            .Select(x => new { x.Id, x.EmployeeCode, x.FullName, x.DepartmentId, DepartmentName = x.Department != null ? x.Department.Name : null })
+            .ToListAsync(ct);
+        return ApiResponse<object>.Ok(items);
+    }
+
+    [HttpGet("master-data/department-options")]
+    [RequirePermission(FleetPermissions.VehicleManage)]
+    public async Task<ActionResult<ApiResponse<object>>> DepartmentOptions(CancellationToken ct)
+    {
+        var items = await db.Departments.AsNoTracking().Where(x => x.IsActive).OrderBy(x => x.Name).Select(x => new { x.Id, x.Name }).ToListAsync(ct);
+        return ApiResponse<object>.Ok(items);
+    }
+
+    [HttpPost("driver-profiles/{id:guid}/active")]
+    [RequirePermission(FleetPermissions.DriverManage)]
+    public async Task<ActionResult<ApiResponse<object>>> SetDriverActive(Guid id, FleetActiveRequest request, CancellationToken ct)
+    {
+        var item = await db.FleetDriverProfiles.FindAsync([id], ct);
+        if (item is null) return NotFound(ApiResponse<object>.Fail("Driver profile not found."));
+        if (!request.IsActive && await HasOpenAssignment(null, item.UserId, ct)) return Conflict(ApiResponse<object>.Fail("คนขับยังมีงานที่ดำเนินอยู่ กรุณาจัดคนขับใหม่ก่อนปิดใช้งาน"));
+        item.IsActive = request.IsActive; item.UpdatedAt = DateTime.UtcNow; item.UpdatedByUserId = CurrentUserId();
+        await db.SaveChangesAsync(ct);
+        await Audit(request.IsActive ? "Fleet.DriverProfileActivated" : "Fleet.DriverProfileDeactivated", "FleetDriverProfile", id, item.UserId.ToString());
+        return ApiResponse<object>.Ok(new { item.Id, item.IsActive });
+    }
+
     private async Task<ActionResult<ApiResponse<FleetVehicleResponse>>> SaveVehicle(Guid? id, SaveFleetVehicleRequest request, CancellationToken cancellationToken)
     {
         if (!FleetVehicleStatuses.All.Contains(request.Status)) return BadRequest(ApiResponse<FleetVehicleResponse>.Fail("Invalid vehicle status."));
@@ -104,7 +149,7 @@ public sealed class FleetMasterDataController(AppDbContext db, IAuditLogService 
         var actor = CurrentUserId();
         FleetVehicle item;
         if (id is null) { item = new FleetVehicle { CreatedByUserId = actor }; db.FleetVehicles.Add(item); }
-        else { item = await db.FleetVehicles.Include(x => x.VehicleType).FirstOrDefaultAsync(x => x.Id == id, cancellationToken) ?? null!; if (item is null) return NotFound(ApiResponse<FleetVehicleResponse>.Fail("Vehicle not found.")); item.UpdatedAt = DateTime.UtcNow; item.UpdatedByUserId = actor; }
+        else { item = await db.FleetVehicles.Include(x => x.VehicleType).FirstOrDefaultAsync(x => x.Id == id, cancellationToken) ?? null!; if (item is null) return NotFound(ApiResponse<FleetVehicleResponse>.Fail("Vehicle not found.")); if (!request.IsActive && item.IsActive && await HasOpenAssignment(id, null, cancellationToken)) return Conflict(ApiResponse<FleetVehicleResponse>.Fail("รถยังมีงานที่ดำเนินอยู่ กรุณาจัดรถใหม่ก่อนปิดใช้งาน")); item.UpdatedAt = DateTime.UtcNow; item.UpdatedByUserId = actor; }
         item.VehicleCode = code; item.RegistrationNumber = registration; item.RegistrationProvince = Clean(request.RegistrationProvince); item.VehicleTypeId = request.VehicleTypeId;
         item.Brand = Clean(request.Brand); item.Model = Clean(request.Model); item.ManufactureYear = request.ManufactureYear; item.SeatCapacityTotal = request.SeatCapacityTotal; item.PassengerCapacity = request.PassengerCapacity;
         item.FuelType = Clean(request.FuelType); item.CurrentMileage = request.CurrentMileage; item.OwningDepartmentId = request.OwningDepartmentId; item.ResponsibleUserId = request.ResponsibleUserId;
@@ -124,7 +169,7 @@ public sealed class FleetMasterDataController(AppDbContext db, IAuditLogService 
         if (await db.FleetDriverProfiles.AnyAsync(x => x.Id != id && x.UserId == request.UserId, cancellationToken)) return Conflict(ApiResponse<FleetDriverProfileResponse>.Fail("Driver profile already exists for this user."));
         var actor = CurrentUserId(); FleetDriverProfile item;
         if (id is null) { item = new FleetDriverProfile { CreatedByUserId = actor }; db.FleetDriverProfiles.Add(item); }
-        else { item = await db.FleetDriverProfiles.FirstOrDefaultAsync(x => x.Id == id, cancellationToken) ?? null!; if (item is null) return NotFound(ApiResponse<FleetDriverProfileResponse>.Fail("Driver profile not found.")); item.UpdatedAt = DateTime.UtcNow; item.UpdatedByUserId = actor; }
+        else { item = await db.FleetDriverProfiles.FirstOrDefaultAsync(x => x.Id == id, cancellationToken) ?? null!; if (item is null) return NotFound(ApiResponse<FleetDriverProfileResponse>.Fail("Driver profile not found.")); if (!request.IsActive && item.IsActive && await HasOpenAssignment(null, item.UserId, cancellationToken)) return Conflict(ApiResponse<FleetDriverProfileResponse>.Fail("คนขับยังมีงานที่ดำเนินอยู่ กรุณาจัดคนขับใหม่ก่อนปิดใช้งาน")); item.UpdatedAt = DateTime.UtcNow; item.UpdatedByUserId = actor; }
         item.UserId = request.UserId; item.LicenseNumber = request.LicenseNumber.Trim(); item.LicenseType = request.LicenseType.Trim(); item.LicenseIssueDate = request.LicenseIssueDate; item.LicenseExpiryDate = request.LicenseExpiryDate;
         item.CanDriveSedan = request.CanDriveSedan; item.CanDrivePickup = request.CanDrivePickup; item.CanDriveVan = request.CanDriveVan; item.CanDriveAmbulance = request.CanDriveAmbulance; item.CanDriveOther = request.CanDriveOther;
         item.DriverStatus = request.DriverStatus; item.IsActive = request.IsActive; item.Note = Clean(request.Note);
@@ -135,7 +180,11 @@ public sealed class FleetMasterDataController(AppDbContext db, IAuditLogService 
     }
 
     private Guid? CurrentUserId() => Guid.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var value) ? value : null;
+    private static readonly string[] OpenRequestStatuses = [FleetRequestStatuses.PendingAdminReview, FleetRequestStatuses.PendingDirector, FleetRequestStatuses.Approved, FleetRequestStatuses.PendingDriverAck, FleetRequestStatuses.Ready, FleetRequestStatuses.InProgress, FleetRequestStatuses.CancellationPending, FleetRequestStatuses.Returned];
+    private Task<bool> HasOpenAssignment(Guid? vehicleId, Guid? driverUserId, CancellationToken ct) => db.FleetAssignments.AsNoTracking().AnyAsync(x => x.IsActive && (vehicleId == null || x.VehicleId == vehicleId) && (driverUserId == null || x.DriverUserId == driverUserId) && x.FleetRequest != null && OpenRequestStatuses.Contains(x.FleetRequest.Status), ct);
     private Task Audit(string action, string entity, Guid id, string detail) => auditLogService.WriteAsync(CurrentUserId(), action, entity, id.ToString(), detail, "Success", HttpContext);
     private static string NormalizeCode(string value) => value.Trim().ToUpperInvariant();
     private static string? Clean(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 }
+
+public sealed record FleetActiveRequest(bool IsActive);

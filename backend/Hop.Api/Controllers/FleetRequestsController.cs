@@ -22,7 +22,8 @@ public sealed class FleetRequestsController(AppDbContext db, FleetRequestNumberS
         [FromQuery] string? search = null,
         CancellationToken ct = default)
     {
-        var query = db.Users.AsNoTracking().Where(x => x.IsActive);
+        var query = db.Users.AsNoTracking().Where(x => x.IsActive &&
+            !x.UserRoles.Any(ur => ur.Role != null && (ur.Role.Name == "Admin" || ur.Role.Name == "SuperAdmin")));
         if (!string.IsNullOrWhiteSpace(search))
         {
             var term = search.Trim();

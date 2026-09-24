@@ -16,6 +16,43 @@ namespace Hop.Api.Tests;
 public sealed class FleetLineGroupDeliveryTests
 {
     [Fact]
+    public async Task Repair_events_reach_only_active_subscribed_groups_for_the_assigned_team_after_assignment()
+    {
+        await using var db = Database();
+        var now = DateTime.UtcNow;
+        foreach (var (team, offset) in new[] { ("IT", 0), ("GENERAL", 1) })
+        {
+            var eventId = Guid.NewGuid();
+            var aggregateId = Guid.NewGuid();
+            var occurredAt = now.AddSeconds(offset);
+            var payload = JsonSerializer.Serialize(new { TeamCode = team });
+            db.DomainEvents.Add(new DomainEventRecord { EventId = eventId, EventType = "Repair.Submitted", Scope = "REPAIR", AggregateType = "RepairRequest", AggregateId = aggregateId, OccurredAt = occurredAt, Payload = payload });
+            db.OutboxMessages.Add(new OutboxMessage { EventId = eventId, EventType = "Repair.Submitted", Scope = "REPAIR", Payload = payload });
+        }
+        var groups = new[]
+        {
+            new LineGroupDestination { LineGroupId = "repair-it", Module = "CENTRAL", Status = "Active", ConfirmedAt = now.AddMinutes(-1), RepairTeamCode = "IT", RepairTeamAssignedAt = now.AddMinutes(-1) },
+            new LineGroupDestination { LineGroupId = "repair-general", Module = "CENTRAL", Status = "Active", ConfirmedAt = now.AddMinutes(-1), RepairTeamCode = "GENERAL", RepairTeamAssignedAt = now.AddMinutes(-1) },
+            new LineGroupDestination { LineGroupId = "repair-unassigned", Module = "CENTRAL", Status = "Active", ConfirmedAt = now.AddMinutes(-1) },
+            new LineGroupDestination { LineGroupId = "repair-disabled", Module = "CENTRAL", Status = "Disabled", ConfirmedAt = now.AddMinutes(-1), RepairTeamCode = "IT", RepairTeamAssignedAt = now.AddMinutes(-1) },
+            new LineGroupDestination { LineGroupId = "repair-unsubscribed", Module = "CENTRAL", Status = "Active", ConfirmedAt = now.AddMinutes(-1), RepairTeamCode = "IT", RepairTeamAssignedAt = now.AddMinutes(-1) },
+            new LineGroupDestination { LineGroupId = "repair-late-assignment", Module = "CENTRAL", Status = "Active", ConfirmedAt = now.AddMinutes(-1), RepairTeamCode = "IT", RepairTeamAssignedAt = now.AddMinutes(1) }
+        };
+        foreach (var group in groups)
+        {
+            group.EventSubscriptions.Add(new LineGroupEventSubscription { EventType = "Repair.Submitted", IsEnabled = group.LineGroupId != "repair-unsubscribed" });
+            db.LineGroupDestinations.Add(group);
+        }
+        await db.SaveChangesAsync();
+
+        var service = Service(db, new SequenceClient(Success()));
+        Assert.Equal(2, await service.DiscoverAsync(CancellationToken.None));
+        Assert.Equal(0, await service.DiscoverAsync(CancellationToken.None));
+        Assert.Equal(new[] { "repair-general", "repair-it" },
+            await db.LineGroupDeliveryLogs.OrderBy(x => x.Destination!.LineGroupId).Select(x => x.Destination!.LineGroupId).ToArrayAsync());
+    }
+
+    [Fact]
     public async Task Discovery_creates_exact_deduplicated_delivery_for_active_fleet_subscription()
     {
         await using var db = Database();

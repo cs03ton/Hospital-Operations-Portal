@@ -4,7 +4,6 @@ import DashboardOutlinedIcon from "@mui/icons-material/DashboardOutlined";
 import DirectionsCarOutlinedIcon from "@mui/icons-material/DirectionsCarOutlined";
 import FactCheckOutlinedIcon from "@mui/icons-material/FactCheckOutlined";
 import SettingsSuggestOutlinedIcon from "@mui/icons-material/SettingsSuggestOutlined";
-import NotificationsActiveOutlinedIcon from "@mui/icons-material/NotificationsActiveOutlined";
 import type { NavigationItem } from "../types/navigation";
 import type { FleetDashboardBadges, FleetDashboardCapabilities } from "../api/fleetApi";
 
@@ -16,7 +15,7 @@ export const fleetPermissionGroups = {
   director: ["FleetDirector.Approve", "FleetDirector.Return", "FleetDirector.Reject"],
   calendar: ["FleetCalendar.View"],
   reports: ["FleetReport.View", "FleetReport.Export"],
-  settings: ["FleetSettings.Manage"],
+  settings: ["FleetSettings.Manage", "FleetVehicle.Manage", "FleetDriver.Manage"],
 } as const;
 
 const dashboardPermissions = [...new Set(Object.values(fleetPermissionGroups).flat())];
@@ -36,7 +35,6 @@ export const fleetNavigationItems: NavigationItem[] = [
   { label: "ปฏิทินรถ", path: "/fleet/calendar", icon: CalendarMonthOutlinedIcon, permissions: [...fleetPermissionGroups.calendar] },
   { label: "รายงาน", path: "/fleet/reports", icon: BarChartOutlinedIcon, permissions: [...fleetPermissionGroups.reports] },
   { label: "ตั้งค่า", path: "/fleet/settings", icon: SettingsSuggestOutlinedIcon, permissions: [...fleetPermissionGroups.settings] },
-  { label: "LINE Groups", path: "/fleet/admin/line-groups", icon: NotificationsActiveOutlinedIcon, permissions: ["FleetLineGroup.View", "FleetLineGroup.Manage"] },
 ];
 
 export function visibleFleetNavigationItems(permissions: Iterable<string>, role?: string) {

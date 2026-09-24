@@ -31,11 +31,5 @@ public static class RepairSeed
          OR (r.name='ช่างทั่วไป' AND p.code='RepairManagement.WorkGeneral')
          OR (r.name IN('ช่าง IT','ช่างทั่วไป') AND p.code='Documentation.View'))
          ON CONFLICT DO NOTHING;
-        INSERT INTO line_group_destinations(id,line_group_id,display_name,status,module,delivery_provider,
-         attention_required,first_detected_at,last_detected_at,concurrency_token)
-         SELECT gen_random_uuid(),'REPAIR_'||v.code,'แจ้งซ่อม '||v.label,'Disabled','REPAIR_'||v.code,'CUSTOM_ENDPOINT',
-         false,now(),now(),gen_random_uuid() FROM (VALUES ('IT','IT'),('GENERAL','ช่างทั่วไป')) v(code,label)
-         WHERE NOT EXISTS(SELECT 1 FROM line_group_destinations d WHERE d.module='REPAIR_'||v.code)
-         ON CONFLICT DO NOTHING;
         """;
 }

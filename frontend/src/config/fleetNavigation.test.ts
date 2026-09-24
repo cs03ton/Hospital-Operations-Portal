@@ -43,4 +43,14 @@ describe("Fleet permission-based navigation", () => {
   it("exposes a delegated Fleet permission through the same navigation union", () => {
     expect(labels(["FleetDirector.Approve"])).toEqual(["Dashboard รถ", "งานรอตรวจสอบและอนุมัติคำขอใช้รถ"]);
   });
+
+  it("shows settings to vehicle and driver managers independently", () => {
+    expect(labels(["FleetVehicle.Manage"])).toEqual(["Dashboard รถ", "ตั้งค่า"]);
+    expect(labels(["FleetDriver.Manage"])).toEqual(["Dashboard รถ", "ตั้งค่า"]);
+  });
+
+  it("keeps LINE group settings only in the central administration menu", () => {
+    expect(labels(["FleetLineGroup.View", "FleetLineGroup.Manage"])).toEqual([]);
+    expect(labels(["FleetSettings.Manage", "FleetLineGroup.Manage"])).not.toContain("LINE Groups");
+  });
 });

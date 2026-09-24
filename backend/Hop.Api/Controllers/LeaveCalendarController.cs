@@ -35,7 +35,8 @@ public class LeaveCalendarController(AppDbContext db, ILeaveRequestAccessService
             .Include(item => item.User)
                 .ThenInclude(user => user!.Department)
             .Include(item => item.LeaveType)
-            .Where(item => item.StartDate <= endDate && item.EndDate >= startDate), currentUserId, visibility);
+            .Where(item => item.StartDate <= endDate && item.EndDate >= startDate
+                && item.Status != "Cancelled" && item.Status != "CancelledAfterApproval"), currentUserId, visibility);
 
         if (!string.IsNullOrWhiteSpace(status))
         {

@@ -170,7 +170,20 @@ export function LeaveManagementPage() {
       <Card>
         <CardContent>
           <Box sx={{ display: { xs: "none", md: "block" }, overflowX: "auto" }}>
-          <Table size="small" sx={{ minWidth: 1050 }}>
+          <Table
+            size="small"
+            aria-label="รายการคำขอลา"
+            sx={{
+              minWidth: 1050,
+              "& th:last-of-type, & td:last-of-type": {
+                position: "sticky",
+                right: 0,
+                bgcolor: "background.paper",
+                zIndex: 1,
+                boxShadow: "-8px 0 12px -12px rgba(0,0,0,.45)",
+              },
+            }}
+          >
             <TableHead>
               <TableRow>
                 <TableCell>ผู้ขอ</TableCell>
@@ -261,8 +274,8 @@ export function LeaveMobileRequestCard({ item }: { item: LeaveRequest }) {
         <Typography variant="body2" color="text.secondary">{formatThaiDate(item.startDate)} - {formatThaiDate(item.endDate)} · {item.totalDays} วัน</Typography>
         <Typography variant="body2" color="text.secondary" sx={{ overflowWrap: "anywhere" }}>ผู้ขอ: {item.fullname ?? "-"}</Typography>
         <Typography variant="body2" color="text.secondary" sx={{ overflowWrap: "anywhere" }}>ผู้อนุมัติปัจจุบัน: {item.currentApproverName ?? "-"}</Typography>
-        <Button component={RouterLink} to={`/leave/${item.id}`} variant="outlined" startIcon={<VisibilityOutlinedIcon />} fullWidth sx={{ minHeight: 44 }}>
-          ดูรายละเอียด
+        <Button component={RouterLink} to={`/leave/${item.id}`} variant="contained" startIcon={<VisibilityOutlinedIcon />} fullWidth sx={{ minHeight: 48 }}>
+          จัดการ / ดูรายละเอียด
         </Button>
       </Stack>
     </Box>

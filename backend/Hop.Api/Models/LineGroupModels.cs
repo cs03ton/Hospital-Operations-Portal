@@ -14,6 +14,8 @@ public sealed class LineGroupDestination
     public string DisplayName { get; set; } = "กลุ่ม LINE ที่ตรวจพบ";
     public string Status { get; set; } = LineGroupDestinationStatuses.Pending;
     public string Module { get; set; } = "FLEET";
+    public string? RepairTeamCode { get; set; }
+    public DateTime? RepairTeamAssignedAt { get; set; }
     public string DeliveryProvider { get; set; } = "LINE_MESSAGING_API";
     public string? EndpointUrl { get; set; }
     public string? ClientId { get; set; }

@@ -25,6 +25,9 @@ import {
   getFleetAvailability,
   getFleetFeedbackEligibleTrips,
   getFleetRequest,
+  getFleetRequestAttachments,
+  deleteFleetRequestAttachment,
+  openFleetRequestAttachment,
   replaceFleetAssignment,
   transitionFleetRequest,
 } from "../api/fleetApi";
@@ -46,6 +49,9 @@ export function FleetRequestDetailPage() {
     queryKey: ["fleet", "request", id],
     queryFn: () => getFleetRequest(id!),
   });
+  const canReadDocuments = Boolean(data && (data.requesterUserId === user?.id || ["FleetRequest.ViewAll", "FleetDispatch.View", "FleetAdminReview.Approve", "FleetAdminReview.Return", "FleetAdminReview.Reject", "FleetDirector.Approve", "FleetDirector.Return", "FleetDirector.Reject"].some(hasPermission)));
+  const documents = useQuery({ queryKey: ["fleet", "request-attachments", id], queryFn: () => getFleetRequestAttachments(id!), enabled: Boolean(id && canReadDocuments) });
+  const deleteDocument = useMutation({ mutationFn: deleteFleetRequestAttachment, onSuccess: () => client.invalidateQueries({ queryKey: ["fleet", "request-attachments", id] }), onError: () => notify.showError("ลบเอกสารไม่สำเร็จ กรุณาลองใหม่") });
   const { data: feedbackTrips = [] } = useQuery({
     queryKey: ["fleet", "feedback-eligible-trips", user?.id],
     queryFn: getFleetFeedbackEligibleTrips,
@@ -250,6 +256,12 @@ export function FleetRequestDetailPage() {
             )}
           </CardContent>
         </Card>
+        {canReadDocuments && <Card><CardContent><Typography variant="h6" fontWeight={800} mb={1}>เอกสารประกอบคำขอ</Typography>
+          {documents.isError && <Alert severity="error">โหลดเอกสารไม่สำเร็จ <Button onClick={() => documents.refetch()}>ลองใหม่</Button></Alert>}
+          {!documents.isLoading && documents.data?.length === 0 && <Typography color="text.secondary">ไม่มีเอกสารแนบ</Typography>}
+          <Stack spacing={1}>{documents.data?.map(document => <Stack key={document.id} direction={{ xs: "column", sm: "row" }} alignItems={{ sm: "center" }} gap={1} sx={{ py: 1, borderBottom: "1px solid", borderColor: "divider" }}><Typography sx={{ flex: 1, overflowWrap: "anywhere" }}>{document.originalFileName} · {(document.fileSize / 1024 / 1024).toFixed(2)} MB</Typography><Button variant="outlined" size="small" onClick={() => openFleetRequestAttachment(document.id, document.originalFileName, document.contentType).catch(() => notify.showError("เปิดเอกสารไม่สำเร็จ"))}>{document.contentType.includes("word") ? "ดาวน์โหลด" : "ดูตัวอย่าง"}</Button>{editable && <Button size="small" color="error" disabled={deleteDocument.isPending} onClick={() => deleteDocument.mutate(document.id)}>ลบ</Button>}</Stack>)}</Stack>
+          {editable && (documents.data?.length ?? 0) < 2 && <Button component={Link} to={`/fleet/requests/${data.id}/edit`} sx={{ mt: 1 }}>เพิ่มเอกสาร</Button>}
+        </CardContent></Card>}
         {isDispatcher && data.status === "PENDING_DISPATCH" && (
           <Card>
             <CardContent>

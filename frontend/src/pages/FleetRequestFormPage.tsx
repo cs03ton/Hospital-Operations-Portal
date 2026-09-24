@@ -6,17 +6,18 @@ import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import { Alert, Autocomplete, Box, Button, Card, CardContent, Chip, FormControlLabel, Grid, IconButton, MenuItem, Popover, Stack, Switch, TextField, Typography } from "@mui/material";
 import { DateCalendar, LocalizationProvider } from "@mui/x-date-pickers";
 import { AdapterDayjsBuddhist } from "../components/common/AppDatePicker";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import dayjs, { type Dayjs } from "dayjs";
 import { isAxiosError } from "axios";
 import "dayjs/locale/th";
-import { createFleetRequest, getFleetPersonnelOptions, getFleetRequest, transitionFleetRequest, updateFleetRequest, type FleetPassenger, type FleetPersonnelOption, type SaveFleetRequest } from "../api/fleetApi";
+import { deleteFleetRequestAttachment, getFleetPersonnelOptions, getFleetRequest, getFleetRequestAttachments, openFleetRequestAttachment, type FleetPassenger, type FleetPersonnelOption, type SaveFleetRequest } from "../api/fleetApi";
 import { getMyProfile } from "../api/profileApi";
 import { PageHeader } from "../components/PageHeader";
 import { useAuth } from "../context/AuthContext";
 import { countFleetPassengers } from "../utils/fleetPassengerCount";
+import { persistFleetRequestWithDocuments } from "../utils/fleetRequestDocumentFlow";
 
 type FormState = {
   purpose: string; missionType: string; destination: string;
@@ -89,11 +90,16 @@ function ThaiDateTimeField({ label, value, onChange, error = false, helperText }
 export function FleetRequestFormPage() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { user } = useAuth();
   const [personnelSearch, setPersonnelSearch] = useState("");
   const [selectedPersonnel, setSelectedPersonnel] = useState<FleetPersonnelOption[]>([]);
   const [preservedExternal, setPreservedExternal] = useState<FleetPassenger[]>([]);
   const [submitAfterSave, setSubmitAfterSave] = useState(false);
+  const [draftId, setDraftId] = useState<string | null>(null);
+  const [draftToken, setDraftToken] = useState<string | null>(null);
+  const [files, setFiles] = useState<File[]>([]);
+  const [fileError, setFileError] = useState("");
   const [form, setForm] = useState<FormState>({
     purpose: "", missionType: "ทั่วไป", destination: "",
     contactPersonName: user?.fullname ?? "", contactPhone: "", departureAt: "", expectedReturnAt: "",
@@ -101,6 +107,8 @@ export function FleetRequestFormPage() {
   });
 
   const request = useQuery({ queryKey: ["fleet", "request-form", id], queryFn: () => getFleetRequest(id!), enabled: Boolean(id) });
+  const attachmentRequestId = id ?? draftId;
+  const attachments = useQuery({ queryKey: ["fleet", "request-attachments", attachmentRequestId], queryFn: () => getFleetRequestAttachments(attachmentRequestId!), enabled: Boolean(attachmentRequestId) });
   const profile = useQuery({ queryKey: ["me", "profile"], queryFn: getMyProfile });
   const personnel = useQuery({ queryKey: ["fleet", "personnel-options", personnelSearch], queryFn: () => getFleetPersonnelOptions(personnelSearch), staleTime: 30_000 });
 
@@ -134,6 +142,8 @@ export function FleetRequestFormPage() {
   const hasInvalidTripTime = Boolean(form.departureAt && form.expectedReturnAt && form.expectedReturnAt <= form.departureAt);
   const tripTimeErrorMessage = "วันและเวลากลับต้องอยู่หลังวันและเวลาออกเดินทาง กรุณาตรวจสอบวันที่และเวลาอีกครั้ง";
   const hasRequiredFields = Boolean(form.purpose.trim() && form.missionType && form.destination.trim() && form.contactPersonName.trim() && form.contactPhone.trim() && form.departureAt && form.expectedReturnAt && passengerCount > 0 && (!form.isUrgent || form.urgentReason.trim()) && !hasInvalidTripTime);
+  const attachmentCount = (attachments.data?.length ?? 0) + files.length;
+  const invalidFiles = files.some(file => file.size === 0 || file.size > 5 * 1024 * 1024 || !/\.(pdf|jpg|png|doc|docx)$/i.test(file.name));
 
   function buildPayload(): SaveFleetRequest {
     const employees: FleetPassenger[] = selectedPersonnel.map((item, index) => ({ userId: item.id, fullName: item.fullName, positionOrOrganization: item.departmentName, passengerType: "EMPLOYEE", isRequester: false, sortOrder: index + 1 }));
@@ -144,14 +154,18 @@ export function FleetRequestFormPage() {
       destination: form.destination.trim(), contactPersonName: form.contactPersonName.trim(), contactPhone: form.contactPhone.trim(),
       departureAt: toUtcIso(form.departureAt), expectedReturnAt: toUtcIso(form.expectedReturnAt),
       passengerCount: passengers.length, requesterTravels: form.requesterTravels, specialRequirement: form.specialRequirement.trim(), isUrgent: form.isUrgent,
-      urgentReason: form.isUrgent ? form.urgentReason.trim() : "", concurrencyToken: request.data?.concurrencyToken, passengers,
+      urgentReason: form.isUrgent ? form.urgentReason.trim() : "", concurrencyToken: draftToken ?? request.data?.concurrencyToken, passengers,
     };
   }
 
   const save = useMutation({
     mutationFn: async (andSubmit: boolean) => {
-      const saved = id ? await updateFleetRequest(id, buildPayload()) : await createFleetRequest(buildPayload());
-      return andSubmit ? transitionFleetRequest(saved.id, "submit", saved.concurrencyToken) : saved;
+      return persistFleetRequestWithDocuments({
+        requestId: id ?? draftId, payload: buildPayload(), files, submit: andSubmit,
+        onSaved: saved => { setDraftId(saved.id); setDraftToken(saved.concurrencyToken); },
+        onUploaded: async (file, requestId) => { setFiles(current => current.filter(item => item !== file)); await queryClient.invalidateQueries({ queryKey: ["fleet", "request-attachments", requestId] }); },
+        onUploadError: () => setFileError("บันทึกร่างแล้ว แต่อัปโหลดเอกสารไม่สำเร็จ คำขอยังไม่ถูกส่ง กรุณาลองอีกครั้ง"),
+      });
     },
     onMutate: andSubmit => setSubmitAfterSave(andSubmit),
     onSuccess: result => navigate(`/fleet/requests/${result.id}`),
@@ -165,6 +179,8 @@ export function FleetRequestFormPage() {
       {request.isError && <Alert severity="error">โหลดข้อมูลคำขอไม่สำเร็จ กรุณากลับไปยังรายการคำขอแล้วลองใหม่</Alert>}
       {profile.isError && <Alert severity="error">โหลดข้อมูลพนักงานไม่สำเร็จ กรุณาลองใหม่ก่อนบันทึกคำขอ</Alert>}
       {save.isError && <Alert severity="error">{getSaveErrorMessage(save.error)}</Alert>}
+      {fileError && <Alert severity="warning">{fileError}</Alert>}
+      {attachments.isError && <Alert severity="error">โหลดรายการเอกสารไม่สำเร็จ กรุณาลองใหม่ก่อนบันทึก <Button onClick={() => attachments.refetch()}>ลองใหม่</Button></Alert>}
 
       <Card><CardContent sx={{ p: { xs: 2, md: 3 } }}>
         <Typography variant="h6" fontWeight={900} sx={{ mb: 2 }}>1. รายละเอียดภารกิจ</Typography>
@@ -193,14 +209,31 @@ export function FleetRequestFormPage() {
           </Grid>
           {preservedExternal.length > 0 && <Alert severity="info" sx={{ mt: 2 }}>คำขอเดิมมีบุคคลภายนอก {preservedExternal.length} คน ระบบจะเก็บข้อมูลเดิมไว้ แต่ไม่สามารถเพิ่มบุคคลภายนอกใหม่จากหน้านี้ได้</Alert>}
         </Box>
+        <Box sx={{ borderTop: 1, borderColor: "divider", mt: 3, pt: 3 }}>
+          <Typography variant="h6" fontWeight={900}>3. เอกสารประกอบคำขอ (ถ้ามี)</Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>เช่น หนังสือเชิญประชุม รองรับ PDF, JPG, PNG, DOC และ DOCX สูงสุด 2 ไฟล์ ไฟล์ละไม่เกิน 5 MB</Typography>
+          <Button component="label" variant="outlined" disabled={attachmentCount >= 2 || save.isPending}>เลือกไฟล์
+            <input hidden type="file" multiple accept=".pdf,.jpg,.png,.doc,.docx" onChange={event => {
+              const chosen = Array.from(event.target.files ?? []);
+              event.target.value = "";
+              if (attachmentCount + chosen.length > 2) { setFileError("แนบเอกสารได้สูงสุด 2 ไฟล์"); return; }
+              if (chosen.some(file => file.size === 0 || file.size > 5 * 1024 * 1024 || !/\.(pdf|jpg|png|doc|docx)$/i.test(file.name))) { setFileError("เลือกไฟล์ PDF, JPG, PNG, DOC หรือ DOCX ขนาดไม่เกิน 5 MB"); return; }
+              setFiles(current => [...current, ...chosen]); setFileError("");
+            }} />
+          </Button>
+          <Stack spacing={1} sx={{ mt: 1.5 }}>
+            {attachments.data?.map(item => <Stack key={item.id} direction={{ xs: "column", sm: "row" }} alignItems={{ sm: "center" }} gap={1}><Typography sx={{ flex: 1, overflowWrap: "anywhere" }}>{item.originalFileName} · {(item.fileSize / 1024 / 1024).toFixed(2)} MB</Typography><Button size="small" onClick={() => openFleetRequestAttachment(item.id, item.originalFileName, item.contentType)}>เปิดดู</Button><Button size="small" color="error" onClick={async () => { try { await deleteFleetRequestAttachment(item.id); await queryClient.invalidateQueries({ queryKey: ["fleet", "request-attachments", attachmentRequestId] }); setFileError(""); } catch { setFileError("ลบเอกสารไม่สำเร็จ กรุณาลองใหม่"); } }}>ลบ</Button></Stack>)}
+            {files.map((file, index) => <Stack key={`${file.name}-${index}`} direction={{ xs: "column", sm: "row" }} alignItems={{ sm: "center" }} gap={1}><Typography sx={{ flex: 1, overflowWrap: "anywhere" }}>{file.name} · {(file.size / 1024 / 1024).toFixed(2)} MB · รออัปโหลด</Typography><Button size="small" color="error" onClick={() => setFiles(current => current.filter((_, position) => position !== index))}>เอาออก</Button></Stack>)}
+          </Stack>
+        </Box>
       </CardContent>
 
       <Box sx={{ borderTop: 1, borderColor: "divider", bgcolor: "background.paper", px: { xs: 2, md: 3 }, py: 2, position: "sticky", bottom: 0, zIndex: 2 }}>
         <Stack direction={{ xs: "column-reverse", sm: "row" }} justifyContent="space-between" spacing={1.5}>
           <Button variant="outlined" onClick={() => navigate(-1)} disabled={save.isPending}>ยกเลิก</Button>
           <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5}>
-            <Button variant="outlined" startIcon={<SaveOutlinedIcon />} disabled={!hasRequiredFields || save.isPending || profile.isLoading || profile.isError} onClick={() => save.mutate(false)}>{save.isPending && !submitAfterSave ? "กำลังบันทึก..." : "บันทึกร่าง"}</Button>
-            <Button variant="contained" startIcon={<SendOutlinedIcon />} disabled={!hasRequiredFields || save.isPending || profile.isLoading || profile.isError} onClick={() => save.mutate(true)}>{save.isPending && submitAfterSave ? "กำลังส่งคำขอ..." : "ส่งคำขอ"}</Button>
+            <Button variant="outlined" startIcon={<SaveOutlinedIcon />} disabled={!hasRequiredFields || invalidFiles || attachmentCount > 2 || attachments.isError || (Boolean(attachmentRequestId) && attachments.isLoading) || save.isPending || profile.isLoading || profile.isError} onClick={() => { setFileError(""); save.mutate(false); }}>{save.isPending && !submitAfterSave ? "กำลังบันทึก..." : "บันทึกร่าง"}</Button>
+            <Button variant="contained" startIcon={<SendOutlinedIcon />} disabled={!hasRequiredFields || invalidFiles || attachmentCount > 2 || attachments.isError || (Boolean(attachmentRequestId) && attachments.isLoading) || save.isPending || profile.isLoading || profile.isError} onClick={() => { setFileError(""); save.mutate(true); }}>{save.isPending && submitAfterSave ? "กำลังส่งคำขอ..." : "ส่งคำขอ"}</Button>
           </Stack>
         </Stack>
       </Box></Card>

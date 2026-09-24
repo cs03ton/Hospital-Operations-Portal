@@ -81,7 +81,7 @@ import {
 import { PageHeader } from "../components/PageHeader";
 import { usePermission } from "../context/PermissionContext";
 import { useAuth } from "../context/AuthContext";
-import { getCurrentUser } from "../api/authApi";
+import { getMyProfile, type UserProfile } from "../api/profileApi";
 import { repairSelectProps } from "../components/repairs/repairSelectProps";
 import { dashboardPollingOptions } from "../config/queryPolling";
 import {
@@ -97,6 +97,12 @@ const emptyInput: api.RepairInput = {
   location: "",
   contact: "",
 };
+
+function requesterContact(profile?: UserProfile) {
+  return profile?.phoneNumber?.trim()
+    ? `${profile.fullname.trim()} · ${profile.phoneNumber.trim()}`
+    : "";
+}
 
 type RepairActionGroup = "primary" | "support" | "risk";
 const repairActionUi: Record<
@@ -584,10 +590,14 @@ function InputFields({
   value,
   onChange,
   department,
+  requesterName,
+  requesterPhone,
 }: {
   value: api.RepairInput;
   onChange: (v: api.RepairInput) => void;
   department?: string;
+  requesterName?: string;
+  requesterPhone?: string;
 }) {
   const options = useQuery({
     queryKey: ["repairs", "options"],
@@ -636,7 +646,7 @@ function InputFields({
           })}
         />
       )}
-      {(["title", "description", "location", "contact"] as const).map((key) => (
+      {(["title", "description", "location"] as const).map((key) => (
         <Fragment key={key}>
           {(key === "title" || key === "location") && (
             <Typography fontWeight={700} sx={{ gridColumn: "1 / -1", pt: 1 }}>
@@ -651,7 +661,6 @@ function InputFields({
                 title: "หัวข้อ",
                 description: "อาการและผลกระทบ",
                 location: "อาคาร / ชั้น / ห้อง / จุดติดตั้ง",
-                contact: "ผู้ติดต่อและเบอร์โทร",
               }[key]
             }
             sx={{
@@ -667,12 +676,13 @@ function InputFields({
                 title: 200,
                 description: 8000,
                 location: 500,
-                contact: 300,
               }[key],
             }}
           />
         </Fragment>
       ))}
+      <TextField label="ชื่อ–นามสกุลผู้แจ้ง" value={requesterName ?? ""} disabled />
+      <TextField label="เบอร์โทรผู้แจ้ง" value={requesterPhone ?? ""} disabled />
     </Box>
   );
 }
@@ -681,7 +691,7 @@ export function RepairCreatePage() {
   const { user } = useAuth();
   const profile = useQuery({
     queryKey: ["repair-requester-profile", user?.id],
-    queryFn: getCurrentUser,
+    queryFn: getMyProfile,
     enabled: !!user?.id,
     staleTime: 0,
     refetchOnMount: "always",
@@ -696,7 +706,7 @@ export function RepairCreatePage() {
   const [created, setCreated] = useState<api.Repair | null>(null);
   const create = useMutation({
     mutationFn: async () => {
-      const r = created ?? (await api.repairCreate(value));
+      const r = created ?? (await api.repairCreate({ ...value, contact: requesterContact(profile.data) }));
       setCreated(r);
       if (files.length) await api.repairUpload(r.id, r.concurrencyToken, files);
       return r;
@@ -712,11 +722,11 @@ export function RepairCreatePage() {
       component="form"
       onSubmit={(e) => {
         e.preventDefault();
-        create.mutate();
+        if (created || profile.data?.phoneNumber?.trim()) create.mutate();
       }}
     >
       <PageHeader
-        title="แจ้งซ่อม"
+        title="แจ้งซ่อมและปัญหาการใช้งาน"
         subtitle="เลือกประเภทเพื่อส่งเข้าคิวทีมที่รับผิดชอบ"
       />
       <Failure error={create.error} />
@@ -733,10 +743,15 @@ export function RepairCreatePage() {
             </Button>
           }
         >
-          โหลดหน่วยงานผู้แจ้งไม่สำเร็จ
+          โหลดข้อมูลส่วนตัวผู้แจ้งไม่สำเร็จ
         </Alert>
       )}
-      <InfoCard title="รายละเอียดการแจ้งซ่อม">
+      {profile.data && !profile.data.phoneNumber?.trim() && !created && (
+        <Alert severity="warning">
+          ยังไม่มีเบอร์โทรในข้อมูลส่วนตัว กรุณา <RouterLink to="/profile">เพิ่มเบอร์โทร</RouterLink> ก่อนแจ้งซ่อม
+        </Alert>
+      )}
+      <InfoCard title="รายละเอียดการแจ้งซ่อมและปัญหาการใช้งาน">
         <Stack spacing={2}>
           {created ? (
             <Alert severity="info">
@@ -753,8 +768,10 @@ export function RepairCreatePage() {
                   ? "โหลดข้อมูลไม่สำเร็จ"
                   : !profile.data
                     ? "กำลังโหลดหน่วยงาน…"
-                    : profile.data.department || "ยังไม่ระบุหน่วยงานในบัญชี"
+                  : profile.data.departmentName || "ยังไม่ระบุหน่วยงานในบัญชี"
               }
+              requesterName={profile.data?.fullname ?? ""}
+              requesterPhone={profile.data?.phoneNumber ?? ""}
             />
           )}
         </Stack>
@@ -771,7 +788,7 @@ export function RepairCreatePage() {
           <Button
             type="submit"
             variant="contained"
-            disabled={create.isPending || !value.categoryId}
+            disabled={create.isPending || !value.categoryId || (!created && !profile.data?.phoneNumber?.trim())}
           >
             {create.isPending
               ? "กำลังบันทึก…"
@@ -873,6 +890,12 @@ export function RepairDetailPage() {
   const [contributors, setContributors] = useState<string[]>([]);
   const [contributorsOpen, setContributorsOpen] = useState(false);
   const [request, setRequest] = useState<api.RepairInput>(emptyInput);
+  const requesterProfile = useQuery({
+    queryKey: ["repair-requester-profile", "resubmit"],
+    queryFn: getMyProfile,
+    enabled: action === "resubmit",
+    staleTime: 0,
+  });
   const [files, setFiles] = useState<File[]>([]);
   const solvers = useQuery({
     queryKey: ["repairs", "solvers", id],
@@ -887,7 +910,7 @@ export function RepairDetailPage() {
         priority,
         solverId: solver || undefined,
         contributorIds: contributors,
-        request: action === "resubmit" ? request : undefined,
+        request: action === "resubmit" ? { ...request, contact: requesterContact(requesterProfile.data) } : undefined,
       }),
     onSuccess: () => {
       setAction("");
@@ -1327,7 +1350,7 @@ export function RepairDetailPage() {
         <DialogTitle>{actionLabels[action]}</DialogTitle>
         <DialogContent>
           <Stack spacing={2} sx={{ pt: 1 }}>
-            <Failure error={change.error || solvers.error} />
+            <Failure error={change.error || solvers.error || (action === "resubmit" ? requesterProfile.error : null)} />
             {token !== d.request.concurrencyToken && (
               <Alert severity="warning">
                 สถานะล่าสุด: {repairStatusLabels[d.request.status]}{" "}
@@ -1354,7 +1377,18 @@ export function RepairDetailPage() {
               </Alert>
             )}
             {action === "resubmit" && (
-              <InputFields value={request} onChange={setRequest} />
+              <>
+                {requesterProfile.data && !requesterProfile.data.phoneNumber?.trim() && (
+                  <Alert severity="warning">กรุณา <RouterLink to="/profile">เพิ่มเบอร์โทรในข้อมูลส่วนตัว</RouterLink> ก่อนส่งแจ้งซ่อมอีกครั้ง</Alert>
+                )}
+                <InputFields
+                  value={request}
+                  onChange={setRequest}
+                  department={requesterProfile.data?.departmentName ?? ""}
+                  requesterName={requesterProfile.data?.fullname ?? ""}
+                  requesterPhone={requesterProfile.data?.phoneNumber ?? ""}
+                />
+              </>
             )}
             {action === "priority" && (
               <TextField
@@ -1458,8 +1492,8 @@ export function RepairDetailPage() {
                   request.title,
                   request.description,
                   request.location,
-                  request.contact,
                 ].some((value) => !value.trim())) ||
+              (action === "resubmit" && !requesterProfile.data?.phoneNumber?.trim()) ||
               (!["start", "resume"].includes(action) && !note.trim())
             }
             onClick={() => change.mutate()}

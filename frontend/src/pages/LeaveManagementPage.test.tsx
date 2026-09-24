@@ -30,6 +30,6 @@ describe("mobile leave request card", () => {
 
     expect(screen.getByText("LV-202609-008")).toBeInTheDocument();
     expect(screen.getByText(/หัวหน้างาน/)).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "ดูรายละเอียด" })).toHaveAttribute("href", "/leave/request-1");
+    expect(screen.getByRole("link", { name: "จัดการ / ดูรายละเอียด" })).toHaveAttribute("href", "/leave/request-1");
   });
 });

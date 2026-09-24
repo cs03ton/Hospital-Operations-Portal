@@ -1,4 +1,5 @@
 using Hop.Api.Configuration;
+using System.Text.Json;
 using Hop.Api.Data;
 using Hop.Api.Models;
 using Microsoft.EntityFrameworkCore;
@@ -93,7 +94,20 @@ public sealed class FleetLineGroupDeliveryService(
         {
             var canonical = mapper.ToCanonical(domainEvent.Scope, domainEvent.EventType);
             if (canonical is null) continue;
+            string? repairTeam = null;
+            if (domainEvent.Scope == "REPAIR")
+            {
+                try
+                {
+                    using var payload = JsonDocument.Parse(domainEvent.Payload);
+                    repairTeam = payload.RootElement.GetProperty("TeamCode").GetString();
+                }
+                catch (JsonException) { continue; }
+                catch (KeyNotFoundException) { continue; }
+                if (repairTeam is not ("IT" or "GENERAL")) continue;
+            }
             foreach (var destination in destinations.Where(x => x.ConfirmedAt <= domainEvent.OccurredAt &&
+                         (repairTeam is null || (x.RepairTeamCode == repairTeam && x.RepairTeamAssignedAt <= domainEvent.OccurredAt)) &&
                          x.EventSubscriptions.Any(s => s.EventType == canonical && s.IsEnabled)))
             {
                 var key = $"{domainEvent.EventId}:{destination.Id}:{canonical}";

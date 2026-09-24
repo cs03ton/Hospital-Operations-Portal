@@ -31,7 +31,6 @@ public sealed class RepairValidationMetadataTests
     {
         new RepairInput(Guid.NewGuid(), "title", "description", "location", "contact"),
         new RepairAction(Guid.NewGuid(), "note"),
-        new RepairCategoryInput(null, "category", "IT", true, null),
-        new RepairGroupInput("group", "https://example.test", "client", null, false, Guid.NewGuid())
+        new RepairCategoryInput(null, "category", "IT", true, null)
     };
 }

@@ -13,17 +13,33 @@ using Microsoft.EntityFrameworkCore;
 namespace Hop.Api.Controllers;
 
 [ApiController, Authorize, Route("api/meeting-rooms")]
-public sealed class MeetingRoomsController(AppDbContext db, MeetingRoomAttachmentStorage storage, IDomainEventPublisher events) : ControllerBase
+public sealed class MeetingRoomsController(AppDbContext db, MeetingRoomAttachmentStorage storage, MeetingRoomPhotoStorage photos, IDomainEventPublisher events) : ControllerBase
 {
     private Guid Actor => Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+
+    [HttpGet("personnel-options"), RequireAnyPermission(MeetingRoomPermissions.Create, MeetingRoomPermissions.ManageBookings)]
+    public async Task<object> PersonnelOptions([FromQuery] string? search = null, CancellationToken ct = default)
+    {
+        var query = db.Users.AsNoTracking().Where(x => x.IsActive &&
+            !x.UserRoles.Any(ur => ur.Role != null && (ur.Role.Name == "Admin" || ur.Role.Name == "SuperAdmin")));
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var term = search.Trim();
+            query = query.Where(x => EF.Functions.ILike(x.FullName, $"%{term}%") ||
+                (x.EmployeeCode != null && EF.Functions.ILike(x.EmployeeCode, $"%{term}%")) ||
+                (x.Department != null && EF.Functions.ILike(x.Department.Name, $"%{term}%")));
+        }
+        return ApiResponse<object>.Ok(await query.OrderBy(x => x.FullName).Take(50)
+            .Select(x => new { x.Id, x.FullName, x.EmployeeCode, DepartmentName = x.Department != null ? x.Department.Name : null })
+            .ToListAsync(ct));
+    }
 
     [HttpGet("rooms"), RequirePermission(MeetingRoomPermissions.ViewCalendar)]
     public async Task<object> Rooms([FromQuery] bool includeInactive = false, CancellationToken ct = default)
     {
-        var manage = await Has(MeetingRoomPermissions.ManageRooms, ct);
         var query = db.MeetingRooms.AsNoTracking();
-        if (!includeInactive || !manage) query = query.Where(x => x.IsActive);
-        return ApiResponse<object>.Ok(await query.OrderBy(x => x.Name).ToListAsync(ct));
+        if (!includeInactive) query = query.Where(x => x.IsActive);
+        return ApiResponse<object>.Ok((await query.OrderBy(x => x.Name).ToListAsync(ct)).Select(RoomDto));
     }
 
     [HttpGet("calendar"), RequirePermission(MeetingRoomPermissions.ViewCalendar), ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
@@ -61,7 +77,10 @@ public sealed class MeetingRoomsController(AppDbContext db, MeetingRoomAttachmen
         if (row is null) return NotFound();
         var history = await db.MeetingRoomBookingHistories.AsNoTracking().Where(x => x.BookingId == id).Join(db.Users, x => x.ActorId, x => x.Id, (x, u) => new { x.Id, x.Action, x.FromStatus, x.ToStatus, x.Detail, x.CreatedAt, ActorName = u.FullName }).OrderBy(x => x.CreatedAt).ToListAsync(ct);
         var attachments = await db.MeetingRoomAttachments.AsNoTracking().Where(x => x.BookingId == id).Select(x => new { x.Id, x.OriginalFileName, x.ContentType, x.FileSize, x.CreatedAt }).ToListAsync(ct);
-        return Ok(ApiResponse<object>.Ok(new { booking = row, history, attachments }));
+        var attendees = await db.MeetingRoomBookingAttendees.AsNoTracking().Where(x => x.BookingId == id)
+            .Join(db.Users, a => a.UserId, u => u.Id, (a, u) => new { u.Id, u.FullName, u.EmployeeCode, a.IsBooker })
+            .OrderByDescending(x => x.IsBooker).ThenBy(x => x.FullName).ToListAsync(ct);
+        return Ok(ApiResponse<object>.Ok(new { booking = row, history, attachments, attendees }));
     }
 
     [HttpPost("bookings"), RequirePermission(MeetingRoomPermissions.Create)]
@@ -69,6 +88,8 @@ public sealed class MeetingRoomsController(AppDbContext db, MeetingRoomAttachmen
     {
         var actor = await db.Users.AsNoTracking().SingleAsync(x => x.Id == Actor && x.IsActive, ct);
         var validation = Validate(input); if (validation is not null) return BadRequest(ApiResponse<object>.Fail(validation));
+        var attendeesError = await MeetingRoomAttendeeValidation.ValidateAsync(db, input.AttendeeUserIds, Actor, input.AttendeeCount, ct);
+        if (attendeesError is not null) return BadRequest(ApiResponse<object>.Fail(attendeesError));
         var times = ResolveTimes(input); if (times.End <= DateTime.UtcNow) return BadRequest(ApiResponse<object>.Fail("ไม่สามารถจองช่วงเวลาที่สิ้นสุดแล้ว"));
         await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted, ct);
         await LockRoom(input.RoomId, ct);
@@ -77,7 +98,7 @@ public sealed class MeetingRoomsController(AppDbContext db, MeetingRoomAttachmen
         if (input.AttendeeCount > room.Capacity) return BadRequest(ApiResponse<object>.Fail($"ห้องรองรับได้สูงสุด {room.Capacity} คน"));
         if (await Overlaps(input.RoomId, times.Start, times.End, null, ct)) return Conflict(ApiResponse<object>.Fail("ห้องประชุมถูกจองในช่วงเวลานี้แล้ว"));
         var row = new MeetingRoomBooking { RoomId = input.RoomId, BookerId = Actor, DepartmentId = actor.DepartmentId };
-        Apply(row, input, times); db.Add(row); AddHistory(row, "Created", "", "Confirmed", null);
+        Apply(row, input, times); db.Add(row); SetAttendees(row.Id, Actor, input.AttendeeUserIds); AddHistory(row, "Created", "", "Confirmed", null);
         await db.SaveChangesAsync(ct);
         await events.PublishAsync(new DomainEventEnvelope(
             "MeetingRoom.BookingCreated", "MEETING_ROOM", nameof(MeetingRoomBooking), row.Id, Actor,
@@ -94,10 +115,23 @@ public sealed class MeetingRoomsController(AppDbContext db, MeetingRoomAttachmen
         var row = await db.MeetingRoomBookings.SingleOrDefaultAsync(x => x.Id == id, ct); if (row is null) return NotFound();
         if (row.ConcurrencyToken != input.ConcurrencyToken) return Conflict(ApiResponse<object>.Fail("ข้อมูลเปลี่ยนแล้ว กรุณาโหลดใหม่"));
         if (row.Status == "Cancelled") return Conflict(ApiResponse<object>.Fail("รายการถูกยกเลิกแล้ว"));
+        var attendeesError = await MeetingRoomAttendeeValidation.ValidateAsync(db, input.AttendeeUserIds, row.BookerId, input.AttendeeCount, ct);
+        if (attendeesError is not null) return BadRequest(ApiResponse<object>.Fail(attendeesError));
+        if (input.AttendeeUserIds is null && input.AttendeeCount < await db.MeetingRoomBookingAttendees.CountAsync(x => x.BookingId == id, ct))
+            return BadRequest(ApiResponse<object>.Fail("จำนวนผู้เข้าประชุมน้อยกว่าจำนวนรายชื่อที่บันทึกไว้"));
         var room = await db.MeetingRooms.SingleOrDefaultAsync(x => x.Id == input.RoomId && x.IsActive, ct);
         if (room is null || input.AttendeeCount > room.Capacity) return BadRequest(ApiResponse<object>.Fail(room is null ? "ห้องประชุมไม่พร้อมใช้งาน" : $"ห้องรองรับได้สูงสุด {room.Capacity} คน"));
         if (await Overlaps(input.RoomId, times.Start, times.End, id, ct)) return Conflict(ApiResponse<object>.Fail("ห้องประชุมถูกจองในช่วงเวลานี้แล้ว"));
-        Apply(row, input, times); row.ConcurrencyToken = Guid.NewGuid(); row.UpdatedAt = DateTime.UtcNow; AddHistory(row, "Updated", row.Status, row.Status, null);
+        Apply(row, input, times);
+        if (input.AttendeeUserIds is not null)
+        {
+            var existing = await db.MeetingRoomBookingAttendees.Where(x => x.BookingId == id).ToListAsync(ct);
+            var desired = input.AttendeeUserIds.Append(row.BookerId).Distinct().ToHashSet();
+            db.MeetingRoomBookingAttendees.RemoveRange(existing.Where(x => !desired.Contains(x.UserId)));
+            foreach (var userId in desired.Where(userId => existing.All(x => x.UserId != userId)))
+                db.MeetingRoomBookingAttendees.Add(new MeetingRoomBookingAttendee { BookingId = id, UserId = userId, IsBooker = userId == row.BookerId });
+        }
+        row.ConcurrencyToken = Guid.NewGuid(); row.UpdatedAt = DateTime.UtcNow; AddHistory(row, "Updated", row.Status, row.Status, null);
         NotifyBooker(row, "รายการจองห้องประชุมถูกแก้ไข", $"รายการ MR-{row.Number:D6} ถูกปรับข้อมูลโดยผู้ดูแล"); Audit("MeetingRoom.BookingUpdated", id, null);
         await db.SaveChangesAsync(ct); await transaction.CommitAsync(ct); return Ok(ApiResponse<object>.Ok(row));
     }
@@ -122,8 +156,53 @@ public sealed class MeetingRoomsController(AppDbContext db, MeetingRoomAttachmen
         if (input.Id.HasValue && row.ConcurrencyToken != input.ConcurrencyToken) return Conflict(ApiResponse<object>.Fail("ข้อมูลห้องเปลี่ยนแล้ว กรุณาโหลดใหม่"));
         if (await db.MeetingRooms.AnyAsync(x => x.Code == input.Code.Trim() && x.Id != row.Id, ct)) return Conflict(ApiResponse<object>.Fail("รหัสห้องซ้ำ"));
         if (!input.Id.HasValue) db.Add(row); row.Code = input.Code.Trim(); row.Name = input.Name.Trim(); row.Location = input.Location.Trim(); row.Capacity = input.Capacity; row.IsActive = input.IsActive; row.UpdatedAt = DateTime.UtcNow; row.ConcurrencyToken = Guid.NewGuid();
-        Audit("MeetingRoom.RoomSaved", row.Id, null); await db.SaveChangesAsync(ct); return Ok(ApiResponse<object>.Ok(row));
+        Audit("MeetingRoom.RoomSaved", row.Id, null); await db.SaveChangesAsync(ct); return Ok(ApiResponse<object>.Ok(RoomDto(row)));
     }
+
+    [HttpGet("rooms/{id:guid}/photo"), RequirePermission(MeetingRoomPermissions.ViewCalendar), ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+    public async Task<IActionResult> RoomPhoto(Guid id, CancellationToken ct)
+    {
+        var room = await db.MeetingRooms.AsNoTracking().SingleOrDefaultAsync(x => x.Id == id, ct);
+        if (room?.PhotoPath is null) return NotFound();
+        var file = photos.Get(room.PhotoPath);
+        return file.Exists ? PhysicalFile(file.FullName, room.PhotoContentType ?? "application/octet-stream") : NotFound();
+    }
+
+    [HttpPost("rooms/{id:guid}/photo"), RequirePermission(MeetingRoomPermissions.ManageRooms), RequestSizeLimit(6 * 1024 * 1024)]
+    public async Task<IActionResult> UploadRoomPhoto(Guid id, [FromForm] IFormFile? file, CancellationToken ct)
+    {
+        if (file is null) return BadRequest(ApiResponse<object>.Fail("กรุณาเลือกรูปห้อง"));
+        var room = await db.MeetingRooms.SingleOrDefaultAsync(x => x.Id == id, ct);
+        if (room is null) return NotFound();
+        (string Path, string ContentType) saved;
+        try { saved = await photos.SaveAsync(id, file, ct); }
+        catch (ArgumentException ex) { return BadRequest(ApiResponse<object>.Fail(ex.Message)); }
+        var previous = room.PhotoPath;
+        try
+        {
+            room.PhotoPath = saved.Path; room.PhotoContentType = saved.ContentType; room.PhotoUpdatedAt = DateTime.UtcNow;
+            Audit("MeetingRoom.RoomPhotoUploaded", id, null);
+            await db.SaveChangesAsync(ct);
+        }
+        catch { photos.Delete(saved.Path); throw; }
+        photos.Delete(previous);
+        return Ok(ApiResponse<object>.Ok(RoomDto(room)));
+    }
+
+    [HttpDelete("rooms/{id:guid}/photo"), RequirePermission(MeetingRoomPermissions.ManageRooms)]
+    public async Task<IActionResult> DeleteRoomPhoto(Guid id, CancellationToken ct)
+    {
+        var room = await db.MeetingRooms.SingleOrDefaultAsync(x => x.Id == id, ct);
+        if (room is null) return NotFound();
+        var previous = room.PhotoPath;
+        room.PhotoPath = null; room.PhotoContentType = null; room.PhotoUpdatedAt = null;
+        Audit("MeetingRoom.RoomPhotoDeleted", id, null);
+        await db.SaveChangesAsync(ct);
+        photos.Delete(previous);
+        return Ok(ApiResponse<object>.Ok(RoomDto(room)));
+    }
+
+    private static object RoomDto(MeetingRoom room) => new { room.Id, room.Code, room.Name, room.Location, room.Capacity, room.IsActive, room.ConcurrencyToken, PhotoUrl = room.PhotoPath is null ? null : $"/api/meeting-rooms/rooms/{room.Id}/photo?v={room.PhotoUpdatedAt?.Ticks}" };
 
     [HttpPost("bookings/{id:guid}/attachments"), RequirePermission(MeetingRoomPermissions.Create)]
     public async Task<IActionResult> Upload(Guid id, [FromForm] List<IFormFile> files, CancellationToken ct)
@@ -144,6 +223,11 @@ public sealed class MeetingRoomsController(AppDbContext db, MeetingRoomAttachmen
     }
 
     private IQueryable<MeetingBookingDto> Project(IQueryable<MeetingRoomBooking> query) => query.Select(x => new MeetingBookingDto(x.Id, x.Number, x.RoomId, db.MeetingRooms.Where(r => r.Id == x.RoomId).Select(r => r.Name).First(), x.BookerId, db.Users.Where(u => u.Id == x.BookerId).Select(u => u.FullName).First(), x.DepartmentId, db.Departments.Where(d => d.Id == x.DepartmentId).Select(d => d.Name).FirstOrDefault(), x.Subject, x.Purpose, x.StartAt, x.EndAt, x.AttendeeCount, x.MeetingLink, x.AdditionalRequest, x.Status, x.CancellationReason, x.ConcurrencyToken, x.CreatedAt, x.UpdatedAt));
+    private void SetAttendees(Guid bookingId, Guid bookerId, IReadOnlyList<Guid>? attendeeIds)
+    {
+        foreach (var userId in (attendeeIds ?? []).Append(bookerId).Distinct())
+            db.MeetingRoomBookingAttendees.Add(new MeetingRoomBookingAttendee { BookingId = bookingId, UserId = userId, IsBooker = userId == bookerId });
+    }
     private async Task<bool> Has(string permission, CancellationToken ct) => await db.UserRoles.Where(x => x.UserId == Actor && x.Role != null && x.Role.IsActive).SelectMany(x => x.Role!.RolePermissions).AnyAsync(x => x.Permission != null && x.Permission.IsActive && x.Permission.Code == permission, ct);
     private async Task LockRoom(Guid roomId, CancellationToken ct) => await db.Database.ExecuteSqlInterpolatedAsync($"SELECT pg_advisory_xact_lock(hashtextextended({roomId.ToString()}, 0))", ct);
     private Task<bool> Overlaps(Guid roomId, DateTime start, DateTime end, Guid? except, CancellationToken ct) => db.MeetingRoomBookings.AnyAsync(x => x.RoomId == roomId && x.Status == "Confirmed" && x.Id != except && x.StartAt < end && x.EndAt > start, ct);
@@ -158,8 +242,8 @@ public sealed class MeetingRoomsController(AppDbContext db, MeetingRoomAttachmen
     private void Audit(string action, Guid id, string? reason) => db.AuditLogs.Add(new AuditLog { UserId = Actor, EffectiveActorUserId = Actor, Action = action, EntityName = "MeetingRoomBooking", EntityId = id.ToString(), Reason = reason, CorrelationId = HttpContext.TraceIdentifier });
 }
 
-public record MeetingBookingInput(Guid RoomId, DateOnly Date, TimeOnly StartTime, TimeOnly EndTime, [Required, MaxLength(300)] string Subject, [Required, MaxLength(4000)] string Purpose, [Range(1, 10000)] int AttendeeCount, [MaxLength(1000)] string? MeetingLink, [MaxLength(2000)] string? AdditionalRequest);
-public record MeetingBookingUpdateInput(Guid RoomId, DateOnly Date, TimeOnly StartTime, TimeOnly EndTime, string Subject, string Purpose, int AttendeeCount, string? MeetingLink, string? AdditionalRequest, Guid ConcurrencyToken) : MeetingBookingInput(RoomId, Date, StartTime, EndTime, Subject, Purpose, AttendeeCount, MeetingLink, AdditionalRequest);
+public record MeetingBookingInput(Guid RoomId, DateOnly Date, TimeOnly StartTime, TimeOnly EndTime, [Required, MaxLength(300)] string Subject, [Required, MaxLength(4000)] string Purpose, [Range(1, 10000)] int AttendeeCount, [MaxLength(1000)] string? MeetingLink, [MaxLength(2000)] string? AdditionalRequest, IReadOnlyList<Guid>? AttendeeUserIds = null);
+public record MeetingBookingUpdateInput(Guid RoomId, DateOnly Date, TimeOnly StartTime, TimeOnly EndTime, string Subject, string Purpose, int AttendeeCount, string? MeetingLink, string? AdditionalRequest, Guid ConcurrencyToken, IReadOnlyList<Guid>? AttendeeUserIds = null) : MeetingBookingInput(RoomId, Date, StartTime, EndTime, Subject, Purpose, AttendeeCount, MeetingLink, AdditionalRequest, AttendeeUserIds);
 public record MeetingCancelInput(Guid ConcurrencyToken, [Required, MaxLength(2000)] string Reason);
 public record MeetingRoomInput(Guid? Id, [Required] string Code, [Required] string Name, string Location, int Capacity, bool IsActive, Guid? ConcurrencyToken);
 public record MeetingBookingDto(Guid Id, long Number, Guid RoomId, string RoomName, Guid BookerId, string BookerName, Guid? DepartmentId, string? DepartmentName, string Subject, string Purpose, DateTime StartAt, DateTime EndAt, int AttendeeCount, string? MeetingLink, string? AdditionalRequest, string Status, string? CancellationReason, Guid ConcurrencyToken, DateTime CreatedAt, DateTime UpdatedAt);

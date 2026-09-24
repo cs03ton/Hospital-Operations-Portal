@@ -29,7 +29,7 @@ import { PageHeader } from "../components/PageHeader";
 import { usePermission } from "../context/PermissionContext";
 import { brandColors } from "../theme/theme";
 import { formatThaiDate } from "../utils/dateFormat";
-import { getLeaveDurationTypeLabel, getLeaveTypeColor, getLeaveTypeLabel, getLeaveTypeWithDurationLabel } from "../utils/leaveLabels";
+import { getLeaveDurationTypeLabel, getLeaveTypeAccentColor, getLeaveTypeColor, getLeaveTypeLabel, getLeaveTypeWithDurationLabel } from "../utils/leaveLabels";
 import { dashboardPollingOptions } from "../config/queryPolling";
 import { getLeaveCalendarGrid, leaveCalendarWeekdays } from "../utils/leaveCalendarGrid";
 
@@ -83,7 +83,8 @@ export function LeaveCalendarPage() {
 
   const { firstDay: selectedMonth, daysInMonth, leadingEmptyDays, trailingEmptyDays } = getLeaveCalendarGrid(year, month);
   const years = Array.from({ length: 5 }, (_, index) => current.year() - 2 + index);
-  const filteredData = status ? data.filter((item) => item.status === status) : data;
+  const filteredData = data.filter((item) =>
+    item.status !== "Cancelled" && item.status !== "CancelledAfterApproval" && (!status || item.status === status));
   const activeHolidays = useMemo(() => holidays.filter((item) => item.isActive), [holidays]);
   const eventsByDate = useMemo(() => {
     const map = new Map<string, LeaveCalendarItem[]>();
@@ -454,7 +455,7 @@ function HolidayChip({ holiday }: { holiday: LeaveHoliday }) {
 
 function DayDetailLeaveCard({ item }: { item: LeaveCalendarItem }) {
   return (
-    <Card variant="outlined" sx={{ boxShadow: "none" }}>
+    <Card variant="outlined" sx={{ boxShadow: "none", bgcolor: "background.paper", borderColor: brandColors.accent, borderLeft: "6px solid", borderLeftColor: getLeaveTypeAccentColor(item.leaveTypeName) }}>
       <CardContent sx={{ p: 1.5, "&:last-child": { pb: 1.5 } }}>
         <Stack direction={{ xs: "column", md: "row" }} spacing={1.5} justifyContent="space-between">
           <Box sx={{ minWidth: 0 }}>

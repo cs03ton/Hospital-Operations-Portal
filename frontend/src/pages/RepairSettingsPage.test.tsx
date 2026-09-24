@@ -5,6 +5,8 @@ import { describe, expect, it, vi } from "vitest";
 import { RepairSettingsPage } from "./RepairSettingsPage";
 import * as api from "../api/repairApi";
 
+vi.mock("../context/PermissionContext", () => ({ usePermission: () => ({ hasPermission: () => true }) }));
+
 const data = {
   categories: [
     {
@@ -19,18 +21,6 @@ const data = {
       name: "Water",
       teamCode: "GENERAL",
       isActive: false,
-      concurrencyToken: "old",
-    },
-  ],
-  groups: [
-    {
-      id: "1",
-      module: "REPAIR_IT",
-      displayName: "IT group",
-      endpointUrl: "https://morpromt2f.moph.go.th/api/notify/send",
-      clientId: "configured-client",
-      status: "Active",
-      hasSecret: true,
       concurrencyToken: "old",
     },
   ],
@@ -49,7 +39,6 @@ vi.mock("../api/repairApi", async (original) => ({
   ...(await original<typeof api>()),
   repairSettings: vi.fn(),
   saveRepairCategory: vi.fn(),
-  saveRepairGroup: vi.fn(),
 }));
 function mount(settings = data) {
   vi.mocked(api.repairSettings).mockResolvedValue(settings);
@@ -98,7 +87,7 @@ describe("repair settings", () => {
     cleanup();
   });
 
-  it("filters categories and separates groups and deliveries without exposing secrets", async () => {
+  it("filters categories and hides legacy deliveries", async () => {
     const { cleanup } = mount();
     await screen.findByText("Printer");
     fireEvent.change(screen.getByLabelText("ค้นหาประเภทงาน"), {
@@ -106,15 +95,9 @@ describe("repair settings", () => {
     });
     expect(screen.queryByText("Printer")).not.toBeInTheDocument();
     expect(screen.getByText("Water")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("tab", { name: "กลุ่มแจ้งเตือน" }));
-    expect(screen.getByText("IT group")).toBeInTheDocument();
-    expect(screen.queryByLabelText("Client Secret")).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("tab", { name: "ผลส่งแจ้งเตือน" }));
-    expect(screen.getByText(/TIMEOUT/)).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "ดูใบงาน" })).toHaveAttribute(
-      "href",
-      "/repairs/job-1",
-    );
+    expect(screen.queryByRole("tab", { name: "ผลส่งเดิม" })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "จัดการกลุ่มแจ้งเตือนส่วนกลาง" })).toHaveAttribute("href", "/admin/line-groups");
+    expect(screen.queryByText(/TIMEOUT/)).not.toBeInTheDocument();
     cleanup();
   });
   it("keeps edited text through a conflict and explicitly adopts the latest token", async () => {
@@ -159,27 +142,6 @@ describe("repair settings", () => {
         }),
       ),
     );
-    cleanup();
-  });
-  it("shows the backend validation message when a notification destination cannot be saved", async () => {
-    const { cleanup } = mount();
-    vi.mocked(api.saveRepairGroup).mockRejectedValueOnce({
-      response: {
-        status: 400,
-        data: {
-          message:
-            "Endpoint ต้องเป็น HTTPS และอยู่ใน Repairs:AllowedNotificationHosts",
-        },
-      },
-    });
-    fireEvent.click(await screen.findByRole("tab", { name: "กลุ่มแจ้งเตือน" }));
-    fireEvent.click(screen.getByRole("button", { name: "ตั้งค่าปลายทาง" }));
-    fireEvent.click(screen.getByRole("button", { name: "บันทึก" }));
-    expect(
-      await screen.findByText(
-        "Endpoint ต้องเป็น HTTPS และอยู่ใน Repairs:AllowedNotificationHosts",
-      ),
-    ).toBeInTheDocument();
     cleanup();
   });
 });

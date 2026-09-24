@@ -18,6 +18,21 @@ export type FleetRequestQuery = { page?: number; pageSize?: number; search?: str
 export async function getMyFleetRequestsPaged(params: FleetRequestQuery) { return unwrap(await httpClient.get<ApiResponse<FleetRequestPage>>("/fleet/requests/mine/paged", { params })); }
 export async function getDispatcherQueue() { return unwrap(await httpClient.get<ApiResponse<FleetRequest[]>>("/fleet/requests/dispatcher/queue")); }
 export async function getFleetRequest(id: string) { return unwrap(await httpClient.get<ApiResponse<FleetRequest>>(`/fleet/requests/${id}`)); }
+export type FleetRequestAttachment = { id: string; originalFileName: string; contentType: string; fileSize: number; createdAt: string };
+export async function getFleetRequestAttachments(requestId: string) { return unwrap(await httpClient.get<ApiResponse<FleetRequestAttachment[]>>(`/fleet/requests/${requestId}/attachments`)); }
+export async function uploadFleetRequestAttachment(requestId: string, file: File) { const body = new FormData(); body.append("file", file); return unwrap(await httpClient.post<ApiResponse<FleetRequestAttachment>>(`/fleet/requests/${requestId}/attachments`, body)); }
+export async function deleteFleetRequestAttachment(id: string) { return unwrap(await httpClient.delete<ApiResponse<{ id: string }>>(`/fleet/requests/attachments/${id}`)); }
+export async function openFleetRequestAttachment(id: string, fileName: string, contentType: string) {
+  const preview = contentType === "application/pdf" || contentType.startsWith("image/");
+  const tab = preview ? window.open("about:blank", "_blank") : null;
+  try {
+    const blob = (await httpClient.get<Blob>(`/fleet/requests/attachments/${id}`, { responseType: "blob" })).data;
+    const url = URL.createObjectURL(blob);
+    if (preview && tab) { tab.opener = null; tab.location.href = url; }
+    else { const anchor = document.createElement("a"); anchor.href = url; anchor.download = fileName; anchor.click(); }
+    window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  } catch (error) { tab?.close(); throw error; }
+}
 export async function createFleetRequest(data: SaveFleetRequest) { return unwrap(await httpClient.post<ApiResponse<FleetRequest>>("/fleet/requests", data)); }
 export async function updateFleetRequest(id: string, data: SaveFleetRequest) { return unwrap(await httpClient.put<ApiResponse<FleetRequest>>(`/fleet/requests/${id}`, data)); }
 export async function transitionFleetRequest(id: string, action: "submit" | "cancel" | "return" | "reject", concurrencyToken: string, reason?: string) { return unwrap(await httpClient.post<ApiResponse<FleetRequest>>(`/fleet/requests/${id}/${action}`, { concurrencyToken, reason })); }
@@ -63,6 +78,21 @@ export async function createFleetMaintenance(data: Record<string, unknown>) { re
 export async function updateFleetMaintenance(id:string,data:Record<string,unknown>){return unwrap(await httpClient.put<ApiResponse<{id:string;concurrencyToken:string}>>(`/fleet/maintenance/${id}`,data));}
 export async function getMaintenanceTypes(){return unwrap(await httpClient.get<ApiResponse<MaintenanceType[]>>("/fleet/maintenance-types"));}
 export async function getFleetVehicles(){return unwrap(await httpClient.get<ApiResponse<FleetVehicleOption[]>>("/fleet/vehicles"));}
+export type FleetVehicleRecord = FleetVehicleOption & { registrationProvince?:string|null; vehicleTypeId:string; vehicleTypeName:string; brand?:string|null; model?:string|null; manufactureYear?:number|null; seatCapacityTotal:number; passengerCapacity:number; fuelType?:string|null; owningDepartmentId?:string|null; responsibleUserId?:string|null; status:string; note?:string|null };
+export type SaveFleetVehicle = Omit<FleetVehicleRecord,"id"|"vehicleTypeName">;
+export type FleetDriverProfile = { id:string; userId:string; employeeCode:string; fullName:string; licenseNumber:string; licenseType:string; licenseIssueDate?:string|null; licenseExpiryDate?:string|null; canDriveSedan:boolean; canDrivePickup:boolean; canDriveVan:boolean; canDriveAmbulance:boolean; canDriveOther:boolean; driverStatus:string; isActive:boolean; note?:string|null };
+export type SaveFleetDriverProfile = Omit<FleetDriverProfile,"id"|"employeeCode"|"fullName">;
+export type FleetPersonnel = { id:string; employeeCode?:string|null; fullName:string; departmentId?:string|null; departmentName?:string|null };
+export async function getFleetVehicleRecords(){return unwrap(await httpClient.get<ApiResponse<FleetVehicleRecord[]>>( "/fleet/vehicles"));}
+export async function createFleetVehicle(data:SaveFleetVehicle){return unwrap(await httpClient.post<ApiResponse<FleetVehicleRecord>>("/fleet/vehicles",data));}
+export async function updateFleetVehicle(id:string,data:SaveFleetVehicle){return unwrap(await httpClient.put<ApiResponse<FleetVehicleRecord>>(`/fleet/vehicles/${id}`,data));}
+export async function setFleetVehicleActive(id:string,isActive:boolean){return unwrap(await httpClient.post<ApiResponse<{id:string;isActive:boolean}>>(`/fleet/vehicles/${id}/active`,{isActive}));}
+export async function getFleetDriverProfiles(){return unwrap(await httpClient.get<ApiResponse<FleetDriverProfile[]>>("/fleet/driver-profiles"));}
+export async function getFleetMasterPersonnel(){return unwrap(await httpClient.get<ApiResponse<FleetPersonnel[]>>("/fleet/master-data/personnel-options"));}
+export async function getFleetMasterDepartments(){return unwrap(await httpClient.get<ApiResponse<Array<{id:string;name:string}>>>("/fleet/master-data/department-options"));}
+export async function createFleetDriverProfile(data:SaveFleetDriverProfile){return unwrap(await httpClient.post<ApiResponse<FleetDriverProfile>>("/fleet/driver-profiles",data));}
+export async function updateFleetDriverProfile(id:string,data:SaveFleetDriverProfile){return unwrap(await httpClient.put<ApiResponse<FleetDriverProfile>>(`/fleet/driver-profiles/${id}`,data));}
+export async function setFleetDriverActive(id:string,isActive:boolean){return unwrap(await httpClient.post<ApiResponse<{id:string;isActive:boolean}>>(`/fleet/driver-profiles/${id}/active`,{isActive}));}
 export async function maintenanceAction(id: string, action: "start" | "complete" | "cancel", data: Record<string, unknown>) { return unwrap(await httpClient.post<ApiResponse<Record<string, unknown>>>(`/fleet/maintenance/${id}/${action}`, data)); }
 export async function uploadMaintenanceAttachment(recordId:string,file:File){const form=new FormData();form.append("file",file);return unwrap(await httpClient.post<ApiResponse<Record<string,unknown>>>(`/fleet/maintenance/${recordId}/attachments`,form));}
 export async function deleteMaintenanceAttachment(id:string){return unwrap(await httpClient.delete<ApiResponse<{id:string}>>(`/fleet/maintenance/attachments/${id}`));}
@@ -127,6 +157,7 @@ export type FleetLineGroupEventSubscription = { eventType: string; isEnabled: bo
 export type FleetLineGroup = {
   id: string; displayName: string; groupIdMasked: string; status: "Pending" | "Active" | "Disabled";
   module: string; attentionRequired: boolean; attentionReason?: string | null; firstDetectedAt: string;
+  repairTeamCode?: "IT" | "GENERAL" | null;
   lastDetectedAt: string; confirmedAt?: string | null; disabledAt?: string | null; concurrencyToken: string;
   deliveryProvider?: "LINE_MESSAGING_API" | "CUSTOM_ENDPOINT"; endpointUrl?: string | null; clientId?: string | null; hasClientSecret?: boolean;
   events: FleetLineGroupEventSubscription[];
@@ -137,30 +168,37 @@ export type FleetLineGroupDelivery = {
   errorMessage?: string | null; correlationId: string; createdAt: string;
 };
 export type FleetLineGroupDeliveries = { items: FleetLineGroupDelivery[]; page: number; pageSize: number; totalItems: number; totalPages: number };
+const centralLineGroupsApiPath = "/api/admin/line-groups";
 export async function getFleetLineGroups(params?: { status?: string; search?: string }) {
-  return unwrap(await httpClient.get<ApiResponse<FleetLineGroup[]>>("/admin/line-groups", { params }));
+  return unwrap(await httpClient.get<ApiResponse<FleetLineGroup[]>>(centralLineGroupsApiPath, { params }));
 }
-export type SaveFleetLineGroupEndpoint = { displayName: string; groupId: string; endpointUrl: string; clientId: string; clientSecret?: string; concurrencyToken?: string };
+export type SaveFleetLineGroupEndpoint = { displayName: string; groupId: string; endpointUrl: string; clientId: string; clientSecret?: string; concurrencyToken?: string; repairTeamCode?: "IT" | "GENERAL" | null };
 export async function createFleetLineGroupEndpoint(data: SaveFleetLineGroupEndpoint) {
-  return unwrap(await httpClient.post<ApiResponse<{ id: string; status: string; concurrencyToken: string }>>("/admin/line-groups", data));
+  return unwrap(await httpClient.post<ApiResponse<{ id: string; status: string; concurrencyToken: string }>>(centralLineGroupsApiPath, data));
 }
 export async function updateFleetLineGroupEndpoint(id: string, data: SaveFleetLineGroupEndpoint) {
-  return unwrap(await httpClient.put<ApiResponse<{ id: string; status: string; concurrencyToken: string }>>(`/admin/line-groups/${id}/configuration`, data));
+  return unwrap(await httpClient.put<ApiResponse<{ id: string; status: string; concurrencyToken: string }>>(`${centralLineGroupsApiPath}/${id}/configuration`, data));
 }
 export async function confirmFleetLineGroup(id: string, concurrencyToken: string, reason?: string) {
-  return unwrap(await httpClient.post<ApiResponse<{ id: string; status: string; concurrencyToken: string }>>(`/admin/line-groups/${id}/confirm`, { concurrencyToken, reason }));
+  return unwrap(await httpClient.post<ApiResponse<{ id: string; status: string; concurrencyToken: string }>>(`${centralLineGroupsApiPath}/${id}/confirm`, { concurrencyToken, reason }));
 }
 export async function disableFleetLineGroup(id: string, concurrencyToken: string, reason: string) {
-  return unwrap(await httpClient.post<ApiResponse<{ id: string; status: string; concurrencyToken: string }>>(`/admin/line-groups/${id}/disable`, { concurrencyToken, reason }));
+  return unwrap(await httpClient.post<ApiResponse<{ id: string; status: string; concurrencyToken: string }>>(`${centralLineGroupsApiPath}/${id}/disable`, { concurrencyToken, reason }));
+}
+export async function migrateRepairLineGroup(group: FleetLineGroup, teamCode: "IT" | "GENERAL") {
+  return unwrap(await httpClient.post<ApiResponse<{ id: string; module: string; status: string; repairTeamCode: string; concurrencyToken: string }>>(
+    `${centralLineGroupsApiPath}/${group.id}/migrate-repair`,
+    { concurrencyToken: group.concurrencyToken, expectedStatus: group.status, expectedDisplayName: group.displayName, expectedGroupIdMasked: group.groupIdMasked, teamCode },
+  ));
 }
 export async function updateFleetLineGroupSubscriptions(id: string, concurrencyToken: string, events: Record<string, boolean>) {
-  return unwrap(await httpClient.put<ApiResponse<{ id: string; concurrencyToken: string }>>(`/admin/line-groups/${id}/subscriptions`, { concurrencyToken, events }));
+  return unwrap(await httpClient.put<ApiResponse<{ id: string; concurrencyToken: string }>>(`${centralLineGroupsApiPath}/${id}/subscriptions`, { concurrencyToken, events }));
 }
 export async function testFleetLineGroup(id: string, message?: string) {
-  return unwrap(await httpClient.post<ApiResponse<{ id: string; status: string; attemptCount: number; errorCode?: string | null }>>(`/admin/line-groups/${id}/test`, { message }));
+  return unwrap(await httpClient.post<ApiResponse<{ id: string; status: string; attemptCount: number; errorCode?: string | null }>>(`${centralLineGroupsApiPath}/${id}/test`, { message }));
 }
 export async function getFleetLineGroupDeliveries(id: string, page = 1, pageSize = 20) {
-  return unwrap(await httpClient.get<ApiResponse<FleetLineGroupDeliveries>>(`/admin/line-groups/${id}/deliveries`, { params: { page, pageSize } }));
+  return unwrap(await httpClient.get<ApiResponse<FleetLineGroupDeliveries>>(`${centralLineGroupsApiPath}/${id}/deliveries`, { params: { page, pageSize } }));
 }
 
 export type FleetFeedbackStatus = "AVAILABLE" | "SUBMITTED" | "EXPIRED" | "NOT_ELIGIBLE";

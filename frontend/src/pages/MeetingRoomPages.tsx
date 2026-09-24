@@ -1,9 +1,10 @@
 import { bangkokDayjs } from "../utils/dateFormat";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import {
   Alert,
+  Autocomplete,
   Box,
   Button,
   Card,
@@ -41,12 +42,14 @@ import GroupsOutlinedIcon from "@mui/icons-material/GroupsOutlined";
 import InsertLinkOutlinedIcon from "@mui/icons-material/InsertLinkOutlined";
 import NotesOutlinedIcon from "@mui/icons-material/NotesOutlined";
 import PersonOutlineOutlinedIcon from "@mui/icons-material/PersonOutlineOutlined";
+import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 import { PageHeader } from "../components/PageHeader";
 import { DataTableCard } from "../components/common/DataTableCard";
 import { ListPagination } from "../components/common/ListPagination";
 import { PageToolbar } from "../components/common/PageToolbar";
 import { AppDatePicker } from "../components/common/AppDatePicker";
 import { AppTimePicker } from "../components/common/AppTimePicker";
+import { MeetingRoomImage } from "../components/MeetingRoomImage";
 import { useAuth } from "../context/AuthContext";
 import { usePermission } from "../context/PermissionContext";
 import {
@@ -55,14 +58,18 @@ import {
   getMeetingBooking,
   getMeetingBookings,
   getMeetingCalendar,
+  getMeetingPersonnelOptions,
   getMeetingRooms,
   meetingAttachmentUrl,
   meetingRoomPermissions,
   saveMeetingRoom,
+  uploadMeetingRoomPhoto,
+  deleteMeetingRoomPhoto,
   uploadMeetingAttachments,
   type BookingInput,
   type MeetingBooking,
   type MeetingRoom,
+  type MeetingPersonnelOption,
 } from "../api/meetingRoomApi";
 import { dashboardPollingOptions } from "../config/queryPolling";
 
@@ -208,9 +215,10 @@ function BookingCard({ item }: { item: MeetingBooking }) {
 }
 
 export function MeetingRoomCalendarPage() {
+  const [searchParams] = useSearchParams();
   const [cursor, setCursor] = useState(() => new Date(`${bangkokDayjs().format("YYYY-MM-DD")}T12:00:00+07:00`));
   const [view, setView] = useState("month");
-  const [roomId, setRoomId] = useState("");
+  const [roomId, setRoomId] = useState(() => searchParams.get("roomId") ?? "");
   const [selected, setSelected] = useState<MeetingBooking | null>(null);
   const first = bangkokDayjs(cursor).date(1).month(bangkokDayjs(cursor).month()).date(1).toDate(),
     last = bangkokDayjs(cursor).date(1).month(bangkokDayjs(cursor).month() + 1).date(0).toDate();
@@ -222,7 +230,7 @@ export function MeetingRoomCalendarPage() {
   );
   const rooms = useQuery({
     queryKey: queryKeys.rooms,
-    queryFn: () => getMeetingRooms(),
+    queryFn: () => getMeetingRooms(true),
     ...dashboardPollingOptions,
   });
   const calendar = useQuery({
@@ -599,6 +607,13 @@ export function MeetingRoomCreatePage() {
     queryKey: queryKeys.rooms,
     queryFn: () => getMeetingRooms(),
   });
+  const [personnelSearch, setPersonnelSearch] = useState("");
+  const [selectedAttendees, setSelectedAttendees] = useState<MeetingPersonnelOption[]>([]);
+  const personnel = useQuery({
+    queryKey: ["meeting-rooms", "personnel-options", personnelSearch],
+    queryFn: () => getMeetingPersonnelOptions(personnelSearch),
+    staleTime: 30_000,
+  });
   const [form, setForm] = useState<BookingInput>({
     roomId: "",
     date: dateOnly(new Date()),
@@ -613,9 +628,12 @@ export function MeetingRoomCreatePage() {
   const [files, setFiles] = useState<File[]>([]);
   const room = rooms.data?.find((x) => x.id === form.roomId);
   const capacityError = !!room && form.attendeeCount > room.capacity;
+  const namedCount = 1 + selectedAttendees.filter((item) => item.id !== user?.id).length;
+  const countError = form.attendeeCount < namedCount;
+  const personnelOptions = [...new Map([...selectedAttendees, ...(personnel.data ?? [])].filter((item) => item.id !== user?.id).map((item) => [item.id, item])).values()];
   const mutation = useMutation({
     mutationFn: async () => {
-      const booking = await createMeetingBooking(form);
+      const booking = await createMeetingBooking({ ...form, attendeeUserIds: selectedAttendees.map((item) => item.id) });
       if (files.length) await uploadMeetingAttachments(booking.id, files);
       return booking;
     },
@@ -702,19 +720,41 @@ export function MeetingRoomCreatePage() {
             value={form.additionalRequest}
             onChange={(e) => set("additionalRequest", e.target.value)}
           />
+          <Autocomplete
+            multiple
+            filterSelectedOptions
+            options={personnelOptions}
+            value={selectedAttendees}
+            loading={personnel.isFetching}
+            isOptionEqualToValue={(option, value) => option.id === value.id}
+            getOptionLabel={(option) => option.fullName}
+            onInputChange={(_, value, reason) => reason === "input" && setPersonnelSearch(value)}
+            onChange={(_, value) => {
+              const unique = [...new Map(value.map((item) => [item.id, item])).values()];
+              setSelectedAttendees(unique);
+              setForm((current) => ({ ...current, attendeeCount: Math.max(current.attendeeCount, unique.length + 1) }));
+            }}
+            renderOption={(props, option) => <li {...props} key={option.id}><Box><Typography variant="body2" fontWeight={700}>{option.fullName}</Typography><Typography variant="caption" color="text.secondary">{[option.employeeCode, option.departmentName].filter(Boolean).join(" · ")}</Typography></Box></li>}
+            renderTags={(value, getTagProps) => value.map((option, index) => <Chip label={option.fullName} {...getTagProps({ index })} key={option.id} />)}
+            renderInput={(params) => <TextField {...params} label="ผู้เข้าประชุมที่ทราบชื่อ" placeholder="ค้นหาชื่อ รหัสพนักงาน หรือหน่วยงาน" helperText="ผู้จองถูกนับรวมโดยอัตโนมัติ หากยังไม่ทราบชื่อครบให้ระบุจำนวนรวมด้านล่าง" />}
+            sx={{ gridColumn: { md: "1/-1" } }}
+          />
           <TextField
             required
             type="number"
-            label="จำนวนผู้เข้าประชุม"
+            label="จำนวนผู้เข้าประชุมทั้งหมด (รวมผู้จอง)"
             value={form.attendeeCount}
             onChange={(e) => set("attendeeCount", Number(e.target.value))}
-            error={capacityError}
+            error={capacityError || countError}
+            inputProps={{ min: namedCount }}
             helperText={
               capacityError
                 ? `ห้องรองรับได้สูงสุด ${room?.capacity} คน`
+                : countError
+                  ? `ต้องไม่น้อยกว่า ${namedCount} คนตามรายชื่อที่เลือกและผู้จอง`
                 : room
-                  ? `ความจุ ${room.capacity} คน`
-                  : ""
+                  ? `ระบุยอดรวมได้แม้ไม่ทราบชื่อครบ · ความจุ ${room.capacity} คน`
+                  : `อย่างน้อย ${namedCount} คนรวมผู้จอง`
             }
           />
           <TextField
@@ -759,6 +799,7 @@ export function MeetingRoomCreatePage() {
               disabled={
                 mutation.isPending ||
                 capacityError ||
+                countError ||
                 files.some((f) => f.size > 10 * 1024 * 1024)
               }
             >
@@ -1124,6 +1165,7 @@ export function MeetingRoomDetailPage() {
                 รายละเอียดการประชุม
               </Typography>
             </Stack>
+            {query.data?.attendees && query.data.attendees.length > 0 && <Box sx={{ mb: 2 }}><Typography fontWeight={700} mb={1}>ผู้เข้าประชุมที่ระบุชื่อ</Typography><Stack direction="row" flexWrap="wrap" gap={1}>{query.data.attendees.map((attendee) => <Chip key={attendee.id} label={`${attendee.fullName}${attendee.isBooker ? " (ผู้จอง)" : ""}`} />)}</Stack>{b.attendeeCount > query.data.attendees.length && <Typography variant="body2" color="text.secondary" mt={1}>ยังไม่ระบุชื่ออีก {b.attendeeCount - query.data.attendees.length} คน</Typography>}</Box>}
             <Box
               sx={{
                 p: 2,
@@ -1242,9 +1284,12 @@ export function MeetingRoomManagePage() {
     queryFn: () => getMeetingRooms(true),
   });
   const [editing, setEditing] = useState<Partial<MeetingRoom> | null>(null);
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [removePhoto, setRemovePhoto] = useState(false);
+  const [photoError, setPhotoError] = useState("");
   const save = useMutation({
-    mutationFn: () =>
-      saveMeetingRoom({
+    mutationFn: async () => {
+      const room = await saveMeetingRoom({
         id: editing?.id,
         concurrencyToken: editing?.concurrencyToken,
         code: editing?.code ?? "",
@@ -1252,9 +1297,22 @@ export function MeetingRoomManagePage() {
         location: editing?.location ?? "",
         capacity: editing?.capacity ?? 1,
         isActive: editing?.isActive ?? true,
-      }),
+      });
+      setEditing(room);
+      try {
+        if (photoFile) await uploadMeetingRoomPhoto(room.id, photoFile);
+        else if (removePhoto) await deleteMeetingRoomPhoto(room.id);
+      } catch {
+        setPhotoError("บันทึกห้องสำเร็จแล้ว แต่อัปโหลดหรือลบรูปไม่สำเร็จ กรุณาลองอีกครั้ง");
+        throw new Error("Room photo operation failed");
+      }
+      return room;
+    },
     onSuccess: async () => {
       setEditing(null);
+      setPhotoFile(null);
+      setRemovePhoto(false);
+      setPhotoError("");
       await qc.invalidateQueries({ queryKey: ["meeting-rooms", "rooms"] });
     },
   });
@@ -1345,34 +1403,30 @@ export function MeetingRoomManagePage() {
               เพิ่มห้อง
             </Button>
           </Stack>
-          <Stack gap={1}>
+          {rooms.isLoading && <Typography color="text.secondary">กำลังโหลดข้อมูลห้องประชุม...</Typography>}
+          {rooms.isError && <Alert severity="error">โหลดข้อมูลห้องประชุมไม่สำเร็จ <Button onClick={() => rooms.refetch()}>ลองอีกครั้ง</Button></Alert>}
+          {!rooms.isLoading && !rooms.isError && rooms.data?.length === 0 && <Alert severity="info">ยังไม่มีห้องประชุมในทะเบียน</Alert>}
+          <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0, 1fr))", xl: "repeat(3, minmax(0, 1fr))" }, gap: 2.5 }}>
             {rooms.data?.map((r) => (
-              <Card key={r.id} sx={{ ...panelSx, p: 2 }}>
-                <Stack
-                  direction={{ xs: "column", sm: "row" }}
-                  justifyContent="space-between"
-                  alignItems={{ sm: "center" }}
-                  gap={1}
-                >
+              <Card key={r.id} sx={{ overflow: "hidden", border: "1px solid #e8dcc8", borderRadius: 3, boxShadow: "0 10px 26px rgba(35,72,60,.08)", display: "flex", flexDirection: "column" }}>
+                <Box sx={{ position: "relative", height: 190, overflow: "hidden", bgcolor: "#eff4f0" }}>
+                  <MeetingRoomImage photoUrl={r.photoUrl} alt={`รูป${r.name}`} height={190} />
+                  <Chip size="small" color={r.isActive ? "success" : "default"} label={r.isActive ? "เปิดใช้งาน" : "ปิดใช้งาน"} sx={{ position: "absolute", top: 12, right: 12, fontWeight: 700, boxShadow: "0 2px 8px rgba(0,0,0,.16)" }} />
+                </Box>
+                <Stack sx={{ p: 2, flex: 1 }} gap={1.5}>
                   <Box>
-                    <Typography fontWeight={800}>
-                      {r.name} ({r.code})
-                    </Typography>
-                    <Typography color="text.secondary">
-                      {r.location} · {r.capacity} คน
-                    </Typography>
+                    <Typography variant="h6" fontWeight={800} color="primary.main" sx={{ overflowWrap: "anywhere" }}>{r.name}</Typography>
+                    <Typography variant="body2" color="text.secondary">รหัสห้อง {r.code}</Typography>
                   </Box>
-                  <Stack direction="row" gap={1}>
-                    <Chip
-                      color={r.isActive ? "success" : "default"}
-                      label={r.isActive ? "เปิดใช้งาน" : "ปิดใช้งาน"}
-                    />
-                    <Button onClick={() => setEditing(r)}>แก้ไข</Button>
+                  <Stack direction="row" gap={1} flexWrap="wrap" useFlexGap>
+                    <Chip size="small" variant="outlined" icon={<BusinessOutlinedIcon />} label={r.location || "ไม่ระบุสถานที่"} sx={{ maxWidth: "100%", "& .MuiChip-label": { overflow: "hidden", textOverflow: "ellipsis" } }} />
+                    <Chip size="small" variant="outlined" icon={<GroupsOutlinedIcon />} label={`รองรับ ${r.capacity} คน`} />
                   </Stack>
+                  <Button fullWidth variant="outlined" startIcon={<EditOutlinedIcon />} onClick={() => { setEditing(r); setPhotoFile(null); setRemovePhoto(false); setPhotoError(""); }} sx={{ mt: "auto", minHeight: 42 }}>ดูรายละเอียด / แก้ไข</Button>
                 </Stack>
               </Card>
             ))}
-          </Stack>
+          </Box>
         </>
       )}
       <Dialog
@@ -1386,6 +1440,14 @@ export function MeetingRoomManagePage() {
         </DialogTitle>
         <DialogContent>
           <Stack gap={2} mt={1}>
+            <Box>
+              <Typography fontWeight={700} mb={1}>รูปห้องประชุม</Typography>
+              {photoFile ? <Box component="img" src={URL.createObjectURL(photoFile)} alt="รูปที่เลือก" sx={{ width: "100%", maxHeight: 180, objectFit: "cover", borderRadius: 1, mb: 1 }} /> : editing?.photoUrl && !removePhoto ? <MeetingRoomImage photoUrl={editing.photoUrl} alt="รูปห้องประชุม" height={180} /> : null}
+              <Button component="label" variant="outlined">{editing?.photoUrl ? "เปลี่ยนรูป" : "อัปโหลดรูป"}<input hidden type="file" accept="image/jpeg,image/png,image/webp" onChange={(e) => { const file = e.target.files?.[0]; if (!file) return; if (file.size > 5 * 1024 * 1024) { setPhotoError("รูปห้องต้องมีขนาดไม่เกิน 5 MB"); return; } setPhotoFile(file); setRemovePhoto(false); setPhotoError(""); }} /></Button>
+              {editing?.photoUrl && !photoFile && !removePhoto && <Button color="error" onClick={() => setRemovePhoto(true)}>ลบรูป</Button>}
+              {removePhoto && <Typography variant="caption" display="block">จะลบรูปเมื่อกดบันทึก</Typography>}
+              <Typography variant="caption" display="block" color="text.secondary">รองรับ JPG, PNG, WebP ไม่เกิน 5 MB</Typography>
+            </Box>
             <TextField
               label="รหัสห้อง"
               value={editing?.code || ""}
@@ -1429,7 +1491,7 @@ export function MeetingRoomManagePage() {
               <MenuItem value="active">เปิดใช้งาน</MenuItem>
               <MenuItem value="inactive">ปิดใช้งาน</MenuItem>
             </TextField>
-            {save.isError && <Alert severity="error">บันทึกไม่สำเร็จ</Alert>}
+            {(save.isError || photoError) && <Alert severity="error">{photoError || "บันทึกไม่สำเร็จ"}</Alert>}
           </Stack>
         </DialogContent>
         <DialogActions>

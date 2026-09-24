@@ -159,6 +159,101 @@ public sealed class FleetLineGroupRegistrationTests
         Assert.Empty(db.LineGroupDeliveryLogs);
     }
 
+    [Theory]
+    [InlineData("REPAIR_IT", "IT", "Active")]
+    [InlineData("REPAIR_GENERAL", "GENERAL", "Disabled")]
+    public async Task Legacy_repair_group_migrates_without_activation_or_enabled_events(string module, string team, string status)
+    {
+        await using var db = Database();
+        var destination = new LineGroupDestination { LineGroupId = "C12345678901234567890123456789012", DisplayName = "แจ้งซ่อม", Module = module, Status = status,
+            ConfirmedAt = status == "Active" ? DateTime.UtcNow.AddDays(-1) : null };
+        destination.EventSubscriptions.Add(new LineGroupEventSubscription { EventType = "Repair.Submitted", IsEnabled = true });
+        db.LineGroupDestinations.Add(destination);
+        await db.SaveChangesAsync();
+        var originalId = destination.Id;
+        var controller = Controller(db);
+        controller.ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() };
+
+        var response = await controller.MigrateRepair(destination.Id, new LineGroupRepairMigrationRequest(destination.ConcurrencyToken, status,
+            destination.DisplayName, LineGroupRegistrationService.Mask(destination.LineGroupId), team), CancellationToken.None);
+
+        Assert.NotNull(response.Value);
+        Assert.Equal(originalId, destination.Id);
+        Assert.Equal("CENTRAL", destination.Module);
+        Assert.Equal(status, destination.Status);
+        Assert.Equal(team, destination.RepairTeamCode);
+        Assert.NotNull(destination.RepairTeamAssignedAt);
+        if (status == "Active") Assert.Equal(destination.RepairTeamAssignedAt, destination.ConfirmedAt);
+        Assert.All(destination.EventSubscriptions, x => Assert.False(x.IsEnabled));
+        Assert.True(await db.AuditLogs.AnyAsync(x => x.Action == "LineGroup.RepairMigratedToCentral"));
+    }
+
+    [Fact]
+    public async Task Legacy_repair_migration_rejects_stale_or_wrong_team_without_changes()
+    {
+        await using var db = Database();
+        var destination = new LineGroupDestination { LineGroupId = "C12345678901234567890123456789012", Module = "REPAIR_IT", Status = "Active" };
+        db.LineGroupDestinations.Add(destination);
+        await db.SaveChangesAsync();
+        var controller = Controller(db);
+        controller.ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() };
+        var masked = LineGroupRegistrationService.Mask(destination.LineGroupId);
+
+        Assert.IsType<ConflictObjectResult>((await controller.MigrateRepair(destination.Id,
+            new LineGroupRepairMigrationRequest(Guid.NewGuid(), "Active", destination.DisplayName, masked, "IT"), CancellationToken.None)).Result);
+        Assert.IsType<ConflictObjectResult>((await controller.MigrateRepair(destination.Id,
+            new LineGroupRepairMigrationRequest(destination.ConcurrencyToken, "Disabled", destination.DisplayName, masked, "IT"), CancellationToken.None)).Result);
+        Assert.IsType<ConflictObjectResult>((await controller.MigrateRepair(destination.Id,
+            new LineGroupRepairMigrationRequest(destination.ConcurrencyToken, "Active", destination.DisplayName, "wrong", "IT"), CancellationToken.None)).Result);
+        Assert.IsType<BadRequestObjectResult>((await controller.MigrateRepair(destination.Id,
+            new LineGroupRepairMigrationRequest(destination.ConcurrencyToken, "Active", destination.DisplayName, masked, "GENERAL"), CancellationToken.None)).Result);
+        Assert.Equal("REPAIR_IT", destination.Module);
+        Assert.Empty(db.AuditLogs);
+    }
+
+    [Fact]
+    public async Task Disabled_migrated_group_can_test_but_cannot_activate_or_subscribe_before_success()
+    {
+        await using var db = Database();
+        var destination = new LineGroupDestination { LineGroupId = "C12345678901234567890123456789012", Module = "REPAIR_GENERAL", Status = "Disabled" };
+        db.LineGroupDestinations.Add(destination);
+        await db.SaveChangesAsync();
+        var controller = Controller(db);
+        controller.ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() };
+        await controller.MigrateRepair(destination.Id, new LineGroupRepairMigrationRequest(destination.ConcurrencyToken, "Disabled", destination.DisplayName,
+            LineGroupRegistrationService.Mask(destination.LineGroupId), "GENERAL"), CancellationToken.None);
+        var events = new Dictionary<string, bool> { ["Repair.Submitted"] = true };
+        Assert.IsType<ConflictObjectResult>((await controller.Subscriptions(destination.Id, new LineGroupSubscriptionsRequest(destination.ConcurrencyToken, events), CancellationToken.None)).Result);
+        Assert.IsType<ConflictObjectResult>((await controller.Confirm(destination.Id, new LineGroupStateRequest(destination.ConcurrencyToken, null), CancellationToken.None)).Result);
+
+        Assert.NotNull((await controller.Test(destination.Id, new LineGroupTestRequest("ทดสอบแจ้งซ่อม"), CancellationToken.None)).Value);
+        Assert.Equal("Disabled", destination.Status);
+        Assert.NotNull((await controller.Subscriptions(destination.Id, new LineGroupSubscriptionsRequest(destination.ConcurrencyToken, events), CancellationToken.None)).Value);
+        Assert.Equal("Disabled", destination.Status);
+        Assert.NotNull((await controller.Confirm(destination.Id, new LineGroupStateRequest(destination.ConcurrencyToken, null), CancellationToken.None)).Value);
+        Assert.Equal("Active", destination.Status);
+    }
+
+    [Fact]
+    public async Task Failed_test_of_disabled_group_is_logged_and_does_not_enable_delivery()
+    {
+        await using var db = Database();
+        var destination = new LineGroupDestination { LineGroupId = "C12345678901234567890123456789012", Module = "CENTRAL", Status = "Disabled",
+            RepairTeamCode = "GENERAL", RepairTeamAssignedAt = DateTime.UtcNow.AddMinutes(-1) };
+        db.LineGroupDestinations.Add(destination);
+        await db.SaveChangesAsync();
+        var controller = new FleetLineGroupsController(db, new FailingGroupClient(), Options.Create(new LineGroupNotificationsOptions { Enabled = true }))
+        { ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() } };
+
+        var response = await controller.Test(destination.Id, new LineGroupTestRequest("ทดสอบกลุ่ม"), CancellationToken.None);
+
+        Assert.IsType<ObjectResult>(response.Result);
+        var log = await db.LineGroupDeliveryLogs.SingleAsync();
+        Assert.Equal("Failed", log.Status);
+        Assert.Equal("CUSTOM_ENDPOINT_NETWORK_ERROR", log.ErrorCode);
+        Assert.Equal("Disabled", destination.Status);
+    }
+
     [Fact]
     public async Task Leave_event_marks_destination_disabled_and_attention_required()
     {
@@ -208,5 +303,11 @@ public sealed class FleetLineGroupRegistrationTests
     {
         public Task<LineGroupPushResult> PushTextAsync(string groupId, string text, CancellationToken ct) =>
             Task.FromResult(new LineGroupPushResult(true, false, false, null, null));
+    }
+
+    private sealed class FailingGroupClient : ILineGroupPushClient
+    {
+        public Task<LineGroupPushResult> PushTextAsync(string groupId, string text, CancellationToken ct) =>
+            Task.FromResult(new LineGroupPushResult(false, true, false, "CUSTOM_ENDPOINT_NETWORK_ERROR", "temporary failure"));
     }
 }

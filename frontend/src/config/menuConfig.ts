@@ -119,6 +119,7 @@ export const navigationModules: NavigationModule[] = [
     moduleIcon: MeetingRoomOutlinedIcon,
     enabled: true,
     children: [
+      { label: "Dashboard ห้องประชุม", path: "/meeting-rooms/dashboard", icon: DashboardOutlinedIcon, permission: "MeetingRoom.Calendar.View" },
       { label: "ปฏิทินห้องประชุม", path: "/meeting-rooms/calendar", icon: CalendarMonthOutlinedIcon, permission: "MeetingRoom.Calendar.View" },
       { label: "รายการจองของฉัน", path: "/meeting-rooms/my-bookings", icon: EventAvailableOutlinedIcon, permission: "MeetingRoom.Booking.ViewOwn" },
       { label: "จองห้องประชุม", path: "/meeting-rooms/new", icon: MeetingRoomOutlinedIcon, permission: "MeetingRoom.Booking.Create" },

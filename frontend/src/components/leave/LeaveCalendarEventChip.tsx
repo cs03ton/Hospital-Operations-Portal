@@ -1,7 +1,6 @@
 import { Box, Chip, Stack, Typography } from "@mui/material";
-import { alpha } from "@mui/material/styles";
 import type { LeaveCalendarItem } from "../../api/leaveApi";
-import { getLeaveTypeWithDurationLabel, isHalfDayLeave } from "../../utils/leaveLabels";
+import { getLeaveTypeColor, getLeaveTypeWithDurationLabel, isHalfDayLeave } from "../../utils/leaveLabels";
 import { getLeaveStatus } from "./LeaveStatusLegend";
 
 type LeaveCalendarEventChipProps = {
@@ -19,9 +18,9 @@ export function LeaveCalendarEventChip({ item, compact = false }: LeaveCalendarE
         borderRadius: 1.5,
         px: 1,
         py: 0.75,
-        bgcolor: getStatusBackground(item.status, theme),
+        bgcolor: getLeaveTypeColor(item.leaveTypeName),
         border: "1px solid",
-        borderColor: status.color === "default" ? "divider" : `${status.color}.light`,
+        borderColor: getLeaveTypeColor(item.leaveTypeName),
         borderStyle: isHalfDay ? "dashed" : "solid",
         boxShadow: isHalfDay ? `inset 3px 0 0 ${theme.palette.warning.main}` : "none",
         overflow: "hidden",
@@ -40,19 +39,4 @@ export function LeaveCalendarEventChip({ item, compact = false }: LeaveCalendarE
       )}
     </Box>
   );
-}
-
-function getStatusBackground(status: string, theme: import("@mui/material/styles").Theme) {
-  switch (status) {
-    case "Approved":
-      return alpha(theme.palette.success.main, 0.08);
-    case "Pending":
-      return alpha(theme.palette.warning.main, 0.1);
-    case "Rejected":
-      return alpha(theme.palette.error.main, 0.07);
-    case "Cancelled":
-      return alpha(theme.palette.text.secondary, 0.06);
-    default:
-      return theme.palette.action.hover;
-  }
 }

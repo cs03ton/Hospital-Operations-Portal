@@ -88,23 +88,46 @@ export function getLeaveTypeColor(type?: string | null) {
   switch (normalized) {
     case "sick":
     case "sick_leave":
+    case "ลาป่วย":
       return "#DBEAFE";
     case "annual":
     case "vacation_leave":
+    case "annual leave":
+    case "vacation leave":
+    case "ลาพักผ่อน":
       return "#DCFCE7";
     case "personal":
     case "personal_leave":
+    case "ลากิจ":
+    case "ลากิจส่วนตัว":
       return "#FEF3C7";
     case "maternity":
     case "maternity_leave":
+    case "ลาคลอด":
+    case "ลาคลอดบุตร":
       return "#FCE7F3";
     case "ordination":
     case "ordination_leave":
+    case "ลาอุปสมบท":
+    case "ลาบวช":
       return "#EDE9FE";
     case "study":
     case "study_leave":
+    case "ลาศึกษาต่อ":
       return "#E0F2FE";
     default:
       return "#F1F5F9";
+  }
+}
+
+export function getLeaveTypeAccentColor(type?: string | null) {
+  switch (getLeaveTypeColor(type)) {
+    case "#DBEAFE": return "#3B82F6";
+    case "#DCFCE7": return "#22C55E";
+    case "#FEF3C7": return "#D97706";
+    case "#FCE7F3": return "#EC4899";
+    case "#EDE9FE": return "#8B5CF6";
+    case "#E0F2FE": return "#0284C7";
+    default: return "#64748B";
   }
 }

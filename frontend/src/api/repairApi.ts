@@ -6,7 +6,6 @@ export type RepairCategory = { id: string; name: string; teamCode: string; isAct
 export type RepairEvent = { id: string; round: number; actorId: string; action: string; fromStatus: string; toStatus: string; note: string; solverId?: string; priority?: string; createdAt: string };
 export type RepairDetail = { departmentName?: string; categoryName?: string; request: Repair; events: RepairEvent[]; people: { id: string; fullName: string }[]; contributors: { eventId: string; userId: string }[]; rounds: { id: string; number: number; startedAt: string; closedAt?: string; acceptedById?: string; acceptanceNote?: string }[]; waiting: { id: string; round: number; startedAt: string; endedAt?: string }[]; images: { id: string; eventId: string; createdAt: string }[]; actions: string[]; canUpload: boolean };
 export type RepairSummary = { generatedAtUtc: string; counts: { status: string; count: number }[]; teamPending: number };
-export type RepairGroup = { id: string; module: string; displayName: string; endpointUrl?: string; clientId?: string; status: string; concurrencyToken: string; hasSecret: boolean };
 export const repairWorkPermissions = ["RepairManagement.WorkIT", "RepairManagement.WorkGeneral", "RepairManagement.ViewAll"];
 export const repairViewPermissions = ["RepairManagement.ViewOwn", ...repairWorkPermissions];
 const unwrap = <T>(x: { data: ApiResponse<T> }) => x.data.data;
@@ -22,6 +21,5 @@ export async function repairUpload(id: string, token: string, files: File[]) {
   return unwrap(await httpClient.post<ApiResponse<{ concurrencyToken: string }>>(`/api/repairs/${id}/images`, data));
 }
 export async function repairImage(id: string) { return (await httpClient.get<Blob>(`/api/repairs/images/${id}`, { responseType: "blob" })).data; }
-export async function repairSettings() { return unwrap(await httpClient.get<ApiResponse<{ categories: RepairCategory[]; groups: RepairGroup[]; deliveries: { id: string; requestId: string; teamCode: string; status: string; attempts: number; errorCode?: string }[] }>>("/api/repairs/settings")); }
+export async function repairSettings() { return unwrap(await httpClient.get<ApiResponse<{ categories: RepairCategory[]; deliveries: { id: string; requestId: string; teamCode: string; status: string; attempts: number; errorCode?: string }[] }>>("/api/repairs/settings")); }
 export async function saveRepairCategory(data: Partial<RepairCategory>) { return httpClient.post("/api/repairs/settings/categories", data); }
-export async function saveRepairGroup(team: string, data: { displayName: string; endpointUrl: string; clientId: string; clientSecret?: string; enabled: boolean; concurrencyToken: string }) { return httpClient.put(`/api/repairs/settings/groups/${team}`, data); }

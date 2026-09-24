@@ -440,6 +440,27 @@ internal static class FleetModelConfiguration
         {
             entity.ToTable("fleet_emergency_post_reviews", t=>t.HasCheckConstraint("ck_fleet_emergency_review_outcome", "outcome IN ('ACCEPTABLE','NEEDS_IMPROVEMENT','POLICY_VIOLATION')")); entity.Property(x=>x.Id).HasColumnName("id"); entity.Property(x=>x.FleetRequestId).HasColumnName("fleet_request_id"); entity.Property(x=>x.ReviewedByUserId).HasColumnName("reviewed_by_user_id"); entity.Property(x=>x.ReviewedAt).HasColumnName("reviewed_at"); entity.Property(x=>x.Outcome).HasColumnName("outcome").HasMaxLength(40); entity.Property(x=>x.WasBypassAppropriate).HasColumnName("was_bypass_appropriate"); entity.Property(x=>x.ResponseTimeAssessment).HasColumnName("response_time_assessment").HasMaxLength(2000); entity.Property(x=>x.SafetyIssues).HasColumnName("safety_issues").HasMaxLength(4000); entity.Property(x=>x.FollowUpActions).HasColumnName("follow_up_actions").HasMaxLength(4000); entity.Property(x=>x.Notes).HasColumnName("notes").HasMaxLength(4000); entity.Property(x=>x.ConcurrencyToken).HasColumnName("concurrency_token").IsConcurrencyToken(); entity.Property(x=>x.CreatedAt).HasColumnName("created_at"); entity.HasIndex(x=>x.FleetRequestId).IsUnique();entity.HasOne(x=>x.FleetRequest).WithMany().HasForeignKey(x=>x.FleetRequestId).OnDelete(DeleteBehavior.Restrict);entity.HasOne(x=>x.ReviewedByUser).WithMany().HasForeignKey(x=>x.ReviewedByUserId).OnDelete(DeleteBehavior.Restrict);
         });
+        modelBuilder.Entity<FleetRequestAttachment>(entity =>
+        {
+            entity.ToTable("fleet_request_attachments", t => t.HasCheckConstraint("ck_fleet_request_attachment_size", "file_size > 0 AND file_size <= 5242880"));
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Id).HasColumnName("id");
+            entity.Property(x => x.FleetRequestId).HasColumnName("fleet_request_id");
+            entity.Property(x => x.UploadedByUserId).HasColumnName("uploaded_by_user_id");
+            entity.Property(x => x.OriginalFileName).HasColumnName("original_file_name").HasMaxLength(260);
+            entity.Property(x => x.StoredPath).HasColumnName("stored_path").HasMaxLength(1000);
+            entity.Property(x => x.ContentType).HasColumnName("content_type").HasMaxLength(100);
+            entity.Property(x => x.FileSize).HasColumnName("file_size");
+            entity.Property(x => x.CreatedAt).HasColumnName("created_at");
+            entity.Property(x => x.IsDeleted).HasColumnName("is_deleted");
+            entity.Property(x => x.DeletedAt).HasColumnName("deleted_at");
+            entity.Property(x => x.DeletedByUserId).HasColumnName("deleted_by_user_id");
+            entity.HasIndex(x => new { x.FleetRequestId, x.IsDeleted });
+            entity.HasOne<FleetRequest>().WithMany().HasForeignKey(x => x.FleetRequestId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<User>().WithMany().HasForeignKey(x => x.UploadedByUserId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<User>().WithMany().HasForeignKey(x => x.DeletedByUserId).OnDelete(DeleteBehavior.Restrict);
+        });
+
         modelBuilder.Entity<FleetTripAttachment>(entity =>
         {
             entity.Property(x=>x.IsDeleted).HasColumnName("is_deleted");

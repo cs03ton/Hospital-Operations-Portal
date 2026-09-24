@@ -88,7 +88,6 @@ export function LeaveCalendarToolbar({
               <MenuItem value="Pending">รออนุมัติ</MenuItem>
               <MenuItem value="Approved">อนุมัติแล้ว</MenuItem>
               <MenuItem value="Rejected">ไม่อนุมัติ</MenuItem>
-              <MenuItem value="Cancelled">ยกเลิก</MenuItem>
             </TextField>
           </Grid>
         </Grid>

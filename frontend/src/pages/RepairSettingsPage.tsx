@@ -2,11 +2,7 @@ import { useState } from "react";
 import { Link as RouterLink } from "react-router-dom";
 import AddOutlinedIcon from "@mui/icons-material/AddOutlined";
 import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
-import SettingsOutlinedIcon from "@mui/icons-material/SettingsOutlined";
-import NotificationsActiveOutlinedIcon from "@mui/icons-material/NotificationsActiveOutlined";
 import CategoryOutlinedIcon from "@mui/icons-material/CategoryOutlined";
-import GroupsOutlinedIcon from "@mui/icons-material/GroupsOutlined";
-import HistoryOutlinedIcon from "@mui/icons-material/HistoryOutlined";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Alert,
@@ -23,8 +19,6 @@ import {
   Skeleton,
   TextField,
   Typography,
-  Tabs,
-  Tab,
   Card,
   CardContent,
   Chip,
@@ -46,22 +40,13 @@ import { EmptyState } from "../components/common/EmptyState";
 import { PageToolbar } from "../components/common/PageToolbar";
 import { ListPagination } from "../components/common/ListPagination";
 import { RepairRefresh, RepairUpdating } from "../components/repairs/RepairUi";
-import {
-  repairTeamLabel,
-  repairDeliveryLabels,
-} from "../utils/repairPresentation";
-import { extractApiErrorMessage } from "../utils/apiError";
+import { repairTeamLabel } from "../utils/repairPresentation";
 import { brandColors } from "../theme/theme";
-
-const settingTabs = [
-  { label: "ประเภทงาน", icon: <CategoryOutlinedIcon /> },
-  { label: "กลุ่มแจ้งเตือน", icon: <GroupsOutlinedIcon /> },
-  { label: "ผลส่งแจ้งเตือน", icon: <HistoryOutlinedIcon /> },
-];
+import { usePermission } from "../context/PermissionContext";
 
 export function RepairSettingsPage() {
+  const { hasPermission } = usePermission();
   const desktop = useMediaQuery(useTheme().breakpoints.up("md"));
-  const [tab, setTab] = useState(0);
   const [search, setSearch] = useState("");
   const [team, setTeam] = useState("");
   const [active, setActive] = useState("");
@@ -91,28 +76,10 @@ export function RepairSettingsPage() {
   const [category, setCategory] = useState<Partial<api.RepairCategory> | null>(
     null,
   );
-  const [group, setGroup] = useState<api.RepairGroup | null>(null);
-  const [secret, setSecret] = useState("");
   const saveCategory = useMutation({
     mutationFn: () => api.saveRepairCategory(category!),
     onSuccess: () => {
       setCategory(null);
-      void qc.invalidateQueries({ queryKey: ["repairs"] });
-    },
-  });
-  const saveGroup = useMutation({
-    mutationFn: () =>
-      api.saveRepairGroup(group!.module.replace("REPAIR_", ""), {
-        displayName: group!.displayName,
-        endpointUrl: group!.endpointUrl ?? "",
-        clientId: group!.clientId ?? "",
-        clientSecret: secret || undefined,
-        enabled: group!.status === "Active",
-        concurrencyToken: group!.concurrencyToken,
-      }),
-    onSuccess: () => {
-      setGroup(null);
-      setSecret("");
       void qc.invalidateQueries({ queryKey: ["repairs"] });
     },
   });
@@ -121,21 +88,6 @@ export function RepairSettingsPage() {
       size="small"
       label={enabled ? "เปิดใช้งาน" : "ปิดใช้งาน"}
       color={enabled ? "success" : "default"}
-    />
-  );
-  const deliveryBadge = (status: string) => (
-    <Chip
-      size="small"
-      label={repairDeliveryLabels[status] ?? status}
-      color={
-        status === "Sent"
-          ? "success"
-          : status === "Attention"
-            ? "error"
-            : status === "Superseded"
-              ? "default"
-              : "info"
-      }
     />
   );
   const editCategory = (c: api.RepairCategory) => (
@@ -152,24 +104,13 @@ export function RepairSettingsPage() {
       </IconButton>
     </Tooltip>
   );
-  let validEndpoint = false;
-  try {
-    const url = new URL(group?.endpointUrl ?? "");
-    validEndpoint = url.protocol === "https:" && !url.username && !url.password;
-  } catch {
-    /* Incomplete URL while editing. */
-  }
-  const groupInvalid =
-    !group?.displayName.trim() ||
-    !group.clientId?.trim() ||
-    !validEndpoint ||
-    (!group.hasSecret && !secret.trim());
   return (
     <Stack spacing={3} sx={{ minWidth: 0, maxWidth: 1440, mx: "auto" }}>
       <PageHeader
         title="ตั้งค่าระบบแจ้งซ่อม"
-        subtitle="หมวดงานและปลายทางแจ้งเตือน IT / ช่างทั่วไป"
+        subtitle="จัดการประเภทงานแจ้งซ่อม"
       />
+      {(hasPermission("LineGroup.View") || hasPermission("LineGroup.Manage")) && <Button component={RouterLink} to="/admin/line-groups" variant="outlined" sx={{ alignSelf: "flex-start" }}>จัดการกลุ่มแจ้งเตือนส่วนกลาง</Button>}
       <RepairUpdating busy={query.isFetching} />
       {query.isLoading && (
         <Stack aria-label="กำลังโหลดการตั้งค่า" spacing={1}>
@@ -193,53 +134,9 @@ export function RepairSettingsPage() {
           boxShadow: "0 4px 14px rgba(111, 85, 57, 0.07)",
         }}
       >
-        <Tabs
-          value={tab}
-          onChange={(_, value: number) => setTab(value)}
-          variant="scrollable"
-          scrollButtons="auto"
-          allowScrollButtonsMobile
-          aria-label="ตั้งค่าระบบแจ้งซ่อม"
-          sx={{
-            minWidth: 0,
-            flex: 1,
-            minHeight: 48,
-            "& .MuiTabs-indicator": {
-              height: 3,
-              borderRadius: "3px 3px 0 0",
-              bgcolor: brandColors.accent,
-            },
-            "& .MuiTab-root": {
-              minHeight: 48,
-              minWidth: { xs: 150, sm: 170 },
-              borderRadius: 1,
-              color: "text.secondary",
-              fontWeight: 700,
-              transition: "background-color 160ms ease, color 160ms ease",
-            },
-            "& .MuiTab-root:hover": {
-              bgcolor: "rgba(200, 169, 107, 0.16)",
-              color: "primary.main",
-            },
-            "& .MuiTab-root.Mui-selected": {
-              bgcolor: "primary.main",
-              color: "primary.contrastText",
-            },
-          }}
-        >
-          {settingTabs.map(
-            (item, index) => (
-              <Tab
-                key={item.label}
-                label={item.label}
-                icon={item.icon}
-                iconPosition="start"
-                id={`repair-tab-${index}`}
-                aria-controls={`repair-panel-${index}`}
-              />
-            ),
-          )}
-        </Tabs>
+        <Stack direction="row" alignItems="center" gap={1} sx={{ flex: 1, px: 1, fontWeight: 700, color: "primary.main" }}>
+          <CategoryOutlinedIcon /> ประเภทงาน
+        </Stack>
         <RepairRefresh
           busy={query.isFetching}
           onClick={() => {
@@ -247,13 +144,8 @@ export function RepairSettingsPage() {
           }}
         />
       </Stack>
-      <Box
-        role="tabpanel"
-        id={`repair-panel-${tab}`}
-        aria-labelledby={`repair-tab-${tab}`}
-        sx={{ minWidth: 0 }}
-      >
-        {tab === 0 && (
+      <Box sx={{ minWidth: 0 }}>
+        {(
           <Stack spacing={2}>
             <PageToolbar>
               <Stack
@@ -405,157 +297,6 @@ export function RepairSettingsPage() {
             )}
           </Stack>
         )}
-        {tab === 1 && (
-          <Box
-            sx={{
-              display: "grid",
-              gridTemplateColumns: {
-                xs: "minmax(0,1fr)",
-                md: "repeat(2,minmax(0,1fr))",
-              },
-              gap: 2,
-            }}
-          >
-            {query.data?.groups.length === 0 && (
-              <EmptyState title="ยังไม่มีปลายทางแจ้งเตือน" />
-            )}
-            {query.data?.groups.map((g) => (
-              <Card
-                key={g.id}
-                sx={{
-                  borderRadius: 2,
-                  borderTop: 4,
-                  borderTopColor: "primary.main",
-                }}
-              >
-                <CardContent>
-                  <Stack spacing={2}>
-                    <Stack direction="row" alignItems="center" gap={1}>
-                      <NotificationsActiveOutlinedIcon color="primary" />
-                      <Typography variant="h6">
-                        {repairTeamLabel(g.module.replace("REPAIR_", ""))}
-                      </Typography>
-                    </Stack>
-                    <Typography
-                      fontWeight={700}
-                      sx={{ overflowWrap: "anywhere" }}
-                    >
-                      {g.displayName}
-                    </Typography>
-                    <Stack direction="row" flexWrap="wrap" useFlexGap gap={1}>
-                      {activeBadge(g.status === "Active")}
-                      <Chip
-                        size="small"
-                        variant="outlined"
-                        color={g.hasSecret ? "success" : "warning"}
-                        label={
-                          g.hasSecret
-                            ? "ตั้งค่า credentials แล้ว"
-                            : "ยังไม่มี credentials"
-                        }
-                      />
-                    </Stack>
-                    <Button
-                      variant="outlined"
-                      startIcon={<SettingsOutlinedIcon />}
-                      onClick={() => {
-                        setGroup({ ...g });
-                        setSecret("");
-                        saveGroup.reset();
-                      }}
-                    >
-                      ตั้งค่าปลายทาง
-                    </Button>
-                  </Stack>
-                </CardContent>
-              </Card>
-            ))}
-          </Box>
-        )}
-        {tab === 2 && (
-          <Stack spacing={2}>
-            <Typography variant="h6">ผลส่งแจ้งเตือนล่าสุด</Typography>
-            {query.data?.deliveries.length === 0 && (
-              <EmptyState title="ยังไม่มีรายการส่ง" />
-            )}
-            {desktop && !!query.data?.deliveries.length ? (
-              <DataTableCard minTableWidth={650}>
-                <TableHead>
-                  <TableRow>
-                    {[
-                      "ทีม",
-                      "สถานะ",
-                      "จำนวนครั้ง",
-                      "รหัสข้อผิดพลาด",
-                      "ใบงาน",
-                    ].map((label) => (
-                      <TableCell key={label}>{label}</TableCell>
-                    ))}
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {query.data.deliveries.map((d) => (
-                    <TableRow key={d.id}>
-                      <TableCell>{repairTeamLabel(d.teamCode)}</TableCell>
-                      <TableCell>{deliveryBadge(d.status)}</TableCell>
-                      <TableCell>{d.attempts}</TableCell>
-                      <TableCell
-                        sx={{ maxWidth: 300, overflowWrap: "anywhere" }}
-                      >
-                        {d.errorCode || "-"}
-                      </TableCell>
-                      <TableCell>
-                        <Button
-                          component={RouterLink}
-                          to={`/repairs/${d.requestId}`}
-                        >
-                          ดูใบงาน
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </DataTableCard>
-            ) : (
-              !desktop &&
-              query.data?.deliveries.map((d) => (
-                <Card key={d.id} sx={{ borderRadius: 2 }}>
-                  <CardContent>
-                    <Stack spacing={1}>
-                      <Stack
-                        direction="row"
-                        gap={1}
-                        flexWrap="wrap"
-                        useFlexGap
-                        justifyContent="space-between"
-                      >
-                        <Typography fontWeight={700}>
-                          {repairTeamLabel(d.teamCode)}
-                        </Typography>
-                        {deliveryBadge(d.status)}
-                      </Stack>
-                      <Typography variant="body2">
-                        จำนวนครั้ง: {d.attempts}
-                      </Typography>
-                      <Typography
-                        variant="body2"
-                        sx={{ overflowWrap: "anywhere" }}
-                      >
-                        รหัสข้อผิดพลาด: {d.errorCode || "-"}
-                      </Typography>
-                      <Button
-                        component={RouterLink}
-                        to={`/repairs/${d.requestId}`}
-                      >
-                        ดูใบงาน
-                      </Button>
-                    </Stack>
-                  </CardContent>
-                </Card>
-              ))
-            )}
-          </Stack>
-        )}
       </Box>
       <Dialog
         open={!!category}
@@ -635,120 +376,6 @@ export function RepairSettingsPage() {
             disabled={saveCategory.isPending || !category?.name?.trim()}
             variant="contained"
             onClick={() => saveCategory.mutate()}
-          >
-            บันทึก
-          </Button>
-        </DialogActions>
-      </Dialog>
-      <Dialog
-        open={!!group}
-        onClose={() => {
-          if (!saveGroup.isPending) setGroup(null);
-        }}
-        fullWidth
-        maxWidth="sm"
-      >
-        <DialogTitle>ปลายทางหมอพร้อม</DialogTitle>
-        <DialogContent>
-          <Stack spacing={2} sx={{ pt: 1 }}>
-            {saveGroup.isError && (
-              <Alert severity="error">
-                {extractApiErrorMessage(
-                  saveGroup.error,
-                  "บันทึกไม่สำเร็จ กรุณาตรวจสอบข้อมูลแล้วลองใหม่",
-                )}
-              </Alert>
-            )}
-            {saveGroup.isError && group && (
-              <Button
-                onClick={async () => {
-                  const latest = await query.refetch();
-                  const row = latest.data?.groups.find(
-                    (g) => g.id === group.id,
-                  );
-                  if (row && !latest.isError) {
-                    setGroup({
-                      ...group,
-                      concurrencyToken: row.concurrencyToken,
-                    });
-                    saveGroup.reset();
-                  }
-                }}
-              >
-                โหลดข้อมูลล่าสุดโดยคงข้อความ
-              </Button>
-            )}
-            <TextField
-              label="ชื่อกลุ่ม"
-              required
-              inputProps={{ maxLength: 100 }}
-              value={group?.displayName ?? ""}
-              onChange={(e) =>
-                group && setGroup({ ...group, displayName: e.target.value })
-              }
-            />
-            <TextField
-              label="Endpoint URL"
-              required
-              error={!!group?.endpointUrl && !validEndpoint}
-              helperText="ใช้ HTTPS และ host ที่ผู้ดูแลอนุญาต"
-              inputProps={{ maxLength: 1000 }}
-              value={group?.endpointUrl ?? ""}
-              onChange={(e) =>
-                group && setGroup({ ...group, endpointUrl: e.target.value })
-              }
-            />
-            <TextField
-              label="Client ID"
-              required
-              inputProps={{ maxLength: 300 }}
-              value={group?.clientId ?? ""}
-              onChange={(e) =>
-                group && setGroup({ ...group, clientId: e.target.value })
-              }
-            />
-            <TextField
-              label="Client Secret"
-              helperText={
-                group?.hasSecret
-                  ? "เว้นว่างเพื่อคงค่าเดิม"
-                  : "กรอกข้อมูลเชื่อมต่อก่อนเปิดใช้งาน"
-              }
-              type="password"
-              required={!group?.hasSecret}
-              inputProps={{ maxLength: 2000 }}
-              autoComplete="new-password"
-              value={secret}
-              onChange={(e) => setSecret(e.target.value)}
-            />
-            <FormControlLabel
-              label="เปิดส่งแจ้งเตือน"
-              control={
-                <Checkbox
-                  checked={group?.status === "Active"}
-                  onChange={(_, v) =>
-                    group &&
-                    setGroup({ ...group, status: v ? "Active" : "Disabled" })
-                  }
-                />
-              }
-            />
-          </Stack>
-        </DialogContent>
-        <DialogActions>
-          <Button
-            disabled={saveGroup.isPending}
-            onClick={() => {
-              setGroup(null);
-              setSecret("");
-            }}
-          >
-            กลับ
-          </Button>
-          <Button
-            disabled={saveGroup.isPending || groupInvalid}
-            variant="contained"
-            onClick={() => saveGroup.mutate()}
           >
             บันทึก
           </Button>

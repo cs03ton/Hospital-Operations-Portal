@@ -22,9 +22,9 @@ public sealed class DocumentationService(
 
     private static readonly IReadOnlyList<DocumentationDefinition> Definitions =
     [
-        new("repair-guide", "repairs.md", "คู่มือแจ้งซ่อม IT และช่างทั่วไป", "แจ้งซ่อม คิวทีม ตรวจรับ เปิดงานซ้ำ และตั้งค่าหมอพร้อม", "Repair Guide", ["Staff", "DepartmentHead", "Director", "Admin", "SuperAdmin", "LeaveAdmin", "FleetAdminReviewer", "พนักงานขับรถ", "ช่าง IT", "ช่างทั่วไป"]),
-        new("meeting-room-guide", "meeting-room.md", "คู่มือจองห้องประชุม", "ดูปฏิทิน ตรวจสอบห้องว่าง สร้างรายการจอง ติดตามสถานะ และดูไฟล์แนบ", "Meeting Room Guide", ["Staff", "DepartmentHead", "Director", "LeaveAdmin", "Admin", "SuperAdmin", "FleetAdminReviewer", "พนักงานขับรถ", "ช่าง IT", "ช่างทั่วไป"]),
-        new("meeting-room-admin-guide", "meeting-room-admin.md", "คู่มือผู้ดูแลระบบจองห้องประชุม", "จัดการรายการจอง ทะเบียนห้อง การยกเลิก การแจ้งเตือน และ Audit", "Meeting Room Admin Guide", ["Admin", "SuperAdmin"]),
+        new("repair-guide", "repairs.md", "คู่มือแจ้งซ่อม IT และช่างทั่วไป", "แจ้งซ่อม คิวทีม ตรวจรับ เปิดงานซ้ำ และแจ้งเตือนผ่านกลุ่มส่วนกลาง", "Repair Guide", ["Staff", "DepartmentHead", "Director", "Admin", "SuperAdmin", "LeaveAdmin", "FleetAdminReviewer", "พนักงานขับรถ", "ช่าง IT", "ช่างทั่วไป"]),
+        new("meeting-room-guide", "meeting-room.md", "คู่มือจองห้องประชุม", "ดู Dashboard ปฏิทิน ห้องว่าง ผู้เข้าประชุม และรายการจอง", "Meeting Room Guide", ["Staff", "DepartmentHead", "Director", "LeaveAdmin", "Admin", "SuperAdmin", "FleetAdminReviewer", "พนักงานขับรถ", "ช่าง IT", "ช่างทั่วไป"]),
+        new("meeting-room-admin-guide", "meeting-room-admin.md", "คู่มือผู้ดูแลระบบจองห้องประชุม", "จัดการรายการจอง ทะเบียนและรูปห้อง การยกเลิก และ Audit", "Meeting Room Admin Guide", ["Admin", "SuperAdmin"]),
         new("staff-guide", "staff.md", "คู่มือผู้ใช้งานทั่วไป", "วิธีเข้าสู่ระบบ ขอลา ติดตามสถานะ และเชื่อมต่อ LINE", "User Guide", ["Staff", "DepartmentHead", "Director", "Admin", "SuperAdmin"]),
         new("head-guide", "head.md", "คู่มือหัวหน้าหน่วยงาน", "วิธีดูงานรออนุมัติ ตรวจคำขอ และอนุมัติ/ไม่อนุมัติ", "Approval Guide", ["DepartmentHead", "Admin", "SuperAdmin"]),
         new("director-guide", "director.md", "คู่มือผู้อำนวยการ/ผู้อนุมัติ", "งานอนุมัติขั้นสุดท้าย Executive Dashboard และ Leave Analytics", "Executive Guide", ["Director", "Admin", "SuperAdmin"]),
@@ -35,10 +35,10 @@ public sealed class DocumentationService(
         new("fleet-reviewer-guide", "fleet-reviewer.md", "คู่มือหัวหน้าฝ่ายบริหารตรวจคำขอรถ", "ตรวจรายละเอียดหลังจัดรถ อนุมัติส่งต่อ ส่งกลับ หรือไม่อนุมัติ", "Fleet Guide", ["FleetAdminReviewer", "Admin", "SuperAdmin"]),
         new("fleet-director-guide", "fleet-director.md", "คู่มือผู้อำนวยการอนุมัติคำขอรถ", "ตรวจคำขอขั้นสุดท้าย อนุมัติ ส่งกลับ และดูรายงาน Fleet", "Fleet Guide", ["Director", "Admin", "SuperAdmin"]),
         new("fleet-driver-guide", "fleet-driver.md", "คู่มือพนักงานขับรถ", "รับทราบงาน เริ่มเดินทาง บันทึกเลขไมล์ และปิดทริป", "Fleet Guide", ["พนักงานขับรถ", "Admin", "SuperAdmin"]),
-        new("fleet-admin-guide", "fleet-admin.md", "คู่มือผู้ดูแลระบบรถ", "ตั้งค่ารถ คนขับ สิทธิ์ LINE Group การบำรุงรักษา และติดตามระบบ", "Fleet Admin Guide", ["Admin", "SuperAdmin"]),
-        new("fleet-line-group-admin-guide", "fleet-line-group-admin.md", "คู่มือผู้ดูแล LINE Group สำหรับ Fleet", "ยืนยันกลุ่ม ตั้งค่าเหตุการณ์ ทดสอบส่ง และตรวจ Delivery Log", "Fleet Admin Guide", ["Admin", "SuperAdmin"]),
+        new("fleet-admin-guide", "fleet-admin.md", "คู่มือผู้ดูแลระบบรถ", "ตั้งค่ารถ คนขับ ใบขับขี่ กลุ่มแจ้งเตือนส่วนกลาง และติดตามระบบ", "Fleet Admin Guide", ["Admin", "SuperAdmin"]),
+        new("fleet-line-group-admin-guide", "fleet-line-group-admin.md", "คู่มือผู้ดูแลกลุ่มแจ้งเตือนส่วนกลาง", "ยืนยันกลุ่ม ตั้งค่าเหตุการณ์ แยกกลุ่มเดิม ทดสอบส่ง และตรวจ Delivery Log", "Fleet Admin Guide", ["Admin", "SuperAdmin"]),
         new("faq", "faq.md", "FAQ", "คำถามที่พบบ่อยและแนวทางแก้ไขเบื้องต้น", "FAQ", ["Staff", "DepartmentHead", "Director", "Admin", "SuperAdmin"]),
-        new("release-notes", "release-notes.md", "Release Notes", "สรุปความสามารถของ HOP Phase 1 และ Phase 1.5", "Release Notes", ["Admin", "SuperAdmin"])
+        new("release-notes", "release-notes.md", "Release Notes", "สรุปความสามารถของ HOP และอัปเดตการใช้งานปัจจุบัน", "Release Notes", ["Admin", "SuperAdmin"])
     ];
 
     public async Task<IReadOnlyList<DocumentationSummaryResponse>> GetDocumentsAsync(

@@ -8,6 +8,9 @@ public class MeetingRoom
     public string Location { get; set; } = "";
     public int Capacity { get; set; }
     public bool IsActive { get; set; } = true;
+    public string? PhotoPath { get; set; }
+    public string? PhotoContentType { get; set; }
+    public DateTime? PhotoUpdatedAt { get; set; }
     public Guid ConcurrencyToken { get; set; } = Guid.NewGuid();
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? UpdatedAt { get; set; }
@@ -46,6 +49,13 @@ public class MeetingRoomBookingHistory
     public string ToStatus { get; set; } = "";
     public string? Detail { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+}
+
+public class MeetingRoomBookingAttendee
+{
+    public Guid BookingId { get; set; }
+    public Guid UserId { get; set; }
+    public bool IsBooker { get; set; }
 }
 
 public class MeetingRoomAttachment

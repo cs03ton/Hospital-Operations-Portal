@@ -33,6 +33,7 @@ import { RepairListPage, RepairCreatePage, RepairDetailPage } from "../pages/Rep
 import { RepairDashboardPage } from "../pages/RepairDashboardPage";
 import { RepairSettingsPage } from "../pages/RepairSettingsPage";
 import { MeetingRoomBookingsPage, MeetingRoomCalendarPage, MeetingRoomCreatePage, MeetingRoomDetailPage, MeetingRoomManagePage } from "../pages/MeetingRoomPages";
+import { MeetingRoomDashboardPage } from "../pages/MeetingRoomDashboardPage";
 import { repairViewPermissions } from "../api/repairApi";
 import { FleetRequestFormPage } from "../pages/FleetRequestFormPage";
 import { FleetRequestDetailPage } from "../pages/FleetRequestDetailPage";
@@ -61,8 +62,9 @@ import { FleetFeedbackPage } from "../pages/FleetFeedbackPage";
 import { FleetRequestCapabilitiesPage } from "../pages/FleetRequestCapabilitiesPage";
 import { FleetRolloutGuard } from "./FleetRolloutGuard";
 import { FleetPermissionGuard } from "./FleetPermissionGuard";
-import { FleetApprovalsLandingPage, FleetReportsLandingPage, FleetSettingsLandingPage } from "../pages/FleetModuleLandingPages";
+import { FleetApprovalsLandingPage, FleetReportsLandingPage } from "../pages/FleetModuleLandingPages";
 import { fleetPermissionGroups } from "../config/fleetNavigation";
+import { FleetSettingsPage } from "../pages/FleetSettingsPage";
 import { LeaveRequestFormPage } from "../pages/LeaveRequestFormPage";
 import { LeaveCancellationCreatePage } from "../pages/LeaveCancellationCreatePage";
 import { LeaveCancellationDetailPage } from "../pages/LeaveCancellationDetailPage";
@@ -268,12 +270,13 @@ export function AppRoutes() {
           <Route path="/fleet/requests/review" element={withFleetRollout(withAnyPermission(<FleetDispatcherQueuePage />, [...fleetPermissionGroups.dispatcher]))} />
           <Route path="/fleet/approvals" element={withFleetRollout(withFleetPermission(<FleetApprovalsLandingPage />, [...fleetPermissionGroups.reviewer, ...fleetPermissionGroups.director]))} />
           <Route path="/fleet/reports" element={withFleetRollout(withAnyPermission(<FleetReportsLandingPage />, [...fleetPermissionGroups.reports]))} />
-          <Route path="/fleet/settings" element={withFleetRollout(withAnyPermission(<FleetSettingsLandingPage />, [...fleetPermissionGroups.settings]))} />
+          <Route path="/fleet/settings" element={withFleetRollout(withAnyPermission(<FleetSettingsPage />, [...fleetPermissionGroups.settings]))} />
           <Route path="/repairs" element={<PermissionGuard permissions={repairViewPermissions} redirectTo="/dashboard"><RepairListPage /></PermissionGuard>} />
           <Route path="/repairs/new" element={withPermission(<RepairCreatePage />, "RepairManagement.Create")} />
           <Route path="/repairs/settings" element={withPermission(<RepairSettingsPage />, "RepairManagement.Manage")} />
           <Route path="/repairs/:id" element={<PermissionGuard permissions={repairViewPermissions} redirectTo="/dashboard"><RepairDetailPage /></PermissionGuard>} />
-          <Route path="/meeting-rooms" element={<Navigate to="/meeting-rooms/calendar" replace />} />
+          <Route path="/meeting-rooms" element={<Navigate to="/meeting-rooms/dashboard" replace />} />
+          <Route path="/meeting-rooms/dashboard" element={withPermission(<MeetingRoomDashboardPage />, "MeetingRoom.Calendar.View")} />
           <Route path="/meeting-rooms/calendar" element={withPermission(<MeetingRoomCalendarPage />, "MeetingRoom.Calendar.View")} />
           <Route path="/meeting-rooms/my-bookings" element={withPermission(<MeetingRoomBookingsPage />, "MeetingRoom.Booking.ViewOwn")} />
           <Route path="/meeting-rooms/new" element={withPermission(<MeetingRoomCreatePage />, "MeetingRoom.Booking.Create")} />
@@ -298,7 +301,7 @@ export function AppRoutes() {
           <Route path="/fleet/emergency/:id/post-review" element={withFleetRollout(withPermission(<FleetEmergencyPostReviewPage />, "FleetEmergency.Review"))} />
             <Route path="/fleet/driver/trips/:id/action" element={withFleetRollout(withAnyPermission(<FleetDriverTripPage />, ["FleetDriver.ViewOwnJobs", "FleetDriver.ViewJobs", "FleetTrip.Start", "FleetTrip.Complete", "FleetDriver.Start", "FleetDriver.Complete", "FleetDriver.StartTrip", "FleetDriver.CompleteTrip"]))} />
           <Route path="/fleet/health" element={withFleetRollout(withAnyPermission(<FleetHealthPage />, ["FleetHealth.View", "FleetHealth.Manage"]))} />
-          <Route path="/fleet/admin/line-groups" element={withFleetRollout(withAnyPermission(<FleetLineGroupsPage />, ["FleetLineGroup.View", "FleetLineGroup.Manage"]))} />
+          <Route path="/fleet/admin/line-groups" element={<Navigate to="/admin/line-groups" replace />} />
           <Route path="/admin/line-groups" element={withAnyPermission(<FleetLineGroupsPage />, ["LineGroup.View", "LineGroup.Manage"])} />
           <Route path="/reports/leaves" element={withAnyPermissionOrRole(<LeaveReportsPage />, ["ReportManagement.View", "LeaveAnalytics.View"], ["Director", "Admin", "SuperAdmin"])} />
           <Route path="/reports/leave-analytics" element={withAnyPermissionOrRole(<LeaveAnalyticsPage />, ["LeaveAnalytics.View", "ReportManagement.View"], ["Director", "Admin", "SuperAdmin"])} />

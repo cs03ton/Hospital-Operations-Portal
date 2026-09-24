@@ -102,12 +102,14 @@ public sealed class RepairsController(AppDbContext db, IDomainEventPublisher eve
         var category = await db.Set<RepairCategory>().SingleOrDefaultAsync(x => x.Id == input.CategoryId && x.IsActive, ct);
         if (category is null) return BadRequest(ApiResponse<object>.Fail("กรุณาเลือกประเภทที่เปิดใช้งาน"));
         var user = await db.Users.AsNoTracking().SingleAsync(x => x.Id == Actor, ct);
+        if (string.IsNullOrWhiteSpace(user.PhoneNumber))
+            return BadRequest(ApiResponse<object>.Fail("กรุณาเพิ่มเบอร์โทรในข้อมูลส่วนตัวก่อนแจ้งซ่อม"));
         var r = new RepairRequest { RequesterId = Actor, DepartmentId = user.DepartmentId, CategoryId = category.Id, TeamCode = category.TeamCode };
         Apply(r, input);
+        r.Contact = RequesterContact(user);
         db.Add(r);
         db.Add(new RepairRound { RequestId = r.Id, Number = 1 });
         var e = Event(r, "submit", "", $"ส่งแจ้งซ่อม · {category.Name} · ทีม {r.TeamCode}");
-        Dispatch(r, e);
         await PublishRepair(e, r, ct);
         await db.SaveChangesAsync(ct);
         return Ok(OkData(r));
@@ -131,7 +133,11 @@ public sealed class RepairsController(AppDbContext db, IDomainEventPublisher eve
             if (input.Request is null) return BadRequest(ApiResponse<object>.Fail("กรุณาระบุข้อมูลแจ้งซ่อม"));
             var category = await db.Set<RepairCategory>().SingleOrDefaultAsync(x => x.Id == input.Request.CategoryId && x.IsActive, ct);
             if (category is null) return BadRequest(ApiResponse<object>.Fail("ประเภทไม่พร้อมใช้งาน"));
-            Apply(r, input.Request); r.CategoryId = category.Id; r.TeamCode = category.TeamCode; r.Priority = null;
+            var requester = await db.Users.AsNoTracking().SingleAsync(x => x.Id == r.RequesterId, ct);
+            if (string.IsNullOrWhiteSpace(requester.PhoneNumber))
+                return BadRequest(ApiResponse<object>.Fail("กรุณาเพิ่มเบอร์โทรในข้อมูลส่วนตัวก่อนส่งแจ้งซ่อมอีกครั้ง"));
+            Apply(r, input.Request); r.Contact = RequesterContact(requester);
+            r.CategoryId = category.Id; r.TeamCode = category.TeamCode; r.Priority = null;
         }
         var solverIds = (input.ContributorIds ?? []).Append(input.SolverId ?? Guid.Empty).Distinct().ToArray();
         if (operation == "solve")
@@ -168,7 +174,6 @@ public sealed class RepairsController(AppDbContext db, IDomainEventPublisher eve
         }
         if (operation is "start" or "resume" or "reject-solution" or "solve" or "accept" or "resubmit" or "reopen")
         {
-            Dispatch(r, e);
             await PublishRepair(e, r, ct);
         }
         if (operation is "return" or "solve" or "cancel")
@@ -180,13 +185,13 @@ public sealed class RepairsController(AppDbContext db, IDomainEventPublisher eve
         return Ok(OkData(r));
     }
 
-    private static void Apply(RepairRequest r, RepairInput x) { r.Title = x.Title.Trim(); r.Description = x.Description.Trim(); r.Location = x.Location.Trim(); r.Contact = x.Contact.Trim(); }
+    private static void Apply(RepairRequest r, RepairInput x) { r.Title = x.Title.Trim(); r.Description = x.Description.Trim(); r.Location = x.Location.Trim(); }
+    private static string RequesterContact(User user) => $"{user.FullName.Trim()} · {user.PhoneNumber!.Trim()}";
     private RepairEvent Event(RepairRequest r, string action, string from, string note)
     {
         var e = new RepairEvent { RequestId = r.Id, Round = r.CurrentRound, ActorId = Actor, Action = action, FromStatus = from, ToStatus = r.Status, Note = note, Priority = r.Priority };
         db.Add(e); return e;
     }
-    private void Dispatch(RepairRequest r, RepairEvent e) => db.Add(new RepairDispatch { RequestId = r.Id, EventId = e.Id, TeamCode = r.TeamCode });
     private Task PublishRepair(RepairEvent e, RepairRequest r, CancellationToken ct)
     {
         var eventType = e.Action switch

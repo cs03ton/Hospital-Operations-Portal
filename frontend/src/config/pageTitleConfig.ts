@@ -55,7 +55,6 @@ const pageTitleEntries: PageTitleEntry[] = [
   { path: "/leave/types", title: "ประเภทการลา", subtitle: "กำหนดประเภทลาและเงื่อนไขเบื้องต้น", breadcrumbs: [{ label: "ประเภทการลา" }] },
   { path: "/leave/balances", title: "วันลาคงเหลือ", subtitle: "ตรวจสอบสิทธิ์วันลาของผู้ใช้งาน", breadcrumbs: [{ label: "วันลาคงเหลือ" }] },
   { path: "/leave", title: "รายการคำขอลา", subtitle: "สร้างคำขอลา ติดตามสถานะ และดำเนินการอนุมัติ", breadcrumbs: [{ label: "รายการคำขอลา" }] },
-  { path: "/fleet/admin/line-groups", title: "LINE Groups — Fleet", subtitle: "ยืนยันกลุ่มและกำหนด Event Subscription สำหรับงานยานพาหนะ", breadcrumbs: [{ label: "ระบบจองรถ" }, { label: "LINE Groups" }] },
   { path: "/reports/leave-analytics", title: "วิเคราะห์ข้อมูลการลา", subtitle: "วิเคราะห์แนวโน้ม ประเภทการลา หน่วยงาน และความหนาแน่นของการลา", breadcrumbs: [{ label: "วิเคราะห์ข้อมูลการลา" }] },
   { path: "/reports/leaves", title: "รายงานการลา", subtitle: "สรุปและส่งออกข้อมูลการลา", breadcrumbs: [{ label: "รายงานการลา" }] },
 ];

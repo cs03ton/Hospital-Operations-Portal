@@ -104,6 +104,7 @@ builder.Services.AddScoped<FleetUtilizationQueryService>();
 builder.Services.AddScoped<FleetWorkflowDurationQueryService>();
 builder.Services.AddScoped<FleetMaintenanceAttachmentStorage>();
 builder.Services.AddScoped<FleetTripAttachmentStorage>();
+builder.Services.AddScoped<FleetRequestAttachmentStorage>();
 builder.Services.AddScoped<IFleetFeedbackEligibilityService, FleetFeedbackEligibilityService>();
 builder.Services.AddScoped<IFleetTripParticipantService, FleetTripParticipantService>();
 builder.Services.AddScoped<FleetMaintenanceMileageAuthorizationService>();
@@ -115,6 +116,7 @@ builder.Services.AddScoped<ILeaveAttachmentStorageService, LeaveAttachmentStorag
 builder.Services.AddScoped<IFileTypeValidationService, FileTypeValidationService>();
 builder.Services.AddScoped<IAnnouncementMediaStorageService, AnnouncementMediaStorageService>();
 builder.Services.AddScoped<MeetingRoomAttachmentStorage>();
+builder.Services.AddScoped<MeetingRoomPhotoStorage>();
 builder.Services.AddScoped<ILeavePdfService, LeavePdfService>();
 builder.Services.AddScoped<IFileScanningService>(provider =>
 {
@@ -140,22 +142,6 @@ builder.Services.AddScoped<ILeaveRequestNumberService, LeaveRequestNumberService
 builder.Services.AddScoped<IAuditRetentionService, AuditRetentionService>();
 builder.Services.AddScoped<IHealthCenterService, HealthCenterService>();
 builder.Services.AddScoped<IBackupCenterService, BackupCenterService>();
-builder.Services.AddHttpClient("RepairNotifications", client => client.Timeout = TimeSpan.FromSeconds(15))
-    .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
-    {
-        AllowAutoRedirect = false,
-        UseProxy = false,
-        ClientCertificateOptions = ClientCertificateOption.Manual,
-        SslProtocols = System.Security.Authentication.SslProtocols.Tls12
-    });
-builder.Services.AddScoped<RepairDeliveryService>(services => new RepairDeliveryService(
-    services.GetRequiredService<AppDbContext>(),
-    new LineGroupPushClient(services.GetRequiredService<LineConfigurationResolver>(),
-        services.GetRequiredService<IHttpClientFactory>().CreateClient("RepairNotifications"),
-        services.GetRequiredService<Microsoft.AspNetCore.DataProtection.IDataProtectionProvider>(),
-        services.GetRequiredService<ILogger<LineGroupPushClient>>()),
-    services.GetRequiredService<LineConfigurationResolver>(), services.GetRequiredService<IConfiguration>()));
-builder.Services.AddHostedService<RepairDeliveryWorker>();
 builder.Services.AddScoped<IDiagnosticsRedactionService, DiagnosticsRedactionService>();
 builder.Services.AddScoped<IDiagnosticsService, DiagnosticsService>();
 builder.Services.AddScoped<IDocumentationService, DocumentationService>();

@@ -81,9 +81,11 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<FleetCompatibilityOverride> FleetCompatibilityOverrides => Set<FleetCompatibilityOverride>();
     public DbSet<FleetEmergencyPostReview> FleetEmergencyPostReviews => Set<FleetEmergencyPostReview>();
     public DbSet<FleetTripAttachment> FleetTripAttachments => Set<FleetTripAttachment>();
+    public DbSet<FleetRequestAttachment> FleetRequestAttachments => Set<FleetRequestAttachment>();
     public DbSet<FleetEmergencyPolicy> FleetEmergencyPolicies => Set<FleetEmergencyPolicy>();
     public DbSet<MeetingRoom> MeetingRooms => Set<MeetingRoom>();
     public DbSet<MeetingRoomBooking> MeetingRoomBookings => Set<MeetingRoomBooking>();
+    public DbSet<MeetingRoomBookingAttendee> MeetingRoomBookingAttendees => Set<MeetingRoomBookingAttendee>();
     public DbSet<MeetingRoomBookingHistory> MeetingRoomBookingHistories => Set<MeetingRoomBookingHistory>();
     public DbSet<MeetingRoomAttachment> MeetingRoomAttachments => Set<MeetingRoomAttachment>();
 
@@ -839,6 +841,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             entity.Property(x => x.DisplayName).HasColumnName("display_name").HasMaxLength(300);
             entity.Property(x => x.Status).HasColumnName("status").HasMaxLength(30);
             entity.Property(x => x.Module).HasColumnName("module").HasMaxLength(30);
+            entity.Property(x => x.RepairTeamCode).HasColumnName("repair_team_code").HasMaxLength(20);
+            entity.Property(x => x.RepairTeamAssignedAt).HasColumnName("repair_team_assigned_at");
             entity.Property(x => x.DeliveryProvider).HasColumnName("delivery_provider").HasMaxLength(40).HasDefaultValue("LINE_MESSAGING_API");
             entity.Property(x => x.EndpointUrl).HasColumnName("endpoint_url").HasMaxLength(1000);
             entity.Property(x => x.ClientId).HasColumnName("client_id").HasMaxLength(300);

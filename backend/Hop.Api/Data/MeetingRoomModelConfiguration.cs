@@ -10,6 +10,7 @@ public static class MeetingRoomModelConfiguration
         var room = model.Entity<MeetingRoom>();
         room.ToTable("meeting_rooms"); room.HasKey(x => x.Id); room.HasIndex(x => x.Code).IsUnique();
         room.Property(x => x.Code).HasMaxLength(50); room.Property(x => x.Name).HasMaxLength(200); room.Property(x => x.Location).HasMaxLength(500);
+        room.Property(x => x.PhotoPath).HasMaxLength(1000); room.Property(x => x.PhotoContentType).HasMaxLength(100);
         room.Property(x => x.ConcurrencyToken).IsConcurrencyToken();
 
         var booking = model.Entity<MeetingRoomBooking>();
@@ -24,6 +25,12 @@ public static class MeetingRoomModelConfiguration
         booking.HasOne<User>().WithMany().HasForeignKey(x => x.BookerId).OnDelete(DeleteBehavior.Restrict);
         booking.HasOne<Department>().WithMany().HasForeignKey(x => x.DepartmentId).OnDelete(DeleteBehavior.Restrict);
         booking.HasOne<User>().WithMany().HasForeignKey(x => x.CancelledById).OnDelete(DeleteBehavior.Restrict);
+
+        var attendee = model.Entity<MeetingRoomBookingAttendee>();
+        attendee.ToTable("meeting_room_booking_attendees"); attendee.HasKey(x => new { x.BookingId, x.UserId });
+        attendee.HasIndex(x => x.UserId);
+        attendee.HasOne<MeetingRoomBooking>().WithMany().HasForeignKey(x => x.BookingId).OnDelete(DeleteBehavior.Cascade);
+        attendee.HasOne<User>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Restrict);
 
         var history = model.Entity<MeetingRoomBookingHistory>();
         history.ToTable("meeting_room_booking_histories"); history.HasKey(x => x.Id);
@@ -40,7 +47,7 @@ public static class MeetingRoomModelConfiguration
         attachment.HasOne<MeetingRoomBooking>().WithMany().HasForeignKey(x => x.BookingId).OnDelete(DeleteBehavior.Restrict);
         attachment.HasOne<User>().WithMany().HasForeignKey(x => x.UploadedById).OnDelete(DeleteBehavior.Restrict);
 
-        foreach (var type in new[] { typeof(MeetingRoom), typeof(MeetingRoomBooking), typeof(MeetingRoomBookingHistory), typeof(MeetingRoomAttachment) })
+        foreach (var type in new[] { typeof(MeetingRoom), typeof(MeetingRoomBooking), typeof(MeetingRoomBookingAttendee), typeof(MeetingRoomBookingHistory), typeof(MeetingRoomAttachment) })
             foreach (var property in model.Entity(type).Metadata.GetProperties())
                 property.SetColumnName(string.Concat(property.Name.Select((c, i) => char.IsUpper(c) && i > 0 ? "_" + char.ToLowerInvariant(c) : char.ToLowerInvariant(c).ToString())));
     }

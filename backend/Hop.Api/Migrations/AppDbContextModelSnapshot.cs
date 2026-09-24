@@ -2251,6 +2251,26 @@ namespace Hop.Api.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Hop.Api.Models.FleetRequestAttachment", b =>
+                {
+                    b.Property<Guid>("Id").ValueGeneratedOnAdd().HasColumnType("uuid").HasColumnName("id");
+                    b.Property<Guid>("FleetRequestId").HasColumnType("uuid").HasColumnName("fleet_request_id");
+                    b.Property<Guid>("UploadedByUserId").HasColumnType("uuid").HasColumnName("uploaded_by_user_id");
+                    b.Property<string>("OriginalFileName").IsRequired().HasMaxLength(260).HasColumnType("character varying(260)").HasColumnName("original_file_name");
+                    b.Property<string>("StoredPath").IsRequired().HasMaxLength(1000).HasColumnType("character varying(1000)").HasColumnName("stored_path");
+                    b.Property<string>("ContentType").IsRequired().HasMaxLength(100).HasColumnType("character varying(100)").HasColumnName("content_type");
+                    b.Property<long>("FileSize").HasColumnType("bigint").HasColumnName("file_size");
+                    b.Property<DateTime>("CreatedAt").HasColumnType("timestamp with time zone").HasColumnName("created_at");
+                    b.Property<bool>("IsDeleted").HasColumnType("boolean").HasColumnName("is_deleted");
+                    b.Property<DateTime?>("DeletedAt").HasColumnType("timestamp with time zone").HasColumnName("deleted_at");
+                    b.Property<Guid?>("DeletedByUserId").HasColumnType("uuid").HasColumnName("deleted_by_user_id");
+                    b.HasKey("Id");
+                    b.HasIndex("FleetRequestId", "IsDeleted");
+                    b.HasIndex("UploadedByUserId");
+                    b.HasIndex("DeletedByUserId");
+                    b.ToTable("fleet_request_attachments", t => t.HasCheckConstraint("ck_fleet_request_attachment_size", "file_size > 0 AND file_size <= 5242880"));
+                });
+
             modelBuilder.Entity("Hop.Api.Models.FleetRequestPassenger", b =>
                 {
                     b.Property<Guid>("Id")
@@ -5027,6 +5047,15 @@ namespace Hop.Api.Migrations
                         .HasColumnType("character varying(30)")
                         .HasColumnName("module");
 
+                    b.Property<string>("RepairTeamCode")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("repair_team_code");
+
+                    b.Property<DateTime?>("RepairTeamAssignedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("repair_team_assigned_at");
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(30)
@@ -5317,6 +5346,20 @@ namespace Hop.Api.Migrations
                         .HasColumnType("character varying(200)")
                         .HasColumnName("name");
 
+                    b.Property<string>("PhotoContentType")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("photo_content_type");
+
+                    b.Property<string>("PhotoPath")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("photo_path");
+
+                    b.Property<DateTime?>("PhotoUpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("photo_updated_at");
+
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("updated_at");
@@ -5377,6 +5420,27 @@ namespace Hop.Api.Migrations
                     b.HasIndex("BookingId", "CreatedAt");
 
                     b.ToTable("meeting_room_attachments", (string)null);
+                });
+
+            modelBuilder.Entity("Hop.Api.Models.MeetingRoomBookingAttendee", b =>
+                {
+                    b.Property<Guid>("BookingId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("booking_id");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.Property<bool>("IsBooker")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_booker");
+
+                    b.HasKey("BookingId", "UserId");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("meeting_room_booking_attendees", (string)null);
                 });
 
             modelBuilder.Entity("Hop.Api.Models.MeetingRoomBooking", b =>
@@ -7183,6 +7247,13 @@ namespace Hop.Api.Migrations
                     b.Navigation("UpdatedByUser");
                 });
 
+            modelBuilder.Entity("Hop.Api.Models.FleetRequestAttachment", b =>
+                {
+                    b.HasOne("Hop.Api.Models.FleetRequest", null).WithMany().HasForeignKey("FleetRequestId").OnDelete(DeleteBehavior.Restrict).IsRequired();
+                    b.HasOne("Hop.Api.Models.User", null).WithMany().HasForeignKey("UploadedByUserId").OnDelete(DeleteBehavior.Restrict).IsRequired();
+                    b.HasOne("Hop.Api.Models.User", null).WithMany().HasForeignKey("DeletedByUserId").OnDelete(DeleteBehavior.Restrict);
+                });
+
             modelBuilder.Entity("Hop.Api.Models.FleetRequestPassenger", b =>
                 {
                     b.HasOne("Hop.Api.Models.FleetRequest", "FleetRequest")
@@ -7877,6 +7948,21 @@ namespace Hop.Api.Migrations
                     b.HasOne("Hop.Api.Models.User", null)
                         .WithMany()
                         .HasForeignKey("UploadedById")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Hop.Api.Models.MeetingRoomBookingAttendee", b =>
+                {
+                    b.HasOne("Hop.Api.Models.MeetingRoomBooking", null)
+                        .WithMany()
+                        .HasForeignKey("BookingId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Hop.Api.Models.User", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });
