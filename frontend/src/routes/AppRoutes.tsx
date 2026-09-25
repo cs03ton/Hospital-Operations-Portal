@@ -31,6 +31,7 @@ import { LeaveRequestDetailPage } from "../pages/LeaveRequestDetailPage";
 import { FleetRequestsPage } from "../pages/FleetRequestsPage";
 import { RepairListPage, RepairCreatePage, RepairDetailPage } from "../pages/RepairPages";
 import { RepairDashboardPage } from "../pages/RepairDashboardPage";
+import { RepairReportsPage } from "../pages/RepairReportsPage";
 import { RepairSettingsPage } from "../pages/RepairSettingsPage";
 import { MeetingRoomBookingsPage, MeetingRoomCalendarPage, MeetingRoomCreatePage, MeetingRoomDetailPage, MeetingRoomManagePage } from "../pages/MeetingRoomPages";
 import { MeetingRoomDashboardPage } from "../pages/MeetingRoomDashboardPage";
@@ -273,6 +274,7 @@ export function AppRoutes() {
           <Route path="/fleet/settings" element={withFleetRollout(withAnyPermission(<FleetSettingsPage />, [...fleetPermissionGroups.settings]))} />
           <Route path="/repairs" element={<PermissionGuard permissions={repairViewPermissions} redirectTo="/dashboard"><RepairListPage /></PermissionGuard>} />
           <Route path="/repairs/new" element={withPermission(<RepairCreatePage />, "RepairManagement.Create")} />
+          <Route path="/repairs/reports" element={withPermission(<RepairReportsPage />, "RepairManagement.ViewAll")} />
           <Route path="/repairs/settings" element={withPermission(<RepairSettingsPage />, "RepairManagement.Manage")} />
           <Route path="/repairs/:id" element={<PermissionGuard permissions={repairViewPermissions} redirectTo="/dashboard"><RepairDetailPage /></PermissionGuard>} />
           <Route path="/meeting-rooms" element={<Navigate to="/meeting-rooms/dashboard" replace />} />

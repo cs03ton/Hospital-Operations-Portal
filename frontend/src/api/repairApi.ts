@@ -23,3 +23,12 @@ export async function repairUpload(id: string, token: string, files: File[]) {
 export async function repairImage(id: string) { return (await httpClient.get<Blob>(`/api/repairs/images/${id}`, { responseType: "blob" })).data; }
 export async function repairSettings() { return unwrap(await httpClient.get<ApiResponse<{ categories: RepairCategory[]; deliveries: { id: string; requestId: string; teamCode: string; status: string; attempts: number; errorCode?: string }[] }>>("/api/repairs/settings")); }
 export async function saveRepairCategory(data: Partial<RepairCategory>) { return httpClient.post("/api/repairs/settings/categories", data); }
+
+export type RepairReportFilter = { from: string; to: string; categoryId?: string; departmentId?: string; status?: string; priority?: string; search?: string };
+export type RepairReportCount = { status: string; count: number };
+export type RepairReportGroup = { id: string; name: string; count: number };
+export type RepairReportSummary = { from: string; to: string; total: number; counts: RepairReportCount[]; acceptanceRate: number; months: { month: string; total: number; closed: number; inProgress: number; acceptanceRate: number }[]; byCategory: RepairReportGroup[]; byDepartment: RepairReportGroup[]; categories: { id: string; name: string }[]; departments: { id: string; name: string }[] };
+export type RepairReportItem = { id: string; number: number; title: string; categoryName: string; departmentName: string; requesterName: string; createdAt: string; closedAt?: string | null; status: string; priority?: string | null };
+export async function repairReportSummary(filters: RepairReportFilter) { return unwrap(await httpClient.get<ApiResponse<RepairReportSummary>>("/api/repairs/reports/summary", { params: filters })); }
+export async function repairReportItems(filters: RepairReportFilter, page: number, pageSize: number) { return unwrap(await httpClient.get<ApiResponse<{ items: RepairReportItem[]; total: number; page: number; pageSize: number }>>("/api/repairs/reports/items", { params: { ...filters, page, pageSize } })); }
+export async function repairReportExport(filters: RepairReportFilter, type: "excel" | "pdf") { return (await httpClient.get<Blob>(`/api/repairs/reports/export-${type}`, { params: filters, responseType: "blob" })).data; }

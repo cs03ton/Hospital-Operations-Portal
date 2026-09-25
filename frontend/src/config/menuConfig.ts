@@ -110,6 +110,7 @@ export const navigationModules: NavigationModule[] = [
       { label: "Dashboard แจ้งซ่อม", path: "/dashboard/repair", icon: DashboardOutlinedIcon, permissions: ["RepairManagement.ViewOwn", "RepairManagement.WorkIT", "RepairManagement.WorkGeneral", "RepairManagement.ViewAll"] },
       { label: "รายการแจ้งซ่อม", path: "/repairs", icon: BuildOutlinedIcon, permissions: ["RepairManagement.ViewOwn", "RepairManagement.WorkIT", "RepairManagement.WorkGeneral", "RepairManagement.ViewAll"], activePatterns: ["/repairs", "/repairs/:id"] },
       { label: "แจ้งซ่อมใหม่", path: "/repairs/new", icon: BuildOutlinedIcon, permission: "RepairManagement.Create" },
+      { label: "รายงานการแจ้งซ่อม", path: "/repairs/reports", icon: DashboardOutlinedIcon, permission: "RepairManagement.ViewAll" },
       { label: "ตั้งค่าแจ้งซ่อม", path: "/repairs/settings", icon: SettingsSuggestOutlinedIcon, permission: "RepairManagement.Manage" },
     ],
   },

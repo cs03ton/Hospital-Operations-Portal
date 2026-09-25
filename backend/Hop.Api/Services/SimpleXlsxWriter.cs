@@ -10,14 +10,14 @@ public static class SimpleXlsxWriter
     private static readonly XNamespace PackageRelationships = "http://schemas.openxmlformats.org/package/2006/relationships";
 
     public static byte[] CreateWorkbook(IReadOnlyList<IReadOnlyList<string>> rows, IReadOnlyList<double> columnWidths,
-        IReadOnlyDictionary<(int Row, int Column), DateOnly>? dateCells = null)
+        IReadOnlyDictionary<(int Row, int Column), DateOnly>? dateCells = null, string sheetName = "รายงานการลา")
     {
         using var output = new MemoryStream();
         using (var archive = new ZipArchive(output, ZipArchiveMode.Create, leaveOpen: true))
         {
             WriteEntry(archive, "[Content_Types].xml", CreateContentTypes());
             WriteEntry(archive, "_rels/.rels", CreateRootRelationships());
-            WriteEntry(archive, "xl/workbook.xml", CreateWorkbookXml());
+            WriteEntry(archive, "xl/workbook.xml", CreateWorkbookXml(sheetName));
             WriteEntry(archive, "xl/_rels/workbook.xml.rels", CreateWorkbookRelationships());
             WriteEntry(archive, "xl/styles.xml", CreateStyles());
             var sheet = CreateWorksheet(rows, columnWidths);
@@ -60,14 +60,14 @@ public static class SimpleXlsxWriter
                     new XAttribute("Target", "xl/workbook.xml"))));
     }
 
-    private static XDocument CreateWorkbookXml()
+    private static XDocument CreateWorkbookXml(string sheetName)
     {
         return new XDocument(
             new XElement(Spreadsheet + "workbook",
                 new XAttribute(XNamespace.Xmlns + "r", Relationships),
                 new XElement(Spreadsheet + "sheets",
                     new XElement(Spreadsheet + "sheet",
-                        new XAttribute("name", "รายงานการลา"),
+                        new XAttribute("name", sheetName),
                         new XAttribute("sheetId", "1"),
                         new XAttribute(Relationships + "id", "rId1")))));
     }

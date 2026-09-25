@@ -22,6 +22,7 @@ const pageTitleEntries: PageTitleEntry[] = [
   { path: "/dashboard/repair", title: "Dashboard แจ้งซ่อม", subtitle: "ภาพรวมสถานะงาน IT และช่างทั่วไป", exact: true, breadcrumbs: [{ label: "Dashboard", path: "/dashboard" }, { label: "Dashboard แจ้งซ่อม" }] },
   { path: "/repairs/new", title: "แจ้งซ่อม", subtitle: "ส่งงานเข้าคิวทีมที่รับผิดชอบ", exact: true, breadcrumbs: [{ label: "งานแจ้งซ่อม", path: "/repairs" }, { label: "แจ้งซ่อมใหม่" }] },
   { path: "/repairs/settings", title: "ตั้งค่าระบบแจ้งซ่อม", subtitle: "หมวดงานและปลายทางแจ้งเตือน", exact: true, breadcrumbs: [{ label: "งานแจ้งซ่อม", path: "/repairs" }, { label: "ตั้งค่า" }] },
+  { path: "/repairs/reports", title: "รายงานการแจ้งซ่อม", subtitle: "สถิติและรายละเอียดงานแจ้งซ่อม", exact: true, breadcrumbs: [{ label: "งานแจ้งซ่อม", path: "/repairs" }, { label: "รายงานการแจ้งซ่อม" }] },
   { path: "/repairs", title: "งานแจ้งซ่อม", subtitle: "IT และช่างทั่วไป", breadcrumbs: [{ label: "งานแจ้งซ่อม", path: "/repairs" }] },
   { path: "/dashboard/inventory", title: "แดชบอร์ด Inventory", subtitle: "ระบบอยู่ระหว่างเตรียมเปิดใช้งาน", exact: true, breadcrumbs: [{ label: "Dashboard", path: "/dashboard" }, { label: "Inventory" }] },
   { path: "/dashboard/executive", title: "Executive Dashboard", subtitle: "ภาพรวมเชิงบริหารและ KPI สำคัญ", exact: true, breadcrumbs: [{ label: "Dashboard", path: "/dashboard" }, { label: "Executive Dashboard" }] },
