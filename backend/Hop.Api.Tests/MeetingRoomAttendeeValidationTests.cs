@@ -37,7 +37,7 @@ public sealed class MeetingRoomAttendeeValidationTests
         Assert.Contains(fleetResponse.Value!.Data!, x => x.Id == employee.Id);
         Assert.DoesNotContain(fleetResponse.Value!.Data!, x => x.Id == admin.Id);
 
-        var meeting = new MeetingRoomsController(db, null!, null!, null!);
+        var meeting = new MeetingRoomsController(db, null!, null!, null!, null!, null!, null!);
         var meetingResponse = await meeting.PersonnelOptions(ct: default);
         var meetingData = (System.Collections.IEnumerable)meetingResponse.GetType().GetProperty("Data")!.GetValue(meetingResponse)!;
         var meetingIds = meetingData.Cast<object>().Select(x => (Guid)x.GetType().GetProperty("Id")!.GetValue(x)!).ToList();

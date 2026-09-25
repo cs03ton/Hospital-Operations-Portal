@@ -24,6 +24,7 @@ import { getLiffIdToken, initializeLiff } from "../services/liffService";
 import { getEmploymentTypeLabel } from "../utils/employmentLabels";
 import { getGenderLabel } from "../utils/genderLabels";
 import { toAbsoluteMediaUrl } from "../utils/mediaUrl";
+import lineOaAddFriendQr from "../assets/logo/line-oa-add-friend-qr.png";
 
 type ProfileFormValues = {
   fullname: string;
@@ -320,8 +321,20 @@ export function ProfilePage() {
               ) : (
                 <Stack spacing={1.5}>
                   <Alert severity="info">
-                    1. เพิ่มเพื่อน LINE OA ของโรงพยาบาล 2. ส่งรหัสนี้ไปในแชท LINE OA 3. ระบบจะเชื่อมบัญชีให้อัตโนมัติ
+                    1. สแกน QR เพื่อเพิ่มเพื่อน LINE OA ของโรงพยาบาล 2. กดเชื่อมต่อ LINE เพื่อสร้างรหัส 3. ส่งรหัสในแชท LINE OA ระบบจะเชื่อมบัญชีให้อัตโนมัติ
                   </Alert>
+                  <Stack direction={{ xs: "column", sm: "row" }} spacing={2} alignItems={{ xs: "center", sm: "center" }}>
+                    <Box
+                      component="img"
+                      src={lineOaAddFriendQr}
+                      alt="QR Code สำหรับเพิ่มเพื่อน LINE OA ของโรงพยาบาล"
+                      sx={{ width: 184, height: 184, objectFit: "contain", bgcolor: "common.white", p: 1, border: "1px solid", borderColor: "divider", borderRadius: 2 }}
+                    />
+                    <Stack spacing={0.5} sx={{ textAlign: { xs: "center", sm: "left" } }}>
+                      <Typography fontWeight={700}>สแกนเพื่อเพิ่มเพื่อน LINE OA</Typography>
+                      <Typography variant="body2" color="text.secondary">ใช้กล้อง LINE สแกน QR Code นี้ แล้วกลับมาสร้างรหัสเชื่อมต่อด้านล่าง</Typography>
+                    </Stack>
+                  </Stack>
                   {(latestLinePairingCode || lineBinding?.expiresAt) && (
                     <Stack
                       direction={{ xs: "column", md: "row" }}
@@ -336,7 +349,7 @@ export function ProfilePage() {
                       {latestLinePairingCode?.qrCodePayload && (
                         <Box
                           component="img"
-                          alt="QR Code สำหรับเชื่อมต่อ LINE"
+                          alt="QR Code รหัสเชื่อมต่อบัญชี LINE"
                           src={buildQrCodeUrl(latestLinePairingCode.qrCodePayload)}
                           sx={{
                             width: 180,

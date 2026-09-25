@@ -1,19 +1,20 @@
 // @vitest-environment jsdom
-import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  confirmFleetLineGroup, getFleetLineGroupDeliveries, getFleetLineGroups, migrateRepairLineGroup, testFleetLineGroup, updateFleetLineGroupEndpoint, type FleetLineGroup,
+  confirmFleetLineGroup, getFleetLineGroupDeliveries, getFleetLineGroups, migrateRepairLineGroup, testFleetLineGroup, updateFleetLineGroupEndpoint, updateFleetLineGroupSubscriptions, type FleetLineGroup,
 } from "../api/fleetApi";
 import { renderFleet } from "../test/renderFleet";
 import { FleetLineGroupsPage } from "./FleetLineGroupsPage";
 
+const permissionState = vi.hoisted(() => ({ canManage: true }));
 vi.mock("../api/fleetApi", () => ({
   getFleetLineGroups: vi.fn(), getFleetLineGroupDeliveries: vi.fn(), confirmFleetLineGroup: vi.fn(),
   disableFleetLineGroup: vi.fn(), updateFleetLineGroupSubscriptions: vi.fn(), testFleetLineGroup: vi.fn(),
   createFleetLineGroupEndpoint: vi.fn(), updateFleetLineGroupEndpoint: vi.fn(), migrateRepairLineGroup: vi.fn(),
 }));
-vi.mock("../context/PermissionContext", () => ({ usePermission: () => ({ hasPermission: () => true }) }));
+vi.mock("../context/PermissionContext", () => ({ usePermission: () => ({ hasPermission: (permission: string) => permission === "LineGroup.Manage" ? permissionState.canManage : true }) }));
 
 const group: FleetLineGroup = {
   id: "group-1", displayName: "กลุ่มงานยานพาหนะ", groupIdMasked: "C1234...7890", status: "Pending",
@@ -28,6 +29,7 @@ const group: FleetLineGroup = {
 describe("FleetLineGroupsPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    permissionState.canManage = true;
     vi.mocked(getFleetLineGroups).mockResolvedValue([group]);
     vi.mocked(getFleetLineGroupDeliveries).mockResolvedValue({ items: [], page: 1, pageSize: 20, totalItems: 0, totalPages: 0 });
     vi.mocked(confirmFleetLineGroup).mockResolvedValue({ id: group.id, status: "Active", concurrencyToken: "token-2" });
@@ -56,7 +58,56 @@ describe("FleetLineGroupsPage", () => {
     expect(screen.getAllByRole("button", { name: "แก้ไข" })).toHaveLength(1);
     await user.click(screen.getAllByRole("button", { name: "รายละเอียด" })[1]);
     expect(screen.getByText(/แสดงเพื่อให้ตรวจสอบเท่านั้น/)).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: "ส่งคำขอใหม่" })).toBeDisabled();
     expect(screen.queryByRole("button", { name: "บันทึกเหตุการณ์แจ้งเตือน" })).not.toBeInTheDocument();
+  });
+
+  it("shows grouped events as read only without manage permission", async () => {
+    permissionState.canManage = false;
+    const user = userEvent.setup();
+    renderFleet(<FleetLineGroupsPage />);
+    await user.click(await screen.findByRole("button", { name: "รายละเอียด" }));
+    expect(screen.getByRole("region", { name: "ระบบขอรถ" })).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: "ส่งคำขอใหม่" })).toBeDisabled();
+    expect(screen.queryByRole("button", { name: "บันทึกเหตุการณ์แจ้งเตือน" })).not.toBeInTheDocument();
+  });
+
+  it("groups events by system, preserves selections and identifies unknown events", async () => {
+    const events = [
+      { eventType: "Fleet.RequestSubmitted", isEnabled: true },
+      { eventType: "Repair.Submitted", isEnabled: false },
+      { eventType: "MeetingRoom.BookingCreated", isEnabled: true },
+      { eventType: "Future.Event", isEnabled: false },
+    ];
+    vi.mocked(getFleetLineGroups).mockResolvedValue([{ ...group, events }]);
+    vi.mocked(updateFleetLineGroupSubscriptions).mockResolvedValue({ id: group.id, concurrencyToken: "token-2" });
+    const user = userEvent.setup();
+    renderFleet(<FleetLineGroupsPage />);
+    await user.click(await screen.findByRole("button", { name: "รายละเอียด" }));
+
+    expect(within(screen.getByRole("region", { name: "ระบบขอรถ" })).getByRole("checkbox", { name: "ส่งคำขอใหม่" })).toBeChecked();
+    expect(within(screen.getByRole("region", { name: "ระบบแจ้งซ่อม" })).getByRole("checkbox", { name: "แจ้งซ่อมใหม่" })).not.toBeChecked();
+    expect(within(screen.getByRole("region", { name: "ระบบจองห้องประชุม" })).getByRole("checkbox", { name: "มีการจองห้องประชุมใหม่" })).toBeChecked();
+    expect(within(screen.getByRole("region", { name: "เหตุการณ์อื่น" })).getByRole("checkbox", { name: "Future.Event" })).toBeInTheDocument();
+    expect(screen.getAllByText("เปิด 1/1")).toHaveLength(2);
+    await user.click(screen.getByRole("checkbox", { name: "แจ้งซ่อมใหม่" }));
+    expect(within(screen.getByRole("region", { name: "ระบบแจ้งซ่อม" })).getByText("เปิด 1/1")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "บันทึกเหตุการณ์แจ้งเตือน" }));
+    await waitFor(() => expect(updateFleetLineGroupSubscriptions).toHaveBeenCalledWith(group.id, group.concurrencyToken, {
+      "Fleet.RequestSubmitted": true, "Repair.Submitted": true, "MeetingRoom.BookingCreated": true, "Future.Event": false,
+    }));
+  });
+
+  it("shows the source system alongside delivery history events", async () => {
+    vi.mocked(getFleetLineGroupDeliveries).mockResolvedValue({
+      items: [{ id: "delivery-1", eventType: "Repair.Submitted", destinationType: "GROUP", destinationIdMasked: "masked", requestId: "request-1", status: "Sent", attemptCount: 1, correlationId: "corr-1", createdAt: "2026-09-25T01:00:00Z" }],
+      page: 1, pageSize: 20, totalItems: 1, totalPages: 1,
+    });
+    const user = userEvent.setup();
+    renderFleet(<FleetLineGroupsPage />);
+    await user.click(await screen.findByRole("button", { name: "รายละเอียด" }));
+    expect(await screen.findByText("แจ้งซ่อมใหม่")).toBeInTheDocument();
+    expect(within(screen.getByRole("row", { name: /แจ้งซ่อมใหม่/ })).getByText("ระบบแจ้งซ่อม")).toBeInTheDocument();
   });
 
   it("confirms masked id, status and team before migrating a legacy group", async () => {

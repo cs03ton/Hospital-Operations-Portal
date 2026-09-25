@@ -2,8 +2,10 @@ using System.ComponentModel.DataAnnotations;
 using System.Data;
 using System.Security.Claims;
 using Hop.Api.Authorization;
+using Hop.Api.Configuration;
 using Hop.Api.Data;
 using Hop.Api.DTOs;
+using Hop.Api.Interfaces;
 using Hop.Api.Models;
 using Hop.Api.Services;
 using Microsoft.AspNetCore.Authorization;
@@ -13,7 +15,7 @@ using Microsoft.EntityFrameworkCore;
 namespace Hop.Api.Controllers;
 
 [ApiController, Authorize, Route("api/meeting-rooms")]
-public sealed class MeetingRoomsController(AppDbContext db, MeetingRoomAttachmentStorage storage, MeetingRoomPhotoStorage photos, IDomainEventPublisher events) : ControllerBase
+public sealed class MeetingRoomsController(AppDbContext db, MeetingRoomAttachmentStorage storage, MeetingRoomPhotoStorage photos, IDomainEventPublisher events, ILineMessagingService line, LineConfigurationResolver lineConfiguration, ILogger<MeetingRoomsController> logger) : ControllerBase
 {
     private Guid Actor => Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
 
@@ -103,7 +105,20 @@ public sealed class MeetingRoomsController(AppDbContext db, MeetingRoomAttachmen
         await events.PublishAsync(new DomainEventEnvelope(
             "MeetingRoom.BookingCreated", "MEETING_ROOM", nameof(MeetingRoomBooking), row.Id, Actor,
             HttpContext.TraceIdentifier, new { row.Number, row.RoomId, row.Subject, row.StartAt, row.EndAt }, []), ct);
-        await NotifyManagers(row, actor.FullName, ct); Audit("MeetingRoom.BookingCreated", row.Id, null); await db.SaveChangesAsync(ct); await transaction.CommitAsync(ct);
+        await NotifyManagers(row, actor.FullName, ct);
+        var confirmation = Notification(row.BookerId, row, "ยืนยันการจองห้องประชุมแล้ว", $"รายการ MR-{row.Number:D6} · {room.Name} · {ThaiDateDisplay.InstantWithSuffix(row.StartAt)}");
+        confirmation.NotificationType = "BookingConfirmed";
+        db.Notifications.Add(confirmation);
+        Audit("MeetingRoom.BookingCreated", row.Id, null); await db.SaveChangesAsync(ct); await transaction.CommitAsync(ct);
+        try
+        {
+            var payload = MeetingRoomLineFlexMessageTemplates.BookingConfirmed(row, room.Name, lineConfiguration.PublicAppUrl);
+            await line.NotifyUserPayloadAsync(row.BookerId, "MeetingRoom.BookingConfirmed", payload, null, ct);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Meeting room confirmation LINE notification failed. BookingId={BookingId} BookerId={BookerId}", row.Id, row.BookerId);
+        }
         return Ok(ApiResponse<object>.Ok(row));
     }
 

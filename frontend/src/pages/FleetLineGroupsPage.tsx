@@ -36,6 +36,22 @@ const eventLabels: Record<string, string> = {
   "MeetingRoom.BookingCreated": "มีการจองห้องประชุมใหม่",
 };
 
+const eventSystems = [
+  { key: "Fleet", title: "ระบบขอรถ" },
+  { key: "Repair", title: "ระบบแจ้งซ่อม" },
+  { key: "MeetingRoom", title: "ระบบจองห้องประชุม" },
+  { key: "Other", title: "เหตุการณ์อื่น" },
+] as const;
+
+type EventSystem = (typeof eventSystems)[number]["key"];
+const eventSystem = (eventType: string): EventSystem => {
+  if (eventType.startsWith("Fleet.")) return "Fleet";
+  if (eventType.startsWith("Repair.")) return "Repair";
+  if (eventType.startsWith("MeetingRoom.")) return "MeetingRoom";
+  return "Other";
+};
+const eventSystemTitle = (eventType: string) => eventSystems.find(system => system.key === eventSystem(eventType))!.title;
+
 type DialogState = { type: "confirm" | "disable" | "test" | "migrate" | "activate"; group: FleetLineGroup } | null;
 type ConfigState = { group?: FleetLineGroup; displayName: string; groupId: string; endpointUrl: string; clientId: string; clientSecret: string; repairTeamCode: "IT" | "GENERAL" | "" } | null;
 const isLegacyRepairGroup = (group: FleetLineGroup) => group.module.startsWith("REPAIR_");
@@ -162,14 +178,27 @@ export function FleetLineGroupsPage() {
     {selected && <Card sx={{ mt: 2 }}><CardContent><Stack spacing={2}>
       <Box><Typography variant="h6" fontWeight={900}>เหตุการณ์ที่ต้องการแจ้งเตือน: {selected.displayName}</Typography><Typography variant="body2" color="text.secondary">หนึ่งเหตุการณ์เลือกส่งได้หลายกลุ่ม และแต่ละกลุ่มรับเหตุการณ์จากหลายระบบได้</Typography></Box>
       {isLegacyRepairGroup(selected) && <Alert severity="info">กลุ่มนี้เป็นข้อมูลแจ้งซ่อมเดิม แสดงเพื่อให้ตรวจสอบเท่านั้น ยังไม่รับเหตุการณ์ผ่านระบบแจ้งเตือนส่วนกลาง</Alert>}
-      <Grid container>{selected.events.map(event => <Grid item xs={12} sm={6} md={4} key={event.eventType}><FormControlLabel
-        control={<Checkbox disabled={!canManage || isLegacyRepairGroup(selected)} checked={subscriptionDraft[event.eventType] ?? false} onChange={(_, checked) => setSubscriptionDraft(x => ({ ...x, [event.eventType]: checked }))} />}
-        label={eventLabels[event.eventType] ?? event.eventType} /></Grid>)}</Grid>
+      <Stack spacing={2}>
+        {eventSystems.map(system => {
+          const events = selected.events.filter(event => eventSystem(event.eventType) === system.key);
+          if (system.key === "Other" && events.length === 0) return null;
+          const enabledCount = events.filter(event => subscriptionDraft[event.eventType] ?? false).length;
+          return <Box key={system.key} component="section" aria-label={system.title} sx={{ border: 1, borderColor: "divider", borderRadius: 2, p: { xs: 1.5, sm: 2 } }}>
+            <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1 }}>
+              <Typography variant="subtitle1" fontWeight={800}>{system.title}</Typography>
+              <Chip size="small" variant="outlined" label={`เปิด ${enabledCount}/${events.length}`} />
+            </Stack>
+            <Grid container spacing={0.5}>{events.map(event => <Grid item xs={12} sm={6} md={4} key={event.eventType}><FormControlLabel
+              control={<Checkbox disabled={!canManage || isLegacyRepairGroup(selected)} checked={subscriptionDraft[event.eventType] ?? false} onChange={(_, checked) => setSubscriptionDraft(x => ({ ...x, [event.eventType]: checked }))} />}
+              label={eventLabels[event.eventType] ?? event.eventType} sx={{ m: 0, width: "100%" }} /></Grid>)}</Grid>
+          </Box>;
+        })}
+      </Stack>
       {canManage && !isLegacyRepairGroup(selected) && <Button variant="contained" sx={{ alignSelf: "flex-start" }} disabled={saveSubscriptions.isPending} onClick={() => saveSubscriptions.mutate()}>บันทึกเหตุการณ์แจ้งเตือน</Button>}
       <Typography variant="h6" fontWeight={900}>ประวัติการส่งข้อความ</Typography>
       {deliveries.isLoading ? <LoadingState message="กำลังโหลดประวัติการส่ง..." /> : deliveries.isError ? <Alert severity="error">โหลดประวัติการส่งไม่สำเร็จ</Alert> : (deliveries.data?.items.length ?? 0) === 0 ? <EmptyState message="ยังไม่มีประวัติการส่งสำหรับกลุ่มนี้" /> : <>
         <TableContainer><Table size="small"><TableHead><TableRow><TableCell>วันเวลา</TableCell><TableCell>เหตุการณ์</TableCell><TableCell>ผลการส่ง</TableCell><TableCell>จำนวนครั้ง</TableCell><TableCell>ข้อผิดพลาด</TableCell><TableCell>รหัสติดตาม</TableCell></TableRow></TableHead><TableBody>
-          {deliveries.data!.items.map(item => <TableRow key={item.id}><TableCell>{formatThaiDateTime(item.createdAt)}</TableCell><TableCell>{eventLabels[item.eventType] ?? "เหตุการณ์ระบบรถ"}</TableCell><TableCell><Chip size="small" label={deliveryStatusLabel(item.status)} color={item.status === "Sent" ? "success" : item.status === "Failed" ? "error" : "default"} /></TableCell><TableCell>{item.attemptCount}</TableCell><TableCell>{item.errorCode ? "ส่งไม่สำเร็จ" : "-"}</TableCell><TableCell>{item.correlationId}</TableCell></TableRow>)}
+          {deliveries.data!.items.map(item => <TableRow key={item.id}><TableCell>{formatThaiDateTime(item.createdAt)}</TableCell><TableCell><Typography variant="body2" fontWeight={700}>{eventSystemTitle(item.eventType)}</Typography><Typography variant="body2">{eventLabels[item.eventType] ?? item.eventType}</Typography></TableCell><TableCell><Chip size="small" label={deliveryStatusLabel(item.status)} color={item.status === "Sent" ? "success" : item.status === "Failed" ? "error" : "default"} /></TableCell><TableCell>{item.attemptCount}</TableCell><TableCell>{item.errorCode ? "ส่งไม่สำเร็จ" : "-"}</TableCell><TableCell>{item.correlationId}</TableCell></TableRow>)}
         </TableBody></Table></TableContainer>
         <ListPagination page={deliveryPage} pageSize={20} totalItems={deliveries.data!.totalItems} onPageChange={setDeliveryPage} onPageSizeChange={() => undefined} pageSizeOptions={[20]} />
       </>}
