@@ -5,8 +5,10 @@ import MenuOpenOutlinedIcon from "@mui/icons-material/MenuOpenOutlined";
 import PersonOutlineOutlinedIcon from "@mui/icons-material/PersonOutlineOutlined";
 import { AppBar, Avatar, Box, Button, IconButton, Menu, MenuItem, Stack, Toolbar, Tooltip, Typography, useMediaQuery } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
+import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { getMyProfile } from "../../api/profileApi";
 import { getPageTitle } from "../../config/pageTitleConfig";
 import { useAuth } from "../../context/AuthContext";
 import { brandColors } from "../../theme/theme";
@@ -28,8 +30,13 @@ export function AppHeader({ drawerWidth, isSidebarCollapsed, onMobileMenuClick, 
   const location = useLocation();
   const navigate = useNavigate();
   const { logout, user } = useAuth();
+  const { data: profile } = useQuery({ queryKey: ["me", "profile"], queryFn: getMyProfile, enabled: Boolean(user?.id) });
   const [userMenuAnchor, setUserMenuAnchor] = useState<HTMLElement | null>(null);
+  const [failedImageUrl, setFailedImageUrl] = useState<string | null>(null);
   const pageTitle = useMemo(() => getPageTitle(location.pathname), [location.pathname]);
+  const imageUrl = toAbsoluteMediaUrl(profile ? (profile.hasProfileImage ? profile.profileImageUrl : null) : user?.profileImageUrl);
+  const avatarUrl = imageUrl === failedImageUrl ? undefined : imageUrl;
+  const avatarInitial = (profile?.fullname ?? user?.fullname ?? "U").slice(0, 1);
 
   async function handleLogout() {
     await logout();
@@ -79,10 +86,11 @@ export function AppHeader({ drawerWidth, isSidebarCollapsed, onMobileMenuClick, 
             sx={{ display: { xs: "inline-flex", md: "none" }, flexShrink: 0, p: 0.5 }}
           >
             <Avatar
-              src={toAbsoluteMediaUrl(user?.profileImageUrl)}
+              src={avatarUrl}
+              imgProps={{ onError: () => setFailedImageUrl(imageUrl ?? null) }}
               sx={{ width: 34, height: 34, bgcolor: brandColors.accent, color: brandColors.primaryDark, fontSize: 14, fontWeight: 700 }}
             >
-              {(user?.fullname ?? "U").slice(0, 1)}
+              {avatarInitial}
             </Avatar>
           </IconButton>
         </Tooltip>
@@ -94,10 +102,11 @@ export function AppHeader({ drawerWidth, isSidebarCollapsed, onMobileMenuClick, 
           sx={{ minWidth: 0, display: { xs: "none", md: "flex" }, cursor: "pointer" }}
         >
           <Avatar
-            src={toAbsoluteMediaUrl(user?.profileImageUrl)}
+            src={avatarUrl}
+            imgProps={{ onError: () => setFailedImageUrl(imageUrl ?? null) }}
             sx={{ width: 36, height: 36, bgcolor: brandColors.accent, color: brandColors.primaryDark, fontSize: 14 }}
           >
-            {(user?.fullname ?? "U").slice(0, 1)}
+            {avatarInitial}
           </Avatar>
           <Box sx={{ minWidth: 0, maxWidth: 180 }}>
             <Typography variant="body2" fontWeight={700} noWrap>
