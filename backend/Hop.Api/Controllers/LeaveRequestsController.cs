@@ -819,6 +819,7 @@ public class LeaveRequestsController(
 
     private async Task<ActionResult<ApiResponse<LeaveRequestResponse>>> Decide(Guid id, string decision, string? remark)
     {
+        await using var transaction = db.Database.IsRelational() ? await db.Database.BeginTransactionAsync() : null;
         var approverId = GetCurrentUserId();
         var leaveRequest = await db.LeaveRequests
             .Include(item => item.Approvals)
@@ -903,6 +904,7 @@ public class LeaveRequestsController(
         }
 
         await db.SaveChangesAsync();
+        if (transaction is not null) await transaction.CommitAsync();
         await auditLogService.WriteAsync(approverId, $"LeaveRequest.{decision}", "LeaveRequest", leaveRequest.Id.ToString(), $"{decision} leave request step {approval.StepOrder}.", "Success", HttpContext);
         if (decision == "Rejected")
         {
@@ -920,6 +922,7 @@ public class LeaveRequestsController(
 
     private async Task<ActionResult<ApiResponse<LeaveRequestResponse>>> OverrideDecide(Guid id, string decision, string reason)
     {
+        await using var transaction = db.Database.IsRelational() ? await db.Database.BeginTransactionAsync() : null;
         var overrideByUserId = GetCurrentUserId();
         if (overrideByUserId is null)
         {
@@ -1002,6 +1005,7 @@ public class LeaveRequestsController(
         });
 
         await db.SaveChangesAsync();
+        if (transaction is not null) await transaction.CommitAsync();
         await auditLogService.WriteAsync(
             overrideByUserId,
             decision == "Approved" ? "LeaveApproval.OverrideApproved" : "LeaveApproval.OverrideRejected",
@@ -1066,6 +1070,15 @@ public class LeaveRequestsController(
     {
         var leaveType = await db.LeaveTypes.SingleAsync(item => item.Id == leaveRequest.LeaveTypeId);
         var year = FiscalYearHelper.ResolveBalanceYear(leaveRequest.StartDate, leaveType);
+        var tracked = db.LeaveBalances.Local.FirstOrDefault(item =>
+            item.UserId == leaveRequest.UserId && item.LeaveTypeId == leaveRequest.LeaveTypeId && item.Year == year);
+        if (tracked is not null) return tracked;
+
+        if (db.Database.IsNpgsql() && db.Database.CurrentTransaction is not null)
+        {
+            var lockKey = $"{leaveRequest.UserId:N}:{leaveRequest.LeaveTypeId:N}:{year}";
+            await db.Database.ExecuteSqlInterpolatedAsync($"SELECT pg_advisory_xact_lock(hashtextextended({lockKey}, 0))");
+        }
         var balance = await db.LeaveBalances.FirstOrDefaultAsync(item =>
             item.UserId == leaveRequest.UserId &&
             item.LeaveTypeId == leaveRequest.LeaveTypeId &&
@@ -1090,6 +1103,16 @@ public class LeaveRequestsController(
             EntitledDays = entitlementDays,
             Notes = $"Created automatically from leave request {leaveRequest.RequestNumber ?? leaveRequest.Id.ToString()}."
         };
+        if (db.Database.IsNpgsql())
+        {
+            await db.Database.ExecuteSqlInterpolatedAsync($"""
+                INSERT INTO leave_balances (id, user_id, leave_type_id, year, entitled_days, carried_over_days, adjusted_days, used_days, pending_days, notes, created_at)
+                VALUES ({Guid.NewGuid()}, {balance.UserId}, {balance.LeaveTypeId}, {balance.Year}, {balance.EntitledDays}, 0, 0, 0, 0, {balance.Notes}, {balance.CreatedAt})
+                ON CONFLICT (user_id, leave_type_id, year) DO NOTHING
+                """);
+            return await db.LeaveBalances.SingleAsync(item => item.UserId == leaveRequest.UserId &&
+                item.LeaveTypeId == leaveRequest.LeaveTypeId && item.Year == year);
+        }
         db.LeaveBalances.Add(balance);
         return balance;
     }

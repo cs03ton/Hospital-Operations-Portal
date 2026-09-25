@@ -51,6 +51,46 @@ public class Phase1CriticalLeaveWorkflowTests
     }
 
     [Fact]
+    public async Task FinalApproval_CreatesOneBalanceWhenMissing()
+    {
+        await using var db = CreateDbContext();
+        var fixture = await SeedPendingLeaveAsync(db);
+        db.LeaveBalances.RemoveRange(db.LeaveBalances);
+        await db.SaveChangesAsync();
+        var approval = fixture.LeaveRequest.Approvals.Single(item => item.ApproverId == fixture.Director.Id);
+        var first = fixture.LeaveRequest.Approvals.Single(item => item.ApproverId == fixture.Head.Id);
+        first.Status = "Approved";
+        approval.Status = "Pending";
+        fixture.LeaveRequest.CurrentApproverId = fixture.Director.Id;
+        await db.SaveChangesAsync();
+
+        var result = await CreateController(db, fixture.Director.Id, new CaptureNotificationPublisher())
+            .ApproveLeaveRequest(fixture.LeaveRequest.Id, new LeaveDecisionRequest("อนุมัติ"));
+
+        Assert.IsType<ApiResponse<LeaveRequestResponse>>(result.Value);
+        var balance = Assert.Single(await db.LeaveBalances.ToListAsync());
+        Assert.Equal(0, balance.PendingDays);
+        Assert.Equal(2, balance.UsedDays);
+    }
+
+    [Fact]
+    public async Task OverrideApproval_CreatesOneBalanceWhenMissing()
+    {
+        await using var db = CreateDbContext();
+        var fixture = await SeedPendingLeaveAsync(db);
+        db.LeaveBalances.RemoveRange(db.LeaveBalances);
+        await db.SaveChangesAsync();
+
+        var result = await CreateController(db, fixture.Director.Id, new CaptureNotificationPublisher())
+            .OverrideApproveLeaveRequest(fixture.LeaveRequest.Id, new LeaveOverrideDecisionRequest("อนุมัติแทน"));
+
+        Assert.IsType<ApiResponse<LeaveRequestResponse>>(result.Value);
+        var balance = Assert.Single(await db.LeaveBalances.ToListAsync());
+        Assert.Equal(0, balance.PendingDays);
+        Assert.Equal(2, balance.UsedDays);
+    }
+
+    [Fact]
     public async Task RejectFlow_ClearsPendingApprovalAndDoesNotDeductUsedBalance()
     {
         await using var db = CreateDbContext();
@@ -395,7 +435,7 @@ public class Phase1CriticalLeaveWorkflowTests
         }
     }
 
-    private sealed class NoopAuditLogService : IAuditLogService
+    internal sealed class NoopAuditLogService : IAuditLogService
     {
         public Task WriteAsync(Guid? userId, string action, string resource, string? resourceId, string? detail, string result = "Success", HttpContext? httpContext = null)
         {
@@ -403,7 +443,7 @@ public class Phase1CriticalLeaveWorkflowTests
         }
     }
 
-    private sealed class ValidLeaveValidationService : ILeaveValidationService
+    internal sealed class ValidLeaveValidationService : ILeaveValidationService
     {
         public Task<LeaveValidationResult> ValidateDraftAsync(LeaveRequest leaveRequest, Guid? excludeLeaveRequestId = null)
         {
@@ -416,7 +456,7 @@ public class Phase1CriticalLeaveWorkflowTests
         }
     }
 
-    private sealed class EmptyApprovalChainService : IApprovalChainService
+    internal sealed class EmptyApprovalChainService : IApprovalChainService
     {
         public Task<IReadOnlyList<ApprovalStepPlan>> BuildApprovalPlanAsync(LeaveRequest leaveRequest)
         {
@@ -424,7 +464,7 @@ public class Phase1CriticalLeaveWorkflowTests
         }
     }
 
-    private sealed class FakeAttachmentStorageService : ILeaveAttachmentStorageService
+    internal sealed class FakeAttachmentStorageService : ILeaveAttachmentStorageService
     {
         public Task<LeaveAttachment> SaveAsync(Guid leaveRequestId, Guid uploadedByUserId, IFormFile file)
         {
@@ -442,7 +482,7 @@ public class Phase1CriticalLeaveWorkflowTests
         }
     }
 
-    private sealed class FakeLeavePdfService : ILeavePdfService
+    internal sealed class FakeLeavePdfService : ILeavePdfService
     {
         public byte[] GenerateLeaveRequestPdf(LeaveRequest leaveRequest, LeavePdfRenderContext context)
         {
@@ -450,7 +490,7 @@ public class Phase1CriticalLeaveWorkflowTests
         }
     }
 
-    private sealed class CleanFileScanningService : IFileScanningService
+    internal sealed class CleanFileScanningService : IFileScanningService
     {
         public Task<FileScanResult> ScanAsync(IFormFile file, CancellationToken cancellationToken = default)
         {
@@ -458,7 +498,7 @@ public class Phase1CriticalLeaveWorkflowTests
         }
     }
 
-    private sealed class StaticRequestNumberService : ILeaveRequestNumberService
+    internal sealed class StaticRequestNumberService : ILeaveRequestNumberService
     {
         public Task<string> GenerateAsync(DateTime createdAtUtc, CancellationToken cancellationToken = default)
         {
