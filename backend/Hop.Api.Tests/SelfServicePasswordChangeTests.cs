@@ -113,6 +113,31 @@ public class SelfServicePasswordChangeTests
     }
 
     [Fact]
+    public async Task PasswordPolicy_ReportsEightAndChangePasswordAcceptsEightButRejectsSevenCharacters()
+    {
+        await using var db = CreateDbContext();
+        var user = new User
+        {
+            Id = Guid.NewGuid(), Username = "staff01", FullName = "เจ้าหน้าที่ 01",
+            PasswordHash = BCrypt.Net.BCrypt.HashPassword("OldPass@123"), IsActive = true
+        };
+        db.Users.Add(user);
+        await db.SaveChangesAsync();
+        var controller = CreateController(db, new CaptureAuditLogService(), user.Id);
+
+        Assert.Equal(8, controller.GetPasswordPolicy().Value!.Data!.MinimumLength);
+
+        var tooShort = await controller.ChangePassword(new ChangePasswordRequest("OldPass@123", "Ab1@cde", "Ab1@cde"));
+        var rejected = Assert.IsType<BadRequestObjectResult>(tooShort.Result);
+        Assert.Contains("8 ตัวอักษร", Assert.IsType<ApiResponse<string>>(rejected.Value).Message);
+        Assert.True(BCrypt.Net.BCrypt.Verify("OldPass@123", (await db.Users.SingleAsync()).PasswordHash));
+
+        var accepted = await controller.ChangePassword(new ChangePasswordRequest("OldPass@123", "Ab1@cdef", "Ab1@cdef"));
+        Assert.True(Assert.IsType<ApiResponse<string>>(accepted.Value).Success);
+        Assert.True(BCrypt.Net.BCrypt.Verify("Ab1@cdef", (await db.Users.SingleAsync()).PasswordHash));
+    }
+
+    [Fact]
     public async Task ChangePassword_WhenRateLimited_ReturnsTooManyRequests()
     {
         await using var db = CreateDbContext();

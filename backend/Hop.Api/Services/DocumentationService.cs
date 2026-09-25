@@ -19,6 +19,10 @@ public sealed class DocumentationService(
     private static readonly Regex SensitiveAssignmentPattern = new(
         @"(?i)\b(token|secret|password|connectionstring|jwt__key|access[_-]?token|channel[_-]?secret)\b\s*[:=]\s*[^`\s]+",
         RegexOptions.Compiled);
+    private static readonly HashSet<string> AdminDocumentSlugs = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "admin-guide", "meeting-room-admin-guide", "fleet-admin-guide", "fleet-line-group-admin-guide"
+    };
 
     private static readonly IReadOnlyList<DocumentationDefinition> Definitions =
     [
@@ -188,6 +192,8 @@ public sealed class DocumentationService(
             return true;
         }
 
+        if (AdminDocumentSlugs.Contains(definition.Slug)) return false;
+        if (access.Permissions.Contains("Documentation.View")) return true;
         return definition.Roles.Any(role => access.Roles.Contains(role));
     }
 

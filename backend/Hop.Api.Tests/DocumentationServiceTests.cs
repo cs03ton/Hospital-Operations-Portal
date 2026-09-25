@@ -12,7 +12,7 @@ namespace Hop.Api.Tests;
 public class DocumentationServiceTests
 {
     [Fact]
-    public async Task Staff_SeesOnlyAllowedDocuments()
+    public async Task Staff_SeesAllGeneralDocumentsButNoAdminDocuments()
     {
         using var temp = new TempDocumentationRoot();
         var service = temp.CreateService();
@@ -27,9 +27,12 @@ public class DocumentationServiceTests
         Assert.Contains(docs, item => item.Slug == "fleet-requester-guide");
         Assert.Contains(docs, item => item.Slug == "meeting-room-guide");
         Assert.DoesNotContain(docs, item => item.Slug == "meeting-room-admin-guide");
-        Assert.DoesNotContain(docs, item => item.Slug == "fleet-driver-guide");
+        Assert.Contains(docs, item => item.Slug == "fleet-driver-guide");
+        Assert.Contains(docs, item => item.Slug == "fleet-dispatcher-guide");
         Assert.DoesNotContain(docs, item => item.Slug == "admin-guide");
-        Assert.DoesNotContain(docs, item => item.Slug == "release-notes");
+        Assert.DoesNotContain(docs, item => item.Slug == "fleet-admin-guide");
+        Assert.DoesNotContain(docs, item => item.Slug == "fleet-line-group-admin-guide");
+        Assert.Contains(docs, item => item.Slug == "release-notes");
     }
 
     [Theory]
@@ -70,6 +73,32 @@ public class DocumentationServiceTests
         Assert.Contains(docs, item => item.Slug == "meeting-room-guide");
         Assert.Contains(docs, item => item.Slug == "meeting-room-admin-guide");
         Assert.Contains(docs, item => item.Slug == "fleet-line-group-admin-guide");
+    }
+
+    [Fact]
+    public async Task ViewPermission_AllowsGeneralDetailAndPdfButNotAdminOrEditing()
+    {
+        using var temp = new TempDocumentationRoot();
+        var service = temp.CreateService();
+        var access = new DocumentationAccessContext(
+            new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "CustomActiveRole" },
+            new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "Documentation.View" });
+
+        var docs = await service.GetDocumentsAsync(access);
+        Assert.Equal(13, docs.Count);
+        foreach (var slug in new[] { "fleet-requester-guide", "meeting-room-guide", "repair-guide", "fleet-dispatcher-guide", "release-notes" })
+        {
+            Assert.Contains(docs, item => item.Slug == slug);
+            Assert.NotNull(await service.GetDocumentAsync(slug, access));
+            Assert.True((await service.GeneratePdfAsync(slug, access))!.Length > 100);
+        }
+        foreach (var slug in new[] { "admin-guide", "meeting-room-admin-guide", "fleet-admin-guide", "fleet-line-group-admin-guide" })
+        {
+            Assert.DoesNotContain(docs, item => item.Slug == slug);
+            Assert.Null(await service.GetDocumentAsync(slug, access));
+            Assert.Null(await service.GeneratePdfAsync(slug, access));
+        }
+        Assert.Null(await service.UpdateDocumentAsync("staff-guide", "# Unauthorized", access));
     }
 
     [Fact]
