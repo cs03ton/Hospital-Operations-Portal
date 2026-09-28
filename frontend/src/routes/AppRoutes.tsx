@@ -62,6 +62,7 @@ import { FleetDriverTripPage } from "../pages/FleetDriverTripPage";
 import { FleetFeedbackPage } from "../pages/FleetFeedbackPage";
 import { FleetRequestCapabilitiesPage } from "../pages/FleetRequestCapabilitiesPage";
 import { FleetRolloutGuard } from "./FleetRolloutGuard";
+import { quickServicePermissions, quickServiceRoutes } from "../config/quickServices";
 import { FleetPermissionGuard } from "./FleetPermissionGuard";
 import { FleetApprovalsLandingPage, FleetReportsLandingPage } from "../pages/FleetModuleLandingPages";
 import { fleetPermissionGroups } from "../config/fleetNavigation";
@@ -156,7 +157,7 @@ function LeaveCreateGuard() {
     return <Navigate to="/unauthorized" replace />;
   }
 
-  return withPermission(<LeaveRequestFormPage />, "LeaveRequest.Create");
+  return withPermission(<LeaveRequestFormPage />, quickServicePermissions.leave);
 }
 
 function LeaveTypeGuard() {
@@ -237,7 +238,7 @@ export function AppRoutes() {
           <Route path="/admin/leave-balances/adjustments" element={withPermission(<LeaveBalanceAdjustmentPage />, "LeaveAdmin.ManageBalances")} />
           <Route path="/admin/leave-holidays" element={withPermission(<LeaveHolidayManagementPage />, "LeaveAdmin.ManageHolidays")} />
           <Route path="/leave" element={withAnyPermission(<LeaveManagementPage />, leaveViewPermissions)} />
-          <Route path="/leave/create" element={<LeaveCreateGuard />} />
+          <Route path={quickServiceRoutes.leave} element={<LeaveCreateGuard />} />
           <Route path="/leave/pending-approvals" element={withAnyPermission(<PendingApprovalsPage />, ["LeaveRequest.ViewPendingApproval", "LeaveApproval.ApproveCurrentStep"])} />
           <Route path="/leave/calendar" element={withAnyPermission(<LeaveCalendarPage />, leaveViewPermissions)} />
           <Route path="/leave/cancellations" element={withAnyPermission(<LeaveCancellationListPage />, leaveCancellationViewPermissions)} />
@@ -249,7 +250,7 @@ export function AppRoutes() {
           <Route path="/leave/:id/edit" element={withPermission(<LeaveRequestFormPage />, "LeaveRequest.EditOwn")} />
           <Route path="/leave/:id" element={withAnyPermission(<LeaveRequestDetailPage />, leaveViewPermissions)} />
           <Route path="/fleet/requests" element={withFleetRollout(<FleetRequestsPage />)} />
-          <Route path="/fleet/requests/create" element={withFleetRollout(withPermission(<FleetRequestFormPage />, "FleetRequest.Create"))} />
+          <Route path={quickServiceRoutes.fleet} element={withFleetRollout(withPermission(<FleetRequestFormPage />, quickServicePermissions.fleet))} />
           <Route path="/fleet/requests/:id/edit" element={withFleetRollout(withPermission(<FleetRequestFormPage />, "FleetRequest.EditOwn"))} />
           <Route path="/fleet/requests/:id" element={withFleetRollout(<FleetRequestDetailPage />)} />
           <Route path="/fleet/requests/:id/capabilities" element={withFleetRollout(withAnyPermission(<FleetRequestCapabilitiesPage />, ["FleetRequestCapability.ManageOwn", "FleetCompatibility.View"]))} />
@@ -273,7 +274,7 @@ export function AppRoutes() {
           <Route path="/fleet/reports" element={withFleetRollout(withAnyPermission(<FleetReportsLandingPage />, [...fleetPermissionGroups.reports]))} />
           <Route path="/fleet/settings" element={withFleetRollout(withAnyPermission(<FleetSettingsPage />, [...fleetPermissionGroups.settings]))} />
           <Route path="/repairs" element={<PermissionGuard permissions={repairViewPermissions} redirectTo="/dashboard"><RepairListPage /></PermissionGuard>} />
-          <Route path="/repairs/new" element={withPermission(<RepairCreatePage />, "RepairManagement.Create")} />
+          <Route path={quickServiceRoutes.repair} element={withPermission(<RepairCreatePage />, quickServicePermissions.repair)} />
           <Route path="/repairs/reports" element={withPermission(<RepairReportsPage />, "RepairManagement.ViewAll")} />
           <Route path="/repairs/settings" element={withPermission(<RepairSettingsPage />, "RepairManagement.Manage")} />
           <Route path="/repairs/:id" element={<PermissionGuard permissions={repairViewPermissions} redirectTo="/dashboard"><RepairDetailPage /></PermissionGuard>} />
@@ -281,7 +282,7 @@ export function AppRoutes() {
           <Route path="/meeting-rooms/dashboard" element={withPermission(<MeetingRoomDashboardPage />, "MeetingRoom.Calendar.View")} />
           <Route path="/meeting-rooms/calendar" element={withPermission(<MeetingRoomCalendarPage />, "MeetingRoom.Calendar.View")} />
           <Route path="/meeting-rooms/my-bookings" element={withPermission(<MeetingRoomBookingsPage />, "MeetingRoom.Booking.ViewOwn")} />
-          <Route path="/meeting-rooms/new" element={withPermission(<MeetingRoomCreatePage />, "MeetingRoom.Booking.Create")} />
+          <Route path={quickServiceRoutes.meetingRoom} element={withPermission(<MeetingRoomCreatePage />, quickServicePermissions.meetingRoom)} />
           <Route path="/meeting-rooms/bookings/:id" element={withPermission(<MeetingRoomDetailPage />, "MeetingRoom.Calendar.View")} />
           <Route path="/meeting-rooms/manage" element={withAnyPermission(<MeetingRoomManagePage />, ["MeetingRoom.Booking.Manage", "MeetingRoom.Room.Manage"])} />
           <Route path="/fleet/maintenance" element={withFleetRollout(withPermission(<FleetMaintenancePage />, "FleetMaintenance.View"))} />

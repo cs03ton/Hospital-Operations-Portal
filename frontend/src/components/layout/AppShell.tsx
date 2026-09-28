@@ -6,6 +6,7 @@ import { Outlet, useLocation } from "react-router-dom";
 import { AppFooter } from "./AppFooter";
 import { AppHeader } from "./AppHeader";
 import { AppSidebar } from "./AppSidebar";
+import { QuickServiceFab } from "./QuickServiceFab";
 import { useSidebarState } from "../../hooks/useSidebarState";
 import { brandColors } from "../../theme/theme";
 
@@ -46,6 +47,7 @@ export function AppShell() {
           mt: 9,
           px: { xs: 2, sm: 2.5, md: 3.5 },
           py: { xs: 2, md: 3 },
+          pb: { xs: 12, md: 12 },
           transition: theme.transitions.create(["padding", "margin"], {
             duration: theme.transitions.duration.shorter,
             easing: theme.transitions.easing.easeInOut,
@@ -69,6 +71,7 @@ export function AppShell() {
           <AppFooter />
         </Box>
       </Box>
+      <QuickServiceFab />
     </Box>
   );
 }
