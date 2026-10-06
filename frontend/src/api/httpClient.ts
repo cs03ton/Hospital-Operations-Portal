@@ -137,7 +137,9 @@ function notifyHttpError(error: unknown) {
   }
 
   const payload = error.response.data as { message?: string; referenceId?: string } | undefined;
-  const message = payload?.message || "เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง";
+  const message = error.response.status === 409 && payload?.message?.includes("Request was changed by another user")
+    ? "ข้อมูลคำขอนี้มีการเปลี่ยนแปลง กรุณาโหลดข้อมูลล่าสุดแล้วลองอีกครั้ง"
+    : payload?.message || "เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง";
   notifyGlobal("error", payload?.referenceId ? `${message} (Reference ID: ${payload.referenceId})` : message);
 }
 

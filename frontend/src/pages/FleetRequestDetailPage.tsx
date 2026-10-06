@@ -38,6 +38,8 @@ import { formatThaiDateTime } from "../utils/dateFormat";
 import { getFleetStatusLabel } from "../utils/fleetLabels";
 import { useState } from "react";
 import { useNotification } from "../hooks/useNotification";
+import { isAxiosError } from "axios";
+import { ArrowBackRounded, CancelOutlined, DirectionsCarRounded, WarningAmberRounded } from "@mui/icons-material";
 
 export function FleetRequestDetailPage() {
   const { id } = useParams();
@@ -77,6 +79,8 @@ export function FleetRequestDetailPage() {
   const [reviewAction, setReviewAction] = useState<"approve" | "return" | "reject" | null>(null);
   const [reviewReason, setReviewReason] = useState("");
   const [reviewReturnTarget, setReviewReturnTarget] = useState("");
+  const [cancelStep, setCancelStep] = useState<"reason" | "confirm" | null>(null);
+  const [cancelReason, setCancelReason] = useState("");
   const refresh = async () => {
     await Promise.all([
       client.invalidateQueries({ queryKey: ["fleet"] }),
@@ -92,7 +96,16 @@ export function FleetRequestDetailPage() {
       actionReason?: string;
     }) =>
       transitionFleetRequest(id!, action, data!.concurrencyToken, actionReason),
-    onSuccess: refresh,
+    onSuccess: async (latest, variables) => {
+      client.setQueryData(["fleet", "request", id], latest);
+      client.setQueryData(["fleet", "request-form", id], latest);
+      if (variables.action === "cancel") {
+        setCancelStep(null);
+        setCancelReason("");
+        notify.showSuccess("ยกเลิกคำขอใช้รถเรียบร้อยแล้ว");
+      }
+      await refresh();
+    },
   });
   const assign = useMutation({
     mutationFn: () =>
@@ -147,7 +160,7 @@ export function FleetRequestDetailPage() {
   const requesterCanCancel =
     isRequester &&
     ["DRAFT", "PENDING_DISPATCH", "PENDING_ADMIN_REVIEW", "PENDING_DIRECTOR", "RETURNED"].includes(data.status) &&
-    !isDispatcher;
+    hasPermission("FleetRequest.Cancel");
   const readyVehicles =
     availability?.vehicles.filter((x) => x.isAvailable) ?? [];
   const readyDrivers = availability?.drivers.filter((x) => x.isAvailable) ?? [];
@@ -163,9 +176,13 @@ export function FleetRequestDetailPage() {
         </Alert>
       )}
       {(replace.isError || assign.isError || transition.isError) && (
-        <Alert severity="error" sx={{ mb: 2 }}>
-          ดำเนินการไม่สำเร็จ ข้อมูลอาจเปลี่ยนแปลงหรือไม่พร้อมใช้งาน
-          กรุณาโหลดใหม่
+        <Alert severity="error" sx={{ mb: 2 }} action={<Button onClick={async () => {
+          await refresh();
+          transition.reset(); assign.reset(); replace.reset();
+        }}>โหลดข้อมูลล่าสุด</Button>}>
+          {[replace.error, assign.error, transition.error].some(error => isAxiosError(error) && error.response?.status === 409)
+            ? "ข้อมูลคำขอนี้มีการเปลี่ยนแปลง กรุณาโหลดข้อมูลล่าสุดแล้วลองอีกครั้ง"
+            : "ดำเนินการไม่สำเร็จ กรุณาโหลดข้อมูลล่าสุดแล้วลองอีกครั้ง"}
         </Alert>
       )}
       <Stack spacing={2}>
@@ -194,16 +211,11 @@ export function FleetRequestDetailPage() {
                 {requesterCanCancel && (
                     <Button
                       color="error"
+                      disabled={transition.isPending}
                       onClick={() => {
-                        const value = window.prompt("ระบุเหตุผลการยกเลิก");
-                        if (
-                          value?.trim() &&
-                          window.confirm("ยืนยันยกเลิกคำขอ?")
-                        )
-                          transition.mutate({
-                            action: "cancel",
-                            actionReason: value.trim(),
-                          });
+                        transition.reset();
+                        setCancelReason("");
+                        setCancelStep("reason");
                       }}
                     >
                       ยกเลิก
@@ -435,6 +447,57 @@ export function FleetRequestDetailPage() {
           </CardContent>
         </Card>
       </Stack>
+      <Dialog
+        open={cancelStep !== null}
+        onClose={() => !transition.isPending && setCancelStep(null)}
+        fullWidth maxWidth="sm" aria-labelledby="cancel-request-title"
+        PaperProps={{ sx: { borderRadius: 4, border: "1px solid #dfcfaa", overflow: "hidden", m: { xs: 2, sm: 3 } } }}
+      >
+        <DialogTitle id="cancel-request-title" sx={{ p: 3, background: "linear-gradient(120deg, #eef6f3, #faf3e3)", borderBottom: "1px solid #e8dfce" }}>
+          <Stack direction="row" spacing={2} alignItems="center">
+            <Box sx={{ display: "grid", placeItems: "center", width: 52, height: 52, borderRadius: 3, bgcolor: cancelStep === "confirm" ? "#fff0ed" : "#e1eee9", color: cancelStep === "confirm" ? "#c34c3e" : "#1d5d4f", flexShrink: 0 }}>
+              {cancelStep === "confirm" ? <WarningAmberRounded fontSize="large" /> : <CancelOutlined fontSize="large" />}
+            </Box>
+            <Box>
+              <Typography variant="h6" fontWeight={800} color="#1d5d4f">{cancelStep === "confirm" ? "ยืนยันยกเลิกคำขอใช้รถ" : "ระบุเหตุผลการยกเลิก"}</Typography>
+              <Typography variant="body2" color="text.secondary">{cancelStep === "confirm" ? "ตรวจสอบข้อมูลก่อนยืนยันการยกเลิก" : "แจ้งเหตุผลเพื่อให้ผู้เกี่ยวข้องทราบ"}</Typography>
+            </Box>
+          </Stack>
+        </DialogTitle>
+        <DialogContent sx={{ p: 3 }}>
+          <Stack spacing={2.5} sx={{ pt: 2.5 }}>
+            <Stack direction="row" spacing={1.5} sx={{ p: 2, bgcolor: "#f4f7f6", borderRadius: 3 }}>
+              <DirectionsCarRounded sx={{ color: "#1d5d4f", mt: 0.5 }} />
+              <Box sx={{ minWidth: 0 }}>
+                <Typography fontWeight={800} color="#1d5d4f">{data.requestNo}</Typography>
+                <Typography variant="body2" sx={{ overflowWrap: "anywhere" }}>{data.destination}</Typography>
+                <Typography variant="caption" color="text.secondary">ออกเดินทาง {formatThaiDateTime(data.departureAt)}</Typography>
+              </Box>
+            </Stack>
+            {cancelStep === "reason" ? (
+              <TextField autoFocus required fullWidth multiline minRows={3} label="เหตุผลการยกเลิก" placeholder="เช่น ยกเลิกภารกิจ หรือส่งคำขอซ้ำ" value={cancelReason} onChange={e => setCancelReason(e.target.value)} helperText="กรุณาระบุเหตุผลก่อนดำเนินการต่อ" />
+            ) : (
+              <>
+                <Alert severity="warning" sx={{ borderRadius: 2 }}>เมื่อยืนยัน คำขอนี้จะเปลี่ยนเป็นสถานะยกเลิก</Alert>
+                <Box sx={{ p: 2, border: "1px solid", borderColor: "divider", borderRadius: 3 }}>
+                  <Typography variant="caption" color="text.secondary">เหตุผลการยกเลิก</Typography>
+                  <Typography sx={{ mt: 0.5, whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{cancelReason.trim()}</Typography>
+                </Box>
+              </>
+            )}
+            {transition.isError && <Alert severity="error" sx={{ borderRadius: 2 }} action={<Button disabled={transition.isPending} onClick={async () => { await refresh(); transition.reset(); }}>โหลดใหม่</Button>}>
+              {isAxiosError(transition.error) && transition.error.response?.status === 409 ? "ข้อมูลคำขอนี้มีการเปลี่ยนแปลง กรุณาโหลดข้อมูลล่าสุดแล้วลองอีกครั้ง" : "ยกเลิกไม่สำเร็จ กรุณาตรวจสอบข้อมูลแล้วลองอีกครั้ง"}
+            </Alert>}
+          </Stack>
+        </DialogContent>
+        <DialogActions sx={{ p: 3, pt: 1, gap: 1, flexWrap: "wrap" }}>
+          <Button disabled={transition.isPending} onClick={() => setCancelStep(null)}>กลับไปหน้าคำขอ</Button>
+          {cancelStep === "confirm" && <Button startIcon={<ArrowBackRounded />} disabled={transition.isPending} onClick={() => setCancelStep("reason")}>แก้ไขเหตุผล</Button>}
+          <Button variant="contained" color={cancelStep === "confirm" ? "error" : "primary"} startIcon={cancelStep === "confirm" ? <CancelOutlined /> : undefined} disabled={transition.isPending || !cancelReason.trim()} onClick={() => cancelStep === "reason" ? setCancelStep("confirm") : transition.mutate({ action: "cancel", actionReason: cancelReason.trim() })} sx={{ borderRadius: 2, px: 3 }}>
+            {transition.isPending ? "กำลังยกเลิก..." : cancelStep === "confirm" ? "ยืนยันยกเลิกคำขอ" : "ตรวจสอบและดำเนินการต่อ"}
+          </Button>
+        </DialogActions>
+      </Dialog>
       <Dialog open={reviewAction !== null} onClose={() => !review.isPending && setReviewAction(null)} fullWidth maxWidth="sm">
         <DialogTitle>{reviewAction === "approve" ? "ยืนยันการอนุมัติ" : reviewAction === "return" ? "ส่งคำขอกลับแก้ไข" : "ยืนยันการไม่อนุมัติ"}</DialogTitle>
         <DialogContent><Stack spacing={2} sx={{ pt: 1 }}>

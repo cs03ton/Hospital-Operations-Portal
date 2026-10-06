@@ -15,6 +15,7 @@ public sealed class FleetLineGroupDeliveryWorker(
             logger.LogInformation("Fleet LINE group delivery worker is disabled.");
             return;
         }
+        logger.LogInformation("Fleet LINE group delivery worker started. PollIntervalSeconds={PollIntervalSeconds}", options.Value.PollIntervalSeconds);
         using var timer = new PeriodicTimer(TimeSpan.FromSeconds(Math.Clamp(options.Value.PollIntervalSeconds, 2, 300)));
         try
         {
@@ -24,9 +25,11 @@ public sealed class FleetLineGroupDeliveryWorker(
                 {
                     using var scope = scopes.CreateScope();
                     var service = scope.ServiceProvider.GetRequiredService<FleetLineGroupDeliveryService>();
-                    await service.ProjectMissingEventsAsync(stoppingToken);
-                    await service.DiscoverAsync(stoppingToken);
-                    await service.ProcessAsync(stoppingToken);
+                    var projected = await service.ProjectMissingEventsAsync(stoppingToken);
+                    var discovered = await service.DiscoverAsync(stoppingToken);
+                    var processed = await service.ProcessAsync(stoppingToken);
+                    if (projected > 0 || discovered > 0 || processed > 0)
+                        logger.LogInformation("Fleet LINE group delivery batch. Projected={Projected} Discovered={Discovered} Processed={Processed}", projected, discovered, processed);
                 }
                 catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { break; }
                 catch (Exception ex) { logger.LogError(ex, "Fleet LINE group delivery worker batch failed; USER delivery is unaffected."); }

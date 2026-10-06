@@ -15,6 +15,35 @@ namespace Hop.Api.Tests;
 
 public sealed class FleetLineGroupDeliveryTests
 {
+    [Theory]
+    [InlineData("Fleet.RequestSubmitted", "Fleet.RequestSubmitted", "delivered")]
+    [InlineData("Fleet.RequestCancelled", "Fleet.Cancelled", "delivered")]
+    [InlineData("Fleet.RequestSubmitted", "Fleet.RequestSubmitted", "unknown")]
+    [InlineData("Fleet.RequestSubmitted", "Fleet.RequestSubmitted", "unsubscribed")]
+    public async Task Discovery_reaches_new_events_after_more_than_a_batch_of_old_events(
+        string source, string canonical, string oldKind)
+    {
+        await using var db = Database();
+        var fixture = await Seed(db, "FLEET", source, true, false);
+        fixture.Destination.EventSubscriptions.Clear();
+        db.LineGroupEventSubscriptions.RemoveRange(await db.LineGroupEventSubscriptions.ToListAsync());
+        db.LineGroupEventSubscriptions.Add(new LineGroupEventSubscription { DestinationId = fixture.Destination.Id, EventType = canonical, IsEnabled = true });
+        for (var i = 0; i < 150; i++)
+        {
+            var eventId = Guid.NewGuid();
+            var eventType = oldKind == "unknown" ? "Fleet.Unknown" : oldKind == "unsubscribed" ? "Fleet.TripCompleted" : source;
+            db.DomainEvents.Add(new DomainEventRecord { EventId = eventId, EventType = eventType, Scope = "FLEET", AggregateType = "FleetRequest", AggregateId = Guid.NewGuid(), OccurredAt = fixture.Event.OccurredAt.AddSeconds(-200 + i), Payload = "{}" });
+            db.OutboxMessages.Add(new OutboxMessage { EventId = eventId, EventType = eventType, Scope = "FLEET", Payload = "{}" });
+            if (oldKind == "delivered")
+                db.LineGroupDeliveryLogs.Add(new LineGroupDeliveryLog { EventId = eventId, DestinationId = fixture.Destination.Id, CanonicalEventType = canonical, SourceEventType = source, Status = "Sent", DeduplicationKey = $"{eventId}:{fixture.Destination.Id}:{canonical}" });
+        }
+        await db.SaveChangesAsync();
+        var service = Service(db, new SequenceClient(Success()));
+        Assert.Equal(1, await service.DiscoverAsync(default));
+        Assert.Equal(0, await service.DiscoverAsync(default));
+        Assert.Single(await db.LineGroupDeliveryLogs.Where(x => x.EventId == fixture.Event.EventId).ToListAsync());
+    }
+
     [Fact]
     public async Task Repair_events_reach_only_active_subscribed_groups_for_the_assigned_team_after_assignment()
     {

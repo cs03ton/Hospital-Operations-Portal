@@ -14,7 +14,7 @@ namespace Hop.Api.Controllers;
 [ApiController]
 [Route("api/fleet/requests")]
 [Authorize]
-public sealed class FleetRequestsController(AppDbContext db, FleetRequestNumberService numberService, FleetAvailabilityService availabilityService, IDomainEventPublisher events) : ControllerBase
+public sealed class FleetRequestsController(AppDbContext db, FleetRequestNumberService numberService, FleetAvailabilityService availabilityService, IDomainEventPublisher events, ILogger<FleetRequestsController>? logger = null) : ControllerBase
 {
     [HttpGet("personnel-options")]
     [RequireAnyPermission(FleetPermissions.RequestCreate, FleetPermissions.RequestEditOwn)]
@@ -234,7 +234,11 @@ public sealed class FleetRequestsController(AppDbContext db, FleetRequestNumberS
         var item = await db.FleetRequests.Include(x => x.Passengers).Include(x => x.Assignments).FirstOrDefaultAsync(x => x.Id == id, ct);
         if (item is null) return NotFound(ApiResponse<FleetRequestDto>.Fail("Fleet request not found."));
         if (item.RequesterUserId != actor) return Forbid();
-        if (request.ConcurrencyToken != item.ConcurrencyToken) return Conflict(ApiResponse<FleetRequestDto>.Fail("Request was changed by another user."));
+        if (request.ConcurrencyToken != item.ConcurrencyToken)
+        {
+            logger?.LogWarning("Fleet request token mismatch. RequestId={RequestId} Action={Action} ReferenceId={ReferenceId}", id, action, HttpContext.TraceIdentifier);
+            return Conflict(ApiResponse<FleetRequestDto>.Fail("ข้อมูลคำขอนี้มีการเปลี่ยนแปลง กรุณาโหลดข้อมูลล่าสุดแล้วลองอีกครั้ง"));
+        }
         var from = item.Status;
         if (action == "submit")
         {
@@ -321,6 +325,7 @@ public sealed class FleetRequestsController(AppDbContext db, FleetRequestNumberS
         var history = new FleetRequestStatusHistory
         {
             Id = Guid.NewGuid(),
+            FleetRequestId = item.Id,
             FromStatus = from,
             ToStatus = to,
             Action = action,
@@ -330,11 +335,28 @@ public sealed class FleetRequestsController(AppDbContext db, FleetRequestNumberS
             CorrelationId = HttpContext.TraceIdentifier
         };
         item.StatusHistories.Add(history);
+        // A preassigned generated key added through a tracked navigation can be
+        // inferred as Modified. Explicitly insert this new history row.
+        db.FleetRequestStatusHistories.Add(history);
         return history;
     }
     private void AddAudit(Guid? actor, string action, Guid id, string? detail) => db.AuditLogs.Add(new AuditLog { UserId = actor, Action = action, EntityName = "FleetRequest", EntityId = id.ToString(), Detail = detail, IpAddress = HttpContext.Connection.RemoteIpAddress?.ToString() });
     private async Task<bool> HasPermission(string permission, CancellationToken ct) { var id = CurrentUserId(); return id is not null && await db.UserRoles.Where(x => x.UserId == id && x.Role != null && x.Role.IsActive).SelectMany(x => x.Role!.RolePermissions).AnyAsync(x => x.Permission != null && x.Permission.IsActive && x.Permission.Code == permission, ct); }
-    private async Task<bool> TrySave(CancellationToken ct) { try { await db.SaveChangesAsync(ct); return true; } catch (DbUpdateConcurrencyException) { return false; } catch (DbUpdateException) { return false; } }
+    private async Task<bool> TrySave(CancellationToken ct)
+    {
+        try
+        {
+            await db.SaveChangesAsync(ct);
+            return true;
+        }
+        catch (DbUpdateConcurrencyException ex)
+        {
+            logger?.LogWarning(ex, "Fleet concurrent update. Path={Path} ReferenceId={ReferenceId}", HttpContext.Request.Path, HttpContext.TraceIdentifier);
+            return false;
+        }
+        // Other database errors must reach GlobalExceptionMiddleware: log the real
+        // exception and return HTTP 500 with a reference ID, never a false conflict.
+    }
     private Guid? CurrentUserId() => Guid.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var id) ? id : null;
     private static string? Clean(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
     private static TimeZoneInfo BangkokTimeZone() { try { return TimeZoneInfo.FindSystemTimeZoneById("Asia/Bangkok"); } catch (TimeZoneNotFoundException) { return TimeZoneInfo.FindSystemTimeZoneById("SE Asia Standard Time"); } }

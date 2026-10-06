@@ -7,7 +7,7 @@ import { Alert, Autocomplete, Box, Button, Card, CardContent, Chip, FormControlL
 import { DateCalendar, LocalizationProvider } from "@mui/x-date-pickers";
 import { AdapterDayjsBuddhist } from "../components/common/AppDatePicker";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import dayjs, { type Dayjs } from "dayjs";
 import { isAxiosError } from "axios";
@@ -18,6 +18,7 @@ import { PageHeader } from "../components/PageHeader";
 import { useAuth } from "../context/AuthContext";
 import { countFleetPassengers } from "../utils/fleetPassengerCount";
 import { persistFleetRequestWithDocuments } from "../utils/fleetRequestDocumentFlow";
+import { useNotification } from "../hooks/useNotification";
 
 type FormState = {
   purpose: string; missionType: string; destination: string;
@@ -90,6 +91,7 @@ function ThaiDateTimeField({ label, value, onChange, error = false, helperText }
 export function FleetRequestFormPage() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const notify = useNotification();
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const [personnelSearch, setPersonnelSearch] = useState("");
@@ -98,6 +100,12 @@ export function FleetRequestFormPage() {
   const [submitAfterSave, setSubmitAfterSave] = useState(false);
   const [draftId, setDraftId] = useState<string | null>(null);
   const [draftToken, setDraftToken] = useState<string | null>(null);
+  const initializedRequest = useRef<string | null>(null);
+  useEffect(() => {
+    initializedRequest.current = null;
+    setDraftId(null);
+    setDraftToken(null);
+  }, [id]);
   const [files, setFiles] = useState<File[]>([]);
   const [fileError, setFileError] = useState("");
   const [form, setForm] = useState<FormState>({
@@ -115,6 +123,9 @@ export function FleetRequestFormPage() {
   useEffect(() => {
     const data = request.data;
     if (!data) return;
+    setDraftToken(data.concurrencyToken);
+    if (initializedRequest.current === data.id) return;
+    initializedRequest.current = data.id;
     setForm({
       purpose: data.purpose, missionType: data.missionType,
       destination: data.destination, contactPersonName: data.contactPersonName, contactPhone: profile.data?.phoneNumber?.trim() || data.contactPhone,
@@ -162,13 +173,24 @@ export function FleetRequestFormPage() {
     mutationFn: async (andSubmit: boolean) => {
       return persistFleetRequestWithDocuments({
         requestId: id ?? draftId, payload: buildPayload(), files, submit: andSubmit,
-        onSaved: saved => { setDraftId(saved.id); setDraftToken(saved.concurrencyToken); },
+        onSaved: saved => {
+          setDraftId(saved.id); setDraftToken(saved.concurrencyToken);
+          initializedRequest.current = saved.id;
+          queryClient.setQueryData(["fleet", "request", saved.id], saved);
+          queryClient.setQueryData(["fleet", "request-form", saved.id], saved);
+        },
         onUploaded: async (file, requestId) => { setFiles(current => current.filter(item => item !== file)); await queryClient.invalidateQueries({ queryKey: ["fleet", "request-attachments", requestId] }); },
         onUploadError: () => setFileError("บันทึกร่างแล้ว แต่อัปโหลดเอกสารไม่สำเร็จ คำขอยังไม่ถูกส่ง กรุณาลองอีกครั้ง"),
       });
     },
     onMutate: andSubmit => setSubmitAfterSave(andSubmit),
-    onSuccess: result => navigate(`/fleet/requests/${result.id}`),
+    onSuccess: async (result, andSubmit) => {
+      queryClient.setQueryData(["fleet", "request", result.id], result);
+      queryClient.setQueryData(["fleet", "request-form", result.id], result);
+      await queryClient.invalidateQueries({ queryKey: ["fleet"] });
+      notify.showSuccess(andSubmit ? "บันทึกและส่งคำขอใช้รถเรียบร้อยแล้ว" : id ? "บันทึกการแก้ไขคำขอใช้รถเรียบร้อยแล้ว" : "บันทึกร่างคำขอใช้รถเรียบร้อยแล้ว");
+      navigate(`/fleet/requests/${result.id}`);
+    },
   });
 
   const field = (key: keyof FormState) => (event: React.ChangeEvent<HTMLInputElement>) => setForm(current => ({ ...current, [key]: event.target.value }));
@@ -178,7 +200,17 @@ export function FleetRequestFormPage() {
       <PageHeader title={id ? "แก้ไขคำขอใช้รถ" : "สร้างคำขอใช้รถ"} subtitle="ผู้ขอไม่สามารถเลือกรถหรือคนขับได้ งานยานพาหนะจะเป็นผู้จัดรถให้ตามความเหมาะสม" />
       {request.isError && <Alert severity="error">โหลดข้อมูลคำขอไม่สำเร็จ กรุณากลับไปยังรายการคำขอแล้วลองใหม่</Alert>}
       {profile.isError && <Alert severity="error">โหลดข้อมูลพนักงานไม่สำเร็จ กรุณาลองใหม่ก่อนบันทึกคำขอ</Alert>}
-      {save.isError && <Alert severity="error">{getSaveErrorMessage(save.error)}</Alert>}
+      {save.isError && <Alert severity="error" action={isAxiosError(save.error) && save.error.response?.status === 409 ? <Button onClick={async () => {
+        const requestId = id ?? draftId;
+        if (!requestId) return;
+        try {
+          const latest = await getFleetRequest(requestId);
+          setDraftToken(latest.concurrencyToken);
+          queryClient.setQueryData(["fleet", "request", requestId], latest);
+          queryClient.setQueryData(["fleet", "request-form", requestId], latest);
+          save.reset();
+        } catch { /* Keep the conflict visible so the user can retry loading. */ }
+      }}>โหลดข้อมูลล่าสุด</Button> : undefined}>{getSaveErrorMessage(save.error)}</Alert>}
       {fileError && <Alert severity="warning">{fileError}</Alert>}
       {attachments.isError && <Alert severity="error">โหลดรายการเอกสารไม่สำเร็จ กรุณาลองใหม่ก่อนบันทึก <Button onClick={() => attachments.refetch()}>ลองใหม่</Button></Alert>}
 
@@ -243,6 +275,7 @@ export function FleetRequestFormPage() {
 
 function getSaveErrorMessage(error: unknown) {
   if (isAxiosError<{ message?: string }>(error)) {
+    if (error.response?.status === 409) return "ข้อมูลคำขอนี้มีการเปลี่ยนแปลง กรุณาโหลดข้อมูลล่าสุดแล้วลองอีกครั้ง";
     const message = error.response?.data?.message;
     if (message?.includes("Expected return time must be after departure time")) {
       return "วันและเวลากลับต้องอยู่หลังวันและเวลาออกเดินทาง กรุณาตรวจสอบวันที่และเวลาอีกครั้ง";

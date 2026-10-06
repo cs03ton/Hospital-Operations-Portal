@@ -88,10 +88,29 @@ public sealed class FleetLineGroupDeliveryService(
             .ToListAsync(ct);
         if (destinations.Count == 0) return 0;
         var earliest = destinations.Min(x => x.ConfirmedAt!.Value);
-        var events = await db.DomainEvents.AsNoTracking()
-            .Where(x => (x.Scope == "FLEET" || x.Scope == "MEETING_ROOM" || x.Scope == "REPAIR") && x.OccurredAt >= earliest && db.OutboxMessages.Any(o => o.EventId == x.EventId))
-            .OrderBy(x => x.OccurredAt).Take(Math.Clamp(options.Value.BatchSize * 5, 20, 500)).ToListAsync(ct);
+        var baseEvents = db.DomainEvents.AsNoTracking()
+            .Where(x => (x.Scope == "FLEET" || x.Scope == "MEETING_ROOM" || x.Scope == "REPAIR") && x.OccurredAt >= earliest && db.OutboxMessages.Any(o => o.EventId == x.EventId));
+        var candidates = baseEvents.Where(x => false);
+        foreach (var canonical in destinations.SelectMany(x => x.EventSubscriptions)
+                     .Where(x => x.IsEnabled).Select(x => x.EventType).Distinct())
+        {
+            var sources = FleetLineGroupEventMapper.SourceEventsFor(canonical);
+            if (sources.Length == 0) continue;
+            // Filter BEFORE batching. Existing deliveries (including Retry/Failed)
+            // must not hide newer events, or prevent fan-out to another group.
+            candidates = candidates.Union(baseEvents.Where(e => sources.Contains(e.EventType) &&
+                db.LineGroupDestinations.Any(d => !d.Module.StartsWith("REPAIR_") &&
+                    d.Status == LineGroupDestinationStatuses.Active && d.ConfirmedAt != null && d.ConfirmedAt <= e.OccurredAt &&
+                    d.EventSubscriptions.Any(s => s.IsEnabled && s.EventType == canonical) &&
+                    !db.LineGroupDeliveryLogs.Any(l => l.EventId == e.EventId && l.DestinationId == d.Id && l.CanonicalEventType == canonical))));
+        }
+        var pageSize = Math.Clamp(options.Value.BatchSize * 5, 20, 500);
         var created = 0;
+        for (var offset = 0; ; offset += pageSize)
+        {
+        var events = await candidates.OrderBy(x => x.OccurredAt).ThenBy(x => x.EventId)
+            .Skip(offset).Take(pageSize).ToListAsync(ct);
+        if (events.Count == 0) break;
         foreach (var domainEvent in events)
         {
             var canonical = mapper.ToCanonical(domainEvent.Scope, domainEvent.EventType);
@@ -126,6 +145,10 @@ public sealed class FleetLineGroupDeliveryService(
                 });
                 created++;
             }
+        }
+        // Repair team filtering happens above in memory. Continue past unrelated
+        // pages so they cannot starve valid newer events either.
+        if (created >= pageSize || events.Count < pageSize) break;
         }
         if (created > 0) await db.SaveChangesAsync(ct);
         return created;

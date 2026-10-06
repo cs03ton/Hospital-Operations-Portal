@@ -29,7 +29,7 @@ public sealed class GlobalExceptionMiddleware(
         catch (Exception ex)
         {
             var referenceId = context.TraceIdentifier;
-            logger.LogError(ex, "Unhandled exception. ReferenceId={ReferenceId}", referenceId);
+            logger.LogError(ex, "Unhandled exception. ReferenceId={ReferenceId} Method={Method} Path={Path}", referenceId, context.Request.Method, context.Request.Path);
 
             if (context.Response.HasStarted)
             {
