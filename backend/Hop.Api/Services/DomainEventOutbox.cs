@@ -7,14 +7,23 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Hop.Api.Services;
 
-public sealed record DomainEventEnvelope(string EventType, string Scope, string AggregateType, Guid AggregateId, Guid? ActorUserId, string CorrelationId, object Payload, IReadOnlyList<Guid> RecipientUserIds);
+public sealed record DomainEventEnvelope(
+    string EventType,
+    string Scope,
+    string AggregateType,
+    Guid AggregateId,
+    Guid? ActorUserId,
+    string CorrelationId,
+    object Payload,
+    IReadOnlyList<Guid> RecipientUserIds,
+    Guid? EventId = null);
 public interface IDomainEventPublisher { Task PublishAsync(DomainEventEnvelope envelope, CancellationToken ct); }
 
 public sealed class DomainEventPublisher(AppDbContext db, INotificationRecipientResolver recipientResolver) : IDomainEventPublisher
 {
     public async Task PublishAsync(DomainEventEnvelope e, CancellationToken ct)
     {
-        var eventId = Guid.NewGuid(); var payload = JsonSerializer.Serialize(e.Payload);
+        var eventId = e.EventId ?? Guid.NewGuid(); var payload = JsonSerializer.Serialize(e.Payload);
         db.DomainEvents.Add(new DomainEventRecord { EventId = eventId, EventType = e.EventType, Scope = e.Scope, AggregateType = e.AggregateType, AggregateId = e.AggregateId, ActorUserId = e.ActorUserId, CorrelationId = e.CorrelationId, Payload = payload });
         var outbox = new OutboxMessage { EventId = eventId, EventType = e.EventType, Scope = e.Scope, Payload = payload };
         var recipientIds = e.RecipientUserIds.Count > 0 ? e.RecipientUserIds : await recipientResolver.ResolveAsync(e.EventType, e.AggregateId, ct);

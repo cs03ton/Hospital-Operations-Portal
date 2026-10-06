@@ -123,6 +123,51 @@ public sealed class FleetWorkflowTests
     }
 
     [Fact]
+    public async Task SubmitUrgentRequest_PublishesTransactionalEventWithHistoryIdAndUrgentPayload()
+    {
+        await using var db = CreateDb();
+        var requester = new User
+        {
+            Id = Guid.NewGuid(), Username = "urgent-requester", FullName = "ผู้ขอเร่งด่วน", PhoneNumber = "0812345678", IsActive = true
+        };
+        var request = MinimalRequest("VH-202610-0001", requester.Id);
+        request.Status = FleetRequestStatuses.Draft;
+        request.IsUrgent = true;
+        request.UrgentReason = "ต้องเดินทางภายในวันนี้";
+        request.Passengers.Add(new FleetRequestPassenger
+        {
+            Id = Guid.NewGuid(), UserId = requester.Id, FullName = requester.FullName,
+            PassengerType = FleetPassengerTypes.Employee, IsRequester = true, SortOrder = 0
+        });
+        db.AddRange(requester, request);
+        await db.SaveChangesAsync();
+        var events = new CaptureEvents();
+        var controller = new FleetRequestsController(db, new FleetRequestNumberService(db), new FleetAvailabilityService(db), events)
+        {
+            ControllerContext = new ControllerContext
+            {
+                HttpContext = new DefaultHttpContext
+                {
+                    TraceIdentifier = "urgent-submit-test",
+                    User = new ClaimsPrincipal(new ClaimsIdentity(
+                        [new Claim(ClaimTypes.NameIdentifier, requester.Id.ToString())], "Test"))
+                }
+            }
+        };
+
+        var result = await controller.Submit(request.Id, new FleetTransitionRequest(request.ConcurrencyToken, null), default);
+
+        var published = Assert.Single(events.Envelopes);
+        var history = Assert.Single(request.StatusHistories, x => x.Action == "Fleet.RequestSubmitted");
+        Assert.Equal("Fleet.RequestSubmitted", published.EventType);
+        Assert.Equal(history.Id, published.EventId);
+        var payload = System.Text.Json.JsonSerializer.Serialize(published.Payload);
+        using var payloadJson = System.Text.Json.JsonDocument.Parse(payload);
+        Assert.True(payloadJson.RootElement.GetProperty("IsUrgent").GetBoolean());
+        Assert.Equal("ต้องเดินทางภายในวันนี้", payloadJson.RootElement.GetProperty("UrgentReason").GetString());
+    }
+
+    [Fact]
     public async Task Availability_RejectsOverlapUnavailabilityLeaveAndExpiredLicense()
     {
         await using var db = CreateDb();
@@ -150,5 +195,14 @@ public sealed class FleetWorkflowTests
     private sealed class NoopEvents : IDomainEventPublisher
     {
         public Task PublishAsync(DomainEventEnvelope envelope, CancellationToken ct) => Task.CompletedTask;
+    }
+    private sealed class CaptureEvents : IDomainEventPublisher
+    {
+        public List<DomainEventEnvelope> Envelopes { get; } = [];
+        public Task PublishAsync(DomainEventEnvelope envelope, CancellationToken ct)
+        {
+            Envelopes.Add(envelope);
+            return Task.CompletedTask;
+        }
     }
 }

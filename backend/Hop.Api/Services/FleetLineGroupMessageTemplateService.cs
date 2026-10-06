@@ -29,8 +29,8 @@ public sealed partial class FleetLineGroupMessageTemplateService(
         new Dictionary<string, (string, string, string)>(StringComparer.Ordinal)
         {
             ["Fleet.RequestSubmitted"] = ("🚐", "มีคำขอใช้รถใหม่", "รอจัดรถและคนขับ"),
-            ["Fleet.AssignmentCreated"] = ("🚘", "จัดรถและคนขับแล้ว", "รอตรวจสอบคำขอ"),
-            ["Fleet.AdminReviewed"] = ("📋", "ตรวจคำขอเรียบร้อย", "รอผู้อำนวยการอนุมัติ"),
+            ["Fleet.AssignmentCreated"] = ("📋", "มีคำขอใช้รถรออนุมัติ", "รอหัวหน้าฝ่ายบริหารตรวจสอบ"),
+            ["Fleet.AdminReviewed"] = ("📋", "มีคำขอใช้รถรออนุมัติ", "รอผู้อำนวยการอนุมัติ"),
             ["Fleet.Returned"] = ("↩️", "คำขอถูกส่งกลับ", "ส่งกลับแก้ไข"),
             ["Fleet.DirectorApproved"] = ("✅", "คำขอใช้รถได้รับอนุมัติ", "อนุมัติแล้ว"),
             ["Fleet.Rejected"] = ("❌", "คำขอใช้รถไม่ผ่านการพิจารณา", "ไม่อนุมัติ"),
@@ -74,33 +74,49 @@ public sealed partial class FleetLineGroupMessageTemplateService(
             .OrderByDescending(x => x.AssignedAt)
             .ThenByDescending(x => x.CreatedAt)
             .FirstOrDefault();
+        var isUrgentSubmission = canonicalEventType == "Fleet.RequestSubmitted" && request.IsUrgent;
+        var isApprovalNotice = IsApprovalNotice(canonicalEventType);
+        var title = isUrgentSubmission ? "คำขอใช้รถเร่งด่วน" : label.Title;
+        var icon = isUrgentSubmission ? "🚨" : label.Icon;
+        var status = isUrgentSubmission ? "เร่งด่วน · รอจัดรถและคนขับ" : label.Status;
         var builder = new StringBuilder()
-            .AppendLine($"{label.Icon} {label.Title}")
+            .AppendLine($"{icon} {title}")
             .AppendLine($"เลขที่: {Safe(request.RequestNo, 40)}")
             .AppendLine($"ผู้ขอ: {Safe(request.RequesterUser?.FullName, 120)}")
             .AppendLine($"หน่วยงาน: {Safe(request.RequesterDepartment?.Name, 160)}")
             .AppendLine($"เดินทาง: {FormatBangkok(request.DepartureAt)}")
             .AppendLine($"ปลายทาง: {Safe(request.Destination, 180)}")
             .AppendLine($"ผู้ร่วมเดินทาง: {request.PassengerCount} คน")
-            .AppendLine($"สถานะ: {label.Status}");
+            .AppendLine($"สถานะ: {status}");
+
+        if (isApprovalNotice)
+        {
+            builder.AppendLine($"ภารกิจ: {Safe(request.Purpose, 500)}")
+                .AppendLine($"คาดว่าจะกลับ: {FormatBangkok(request.ExpectedReturnAt)}");
+        }
+        if (isUrgentSubmission || (isApprovalNotice && request.IsUrgent))
+        {
+            builder.AppendLine("ระดับความสำคัญ: คำขอเร่งด่วน");
+            builder.AppendLine($"เหตุผลเร่งด่วน: {Safe(request.UrgentReason, 500)}");
+        }
 
         if (canonicalEventType == "Fleet.AssignmentChanged")
             AppendAssignmentChange(builder, request.Assignments, domainEvent.Payload);
-        else if (canonicalEventType is "Fleet.AssignmentCreated" or "Fleet.DirectorApproved" or "Fleet.DriverAcknowledged" or "Fleet.TripCompleted" or "Fleet.TripOverdue")
+        else if (canonicalEventType is "Fleet.AssignmentCreated" or "Fleet.AdminReviewed" or "Fleet.DirectorApproved" or "Fleet.DriverAcknowledged" or "Fleet.TripCompleted" or "Fleet.TripOverdue")
             AppendAssignment(builder, assignment, "รถ/คนขับ");
 
         if (ShouldShowActor(canonicalEventType) && !string.IsNullOrWhiteSpace(actorName))
             builder.AppendLine($"ดำเนินการโดย: {Safe(actorName, 120)}");
 
         var deepLink = BuildDeepLink(request.Id);
-        builder.Append($"ดูรายละเอียด: {deepLink}");
+        builder.Append($"{(isApprovalNotice ? "ดูรายละเอียดและพิจารณา" : "ดูรายละเอียด")}: {deepLink}");
         var text = builder.ToString();
         if (text.Length > 1800) text = text[..1797] + "...";
         var assignmentText = assignment is null
             ? "ยังไม่ได้จัดรถและคนขับ"
             : $"{Safe(assignment.Vehicle?.VehicleCode, 60)} · {Safe(assignment.Vehicle?.RegistrationNumber, 40)} / {Safe(assignment.DriverUser?.FullName, 120)}";
-        var flex = BuildFlexContents(label.Icon, label.Title, label.Status, request, assignmentText, actorName, canonicalEventType, deepLink);
-        return new FleetGroupRenderedMessage("text", text, canonicalEventType, request.Id, flex, $"{label.Title} · {request.RequestNo}");
+        var flex = BuildFlexContents(icon, title, status, request, assignmentText, actorName, canonicalEventType, deepLink);
+        return new FleetGroupRenderedMessage("text", text, canonicalEventType, request.Id, flex, $"{title} · {request.RequestNo}");
     }
 
     private async Task<FleetGroupRenderedMessage?> RenderMeetingBookingAsync(DomainEventRecord domainEvent, CancellationToken ct)
@@ -199,12 +215,26 @@ public sealed partial class FleetLineGroupMessageTemplateService(
             FlexRow("ปลายทาง", Safe(request.Destination, 180)),
             FlexRow("ผู้ร่วมเดินทาง", $"{request.PassengerCount} คน")
         };
-        if (eventType is "Fleet.AssignmentCreated" or "Fleet.DirectorApproved" or "Fleet.DriverAcknowledged" or "Fleet.TripCompleted" or "Fleet.TripOverdue" or "Fleet.AssignmentChanged")
+        var isUrgentSubmission = eventType == "Fleet.RequestSubmitted" && request.IsUrgent;
+        var isApprovalNotice = IsApprovalNotice(eventType);
+        if (isApprovalNotice)
+        {
+            rows.Insert(3, FlexRow("ภารกิจ", Safe(request.Purpose, 500)));
+            rows.Insert(5, FlexRow("คาดว่าจะกลับ", FormatBangkok(request.ExpectedReturnAt)));
+        }
+        if (isUrgentSubmission || (isApprovalNotice && request.IsUrgent))
+        {
+            rows.Insert(0, FlexRow("ระดับความสำคัญ", "⚠ คำขอเร่งด่วน", true));
+            rows.Insert(1, FlexRow("เหตุผลเร่งด่วน", Safe(request.UrgentReason, 500), true));
+        }
+        if (eventType is "Fleet.AssignmentCreated" or "Fleet.AdminReviewed" or "Fleet.DirectorApproved" or "Fleet.DriverAcknowledged" or "Fleet.TripCompleted" or "Fleet.TripOverdue" or "Fleet.AssignmentChanged")
             rows.Add(FlexRow("รถ / คนขับ", assignment));
         if (ShouldShowActor(eventType) && !string.IsNullOrWhiteSpace(actorName))
             rows.Add(FlexRow("ดำเนินการโดย", Safe(actorName, 120)));
 
-        var statusStyle = StatusStyle(eventType);
+        var statusStyle = isUrgentSubmission
+            ? (Background: "#FFF1D6", Foreground: "#A63C06", Symbol: "⚠")
+            : StatusStyle(eventType);
         var bodyContents = new List<object>
         {
             new
@@ -235,7 +265,7 @@ public sealed partial class FleetLineGroupMessageTemplateService(
             size = "kilo",
             styles = new
             {
-                header = new { backgroundColor = "#155E4B" },
+                header = new { backgroundColor = isUrgentSubmission ? "#A63C06" : "#155E4B" },
                 footer = new { separator = true, separatorColor = "#E4D3A2" }
             },
             header = new
@@ -257,12 +287,15 @@ public sealed partial class FleetLineGroupMessageTemplateService(
                 paddingAll = "14px",
                 contents = new object[]
                 {
-                    new { type = "button", style = "primary", color = "#155E4B", height = "sm", action = new { type = "uri", label = "ดูรายละเอียดคำขอ", uri = deepLink } }
+                    new { type = "button", style = "primary", color = "#155E4B", height = "sm", action = new { type = "uri", label = isApprovalNotice ? "ดูรายละเอียดและพิจารณา" : "ดูรายละเอียดคำขอ", uri = deepLink } }
                 }
             }
         };
         return JsonSerializer.Serialize(bubble);
     }
+
+    private static bool IsApprovalNotice(string eventType) =>
+        eventType is "Fleet.AssignmentCreated" or "Fleet.AdminReviewed";
 
     private static object FlexRow(string label, string value, bool highlight = false) => new
     {

@@ -297,7 +297,8 @@ public static class DevelopmentDataSeeder
         new(EmploymentTypes.PermanentEmployee, "ORDINATION_LEAVE", 120, MaxPaidDays: 120, MinServiceMonths: 12, Notes: "ใช้ตามระเบียบราชการและเงื่อนไขหน่วยงาน"),
 
         new(EmploymentTypes.GovernmentEmployee, "SICK_LEAVE", 30, MaxPaidDays: 30, SocialSecurityMaxDays: 90, UsesSocialSecurity: true, PaymentRuleType: "EmployerPaidThenSocialSecurity", Notes: "ส่วนที่เกิน 30 วันให้ตรวจสิทธิประกันสังคมตามเงื่อนไข"),
-        new(EmploymentTypes.GovernmentEmployee, "PERSONAL_LEAVE", 10, MaxPaidDays: 10, MinServiceMonths: 12),
+        new(EmploymentTypes.GovernmentEmployee, "PERSONAL_LEAVE", 10, MaxPaidDays: 10,
+            Notes: "มีสิทธิลากิจ 10 วันทำการต่อปีงบประมาณ"),
         new(EmploymentTypes.GovernmentEmployee, "VACATION_LEAVE", 10, MaxPaidDays: 10, AllowCarryOver: true, CarryOverMaxDays: 5, MaxAccumulatedDays: 15, MinServiceMonths: 6),
         new(EmploymentTypes.GovernmentEmployee, "MATERNITY_LEAVE", 90, MaxPaidDays: 45, SocialSecurityMaxDays: 45, UsesSocialSecurity: true, PaymentRuleType: "EmployerPaidThenSocialSecurity", DayCountingType: "CalendarDays", Notes: "ได้รับค่าจ้างจากหน่วยงานไม่เกิน 45 วัน ส่วนที่เหลือใช้สิทธิประกันสังคมตามเงื่อนไข"),
         new(EmploymentTypes.GovernmentEmployee, "ORDINATION_LEAVE", 120, MaxPaidDays: 120, MinServiceYears: 4, Notes: "ต้องทำงานไม่น้อยกว่า 4 ปี"),

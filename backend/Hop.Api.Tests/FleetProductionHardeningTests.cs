@@ -72,6 +72,33 @@ public sealed class FleetProductionHardeningTests
         var deliveries = await db.NotificationDeliveries.ToListAsync(); Assert.Equal(2, deliveries.Count); Assert.Equal(2, deliveries.Select(x => x.IdempotencyKey).Distinct().Count()); Assert.Contains(deliveries, x => x.Channel == "IN_APP"); Assert.Contains(deliveries, x => x.Channel == "LINE");
     }
 
+    [Fact]
+    public async Task Publisher_UsesCallerSuppliedEventId_ForProjectionDeduplication()
+    {
+        await using var db = CreateDb();
+        var requester = User("requester");
+        db.Users.Add(requester);
+        var request = Request(requester.Id);
+        db.FleetRequests.Add(request);
+        await db.SaveChangesAsync();
+        var eventId = Guid.NewGuid();
+        var publisher = new DomainEventPublisher(db, new FleetNotificationRecipientResolver(db));
+
+        await publisher.PublishAsync(new(
+            "Fleet.RequestSubmitted", "FLEET", "FleetRequest", request.Id, requester.Id, "corr-submit",
+            new { FleetRequestId = request.Id, request.RequestNo, request.Status, IsUrgent = true, UrgentReason = "ผู้ป่วยส่งต่อ" },
+            [], eventId), default);
+        await db.SaveChangesAsync();
+
+        var domainEvent = await db.DomainEvents.SingleAsync();
+        var outbox = await db.OutboxMessages.SingleAsync();
+        Assert.Equal(eventId, domainEvent.EventId);
+        Assert.Equal(eventId, outbox.EventId);
+        Assert.Contains("\"IsUrgent\":true", domainEvent.Payload);
+        using var payload = System.Text.Json.JsonDocument.Parse(domainEvent.Payload);
+        Assert.Equal("ผู้ป่วยส่งต่อ", payload.RootElement.GetProperty("UrgentReason").GetString());
+    }
+
     [Theory]
     [InlineData(-1, 0, false)] [InlineData(100, 99, false)] [InlineData(100, 100, true)] [InlineData(100, 120, true)]
     public void MileageRule_RejectsNegativeOrDecreasing(decimal start, decimal end, bool expected) => Assert.Equal(expected, start >= 0 && end >= start);

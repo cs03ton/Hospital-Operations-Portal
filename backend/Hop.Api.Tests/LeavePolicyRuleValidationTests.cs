@@ -193,7 +193,7 @@ public class LeavePolicyRuleValidationTests
     }
 
     [Fact]
-    public async Task ValidateLeaveRequestAsync_RejectsGovernmentEmployeePersonalLeaveBeforeOneYear()
+    public async Task ValidateLeaveRequestAsync_AllowsGovernmentEmployeeFullPersonalLeaveBeforeOneYear()
     {
         await using var db = CreateDbContext();
         var user = await AddUser(db, EmploymentTypes.GovernmentEmployee, new DateOnly(2025, 11, 6));
@@ -203,36 +203,8 @@ public class LeavePolicyRuleValidationTests
             EmploymentType = EmploymentTypes.GovernmentEmployee,
             LeaveTypeId = leaveType.Id,
             EntitlementDays = 10,
-            MinServiceMonths = 12,
-            IsActive = true,
-            LeaveType = leaveType
-        });
-        await db.SaveChangesAsync();
-
-        var result = await new LeavePolicyService(db).ValidateLeaveRequestAsync(
-            user.Id,
-            leaveType.Id,
-            new DateOnly(2026, 10, 5),
-            new DateOnly(2026, 10, 5),
-            LeaveDurationTypes.FullDay,
-            1);
-
-        Assert.False(result.CanSubmit);
-        Assert.Contains(result.Errors, item => item.Contains("ลากิจส่วนตัว"));
-    }
-
-    [Fact]
-    public async Task ValidateLeaveRequestAsync_AllowsGovernmentEmployeePersonalLeaveAfterOneYear()
-    {
-        await using var db = CreateDbContext();
-        var user = await AddUser(db, EmploymentTypes.GovernmentEmployee, new DateOnly(2025, 10, 5));
-        var leaveType = await AddLeaveType(db, "PERSONAL_LEAVE", 10);
-        db.LeavePolicyRules.Add(new LeavePolicyRule
-        {
-            EmploymentType = EmploymentTypes.GovernmentEmployee,
-            LeaveTypeId = leaveType.Id,
-            EntitlementDays = 10,
-            MinServiceMonths = 12,
+            AnnualEntitlementDays = 10,
+            MaxPaidDays = 10,
             IsActive = true,
             LeaveType = leaveType
         });
@@ -247,6 +219,8 @@ public class LeavePolicyRuleValidationTests
             1);
 
         Assert.True(result.CanSubmit);
+        Assert.Equal(10m, result.EntitlementDays);
+        Assert.Equal(10m, result.AvailableDays);
     }
 
     [Fact]

@@ -246,7 +246,25 @@ public sealed class FleetRequestsController(AppDbContext db, FleetRequestNumberS
             item.RequestedVehicleTypeId = null;
             if (item.Passengers.Count != item.PassengerCount || item.PassengerCount <= 0) return BadRequest(ApiResponse<FleetRequestDto>.Fail("Passenger list must match passenger count."));
             item.Status = FleetRequestStatuses.PendingDispatch; item.SubmittedAt = DateTime.UtcNow; item.ReturnTarget = null;
-            AddHistory(item, from, item.Status, "Fleet.RequestSubmitted", actor.Value, null, null); AddAudit(actor, "Fleet.RequestSubmitted", item.Id, $"Submitted {item.RequestNo}");
+            var history = AddHistory(item, from, item.Status, "Fleet.RequestSubmitted", actor.Value, null, null);
+            AddAudit(actor, "Fleet.RequestSubmitted", item.Id, $"Submitted {item.RequestNo}");
+            await events.PublishAsync(new(
+                "Fleet.RequestSubmitted",
+                "FLEET",
+                "FleetRequest",
+                item.Id,
+                actor.Value,
+                HttpContext.TraceIdentifier,
+                new
+                {
+                    FleetRequestId = item.Id,
+                    item.RequestNo,
+                    item.Status,
+                    item.IsUrgent,
+                    item.UrgentReason
+                },
+                [],
+                history.Id), ct);
         }
         else
         {
@@ -298,7 +316,22 @@ public sealed class FleetRequestsController(AppDbContext db, FleetRequestNumberS
         return passengers.Select((x, index) => new SaveFleetPassengerDto { UserId = x.UserId, FullName = x.FullName, PositionOrOrganization = x.PositionOrOrganization, Phone = x.Phone, PassengerType = x.PassengerType, IsRequester = x.IsRequester, SortOrder = index }).ToList();
     }
     private async Task<string?> ValidatePassengers(IReadOnlyList<SaveFleetPassengerDto> passengers, CancellationToken ct) { if (passengers.Count == 0) return "กรุณาระบุผู้ร่วมเดินทางอย่างน้อย 1 คน"; if (passengers.Count > 200) return "Passenger list cannot exceed 200 people."; if (passengers.Any(x => x.PassengerType is not (FleetPassengerTypes.Employee or FleetPassengerTypes.External))) return "Invalid passenger type."; if (passengers.Any(x => x.PassengerType == FleetPassengerTypes.Employee && x.UserId is null)) return "Employee passenger must reference a user."; if (passengers.Any(x => x.PassengerType == FleetPassengerTypes.External && x.UserId is not null)) return "External passenger cannot reference a user."; var ids = passengers.Where(x => x.UserId != null).Select(x => x.UserId!.Value).Distinct().ToList(); return await db.Users.CountAsync(x => ids.Contains(x.Id) && x.IsActive, ct) == ids.Count ? null : "Passenger list contains an inactive or unknown user."; }
-    private void AddHistory(FleetRequest item, string? from, string to, string action, Guid actor, string? target, string? reason) => item.StatusHistories.Add(new FleetRequestStatusHistory { FromStatus = from, ToStatus = to, Action = action, ActorUserId = actor, ReturnTarget = target, Reason = Clean(reason), CorrelationId = HttpContext.TraceIdentifier });
+    private FleetRequestStatusHistory AddHistory(FleetRequest item, string? from, string to, string action, Guid actor, string? target, string? reason)
+    {
+        var history = new FleetRequestStatusHistory
+        {
+            Id = Guid.NewGuid(),
+            FromStatus = from,
+            ToStatus = to,
+            Action = action,
+            ActorUserId = actor,
+            ReturnTarget = target,
+            Reason = Clean(reason),
+            CorrelationId = HttpContext.TraceIdentifier
+        };
+        item.StatusHistories.Add(history);
+        return history;
+    }
     private void AddAudit(Guid? actor, string action, Guid id, string? detail) => db.AuditLogs.Add(new AuditLog { UserId = actor, Action = action, EntityName = "FleetRequest", EntityId = id.ToString(), Detail = detail, IpAddress = HttpContext.Connection.RemoteIpAddress?.ToString() });
     private async Task<bool> HasPermission(string permission, CancellationToken ct) { var id = CurrentUserId(); return id is not null && await db.UserRoles.Where(x => x.UserId == id && x.Role != null && x.Role.IsActive).SelectMany(x => x.Role!.RolePermissions).AnyAsync(x => x.Permission != null && x.Permission.IsActive && x.Permission.Code == permission, ct); }
     private async Task<bool> TrySave(CancellationToken ct) { try { await db.SaveChangesAsync(ct); return true; } catch (DbUpdateConcurrencyException) { return false; } catch (DbUpdateException) { return false; } }

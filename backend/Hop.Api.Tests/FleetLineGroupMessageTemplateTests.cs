@@ -12,6 +12,46 @@ namespace Hop.Api.Tests;
 public sealed class FleetLineGroupMessageTemplateTests
 {
     [Theory]
+    [InlineData("Fleet.AssignmentCreated", "รอหัวหน้าฝ่ายบริหารตรวจสอบ", false)]
+    [InlineData("Fleet.AdminReviewed", "รอผู้อำนวยการอนุมัติ", false)]
+    [InlineData("Fleet.AssignmentCreated", "รอหัวหน้าฝ่ายบริหารตรวจสอบ", true)]
+    [InlineData("Fleet.AdminReviewed", "รอผู้อำนวยการอนุมัติ", true)]
+    public async Task Approval_notices_share_actionable_flex_with_assignment_and_priority(
+        string eventType, string status, bool urgent)
+    {
+        await using var db = Database();
+        var fixture = await Seed(db, withAssignment: true);
+        fixture.Request.IsUrgent = urgent;
+        fixture.Request.UrgentReason = "ต้องเดินทางวันนี้";
+        fixture.Request.Purpose = "ประชุมงานโรงพยาบาล";
+        await db.SaveChangesAsync();
+
+        var result = await Template(db).RenderAsync(
+            Event(fixture.Request.Id, fixture.Actor.Id, eventType), eventType, CancellationToken.None);
+
+        Assert.NotNull(result);
+        Assert.Equal($"มีคำขอใช้รถรออนุมัติ · {fixture.Request.RequestNo}", result.AltText);
+        using var flex = System.Text.Json.JsonDocument.Parse(result.FlexContentsJson!);
+        var contents = ExtractText(flex.RootElement);
+        Assert.Contains(status, contents);
+        Assert.Contains("ประชุมงานโรงพยาบาล", contents);
+        Assert.Contains("คาดว่าจะกลับ", contents);
+        Assert.Contains("Driver One", contents);
+        Assert.Contains("VH-01", contents);
+        var action = flex.RootElement.GetProperty("footer").GetProperty("contents")[0].GetProperty("action");
+        Assert.Equal("ดูรายละเอียดและพิจารณา", action.GetProperty("label").GetString());
+        Assert.Equal($"https://hop.example/fleet/requests/{fixture.Request.Id}", action.GetProperty("uri").GetString());
+        Assert.Contains(status, result.Text);
+        Assert.Contains("Driver One", result.Text);
+        if (urgent)
+        {
+            Assert.Contains("คำขอเร่งด่วน", contents);
+            Assert.Contains("ต้องเดินทางวันนี้", contents);
+            Assert.Contains("ต้องเดินทางวันนี้", result.Text);
+        }
+    }
+
+    [Theory]
     [InlineData("Fleet.RequestSubmitted")]
     [InlineData("Fleet.AssignmentCreated")]
     [InlineData("Fleet.AdminReviewed")]
@@ -72,6 +112,35 @@ public sealed class FleetLineGroupMessageTemplateTests
         Assert.Contains("Driver One", result.Text);
         Assert.Contains("Director One", result.Text);
         Assert.Contains($"https://hop.example/fleet/requests/{fixture.Request.Id}", result.Text);
+    }
+
+    [Fact]
+    public async Task Urgent_request_submitted_template_highlights_priority_and_reason_in_text_and_flex()
+    {
+        await using var db = Database();
+        var fixture = await Seed(db, withAssignment: false);
+        fixture.Request.IsUrgent = true;
+        fixture.Request.UrgentReason = "ต้องเดินทางรับผู้ป่วยภายในวันนี้";
+        await db.SaveChangesAsync();
+
+        var result = await Template(db).RenderAsync(
+            Event(fixture.Request.Id, fixture.Actor.Id, "Fleet.RequestSubmitted"),
+            "Fleet.RequestSubmitted",
+            CancellationToken.None);
+
+        Assert.NotNull(result);
+        Assert.Contains("🚨 คำขอใช้รถเร่งด่วน", result!.Text);
+        Assert.Contains("สถานะ: เร่งด่วน · รอจัดรถและคนขับ", result.Text);
+        Assert.Contains("เหตุผลเร่งด่วน: ต้องเดินทางรับผู้ป่วยภายในวันนี้", result.Text);
+        Assert.Equal($"คำขอใช้รถเร่งด่วน · {fixture.Request.RequestNo}", result.AltText);
+        using var flex = System.Text.Json.JsonDocument.Parse(result.FlexContentsJson!);
+        var flexText = ExtractText(flex.RootElement);
+        Assert.Contains("ระดับความสำคัญ", flexText);
+        Assert.Contains("เร่งด่วน", flexText);
+        Assert.Contains("เหตุผลเร่งด่วน", flexText);
+        Assert.Contains("ต้องเดินทางรับผู้ป่วยภายในวันนี้", flexText);
+        Assert.Contains("#A63C06", result.FlexContentsJson);
+        Assert.Contains("#FFF1D6", result.FlexContentsJson);
     }
 
     [Fact]

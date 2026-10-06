@@ -152,6 +152,52 @@ public sealed class FleetLineGroupDeliveryTests
     }
 
     [Fact]
+    public async Task Transactional_request_submitted_event_is_not_projected_or_delivered_twice()
+    {
+        await using var db = Database();
+        var now = DateTime.UtcNow;
+        var department = new Department { Id = Guid.NewGuid(), Name = "Fleet" };
+        var user = new User { Id = Guid.NewGuid(), Username = "urgent-requester", FullName = "Urgent Requester", PasswordHash = "hash", Department = department, DepartmentId = department.Id };
+        var request = new FleetRequest
+        {
+            Id = Guid.NewGuid(), RequestNo = "VH-202610-0001", RequesterUser = user, RequesterUserId = user.Id,
+            RequesterDepartment = department, RequesterDepartmentId = department.Id, RequestDate = DateOnly.FromDateTime(now),
+            Purpose = "งานเร่งด่วน", MissionType = "ราชการ", Destination = "ปลายทาง", ContactPersonName = "ผู้ประสานงาน", ContactPhone = "0",
+            DepartureAt = now.AddHours(1), ExpectedReturnAt = now.AddHours(2), PassengerCount = 1, IsUrgent = true,
+            UrgentReason = "ต้องเดินทางภายในวันนี้", Status = FleetRequestStatuses.PendingDispatch, CreatedByUserId = user.Id
+        };
+        var eventId = Guid.NewGuid();
+        var history = new FleetRequestStatusHistory
+        {
+            Id = eventId, FleetRequest = request, FleetRequestId = request.Id, FromStatus = FleetRequestStatuses.Draft,
+            ToStatus = FleetRequestStatuses.PendingDispatch, Action = "Fleet.RequestSubmitted", ActorUserId = user.Id,
+            CreatedAt = now, CorrelationId = "transactional-submit-test"
+        };
+        var payload = JsonSerializer.Serialize(new { FleetRequestId = request.Id, request.RequestNo, request.Status, request.IsUrgent, request.UrgentReason });
+        var domainEvent = new DomainEventRecord
+        {
+            EventId = eventId, EventType = "Fleet.RequestSubmitted", Scope = "FLEET", AggregateType = "FleetRequest",
+            AggregateId = request.Id, OccurredAt = now, ActorUserId = user.Id, CorrelationId = history.CorrelationId, Payload = payload
+        };
+        var destination = new LineGroupDestination
+        {
+            LineGroupId = "C12345678901234567890", Status = LineGroupDestinationStatuses.Active, Module = "FLEET", ConfirmedAt = now.AddMinutes(-1)
+        };
+        destination.EventSubscriptions.Add(new LineGroupEventSubscription { EventType = "Fleet.RequestSubmitted", IsEnabled = true });
+        db.AddRange(department, user, request, history, domainEvent,
+            new OutboxMessage { EventId = eventId, EventType = domainEvent.EventType, Scope = domainEvent.Scope, Payload = payload },
+            destination);
+        await db.SaveChangesAsync();
+        var service = Service(db, new SequenceClient(Success()));
+
+        Assert.Equal(0, await service.ProjectMissingEventsAsync(CancellationToken.None));
+        Assert.Equal(1, await service.DiscoverAsync(CancellationToken.None));
+        Assert.Equal(0, await service.DiscoverAsync(CancellationToken.None));
+        Assert.Single(await db.DomainEvents.ToListAsync());
+        Assert.Single(await db.LineGroupDeliveryLogs.ToListAsync());
+    }
+
+    [Fact]
     public async Task Transient_failure_retries_then_marks_sent_without_duplicate_send_after_success()
     {
         await using var db = Database();

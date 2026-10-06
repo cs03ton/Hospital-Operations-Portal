@@ -35,7 +35,9 @@ public sealed class FleetLineGroupDeliveryService(
                 history.FleetRequestId,
                 history.FleetRequest!.RequestNo,
                 Status = history.ToStatus,
-                history.ReturnTarget
+                history.ReturnTarget,
+                history.FleetRequest.IsUrgent,
+                history.FleetRequest.UrgentReason
             });
             db.DomainEvents.Add(new DomainEventRecord
             {
