@@ -74,8 +74,8 @@ public sealed class FleetNotificationRecipientResolver(AppDbContext db) : INotif
     private static IReadOnlyList<string> PermissionsFor(string eventType) => eventType switch
     {
         "Fleet.RequestSubmitted" or "Fleet.DriverDeclined" or "Fleet.TripCompleted" or "Fleet.TripAborted" or "Fleet.CancellationApproved" or "Fleet.AssignmentReplaced" => [FleetPermissions.DispatchView],
-        "Fleet.Assigned" => [FleetPermissions.AdminReviewApprove],
-        "Fleet.AdminReviewApproved" => [FleetPermissions.DirectorApprove],
+        "Fleet.Assigned" or "Fleet.VehicleAssigned" or "Fleet.AssignmentCreated" => [FleetPermissions.AdminReviewApprove],
+        "Fleet.AdminReviewApproved" or "Fleet.AdminReviewed" => [FleetPermissions.DirectorApprove],
         "Fleet.CancellationRequested" => [FleetPermissions.CancellationReview, FleetPermissions.DirectorApprove],
         "FleetEmergency.Submitted" or "FleetEmergency.Assigned" => [FleetPermissions.EmergencyDispatch],
         "FleetEmergency.ApprovalBypassed" or "FleetEmergency.TripCompleted" => [FleetPermissions.EmergencyReview],

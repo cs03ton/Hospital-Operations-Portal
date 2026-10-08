@@ -19,7 +19,7 @@ public sealed record DomainEventEnvelope(
     Guid? EventId = null);
 public interface IDomainEventPublisher { Task PublishAsync(DomainEventEnvelope envelope, CancellationToken ct); }
 
-public sealed class DomainEventPublisher(AppDbContext db, INotificationRecipientResolver recipientResolver) : IDomainEventPublisher
+public sealed class DomainEventPublisher(AppDbContext db, INotificationRecipientResolver recipientResolver, ILogger<DomainEventPublisher>? logger = null) : IDomainEventPublisher
 {
     public async Task PublishAsync(DomainEventEnvelope e, CancellationToken ct)
     {
@@ -27,6 +27,8 @@ public sealed class DomainEventPublisher(AppDbContext db, INotificationRecipient
         db.DomainEvents.Add(new DomainEventRecord { EventId = eventId, EventType = e.EventType, Scope = e.Scope, AggregateType = e.AggregateType, AggregateId = e.AggregateId, ActorUserId = e.ActorUserId, CorrelationId = e.CorrelationId, Payload = payload });
         var outbox = new OutboxMessage { EventId = eventId, EventType = e.EventType, Scope = e.Scope, Payload = payload };
         var recipientIds = e.RecipientUserIds.Count > 0 ? e.RecipientUserIds : await recipientResolver.ResolveAsync(e.EventType, e.AggregateId, ct);
+        if (e.EventType is "Fleet.Assigned" or "Fleet.AdminReviewApproved")
+            logger?.LogInformation("Fleet approval notification queued. EventType={EventType} RequestId={RequestId} RecipientCount={RecipientCount} CorrelationId={CorrelationId}", e.EventType, e.AggregateId, recipientIds.Distinct().Count(), e.CorrelationId);
         foreach (var userId in recipientIds.Distinct())
         {
             outbox.Deliveries.Add(new NotificationDelivery { RecipientUserId = userId, Channel = "IN_APP", IdempotencyKey = $"{eventId}:{userId}:IN_APP" });
@@ -85,7 +87,36 @@ public sealed class OutboxProcessor(IServiceScopeFactory scopeFactory, ILogger<O
                     {
                         var root = lineConfiguration.PublicAppUrl.TrimEnd('/');
                         var url = string.IsNullOrWhiteSpace(root) ? actionPath : $"{root}{actionPath}";
-                        await line.NotifyUserAsync(delivery.RecipientUserId, message.EventType, $"{detail}\nดูรายละเอียด: {url}", null, ct);
+                        string payload;
+                        var canonical = message.EventType switch
+                        {
+                            "Fleet.Assigned" or "Fleet.VehicleAssigned" or "Fleet.AssignmentCreated" => "Fleet.AssignmentCreated",
+                            "Fleet.AdminReviewApproved" or "Fleet.AdminReviewed" => "Fleet.AdminReviewed",
+                            _ => null
+                        };
+                        var rendered = canonical is null ? null : await scope.ServiceProvider.GetRequiredService<IFleetLineGroupMessageTemplateService>().RenderAsync(new DomainEventRecord
+                        {
+                            EventId = message.EventId, EventType = message.EventType, Scope = message.Scope,
+                            AggregateId = fleetRequestId ?? Guid.Empty, Payload = message.Payload
+                        }, canonical, ct);
+                        if (rendered?.Format == "flex" && rendered.FlexContentsJson is not null)
+                        {
+                            using var contents = JsonDocument.Parse(rendered.FlexContentsJson);
+                            payload = JsonSerializer.Serialize(new { to = "", messages = new[] { new { type = "flex", altText = rendered.AltText ?? rendered.Text, contents = contents.RootElement } } });
+                        }
+                        else
+                            payload = JsonSerializer.Serialize(new { to = "", messages = new[] { new { type = "text", text = $"{detail}\nดูรายละเอียด: {url}" } } });
+                        var result = await line.NotifyUserPayloadAsync(delivery.RecipientUserId, message.EventType, payload, null, ct);
+                        if (result.Status != "Sent")
+                        {
+                            // The LINE service owns its delivery log/retry schedule.
+                            // Never report transport failure as successfully processed.
+                            delivery.Status = "FAILED";
+                            delivery.AttemptCount++;
+                            delivery.LastError = $"LINE_{result.Status.ToUpperInvariant()}; DeliveryLogId={result.Id}";
+                            logger.LogWarning("Fleet approval LINE not sent. EventType={EventType} RecipientUserId={RecipientUserId} DeliveryLogId={DeliveryLogId} Status={Status}", message.EventType, delivery.RecipientUserId, result.Id, result.Status);
+                            continue;
+                        }
                     }
                     delivery.Status = "PROCESSED"; delivery.ProcessedAt = DateTime.UtcNow;
                 }
