@@ -14,7 +14,7 @@ public sealed class FleetNotificationRecipientResolver(AppDbContext db) : INotif
 {
     public async Task<IReadOnlyList<Guid>> ResolveAsync(string eventType, Guid fleetRequestId, CancellationToken ct)
     {
-        var request = await db.FleetRequests.AsNoTracking().Include(x => x.Assignments)
+        var request = db.FleetRequests.Local.FirstOrDefault(x => x.Id == fleetRequestId) ?? await db.FleetRequests.AsNoTracking().Include(x => x.Assignments)
             .SingleOrDefaultAsync(x => x.Id == fleetRequestId, ct);
         if (request is null && eventType.StartsWith("FleetMaintenance", StringComparison.Ordinal))
         {
@@ -29,6 +29,11 @@ public sealed class FleetNotificationRecipientResolver(AppDbContext db) : INotif
 
         var recipients = new HashSet<Guid>();
         var activeDriver = request.Assignments.SingleOrDefault(x => x.IsActive)?.DriverUserId;
+        if (eventType == "Fleet.ReferAutoApproved")
+        {
+            recipients.Add(request.RequesterUserId);
+            if (activeDriver is not null) recipients.Add(activeDriver.Value);
+        }
         if (eventType.StartsWith("FleetEmergency.", StringComparison.Ordinal))
         {
             recipients.Add(request.RequesterUserId);
@@ -74,6 +79,7 @@ public sealed class FleetNotificationRecipientResolver(AppDbContext db) : INotif
     private static IReadOnlyList<string> PermissionsFor(string eventType) => eventType switch
     {
         "Fleet.RequestSubmitted" or "Fleet.DriverDeclined" or "Fleet.TripCompleted" or "Fleet.TripAborted" or "Fleet.CancellationApproved" or "Fleet.AssignmentReplaced" => [FleetPermissions.DispatchView],
+        "Fleet.ReferAutoApproved" => [FleetPermissions.AdminReviewApprove, FleetPermissions.DirectorApprove],
         "Fleet.Assigned" or "Fleet.VehicleAssigned" or "Fleet.AssignmentCreated" => [FleetPermissions.AdminReviewApprove],
         "Fleet.AdminReviewApproved" or "Fleet.AdminReviewed" => [FleetPermissions.DirectorApprove],
         "Fleet.CancellationRequested" => [FleetPermissions.CancellationReview, FleetPermissions.DirectorApprove],

@@ -141,6 +141,28 @@ public sealed class FleetLineGroupDeliveryTests
         Assert.Empty(db.LineGroupDeliveryLogs);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Cancellation_only_notifies_after_submission(bool submitted)
+    {
+        await using var db = Database();
+        var now = DateTime.UtcNow;
+        var request = new FleetRequest { Status = FleetRequestStatuses.Cancelled, SubmittedAt = submitted ? now.AddMinutes(-1) : null };
+        var history = new FleetRequestStatusHistory { FleetRequest = request, FromStatus = submitted ? FleetRequestStatuses.PendingDispatch : FleetRequestStatuses.Draft,
+            ToStatus = FleetRequestStatuses.Cancelled, Action = "Fleet.RequestCancelled", CreatedAt = now };
+        var destination = new LineGroupDestination { LineGroupId = "C12345678901234567890", Module = "FLEET", Status = LineGroupDestinationStatuses.Active, ConfirmedAt = now.AddMinutes(-2) };
+        destination.EventSubscriptions.Add(new LineGroupEventSubscription { EventType = "Fleet.Cancelled", IsEnabled = true });
+        db.AddRange(request, history, destination);
+        await db.SaveChangesAsync();
+        var service = Service(db, new SequenceClient(Success()));
+        Assert.Equal(submitted ? 1 : 0, await service.ProjectMissingEventsAsync(default));
+        Assert.Equal(0, await service.ProjectMissingEventsAsync(default));
+        Assert.Equal(submitted ? 1 : 0, await service.DiscoverAsync(default));
+        Assert.Equal(0, await service.DiscoverAsync(default));
+        Assert.Equal(submitted ? 1 : 0, await db.LineGroupDeliveryLogs.CountAsync());
+    }
+
     [Fact]
     public async Task Missing_request_submitted_event_is_projected_after_commit_without_user_deliveries()
     {

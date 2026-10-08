@@ -17,6 +17,25 @@ namespace Hop.Api.Tests;
 
 public sealed class FleetApprovalNotificationTests
 {
+    [Fact]
+    public async Task Refer_recipients_include_both_approvers_requester_and_unsaved_assignment_driver()
+    {
+        await using var db = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>().UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
+        var admin = Approver("admin", FleetPermissions.AdminReviewApprove);
+        var director = Approver("director", FleetPermissions.DirectorApprove);
+        var request = new FleetRequest { Id = Guid.NewGuid(), RequesterUserId = Guid.NewGuid() };
+        db.AddRange(admin, director, request);
+        await db.SaveChangesAsync();
+        var driver = Guid.NewGuid();
+        db.FleetAssignments.Add(new FleetAssignment { FleetRequestId = request.Id, DriverUserId = driver, IsActive = true });
+        var recipients = await new FleetNotificationRecipientResolver(db).ResolveAsync("Fleet.ReferAutoApproved", request.Id, default);
+        Assert.Equal(4, recipients.Count);
+        Assert.Contains(admin.Id, recipients);
+        Assert.Contains(director.Id, recipients);
+        Assert.Contains(request.RequesterUserId, recipients);
+        Assert.Contains(driver, recipients);
+    }
+
     [Theory]
     [InlineData("Sent", "PROCESSED")]
     [InlineData("Failed", "FAILED")]

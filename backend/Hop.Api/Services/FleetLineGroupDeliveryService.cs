@@ -26,7 +26,9 @@ public sealed class FleetLineGroupDeliveryService(
         if (earliest is null) return 0;
         string[] projectedActions = ["Fleet.RequestSubmitted", "Fleet.VehicleAssigned", "Fleet.RequestCancelled"];
         var histories = await db.FleetRequestStatusHistories.AsNoTracking().Include(x => x.FleetRequest)
-            .Where(x => projectedActions.Contains(x.Action) && x.CreatedAt >= earliest && !db.DomainEvents.Any(e => e.EventId == x.Id))
+            .Where(x => projectedActions.Contains(x.Action) && x.CreatedAt >= earliest &&
+                (x.Action != "Fleet.RequestCancelled" || x.FromStatus != FleetRequestStatuses.Draft || x.FleetRequest!.SubmittedAt != null) &&
+                !db.DomainEvents.Any(e => e.EventId == x.Id))
             .OrderBy(x => x.CreatedAt).Take(Math.Clamp(options.Value.BatchSize * 5, 20, 500)).ToListAsync(ct);
         foreach (var history in histories)
         {

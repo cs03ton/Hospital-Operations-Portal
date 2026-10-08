@@ -27,7 +27,7 @@ public sealed class DomainEventPublisher(AppDbContext db, INotificationRecipient
         db.DomainEvents.Add(new DomainEventRecord { EventId = eventId, EventType = e.EventType, Scope = e.Scope, AggregateType = e.AggregateType, AggregateId = e.AggregateId, ActorUserId = e.ActorUserId, CorrelationId = e.CorrelationId, Payload = payload });
         var outbox = new OutboxMessage { EventId = eventId, EventType = e.EventType, Scope = e.Scope, Payload = payload };
         var recipientIds = e.RecipientUserIds.Count > 0 ? e.RecipientUserIds : await recipientResolver.ResolveAsync(e.EventType, e.AggregateId, ct);
-        if (e.EventType is "Fleet.Assigned" or "Fleet.AdminReviewApproved")
+        if (e.EventType is "Fleet.Assigned" or "Fleet.AdminReviewApproved" or "Fleet.ReferAutoApproved")
             logger?.LogInformation("Fleet approval notification queued. EventType={EventType} RequestId={RequestId} RecipientCount={RecipientCount} CorrelationId={CorrelationId}", e.EventType, e.AggregateId, recipientIds.Distinct().Count(), e.CorrelationId);
         foreach (var userId in recipientIds.Distinct())
         {
@@ -42,6 +42,7 @@ public sealed class FleetNotificationTemplateService
 {
     private static readonly Dictionary<string, (string Title, string Message)> Templates = new()
     {
+        ["Fleet.ReferAutoApproved"] = ("มีเคสส่งต่อผู้ป่วยเพื่อรับทราบ", "อนุมัติอัตโนมัติ · รอคนขับตอบรับ"),
         ["Fleet.RequestSubmitted"] = ("มีคำขอใช้รถใหม่", "มีคำขอใช้รถรอจัดรถและคนขับ"), ["Fleet.Assigned"] = ("จัดรถและคนขับแล้ว", "คำขอพร้อมให้หัวหน้าฝ่ายบริหารตรวจสอบ"), ["Fleet.AdminReviewApproved"] = ("คำขอผ่านการตรวจสอบ", "คำขอรอผู้อำนวยการอนุมัติ"), ["Fleet.DirectorApproved"] = ("คำขอใช้รถได้รับอนุมัติ", "กรุณาตรวจสอบรายละเอียดงานและตอบรับ"), ["Fleet.RequestReturned"] = ("คำขอใช้รถถูกส่งกลับ", "กรุณาตรวจสอบเหตุผลและแก้ไข"), ["Fleet.RequestRejected"] = ("คำขอใช้รถไม่ผ่านการพิจารณา", "กรุณาตรวจสอบเหตุผล"), ["Fleet.DriverAccepted"] = ("คนขับตอบรับงานแล้ว", "งานพร้อมเดินทาง"), ["Fleet.DriverDeclined"] = ("คนขับปฏิเสธงาน", "กรุณาจัดคนขับใหม่"), ["Fleet.TripStarted"] = ("เริ่มภารกิจแล้ว", "คนขับเริ่มภารกิจแล้ว"), ["Fleet.TripCompleted"] = ("ภารกิจเสร็จสิ้น", "คนขับปิดงานเรียบร้อยแล้ว"), ["Fleet.TripAborted"] = ("ภารกิจถูกยุติ", "ผู้ดูแลยุติภารกิจ กรุณาตรวจสอบเหตุผล"), ["Fleet.TripMileageOverridden"] = ("แก้ไขเลขไมล์ภารกิจ", "ผู้ดูแลแก้ไขเลขไมล์พร้อมบันทึกเหตุผล"), ["Fleet.AssignmentReplaced"] = ("มีการเปลี่ยนรถหรือคนขับ", "กรุณาตรวจสอบรายละเอียด assignment ล่าสุด")
     };
     public (string Title, string Message) Resolve(string eventType) => Templates.TryGetValue(eventType, out var value) ? value : ("แจ้งเตือนระบบรถ", "มีการเปลี่ยนแปลงรายการใช้รถ");
@@ -71,7 +72,11 @@ public sealed class OutboxProcessor(IServiceScopeFactory scopeFactory, ILogger<O
                 try
                 {
                     var text = templates.Resolve(message.EventType);
-                    var messageText = text.Message;
+                    var messageText = message.EventType == "Fleet.ReferAutoApproved"
+                        ? request?.Assignments.Any(x => x.IsActive && x.DriverUserId == delivery.RecipientUserId) == true
+                            ? "มีงานส่งต่อผู้ป่วย กรุณาตรวจสอบรายละเอียดและตอบรับงาน"
+                            : "มีเคสส่งต่อผู้ป่วยเพื่อรับทราบ · อนุมัติอัตโนมัติและรอคนขับตอบรับ"
+                        : text.Message;
                     if (message.EventType == "Fleet.DirectorApproved" && request is not null)
                         messageText = request.Assignments.Any(x => x.IsActive && x.DriverUserId == delivery.RecipientUserId)
                             ? "คำขอได้รับอนุมัติแล้ว กรุณาตรวจสอบรายละเอียดและตอบรับงาน"
@@ -88,8 +93,11 @@ public sealed class OutboxProcessor(IServiceScopeFactory scopeFactory, ILogger<O
                         var root = lineConfiguration.PublicAppUrl.TrimEnd('/');
                         var url = string.IsNullOrWhiteSpace(root) ? actionPath : $"{root}{actionPath}";
                         string payload;
+                        var isReferDriver = message.EventType == "Fleet.ReferAutoApproved" && request?.Assignments.Any(x => x.IsActive && x.DriverUserId == delivery.RecipientUserId) == true;
+                        if (isReferDriver) { detail = $"มีงานส่งต่อผู้ป่วย กรุณาตอบรับงาน\nเลขที่ {request!.RequestNo}\nปลายทาง: {request.Destination}\nออกเดินทาง: {BangkokDateTime(request.DepartureAt)}"; url = $"{root}/fleet/my-trips"; }
                         var canonical = message.EventType switch
                         {
+                            "Fleet.ReferAutoApproved" when !isReferDriver => "Fleet.ReferAutoApproved",
                             "Fleet.Assigned" or "Fleet.VehicleAssigned" or "Fleet.AssignmentCreated" => "Fleet.AssignmentCreated",
                             "Fleet.AdminReviewApproved" or "Fleet.AdminReviewed" => "Fleet.AdminReviewed",
                             _ => null
@@ -99,7 +107,7 @@ public sealed class OutboxProcessor(IServiceScopeFactory scopeFactory, ILogger<O
                             EventId = message.EventId, EventType = message.EventType, Scope = message.Scope,
                             AggregateId = fleetRequestId ?? Guid.Empty, Payload = message.Payload
                         }, canonical, ct);
-                        if (rendered?.Format == "flex" && rendered.FlexContentsJson is not null)
+                        if (rendered?.FlexContentsJson is not null)
                         {
                             using var contents = JsonDocument.Parse(rendered.FlexContentsJson);
                             payload = JsonSerializer.Serialize(new { to = "", messages = new[] { new { type = "flex", altText = rendered.AltText ?? rendered.Text, contents = contents.RootElement } } });

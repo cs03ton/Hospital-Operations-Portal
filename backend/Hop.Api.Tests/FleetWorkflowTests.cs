@@ -15,6 +15,24 @@ namespace Hop.Api.Tests;
 public sealed class FleetWorkflowTests
 {
     [Fact]
+    public async Task Update_uses_requester_name_instead_of_client_contact_name()
+    {
+        await using var db = CreateDb();
+        var user = new User { Username = "requester", FullName = "ผู้แจ้งคำขอ", PhoneNumber = "0812345678", IsActive = true, Department = new Department { Name = "Test" } };
+        var request = MinimalRequest("VH-TEST", user.Id);
+        request.RequesterUser = user;
+        db.AddRange(user, request);
+        await db.SaveChangesAsync();
+        var controller = new FleetRequestsController(db, new FleetRequestNumberService(db), new FleetAvailabilityService(db), new NoopEvents())
+        { ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext { User = new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, user.Id.ToString())], "Test")) } } };
+        var result = await controller.Update(request.Id, new SaveFleetRequestDto { Purpose = "งาน", MissionType = "ทั่วไป", Destination = "ปลายทาง",
+            ContactPersonName = "ชื่อที่แก้จาก client", ContactPhone = "0812345678", DepartureAt = request.DepartureAt, ExpectedReturnAt = request.ExpectedReturnAt,
+            RequesterTravels = true, ConcurrencyToken = request.ConcurrencyToken }, default);
+        Assert.Null(result.Result);
+        Assert.Equal(user.FullName, request.ContactPersonName);
+    }
+
+    [Fact]
     public void WorkflowModel_HasConcurrencyAndActiveAssignmentProtection()
     {
         using var db = CreateDb();

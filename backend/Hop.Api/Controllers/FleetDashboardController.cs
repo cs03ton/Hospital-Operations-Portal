@@ -37,5 +37,6 @@ public sealed class FleetDashboardController(IFleetKpiService kpi, FleetReportEx
 public sealed class FleetReportQuery
 {
     public string? Preset { get; set; } public DateOnly? StartDate { get; set; } public DateOnly? EndDate { get; set; } public Guid? VehicleId { get; set; } public Guid? DriverUserId { get; set; } public Guid? DepartmentId { get; set; } public string? Status { get; set; }
-    public FleetReportFilter Filter() => new(Preset, StartDate, EndDate, VehicleId, DriverUserId, DepartmentId, Status);
+    public bool ExcludeCancelled { get; set; }
+    public FleetReportFilter Filter() => new(Preset, StartDate, EndDate, VehicleId, DriverUserId, DepartmentId, Status, ExcludeCancelled);
 }

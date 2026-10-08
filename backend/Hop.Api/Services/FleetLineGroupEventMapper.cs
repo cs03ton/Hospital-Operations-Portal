@@ -12,6 +12,7 @@ public sealed class FleetLineGroupEventMapper : IFleetLineGroupEventMapper
         ["Fleet.RequestSubmitted"] = "Fleet.RequestSubmitted",
         ["Fleet.VehicleAssigned"] = "Fleet.AssignmentCreated",
         ["Fleet.Assigned"] = "Fleet.AssignmentCreated",
+        ["Fleet.ReferAutoApproved"] = "Fleet.AssignmentCreated",
         ["Fleet.AdminReviewApproved"] = "Fleet.AdminReviewed",
         ["Fleet.RequestReturned"] = "Fleet.Returned",
         ["Fleet.DirectorApproved"] = "Fleet.DirectorApproved",

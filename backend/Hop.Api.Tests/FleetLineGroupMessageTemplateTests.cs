@@ -11,6 +11,29 @@ namespace Hop.Api.Tests;
 
 public sealed class FleetLineGroupMessageTemplateTests
 {
+    [Fact]
+    public async Task Refer_maps_existing_subscription_but_renders_acknowledgement_with_assignment()
+    {
+        await using var db = Database();
+        var fixture = await Seed(db, withAssignment: true);
+        fixture.Request.IsUrgent = true;
+        fixture.Request.UrgentReason = "ส่งต่อผู้ป่วย (Refer)";
+        await db.SaveChangesAsync();
+        var canonical = new FleetLineGroupEventMapper().ToCanonical("FLEET", "Fleet.ReferAutoApproved");
+        Assert.Equal("Fleet.AssignmentCreated", canonical);
+        var result = await Template(db).RenderAsync(Event(fixture.Request.Id, fixture.Actor.Id, "Fleet.ReferAutoApproved"), canonical!, default);
+        Assert.NotNull(result);
+        using var flex = System.Text.Json.JsonDocument.Parse(result.FlexContentsJson!);
+        var contents = ExtractText(flex.RootElement);
+        Assert.Contains("มีเคสส่งต่อผู้ป่วยเพื่อรับทราบ", contents);
+        Assert.Contains("อนุมัติอัตโนมัติ · รอคนขับตอบรับ", contents);
+        Assert.Contains("Driver One", contents);
+        Assert.Contains("VH-01", contents);
+        Assert.Contains("ส่งต่อผู้ป่วย (Refer)", contents);
+        Assert.DoesNotContain("รออนุมัติ", result.Text);
+        Assert.Equal("ดูรายละเอียดเคส Refer", flex.RootElement.GetProperty("footer").GetProperty("contents")[0].GetProperty("action").GetProperty("label").GetString());
+    }
+
     [Theory]
     [InlineData("Fleet.AssignmentCreated", "รอหัวหน้าฝ่ายบริหารตรวจสอบ", false)]
     [InlineData("Fleet.AdminReviewed", "รอผู้อำนวยการอนุมัติ", false)]

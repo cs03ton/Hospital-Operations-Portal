@@ -32,11 +32,11 @@ WITH params AS (
   SELECT a.vehicle_id, 'ASSIGNED' kind,
          tstzrange(greatest(r.departure_at,p.start_at), least(r.expected_return_at,p.end_at),'[)') period
   FROM fleet_assignments a JOIN fleet_requests r ON r.id=a.fleet_request_id CROSS JOIN params p
-  WHERE r.departure_at < p.end_at AND r.expected_return_at > p.start_at
+  WHERE r.departure_at < p.end_at AND r.expected_return_at > p.start_at AND (NOT @exclude_cancelled OR r.status <> 'CANCELLED')
   UNION ALL
   SELECT a.vehicle_id, 'TRIP', tstzrange(greatest(t.actual_start_at,p.start_at), least(coalesce(t.actual_end_at,t.aborted_at,p.snapshot_at),p.end_at),'[)')
-  FROM fleet_trip_records t JOIN fleet_assignments a ON a.id=t.assignment_id CROSS JOIN params p
-  WHERE t.actual_start_at IS NOT NULL AND t.actual_start_at < p.end_at AND coalesce(t.actual_end_at,t.aborted_at,p.snapshot_at) > p.start_at
+  FROM fleet_trip_records t JOIN fleet_assignments a ON a.id=t.assignment_id JOIN fleet_requests r ON r.id=a.fleet_request_id CROSS JOIN params p
+  WHERE t.actual_start_at IS NOT NULL AND t.actual_start_at < p.end_at AND coalesce(t.actual_end_at,t.aborted_at,p.snapshot_at) > p.start_at AND (NOT @exclude_cancelled OR r.status <> 'CANCELLED')
   UNION ALL
   SELECT u.vehicle_id, 'UNAVAILABLE', tstzrange(greatest(u.start_at,p.start_at), least(u.end_at,p.end_at),'[)')
   FROM fleet_vehicle_unavailability u CROSS JOIN params p WHERE u.start_at < p.end_at AND u.end_at > p.start_at
@@ -79,12 +79,13 @@ LEFT JOIN blocked b ON b.vehicle_id=v.id LEFT JOIN stats s ON s.vehicle_id=v.id
 WHERE (@vehicle_id::uuid IS NULL OR v.id=@vehicle_id::uuid) ORDER BY v.vehicle_code
 """;
 
-    public async Task<IReadOnlyList<FleetVehicleUtilization>> Query(DateTime start, DateTime end, Guid? vehicleId, DateTime snapshot, CancellationToken ct)
+    public async Task<IReadOnlyList<FleetVehicleUtilization>> Query(DateTime start, DateTime end, Guid? vehicleId, DateTime snapshot, CancellationToken ct, bool excludeCancelled = false)
     {
         var connection = (NpgsqlConnection)db.Database.GetDbConnection();
         if (connection.State != ConnectionState.Open) await connection.OpenAsync(ct);
         await using var command = new NpgsqlCommand(Sql, connection);
         command.Parameters.AddWithValue("start", start); command.Parameters.AddWithValue("end", end); command.Parameters.AddWithValue("snapshot", snapshot);
+        command.Parameters.AddWithValue("exclude_cancelled", excludeCancelled);
         command.Parameters.Add(new NpgsqlParameter("vehicle_id", NpgsqlDbType.Uuid) { Value = vehicleId is null ? DBNull.Value : vehicleId.Value });
         var rows = new List<FleetVehicleUtilization>();
         await using var reader = await command.ExecuteReaderAsync(ct);

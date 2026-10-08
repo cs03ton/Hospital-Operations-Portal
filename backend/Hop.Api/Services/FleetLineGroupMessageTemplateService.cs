@@ -30,6 +30,7 @@ public sealed partial class FleetLineGroupMessageTemplateService(
         {
             ["Fleet.RequestSubmitted"] = ("🚐", "มีคำขอใช้รถใหม่", "รอจัดรถและคนขับ"),
             ["Fleet.AssignmentCreated"] = ("📋", "มีคำขอใช้รถรออนุมัติ", "รอหัวหน้าฝ่ายบริหารตรวจสอบ"),
+            ["Fleet.ReferAutoApproved"] = ("🚑", "มีเคสส่งต่อผู้ป่วยเพื่อรับทราบ", "อนุมัติอัตโนมัติ · รอคนขับตอบรับ"),
             ["Fleet.AdminReviewed"] = ("📋", "มีคำขอใช้รถรออนุมัติ", "รอผู้อำนวยการอนุมัติ"),
             ["Fleet.Returned"] = ("↩️", "คำขอถูกส่งกลับ", "ส่งกลับแก้ไข"),
             ["Fleet.DirectorApproved"] = ("✅", "คำขอใช้รถได้รับอนุมัติ", "อนุมัติแล้ว"),
@@ -47,6 +48,7 @@ public sealed partial class FleetLineGroupMessageTemplateService(
             return await RenderMeetingBookingAsync(domainEvent, ct);
         if (canonicalEventType.StartsWith("Repair.", StringComparison.Ordinal) && domainEvent.Scope == "REPAIR")
             return await RenderRepairAsync(domainEvent, canonicalEventType, ct);
+        if (domainEvent.EventType == "Fleet.ReferAutoApproved") canonicalEventType = "Fleet.ReferAutoApproved";
         if (!EventLabels.TryGetValue(canonicalEventType, out var label) || !string.Equals(domainEvent.Scope, "FLEET", StringComparison.Ordinal)) return null;
         var request = await db.FleetRequests.AsNoTracking()
             .Include(x => x.RequesterUser).Include(x => x.RequesterDepartment)
@@ -102,14 +104,14 @@ public sealed partial class FleetLineGroupMessageTemplateService(
 
         if (canonicalEventType == "Fleet.AssignmentChanged")
             AppendAssignmentChange(builder, request.Assignments, domainEvent.Payload);
-        else if (canonicalEventType is "Fleet.AssignmentCreated" or "Fleet.AdminReviewed" or "Fleet.DirectorApproved" or "Fleet.DriverAcknowledged" or "Fleet.TripCompleted" or "Fleet.TripOverdue")
+        else if (canonicalEventType is "Fleet.ReferAutoApproved" or "Fleet.AssignmentCreated" or "Fleet.AdminReviewed" or "Fleet.DirectorApproved" or "Fleet.DriverAcknowledged" or "Fleet.TripCompleted" or "Fleet.TripOverdue")
             AppendAssignment(builder, assignment, "รถ/คนขับ");
 
         if (ShouldShowActor(canonicalEventType) && !string.IsNullOrWhiteSpace(actorName))
             builder.AppendLine($"ดำเนินการโดย: {Safe(actorName, 120)}");
 
         var deepLink = BuildDeepLink(request.Id);
-        builder.Append($"{(isApprovalNotice ? "ดูรายละเอียดและพิจารณา" : "ดูรายละเอียด")}: {deepLink}");
+        builder.Append($"{(canonicalEventType == "Fleet.ReferAutoApproved" ? "ดูรายละเอียดเคส Refer" : isApprovalNotice ? "ดูรายละเอียดและพิจารณา" : "ดูรายละเอียด")}: {deepLink}");
         var text = builder.ToString();
         if (text.Length > 1800) text = text[..1797] + "...";
         var assignmentText = assignment is null
@@ -227,7 +229,7 @@ public sealed partial class FleetLineGroupMessageTemplateService(
             rows.Insert(0, FlexRow("ระดับความสำคัญ", "⚠ คำขอเร่งด่วน", true));
             rows.Insert(1, FlexRow("เหตุผลเร่งด่วน", Safe(request.UrgentReason, 500), true));
         }
-        if (eventType is "Fleet.AssignmentCreated" or "Fleet.AdminReviewed" or "Fleet.DirectorApproved" or "Fleet.DriverAcknowledged" or "Fleet.TripCompleted" or "Fleet.TripOverdue" or "Fleet.AssignmentChanged")
+        if (eventType is "Fleet.ReferAutoApproved" or "Fleet.AssignmentCreated" or "Fleet.AdminReviewed" or "Fleet.DirectorApproved" or "Fleet.DriverAcknowledged" or "Fleet.TripCompleted" or "Fleet.TripOverdue" or "Fleet.AssignmentChanged")
             rows.Add(FlexRow("รถ / คนขับ", assignment));
         if (ShouldShowActor(eventType) && !string.IsNullOrWhiteSpace(actorName))
             rows.Add(FlexRow("ดำเนินการโดย", Safe(actorName, 120)));
@@ -287,7 +289,7 @@ public sealed partial class FleetLineGroupMessageTemplateService(
                 paddingAll = "14px",
                 contents = new object[]
                 {
-                    new { type = "button", style = "primary", color = "#155E4B", height = "sm", action = new { type = "uri", label = isApprovalNotice ? "ดูรายละเอียดและพิจารณา" : "ดูรายละเอียดคำขอ", uri = deepLink } }
+                    new { type = "button", style = "primary", color = "#155E4B", height = "sm", action = new { type = "uri", label = eventType == "Fleet.ReferAutoApproved" ? "ดูรายละเอียดเคส Refer" : isApprovalNotice ? "ดูรายละเอียดและพิจารณา" : "ดูรายละเอียดคำขอ", uri = deepLink } }
                 }
             }
         };
@@ -295,7 +297,7 @@ public sealed partial class FleetLineGroupMessageTemplateService(
     }
 
     private static bool IsApprovalNotice(string eventType) =>
-        eventType is "Fleet.AssignmentCreated" or "Fleet.AdminReviewed";
+        eventType is "Fleet.AssignmentCreated" or "Fleet.AdminReviewed" or "Fleet.ReferAutoApproved";
 
     private static object FlexRow(string label, string value, bool highlight = false) => new
     {

@@ -16,6 +16,23 @@ namespace Hop.Api.Controllers;
 [Authorize]
 public sealed class FleetRequestsController(AppDbContext db, FleetRequestNumberService numberService, FleetAvailabilityService availabilityService, IDomainEventPublisher events, ILogger<FleetRequestsController>? logger = null) : ControllerBase
 {
+    [HttpGet("destination-options")]
+    [RequireAnyPermission(FleetPermissions.RequestCreate, FleetPermissions.RequestEditOwn)]
+    public async Task<ActionResult<ApiResponse<IReadOnlyList<string>>>> GetDestinationOptions(
+        [FromQuery] string? search = null, CancellationToken ct = default)
+    {
+        var query = db.FleetRequests.AsNoTracking().Where(x => x.SubmittedAt != null && x.Destination.Trim() != "");
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var term = search.Trim().ToLowerInvariant();
+            query = query.Where(x => x.Destination.ToLower().Contains(term));
+        }
+        var items = await query.GroupBy(x => x.Destination.Trim())
+            .OrderByDescending(x => x.Count()).ThenByDescending(x => x.Max(r => r.SubmittedAt)).ThenBy(x => x.Key)
+            .Select(x => x.Key).Take(20).ToListAsync(ct);
+        return ApiResponse<IReadOnlyList<string>>.Ok(items);
+    }
+
     [HttpGet("personnel-options")]
     [RequireAnyPermission(FleetPermissions.RequestCreate, FleetPermissions.RequestEditOwn)]
     public async Task<ActionResult<ApiResponse<IReadOnlyList<FleetPersonnelOptionDto>>>> GetPersonnelOptions(
@@ -136,6 +153,9 @@ public sealed class FleetRequestsController(AppDbContext db, FleetRequestNumberS
         var now = DateTime.UtcNow;
         var item = new FleetRequest { RequestNo = await numberService.GenerateAsync(now, ct), RequesterUserId = actor.Value, RequesterDepartmentId = user.DepartmentId, RequestDate = DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(now, BangkokTimeZone())), CreatedAt = now, CreatedByUserId = actor.Value };
         ApplyDraft(item, request, actor.Value, contactPhone, passengers.Count);
+        item.ContactPersonName = user.FullName.Trim();
+        var missionError = await FleetReferPolicy.ApplyAsync(db, item, ct);
+        if (missionError is not null) return BadRequest(ApiResponse<FleetRequestDto>.Fail(missionError));
         db.FleetRequests.Add(item);
         ReplacePassengers(item, passengers);
         AddHistory(item, null, FleetRequestStatuses.Draft, "Fleet.RequestCreated", actor.Value, null, null);
@@ -160,7 +180,11 @@ public sealed class FleetRequestsController(AppDbContext db, FleetRequestNumberS
         if (contactPhone is null) return BadRequest(ApiResponse<FleetRequestDto>.Fail("กรุณาระบุหมายเลขโทรศัพท์ผู้ประสานงาน"));
         var passengers = NormalizePassengers(request, user);
         var validation = await ValidatePassengers(passengers, ct); if (validation is not null) return BadRequest(ApiResponse<FleetRequestDto>.Fail(validation));
-        ApplyDraft(item, request, actor.Value, contactPhone, passengers.Count); ReplacePassengers(item, passengers); item.ConcurrencyToken = Guid.NewGuid();
+        ApplyDraft(item, request, actor.Value, contactPhone, passengers.Count);
+        item.ContactPersonName = user.FullName.Trim();
+        var missionError = await FleetReferPolicy.ApplyAsync(db, item, ct);
+        if (missionError is not null) return BadRequest(ApiResponse<FleetRequestDto>.Fail(missionError));
+        ReplacePassengers(item, passengers); item.ConcurrencyToken = Guid.NewGuid();
         AddAudit(actor, "Fleet.RequestUpdated", item.Id, $"Updated {item.RequestNo}");
         if (!await TrySave(ct)) return Conflict(ApiResponse<FleetRequestDto>.Fail("Request was changed by another user. Reload and try again."));
         return ApiResponse<FleetRequestDto>.Ok(ToDto(await BaseQuery().SingleAsync(x => x.Id == id, ct)));
@@ -211,10 +235,13 @@ public sealed class FleetRequestsController(AppDbContext db, FleetRequestNumberS
         if (vehicle is null || !vehicle.IsAvailable) return Conflict(ApiResponse<FleetRequestDto>.Fail($"Vehicle is unavailable: {string.Join(", ", vehicle?.Reasons ?? [])}"));
         if (driver is null || !driver.IsAvailable) return Conflict(ApiResponse<FleetRequestDto>.Fail($"Driver is unavailable: {string.Join(", ", driver?.Reasons ?? [])}"));
         db.FleetAssignments.Add(new FleetAssignment { FleetRequestId = item.Id, VehicleId = request.VehicleId, DriverUserId = request.DriverUserId, AssignedByUserId = actor.Value, AssignmentReason = Clean(request.Reason) });
-        var from = item.Status; item.Status = FleetRequestStatuses.PendingAdminReview; item.ReturnTarget = null; item.UpdatedAt = DateTime.UtcNow; item.UpdatedByUserId = actor; item.ConcurrencyToken = Guid.NewGuid();
-        AddHistory(item, from, item.Status, "Fleet.Assigned", actor.Value, null, request.Reason); AddAudit(actor, "Fleet.Assigned", item.Id, $"Assigned vehicle {request.VehicleId} and driver {request.DriverUserId}");
-        await events.PublishAsync(new("Fleet.Assigned", "FLEET", "FleetRequest", item.Id, actor.Value, HttpContext.TraceIdentifier,
-            new { FleetRequestId = item.Id, item.RequestNo, item.Status, item.Destination, item.DepartureAt, item.ExpectedReturnAt }, []), ct);
+        var isRefer = FleetReferPolicy.IsRefer(item);
+        var eventType = isRefer ? "Fleet.ReferAutoApproved" : "Fleet.Assigned";
+        var from = item.Status; item.Status = isRefer ? FleetRequestStatuses.PendingDriverAck : FleetRequestStatuses.PendingAdminReview; item.ReturnTarget = null; item.UpdatedAt = DateTime.UtcNow; item.UpdatedByUserId = actor; item.ConcurrencyToken = Guid.NewGuid();
+        var history = AddHistory(item, from, item.Status, eventType, actor.Value, null, isRefer ? "อนุมัติอัตโนมัติสำหรับภารกิจส่งต่อผู้ป่วย" : request.Reason);
+        AddAudit(actor, eventType, item.Id, $"{(isRefer ? "อนุมัติอัตโนมัติสำหรับภารกิจส่งต่อผู้ป่วย; " : "")}Assigned vehicle {request.VehicleId} and driver {request.DriverUserId}");
+        await events.PublishAsync(new(eventType, "FLEET", "FleetRequest", item.Id, actor.Value, HttpContext.TraceIdentifier,
+            new { FleetRequestId = item.Id, item.RequestNo, item.Status, item.Destination, item.DepartureAt, item.ExpectedReturnAt, item.IsUrgent, item.UrgentReason }, [], history.Id), ct);
         if (!await TrySave(ct)) return Conflict(ApiResponse<FleetRequestDto>.Fail("Concurrent assignment detected."));
         await tx.CommitAsync(ct);
         return ApiResponse<FleetRequestDto>.Ok(ToDto(await BaseQuery().SingleAsync(x => x.Id == id, ct)));
@@ -247,7 +274,8 @@ public sealed class FleetRequestsController(AppDbContext db, FleetRequestNumberS
             var contactPhone = ResolveContactPhone(profilePhone, item.ContactPhone);
             if (contactPhone is null) return BadRequest(ApiResponse<FleetRequestDto>.Fail("กรุณาระบุหมายเลขโทรศัพท์ผู้ประสานงาน"));
             item.ContactPhone = contactPhone;
-            item.RequestedVehicleTypeId = null;
+            var missionError = await FleetReferPolicy.ApplyAsync(db, item, ct);
+            if (missionError is not null) return BadRequest(ApiResponse<FleetRequestDto>.Fail(missionError));
             if (item.Passengers.Count != item.PassengerCount || item.PassengerCount <= 0) return BadRequest(ApiResponse<FleetRequestDto>.Fail("Passenger list must match passenger count."));
             item.Status = FleetRequestStatuses.PendingDispatch; item.SubmittedAt = DateTime.UtcNow; item.ReturnTarget = null;
             var history = AddHistory(item, from, item.Status, "Fleet.RequestSubmitted", actor.Value, null, null);

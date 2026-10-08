@@ -19,6 +19,8 @@ public sealed class FleetAvailabilityService(AppDbContext db, IFleetCompatibilit
             .ToListAsync(cancellationToken);
 
         var vehicles = await db.FleetVehicles.AsNoTracking().Include(x => x.VehicleType).Include(x => x.UnavailabilityPeriods).OrderBy(x => x.VehicleCode).ToListAsync(cancellationToken);
+        if (FleetReferPolicy.IsRefer(request))
+            vehicles = vehicles.Where(x => x.VehicleType?.Code == FleetReferPolicy.VehicleTypeCode && x.VehicleType.IsActive).ToList();
         var maintenanceBlocks = await db.FleetVehicleMaintenanceSchedules.AsNoTracking().Include(x => x.MaintenanceType).Include(x => x.Vehicle).Where(x => x.IsActive && (x.Status == FleetMaintenanceStatuses.InProgress || x.MaintenanceType!.BlocksAvailabilityWhenOverdue && (x.DueDate < DateTime.UtcNow || x.DueMileage < x.Vehicle!.CurrentMileage))).Select(x => x.VehicleId).Distinct().ToListAsync(cancellationToken);
         var expiredDocuments = await db.FleetVehicleDocuments.AsNoTracking().Where(x => x.IsActive && x.IsRequired && x.ExpiresAt < DateTime.UtcNow).Select(x => x.VehicleId).Distinct().ToListAsync(cancellationToken);
         var compatibilityResults = new Dictionary<Guid,FleetCompatibilityResult>();
@@ -29,7 +31,7 @@ public sealed class FleetAvailabilityService(AppDbContext db, IFleetCompatibilit
             if (!vehicle.IsActive) reasons.Add("รถถูกปิดใช้งาน");
             if (vehicle.Status is FleetVehicleStatuses.Maintenance or FleetVehicleStatuses.TemporarilyUnavailable or FleetVehicleStatuses.Decommissioned) reasons.Add("สถานะรถไม่พร้อมใช้งาน");
             if (vehicle.PassengerCapacity < request.PassengerCount) reasons.Add("ความจุผู้โดยสารไม่เพียงพอ");
-            if (request.RequestedVehicleTypeId is not null && vehicle.VehicleTypeId != request.RequestedVehicleTypeId) reasons.Add("ประเภทรถไม่ตรงความต้องการ");
+            if (!FleetReferPolicy.IsRefer(request) && request.RequestedVehicleTypeId is not null && vehicle.VehicleTypeId != request.RequestedVehicleTypeId) reasons.Add("ประเภทรถไม่ตรงความต้องการ");
             if (vehicle.UnavailabilityPeriods.Any(x => Overlaps(x.StartAt, x.EndAt, request.DepartureAt, request.ExpectedReturnAt))) reasons.Add("รถมีช่วงงดใช้งานชนเวลา");
             if (maintenanceBlocks.Contains(vehicle.Id)) reasons.Add("รถอยู่ระหว่างหรือเกินกำหนดบำรุงรักษาที่บล็อกการใช้งาน");
             if (expiredDocuments.Contains(vehicle.Id)) reasons.Add("เอกสารบังคับของรถหมดอายุ");
@@ -47,7 +49,8 @@ public sealed class FleetAvailabilityService(AppDbContext db, IFleetCompatibilit
         var localStart = DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(request.DepartureAt, bangkok));
         var localEnd = DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(request.ExpectedReturnAt, bangkok));
         var approvedLeaveUsers = await db.LeaveRequests.AsNoTracking().Where(x => x.Status == "Approved" && x.StartDate <= localEnd && x.EndDate >= localStart).Select(x => x.UserId).Distinct().ToListAsync(cancellationToken);
-        var requestedTypeCode = request.RequestedVehicleTypeId is null ? null : await db.FleetVehicleTypes.Where(x => x.Id == request.RequestedVehicleTypeId).Select(x => x.Code).FirstOrDefaultAsync(cancellationToken);
+        var requestedTypeCode = FleetReferPolicy.IsRefer(request) ? FleetReferPolicy.VehicleTypeCode : request.RequestedVehicleTypeId is null ? null : await db.FleetVehicleTypes.Where(x => x.Id == request.RequestedVehicleTypeId).Select(x => x.Code).FirstOrDefaultAsync(cancellationToken);
+        if (FleetReferPolicy.IsRefer(request)) profiles = profiles.Where(x => x.CanDriveAmbulance).ToList();
         var driverResults = profiles.Select(profile =>
         {
             var reasons = new List<string>();

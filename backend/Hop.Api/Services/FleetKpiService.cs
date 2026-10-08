@@ -7,11 +7,22 @@ using Microsoft.Extensions.Options;
 
 namespace Hop.Api.Services;
 
-public sealed record FleetReportFilter(string? Preset, DateOnly? StartDate, DateOnly? EndDate, Guid? VehicleId, Guid? DriverUserId, Guid? DepartmentId, string? Status);
+public sealed record FleetReportFilter(string? Preset, DateOnly? StartDate, DateOnly? EndDate, Guid? VehicleId, Guid? DriverUserId, Guid? DepartmentId, string? Status, bool ExcludeCancelled = false);
 public interface IFleetKpiService { Task<object> Summary(FleetReportFilter filter, CancellationToken ct); Task<object> Vehicles(FleetReportFilter filter, CancellationToken ct); Task<object> Drivers(FleetReportFilter filter, CancellationToken ct); Task<object> Departments(FleetReportFilter filter, CancellationToken ct); Task<object> Routes(FleetReportFilter filter, CancellationToken ct); }
 public sealed class FleetKpiService(AppDbContext db, FleetDateRangeService ranges, FleetUtilizationQueryService utilization, FleetWorkflowDurationQueryService durations) : IFleetKpiService
 {
-    private IQueryable<FleetRequest> Requests(FleetReportFilter f, out FleetUtcRange range) { range = ranges.Resolve(f.Preset, f.StartDate, f.EndDate); var utcStart = range.Start; var utcEnd = range.End; var q = db.FleetRequests.AsNoTracking().Where(x => x.CreatedAt >= utcStart && x.CreatedAt < utcEnd); if (f.DepartmentId != null) q = q.Where(x => x.RequesterDepartmentId == f.DepartmentId); if (!string.IsNullOrWhiteSpace(f.Status)) q = q.Where(x => x.Status == f.Status); if (f.VehicleId != null) q = q.Where(x => x.Assignments.Any(a => a.VehicleId == f.VehicleId)); if (f.DriverUserId != null) q = q.Where(x => x.Assignments.Any(a => a.DriverUserId == f.DriverUserId)); return q; }
+    private IQueryable<FleetRequest> Requests(FleetReportFilter f, out FleetUtcRange range)
+    {
+        range = ranges.Resolve(f.Preset, f.StartDate, f.EndDate);
+        var utcStart = range.Start; var utcEnd = range.End;
+        var q = db.FleetRequests.AsNoTracking().Where(x => x.CreatedAt >= utcStart && x.CreatedAt < utcEnd);
+        if (f.ExcludeCancelled) q = q.Where(x => x.Status != FleetRequestStatuses.Cancelled);
+        if (f.DepartmentId != null) q = q.Where(x => x.RequesterDepartmentId == f.DepartmentId);
+        if (!string.IsNullOrWhiteSpace(f.Status)) q = q.Where(x => x.Status == f.Status);
+        if (f.VehicleId != null) q = q.Where(x => x.Assignments.Any(a => a.VehicleId == f.VehicleId));
+        if (f.DriverUserId != null) q = q.Where(x => x.Assignments.Any(a => a.DriverUserId == f.DriverUserId));
+        return q;
+    }
     public async Task<object> Summary(FleetReportFilter f, CancellationToken ct)
     {
         var q = Requests(f, out var range); var total = await q.CountAsync(ct); var completed = await q.CountAsync(x => x.Status == FleetRequestStatuses.Completed, ct); var rejected = await q.CountAsync(x => x.Status == FleetRequestStatuses.Rejected, ct); var cancelled = await q.CountAsync(x => x.Status == FleetRequestStatuses.Cancelled, ct); var decided = completed + rejected; var assignments = await q.SelectMany(x => x.Assignments).CountAsync(ct); var replacements = await q.SelectMany(x => x.Assignments).CountAsync(x => x.ReplacedAssignmentId != null, ct); var accepted = await q.SelectMany(x => x.StatusHistories).CountAsync(x => x.Action == "Fleet.DRIVER_ACCEPT", ct); var driverDecisions = await q.SelectMany(x => x.StatusHistories).CountAsync(x => x.Action == "Fleet.DRIVER_ACCEPT" || x.Action == "Fleet.DRIVER_DECLINE", ct);
@@ -20,7 +31,7 @@ public sealed class FleetKpiService(AppDbContext db, FleetDateRangeService range
         var emergencyPending=await q.CountAsync(x=>x.Priority==FleetPriorities.Emergency&&x.Status!=FleetRequestStatuses.Completed&&x.Status!=FleetRequestStatuses.Cancelled&&x.Status!=FleetRequestStatuses.Rejected,ct);var emergencyBreaches=await q.CountAsync(x=>x.Priority==FleetPriorities.Emergency&&x.SubmittedAt!=null&&x.Assignments.Any()&&x.Assignments.Min(a=>a.AssignedAt)>x.SubmittedAt.Value.AddMinutes(15),ct);var bypasses=await q.SelectMany(x=>x.StatusHistories).CountAsync(x=>x.Action=="FleetEmergency.ApprovalBypassed",ct);var pendingReviews=await q.CountAsync(x=>x.Priority==FleetPriorities.Emergency&&x.RequiresPostReview,ct);var policyViolations=await db.FleetEmergencyPostReviews.CountAsync(x=>x.CreatedAt>=range.Start&&x.CreatedAt<range.End&&x.Outcome==FleetEmergencyReviewOutcomes.PolicyViolation,ct);
         return new { range.LocalStart, EndDate = range.LocalEndExclusive.AddDays(-1), TotalRequests = total, CompletedRequests = completed, RejectedRequests = rejected, CancelledRequests = cancelled, ApprovalRate = Rate(completed, decided), RejectionRate = Rate(rejected, decided), CancellationRate = Rate(cancelled, total), TripCompletionRate = Rate(completed, assignments), DriverAcceptanceRate = Rate(accepted, driverDecisions), AssignmentReplacementCount = replacements, AverageReplacementCountPerRequest = total == 0 ? 0 : Math.Round((decimal)replacements / total, 2), InAppDeliverySuccessRate = Rate(inOk, inAll), LineDeliverySuccessRate = Rate(lineOk, lineAll), OutboxFailureCount = failures, EmergencyPendingCount=emergencyPending,EmergencyResponseTargetBreaches=emergencyBreaches,ApprovalBypassCount=bypasses,PendingPostReviewCount=pendingReviews,EmergencyPolicyViolationCount=policyViolations, WorkflowDurations = durationStatistics };
     }
-    public async Task<object> Vehicles(FleetReportFilter f, CancellationToken ct) { Requests(f, out var range); return await utilization.Query(range.Start, range.End, f.VehicleId, DateTime.UtcNow, ct); }
+    public async Task<object> Vehicles(FleetReportFilter f, CancellationToken ct) { Requests(f, out var range); return await utilization.Query(range.Start, range.End, f.VehicleId, DateTime.UtcNow, ct, f.ExcludeCancelled); }
     public async Task<object> Drivers(FleetReportFilter f, CancellationToken ct)
     {
         var requests = Requests(f, out _);

@@ -37,7 +37,7 @@ export function FleetReportsPage() {
   const [keyword, setKeyword] = useState("");
   const [page, setPage] = useState(1);
   const params = useMemo(() => {
-    const value = new URLSearchParams({ startDate, endDate });
+    const value = new URLSearchParams({ startDate, endDate, excludeCancelled: "true" });
     if (status) value.set("status", status);
     return value;
   }, [endDate, startDate, status]);
@@ -51,7 +51,7 @@ export function FleetReportsPage() {
   const departments = useQuery({ queryKey: ["fleet-report-departments", params.toString()], queryFn: () => getFleetDepartmentReport(params) });
   const drivers = useQuery({ queryKey: ["fleet-report-drivers", params.toString()], queryFn: () => getFleetDriverReport(params) });
   const routes = useQuery({ queryKey: ["fleet-report-routes", params.toString()], queryFn: () => getFleetRouteReport(params) });
-  const requests = useQuery({ queryKey: ["fleet-report-requests", calendarParams.toString()], queryFn: () => getFleetCalendar(calendarParams) });
+  const requests = useQuery({ queryKey: ["fleet-report-requests", calendarParams.toString()], queryFn: async () => (await getFleetCalendar(calendarParams)).filter(event => event.status !== "CANCELLED") });
   const requestRows = useMemo(() => (requests.data ?? []).filter((event) => {
     const text = `${event.title} ${event.metadata?.requestNo ?? ""} ${event.metadata?.department ?? ""} ${event.metadata?.destination ?? ""}`.toLowerCase();
     return !keyword.trim() || text.includes(keyword.trim().toLowerCase());

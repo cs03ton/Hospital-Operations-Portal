@@ -19,6 +19,8 @@ import { useAuth } from "../context/AuthContext";
 import { countFleetPassengers } from "../utils/fleetPassengerCount";
 import { persistFleetRequestWithDocuments } from "../utils/fleetRequestDocumentFlow";
 import { useNotification } from "../hooks/useNotification";
+import { applyReferPolicy, REFER_MISSION_TYPE } from "../utils/fleetReferPolicy";
+import { getFleetDestinationOptions } from "../api/fleetApi";
 
 type FormState = {
   purpose: string; missionType: string; destination: string;
@@ -26,7 +28,7 @@ type FormState = {
   specialRequirement: string; isUrgent: boolean; urgentReason: string; requesterTravels: boolean;
 };
 
-const missionTypes = ["ทั่วไป", "ประชุม/อบรม", "รับ-ส่งเอกสารหรือสิ่งของ", "ราชการนอกสถานที่", "อื่น ๆ"];
+const missionTypes = ["ทั่วไป", "ประชุม/อบรม", "รับ-ส่งเอกสารหรือสิ่งของ", "ราชการนอกสถานที่", REFER_MISSION_TYPE, "อื่น ๆ"];
 const thaiMonths = ["มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน", "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"];
 
 const toBangkokLocalValue = (iso?: string) => {
@@ -115,6 +117,12 @@ export function FleetRequestFormPage() {
   });
 
   const request = useQuery({ queryKey: ["fleet", "request-form", id], queryFn: () => getFleetRequest(id!), enabled: Boolean(id) });
+  const [destinationSearch, setDestinationSearch] = useState("");
+  useEffect(() => {
+    const timer = window.setTimeout(() => setDestinationSearch(form.destination.trim()), 300);
+    return () => window.clearTimeout(timer);
+  }, [form.destination]);
+  const destinations = useQuery({ queryKey: ["fleet", "destination-options", destinationSearch], queryFn: () => getFleetDestinationOptions(destinationSearch), staleTime: 30_000 });
   const attachmentRequestId = id ?? draftId;
   const attachments = useQuery({ queryKey: ["fleet", "request-attachments", attachmentRequestId], queryFn: () => getFleetRequestAttachments(attachmentRequestId!), enabled: Boolean(attachmentRequestId) });
   const profile = useQuery({ queryKey: ["me", "profile"], queryFn: getMyProfile });
@@ -126,13 +134,13 @@ export function FleetRequestFormPage() {
     setDraftToken(data.concurrencyToken);
     if (initializedRequest.current === data.id) return;
     initializedRequest.current = data.id;
-    setForm({
+    setForm(applyReferPolicy({
       purpose: data.purpose, missionType: data.missionType,
-      destination: data.destination, contactPersonName: data.contactPersonName, contactPhone: profile.data?.phoneNumber?.trim() || data.contactPhone,
+      destination: data.destination, contactPersonName: user?.fullname ?? data.requesterName, contactPhone: profile.data?.phoneNumber?.trim() || data.contactPhone,
       departureAt: toBangkokLocalValue(data.departureAt), expectedReturnAt: toBangkokLocalValue(data.expectedReturnAt),
       specialRequirement: data.specialRequirement ?? "", isUrgent: data.isUrgent,
       urgentReason: data.urgentReason ?? "", requesterTravels: data.passengers.some(x => x.isRequester),
-    });
+    }));
     setSelectedPersonnel(data.passengers.filter(x => x.passengerType === "EMPLOYEE" && !x.isRequester && x.userId).map(x => ({ id: x.userId!, fullName: x.fullName })));
     setPreservedExternal(data.passengers.filter(x => x.passengerType === "EXTERNAL"));
   }, [request.data, profile.data?.phoneNumber]);
@@ -193,7 +201,7 @@ export function FleetRequestFormPage() {
     },
   });
 
-  const field = (key: keyof FormState) => (event: React.ChangeEvent<HTMLInputElement>) => setForm(current => ({ ...current, [key]: event.target.value }));
+  const field = (key: keyof FormState) => (event: React.ChangeEvent<HTMLInputElement>) => setForm(current => key === "missionType" ? applyReferPolicy({ ...current, missionType: event.target.value }) : ({ ...current, [key]: event.target.value }));
 
   return (
     <Stack spacing={2.5}>
@@ -219,13 +227,19 @@ export function FleetRequestFormPage() {
         <Grid container spacing={2}>
           <Grid item xs={12}><TextField required fullWidth label="วัตถุประสงค์/ภารกิจ" placeholder="ระบุวัตถุประสงค์หรือภารกิจ" value={form.purpose} onChange={field("purpose")} /></Grid>
           <Grid item xs={12} md={6}><TextField select required fullWidth label="ประเภทการเดินทาง" value={form.missionType} onChange={field("missionType")}>{missionTypes.map(item => <MenuItem key={item} value={item}>{item}</MenuItem>)}</TextField></Grid>
-          <Grid item xs={12} md={6}><TextField required fullWidth label="ปลายทาง" placeholder="ระบุปลายทาง" value={form.destination} onChange={field("destination")} /></Grid>
-          <Grid item xs={12} md={6}><TextField required fullWidth label="ผู้ประสานงาน" value={form.contactPersonName} onChange={field("contactPersonName")} /></Grid>
+          <Grid item xs={12} md={6}><Autocomplete freeSolo fullWidth options={destinations.data ?? []} filterOptions={options => options}
+            inputValue={form.destination} loading={destinations.isFetching} loadingText="กำลังค้นหาปลายทาง…"
+            onInputChange={(_, value, reason) => { if (reason !== "reset") setForm(current => ({ ...current, destination: value })); }}
+            onChange={(_, value) => setForm(current => ({ ...current, destination: value ?? "" }))}
+            renderInput={params => <TextField {...params} required label="ปลายทาง" placeholder="เลือกปลายทางเดิม หรือพิมพ์ปลายทางใหม่"
+              helperText={destinations.isError ? "โหลดคำแนะนำไม่สำเร็จ สามารถพิมพ์ปลายทางเองได้" : "แนะนำจากคำขอที่เคยส่ง หรือพิมพ์ปลายทางใหม่ได้"} />} /></Grid>
+          <Grid item xs={12} md={6}><TextField required disabled fullWidth label="ผู้ประสานงาน" value={user?.fullname ?? form.contactPersonName} helperText="ใช้ชื่อผู้แจ้งคำขอโดยอัตโนมัติ" /></Grid>
           <Grid item xs={12} md={6}><TextField required fullWidth disabled={Boolean(profile.data?.phoneNumber?.trim())} label="หมายเลขโทรศัพท์ผู้ประสานงาน" value={form.contactPhone} onChange={field("contactPhone")} helperText={profile.data?.phoneNumber?.trim() ? "ใช้หมายเลขโทรศัพท์จากข้อมูลพนักงาน" : "ยังไม่มีเบอร์ในข้อมูลพนักงาน กรุณากรอกเบอร์ติดต่อสำหรับคำขอนี้"} /></Grid>
           <Grid item xs={12} md={6}><ThaiDateTimeField label="ออกเดินทาง" value={form.departureAt} onChange={value => setForm(current => ({ ...current, departureAt: value }))} /></Grid>
           <Grid item xs={12} md={6}><ThaiDateTimeField label="คาดว่าจะกลับ" value={form.expectedReturnAt} error={hasInvalidTripTime} helperText={hasInvalidTripTime ? "กรุณาระบุวันและเวลากลับให้หลังเวลาออกเดินทาง" : undefined} onChange={value => setForm(current => ({ ...current, expectedReturnAt: value }))} /></Grid>
           {hasInvalidTripTime && <Grid item xs={12}><Alert severity="warning">{tripTimeErrorMessage}</Alert></Grid>}
-          <Grid item xs={12} md={6}><Stack direction="row" alignItems="center" sx={{ height: "100%" }}><FormControlLabel control={<Switch checked={form.isUrgent} onChange={(_, checked) => setForm(current => ({ ...current, isUrgent: checked, urgentReason: checked ? current.urgentReason : "" }))} />} label="เร่งด่วน" /></Stack></Grid>
+          {form.missionType === REFER_MISSION_TYPE && <Grid item xs={12}><Alert severity="warning">ภารกิจนี้ใช้รถพยาบาลและจัดเป็นคำขอเร่งด่วนอัตโนมัติ</Alert></Grid>}
+          <Grid item xs={12} md={6}><Stack direction="row" alignItems="center" sx={{ height: "100%" }}><FormControlLabel control={<Switch checked={form.isUrgent} disabled={form.missionType === REFER_MISSION_TYPE} onChange={(_, checked) => setForm(current => ({ ...current, isUrgent: checked, urgentReason: checked ? current.urgentReason : "" }))} />} label="เร่งด่วน" /></Stack></Grid>
           <Grid item xs={12} md={form.isUrgent ? 6 : 12}><TextField fullWidth multiline minRows={3} label="ความต้องการพิเศษ (ถ้ามี)" placeholder="เช่น ต้องการรถตู้ มีสัมภาระจำนวนมาก หรือมีอุปกรณ์พิเศษ" value={form.specialRequirement} onChange={field("specialRequirement")} /></Grid>
           {form.isUrgent && <Grid item xs={12} md={6}><TextField required fullWidth multiline minRows={3} label="เหตุผลความเร่งด่วน" value={form.urgentReason} onChange={field("urgentReason")} /></Grid>}
         </Grid>

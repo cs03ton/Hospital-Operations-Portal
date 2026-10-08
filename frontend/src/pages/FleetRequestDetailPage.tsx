@@ -39,6 +39,7 @@ import { getFleetStatusLabel } from "../utils/fleetLabels";
 import { useState } from "react";
 import { useNotification } from "../hooks/useNotification";
 import { isAxiosError } from "axios";
+import { REFER_MISSION_TYPE } from "../utils/fleetReferPolicy";
 import { ArrowBackRounded, CancelOutlined, DirectionsCarRounded, WarningAmberRounded } from "@mui/icons-material";
 
 export function FleetRequestDetailPage() {
@@ -280,6 +281,7 @@ export function FleetRequestDetailPage() {
               <Typography variant="h6" fontWeight={800}>
                 จัดรถและคนขับ
               </Typography>
+              {data.missionType === REFER_MISSION_TYPE && <Alert severity={readyVehicles.length ? "info" : "warning"} sx={{ mt: 2 }}>{readyVehicles.length ? "ภารกิจส่งต่อผู้ป่วย: เลือกได้เฉพาะรถพยาบาลและคนขับที่รองรับ" : "ไม่มีรถพยาบาลพร้อมใช้งานในช่วงเวลานี้ กรุณาตรวจสอบคิวรถหรือทะเบียนรถ ไม่สามารถใช้รถประเภทอื่นทดแทนได้"}</Alert>}
               <Grid container spacing={2} sx={{ mt: 0 }}>
                 <Grid item xs={12} md={6}>
                   <TextField
