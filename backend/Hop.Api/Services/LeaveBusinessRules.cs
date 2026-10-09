@@ -11,6 +11,8 @@ public static class LeaveBusinessRules
     public static bool IsVacationLeave(string? code) => Normalize(code) is
         "VACATIONLEAVE" or "ANNUALLEAVE" or "VACATION" or "ANNUAL";
 
+    public static bool IsSickLeave(string? code) => Normalize(code) is "SICKLEAVE" or "SICK";
+
     public static DateOnly EarliestVacationStart(DateOnly submittedOn) =>
         submittedOn.AddDays(VacationAdvanceCalendarDays);
 

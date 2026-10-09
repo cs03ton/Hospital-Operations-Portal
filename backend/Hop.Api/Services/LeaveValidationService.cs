@@ -100,14 +100,17 @@ public sealed class LeaveValidationService(
             }
         }
 
-        if (leaveType.RequiresAttachment)
+        var isSickLeave = LeaveBusinessRules.IsSickLeave(leaveType.Code);
+        if (isSickLeave ? draftValidation.CalculatedDays >= 3m : leaveType.RequiresAttachment)
         {
             var hasAttachment = await db.LeaveAttachments
                 .AsNoTracking()
                 .AnyAsync(item => item.LeaveRequestId == leaveRequest.Id);
             if (!hasAttachment)
             {
-                return new LeaveValidationResult(false, "ประเภทการลานี้ต้องแนบไฟล์ประกอบก่อนส่งคำขอ", draftValidation.CalculatedDays);
+                return new LeaveValidationResult(false, isSickLeave
+                    ? "ลาป่วยตั้งแต่ 3 วันขึ้นไป กรุณาแนบไฟล์ประกอบก่อนส่งคำขอ"
+                    : "ประเภทการลานี้ต้องแนบไฟล์ประกอบก่อนส่งคำขอ", draftValidation.CalculatedDays);
             }
         }
 

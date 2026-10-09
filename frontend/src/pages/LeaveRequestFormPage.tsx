@@ -180,6 +180,8 @@ export function LeaveRequestFormPage() {
                 <MenuItem key={item.id} value={item.id}>{getLeaveTypeLabel(item.name || item.code)}</MenuItem>
               ))}
             </TextField>
+            {["SICK", "SICKLEAVE"].includes((selectedLeaveType?.code ?? "").replace(/[^a-zA-Z0-9]/g, "").toUpperCase()) &&
+              <Alert severity="info">ลาป่วยน้อยกว่า 3 วันไม่บังคับแนบไฟล์ ตั้งแต่ 3 วันขึ้นไปต้องแนบไฟล์ประกอบก่อนส่งคำขอ โดยใช้จำนวนวันลาที่ระบบคำนวณ</Alert>}
             <Controller
               name="durationType"
               control={control}

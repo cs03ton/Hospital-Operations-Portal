@@ -9,6 +9,29 @@ namespace Hop.Api.Tests;
 public class LeaveValidationTests
 {
     [Theory]
+    [InlineData(1, false, true)]
+    [InlineData(2, false, true)]
+    [InlineData(3, false, false)]
+    [InlineData(3, true, true)]
+    [InlineData(4, false, false)]
+    public async Task Sick_leave_requires_attachment_only_from_three_calculated_days(int days, bool attached, bool allowed)
+    {
+        await using var db = CreateDbContext();
+        var leaveType = await AddLeaveType(db, requiresBalance: false);
+        leaveType.Code = "SICK_LEAVE";
+        leaveType.RequiresAttachment = true;
+        var request = new LeaveRequest { Id = Guid.NewGuid(), UserId = Guid.NewGuid(), LeaveTypeId = leaveType.Id, LeaveType = leaveType,
+            StartDate = new DateOnly(2026, 6, 22), EndDate = new DateOnly(2026, 6, 22).AddDays(days - 1),
+            DurationType = LeaveDurationTypes.FullDay, TotalDays = 99, Status = "Draft" };
+        if (attached) db.LeaveAttachments.Add(new LeaveAttachment { LeaveRequestId = request.Id });
+        await db.SaveChangesAsync();
+        var result = await CreateService(db).ValidateSubmitAsync(request);
+        Assert.Equal(allowed, result.IsValid);
+        Assert.Equal(days, result.CalculatedDays);
+        if (!allowed) Assert.Contains("ลาป่วยตั้งแต่ 3 วัน", result.Message);
+    }
+
+    [Theory]
     [InlineData(2026, 9, 30, 2026)]
     [InlineData(2026, 10, 1, 2027)]
     public void FiscalYearHelper_ReturnsExpectedFiscalYear(int year, int month, int day, int expectedFiscalYear)
