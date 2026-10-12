@@ -389,13 +389,13 @@ export function LeaveRequestDetailPage() {
                     <DetailItem label="ชื่อผู้ขอลา" value={request.fullname ?? "-"} />
                   </Grid>
                   <Grid item xs={12} sm={6}>
-                    <DetailItem label="รหัสพนักงาน" value="-" />
+                    <DetailItem label="รหัสพนักงาน" value={request.employeeCode || "-"} />
                   </Grid>
                   <Grid item xs={12} sm={6}>
-                    <DetailItem label="หน่วยงาน" value="-" />
+                    <DetailItem label="หน่วยงาน" value={request.departmentName || "-"} />
                   </Grid>
                   <Grid item xs={12} sm={6}>
-                    <DetailItem label="ตำแหน่ง" value="-" />
+                    <DetailItem label="ตำแหน่ง" value={request.position || "-"} />
                   </Grid>
                   <Grid item xs={12} sm={6}>
                     <DetailItem label="วันที่สร้างคำขอ" value={formatThaiDateTime(request.createdAt)} />

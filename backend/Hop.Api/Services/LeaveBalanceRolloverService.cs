@@ -60,7 +60,8 @@ public sealed class LeaveBalanceRolloverService(
             request.DepartmentId,
             request.EmploymentType,
             request.LeaveTypeId,
-            request.UserId);
+            request.UserId,
+            request.Overrides);
         var items = await BuildPreviewItemsAsync(filter, cancellationToken);
         var run = new LeaveBalanceRolloverRun
         {
@@ -129,8 +130,8 @@ public sealed class LeaveBalanceRolloverService(
                         EntitledDays = item.NewEntitlementDays,
                         CarriedOverDays = item.CarryOverDays,
                         AdjustedDays = 0,
-                        UsedDays = 0,
-                        PendingDays = 0,
+                        UsedDays = item.TargetUsedDays,
+                        PendingDays = item.TargetPendingDays,
                         Notes = request.Reason.Trim()
                     });
                 }
@@ -167,7 +168,7 @@ public sealed class LeaveBalanceRolloverService(
     {
         var response = await PreviewAsync(request, actorUserId, cancellationToken);
         var builder = new StringBuilder();
-        builder.AppendLine("employeeName,departmentName,employmentType,leaveType,remaining,cap,carryOver,forfeited,action,reason");
+        builder.AppendLine("employeeName,departmentName,employmentType,leaveType,remaining,cap,maximumTotalAvailable,carryOver,forfeited,targetUsed,targetPending,targetAvailable,action,reason");
         foreach (var item in response.Items)
         {
             builder.AppendLine(string.Join(",",
@@ -178,8 +179,12 @@ public sealed class LeaveBalanceRolloverService(
                 Csv(item.LeaveTypeName),
                 item.EndYearRemaining.ToString("0.##"),
                 item.CarryOverCap.ToString("0.##"),
+                item.MaximumTotalAvailableDays?.ToString("0.##") ?? "",
                 item.CarryOverDays.ToString("0.##"),
                 item.ForfeitedDays.ToString("0.##"),
+                item.TargetUsedDays.ToString("0.##"),
+                item.TargetPendingDays.ToString("0.##"),
+                item.NewAvailableDays?.ToString("0.##") ?? "",
                 item.Action,
                 Csv(item.Reason)
             ]));
@@ -192,6 +197,13 @@ public sealed class LeaveBalanceRolloverService(
         LeaveBalanceRolloverFilterRequest request,
         CancellationToken cancellationToken)
     {
+        var overrides = request.Overrides ?? [];
+        if (overrides.GroupBy(item => (item.UserId, item.LeaveTypeId)).Any(group => group.Count() > 1))
+        {
+            throw new InvalidOperationException("ระบุยอดยกมาซ้ำสำหรับบุคลากรและประเภทลาเดียวกัน");
+        }
+        var overrideLookup = overrides.ToDictionary(item => (item.UserId, item.LeaveTypeId));
+        var matchedOverrides = new HashSet<(Guid UserId, Guid LeaveTypeId)>();
         var usersQuery = db.Users
             .AsNoTracking()
             .Include(user => user.Department)
@@ -235,6 +247,16 @@ public sealed class LeaveBalanceRolloverService(
         {
             foreach (var leaveType in leaveTypes)
             {
+                var overrideKey = (user.Id, leaveType.Id);
+                overrideLookup.TryGetValue(overrideKey, out var manualOverride);
+                if (manualOverride is not null)
+                {
+                    matchedOverrides.Add(overrideKey);
+                    if (!string.Equals(leaveType.Code, "VACATION_LEAVE", StringComparison.OrdinalIgnoreCase))
+                    {
+                        throw new InvalidOperationException("กำหนดยอดยกมาเองได้เฉพาะลาพักผ่อน");
+                    }
+                }
                 var source = fromBalances.FirstOrDefault(balance => balance.UserId == user.Id && balance.LeaveTypeId == leaveType.Id);
                 var existingTarget = targetBalances.FirstOrDefault(balance => balance.UserId == user.Id && balance.LeaveTypeId == leaveType.Id);
                 var policy = await leavePolicyService.GetPolicyAsync(user.Id, leaveType.Id, request.ToFiscalYear, cancellationToken)
@@ -244,6 +266,7 @@ public sealed class LeaveBalanceRolloverService(
                 var carriedOver = source?.CarriedOverDays ?? 0;
                 var adjusted = source?.AdjustedDays ?? 0;
                 var usage = await reconciliationService.GetUsageAsync(user.Id, leaveType.Id, request.FromFiscalYear, cancellationToken);
+                var targetUsage = await reconciliationService.GetUsageAsync(user.Id, leaveType.Id, request.ToFiscalYear, cancellationToken);
                 var used = usage.UsedDays;
                 var pending = usage.PendingDays;
                 var endYearRemaining = FiscalYearHelper.CalculateAvailableDays(entitled, carriedOver, used, pending, adjusted);
@@ -253,14 +276,17 @@ public sealed class LeaveBalanceRolloverService(
                 decimal carryOverCap = 0;
                 decimal carryOverDays = 0;
                 decimal forfeitedDays = Math.Max(endYearRemaining, 0);
+                decimal? maximumTotalAvailableDays = null;
 
                 if (source is null)
                 {
+                    if (manualOverride is not null) throw new InvalidOperationException($"ไม่พบยอดวันลาต้นทางของ {user.FullName} สำหรับกำหนดยอดยกมา");
                     action = ActionSkipped;
                     reason = "ไม่พบยอดวันลาปีงบประมาณต้นทาง";
                 }
                 else if (policy is null)
                 {
+                    if (manualOverride is not null) throw new InvalidOperationException($"ไม่พบกฎวันลาพักผ่อนของ {user.FullName} สำหรับกำหนดยอดยกมา");
                     action = ActionBlocked;
                     reason = "ไม่พบ policy สำหรับประเภทบุคลากรและประเภทลานี้";
                 }
@@ -271,6 +297,34 @@ public sealed class LeaveBalanceRolloverService(
                     carryOverDays = carry.CarryOverDays;
                     forfeitedDays = carry.ForfeitedDays;
                     warnings.AddRange(carry.Warnings);
+                    if (string.Equals(leaveType.Code, "VACATION_LEAVE", StringComparison.OrdinalIgnoreCase) && carry.Errors.Count == 0)
+                    {
+                        var policyPreview = await leavePolicyService.CalculateAvailableDaysAsync(user.Id, leaveType.Id, request.ToFiscalYear, cancellationToken: cancellationToken);
+                        maximumTotalAvailableDays = policyPreview.MaximumTotalAvailableDays;
+                        if (maximumTotalAvailableDays is not null)
+                        {
+                            carryOverCap = Math.Min(carryOverCap, Math.Max(0, maximumTotalAvailableDays.Value - (existingTarget?.EntitledDays ?? entitlement)));
+                        }
+                        carryOverDays = Math.Min(carryOverDays, carryOverCap);
+                        forfeitedDays = Math.Max(endYearRemaining - carryOverDays, 0);
+                        warnings.Clear();
+                        if (forfeitedDays > 0) warnings.Add($"ยอดคงเหลือที่ไม่ยกมา {forfeitedDays:0.##} วัน");
+                    }
+                    if (manualOverride is not null)
+                    {
+                        if (carry.Errors.Count > 0 || manualOverride.CarryOverDays < 0 || manualOverride.CarryOverDays > carryOverCap || decimal.Round(manualOverride.CarryOverDays, 2) != manualOverride.CarryOverDays)
+                        {
+                            throw new InvalidOperationException($"ยอดยกมาลาพักผ่อนของ {user.FullName} ต้องอยู่ระหว่าง 0 ถึง {carryOverCap:0.##} วัน ตามเพดานรวมปีใหม่ และมีทศนิยมไม่เกิน 2 ตำแหน่ง");
+                        }
+                        carryOverDays = manualOverride.CarryOverDays;
+                        forfeitedDays = Math.Max(endYearRemaining - carryOverDays, 0);
+                        warnings.Clear();
+                        if (forfeitedDays > 0) warnings.Add($"ยอดที่ไม่ยกมา {forfeitedDays:0.##} วัน");
+                        if (carryOverDays > Math.Max(endYearRemaining, 0))
+                        {
+                            warnings.Add($"ยอดกำหนดเองสูงกว่าคงเหลือปีต้นทาง {Math.Max(endYearRemaining, 0):0.##} วัน กรุณาตรวจสอบเหตุผลก่อนยืนยัน");
+                        }
+                    }
                     if (carry.Errors.Count > 0)
                     {
                         action = existingTarget is null ? ActionCreated : ActionNoChange;
@@ -295,7 +349,12 @@ public sealed class LeaveBalanceRolloverService(
                     }
                 }
 
-                var newAvailableDays = FiscalYearHelper.CalculateAvailableDays(entitlement, carryOverDays, 0, 0, 0);
+                var targetEntitlement = existingTarget?.EntitledDays ?? entitlement;
+                var targetCarryOver = action is ActionCreated or ActionUpdated ? carryOverDays : existingTarget?.CarriedOverDays ?? 0;
+                decimal? newAvailableDays = action is ActionSkipped or ActionBlocked
+                    ? null
+                    : FiscalYearHelper.CalculateAvailableDays(
+                        targetEntitlement, targetCarryOver, targetUsage.UsedDays, targetUsage.PendingDays, existingTarget?.AdjustedDays ?? 0);
                 items.Add(new LeaveBalanceRolloverItemResponse(
                     user.Id,
                     user.FullName,
@@ -317,10 +376,18 @@ public sealed class LeaveBalanceRolloverService(
                     forfeitedDays,
                     entitlement,
                     newAvailableDays,
+                    targetUsage.UsedDays,
+                    targetUsage.PendingDays,
                     action,
                     reason,
-                    warnings));
+                    warnings,
+                    maximumTotalAvailableDays));
             }
+        }
+
+        if (matchedOverrides.Count != overrideLookup.Count)
+        {
+            throw new InvalidOperationException("ไม่พบรายการลาพักผ่อนที่กำหนดยอดยกมาในตัวกรองที่เลือก");
         }
 
         return items;

@@ -17,6 +17,27 @@ namespace Hop.Api.Tests;
 public class Phase1CriticalLeaveWorkflowTests
 {
     [Fact]
+    public async Task Detail_IncludesRequesterProfileFields()
+    {
+        await using var db = CreateDbContext();
+        var fixture = await SeedPendingLeaveAsync(db);
+        var department = new Department { Id = Guid.NewGuid(), Name = "งานเทคโนโลยีสารสนเทศ" };
+        db.Departments.Add(department);
+        fixture.Staff.EmployeeCode = "EMP-001";
+        fixture.Staff.DepartmentId = department.Id;
+        fixture.Staff.Position = "นักวิชาการคอมพิวเตอร์";
+        await db.SaveChangesAsync();
+
+        var result = await CreateController(db, fixture.Head.Id, new CaptureNotificationPublisher())
+            .GetLeaveRequest(fixture.LeaveRequest.Id);
+
+        var response = Assert.IsType<ApiResponse<LeaveRequestResponse>>(result.Value);
+        Assert.Equal("EMP-001", response.Data!.EmployeeCode);
+        Assert.Equal("งานเทคโนโลยีสารสนเทศ", response.Data.DepartmentName);
+        Assert.Equal("นักวิชาการคอมพิวเตอร์", response.Data.Position);
+    }
+
+    [Fact]
     public async Task ApproveFlow_MovesCurrentApproverThenApprovesAndDeductsBalance()
     {
         await using var db = CreateDbContext();

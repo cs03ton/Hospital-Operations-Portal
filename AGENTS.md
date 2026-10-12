@@ -1,0 +1,7 @@
+# Project build rule
+
+- After completing each task that changes application code, build **both** sides before reporting completion. This means once per completed set of edits, not after every file save. Documentation-only changes do not trigger this rule.
+- From `frontend`, run `npm run build`. Confirm `frontend/dist/index.html` exists and `frontend/dist/assets` contains generated files.
+- Publish the Backend in Release mode to `backend/Hop.Api/publish` using `dotnet publish backend/Hop.Api/Hop.Api.csproj -c Release -o backend/Hop.Api/publish` from the repository root. The publish output must include Linux x64 native assets. Confirm `Hop.Api.dll`, `Hop.Api.deps.json`, `Microsoft.EntityFrameworkCore.dll`, `Npgsql.EntityFrameworkCore.PostgreSQL.dll`, and `runtimes/linux-x64/native/libSkiaSharp.so` exist there. Do not pass `-r linux-x64`: that option flattens native files into the output root and breaks the existing prebuilt deployment check.
+- Prevent stale files from earlier publishes from mixing with a new release. Build into a clean temporary output directory first; after a successful publish and file check, replace only the contents of `backend/Hop.Api/publish`. On Windows, verify the resolved absolute output paths are within this repository before any recursive move or deletion.
+- If either build or verification fails, report the failure and do not claim the build succeeded. This rule does not authorize deployment, service restart, PRD access, or database changes.

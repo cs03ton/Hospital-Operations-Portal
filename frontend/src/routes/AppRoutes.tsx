@@ -24,6 +24,7 @@ import { DepartmentFormPage } from "../pages/DepartmentFormPage";
 import { LeaveManagementPage } from "../pages/LeaveManagementPage";
 import { LeaveBalanceAdjustmentPage } from "../pages/LeaveBalanceAdjustmentPage";
 import { LeaveBalanceManagementPage } from "../pages/LeaveBalanceManagementPage";
+import { LeaveBalanceAuditPage } from "../pages/LeaveBalanceAuditPage";
 import { LeaveBalancePage } from "../pages/LeaveBalancePage";
 import { LeaveHolidayManagementPage } from "../pages/LeaveHolidayManagementPage";
 import { LeaveCalendarPage } from "../pages/LeaveCalendarPage";
@@ -235,6 +236,7 @@ export function AppRoutes() {
           <Route path="/admin/approval-chains/:id/edit" element={withPermission(<ApprovalChainFormPage />, "LeaveAdmin.ManageApprovalChains")} />
           <Route path="/admin/approval-delegations" element={withPermission(<ApprovalDelegationPage />, "LeaveApproval.Delegate")} />
           <Route path="/admin/leave-balances" element={withPermission(<LeaveBalanceManagementPage />, "LeaveAdmin.ManageBalances")} />
+          <Route path="/admin/leave-balances/audit" element={withPermission(<LeaveBalanceAuditPage />, "LeaveAdmin.ManageBalances")} />
           <Route path="/admin/leave-balances/adjustments" element={withPermission(<LeaveBalanceAdjustmentPage />, "LeaveAdmin.ManageBalances")} />
           <Route path="/admin/leave-holidays" element={withPermission(<LeaveHolidayManagementPage />, "LeaveAdmin.ManageHolidays")} />
           <Route path="/leave" element={withAnyPermission(<LeaveManagementPage />, leaveViewPermissions)} />

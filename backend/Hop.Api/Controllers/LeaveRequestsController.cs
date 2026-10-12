@@ -1033,6 +1033,8 @@ public class LeaveRequestsController(
         return db.LeaveRequests
             .AsNoTracking()
             .Include(item => item.User)
+                .ThenInclude(user => user!.Department)
+            .Include(item => item.User)
                 .ThenInclude(user => user!.UserRoles)
                     .ThenInclude(userRole => userRole.Role)
             .Include(item => item.LeaveType)
@@ -1217,7 +1219,10 @@ public class LeaveRequestsController(
             item.UpdatedAt,
             cancellationReference?.Id,
             cancellationReference?.CancellationRequestNumber,
-            cancellationReference?.Status
+            cancellationReference?.Status,
+            item.User?.EmployeeCode,
+            item.User?.Department?.Name,
+            item.User?.Position
         );
     }
 

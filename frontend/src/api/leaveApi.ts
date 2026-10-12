@@ -24,6 +24,9 @@ export type LeaveRequest = {
   requestNumber?: string | null;
   userId: string;
   fullname?: string | null;
+  employeeCode?: string | null;
+  departmentName?: string | null;
+  position?: string | null;
   leaveTypeId: string;
   leaveTypeName?: string | null;
   startDate: string;
@@ -194,6 +197,7 @@ export type LeaveBalance = {
   id?: string | null;
   userId: string;
   fullname?: string | null;
+  employeeCode?: string | null;
   departmentId?: string | null;
   departmentName?: string | null;
   leaveTypeId: string;
@@ -383,7 +387,10 @@ export type LeaveBalanceRolloverItem = {
   carryOverDays: number;
   forfeitedDays: number;
   newEntitlementDays: number;
-  newAvailableDays: number;
+  newAvailableDays: number | null;
+  targetUsedDays: number;
+  targetPendingDays: number;
+  maximumTotalAvailableDays?: number | null;
   action: string;
   reason: string;
   warnings: string[];
@@ -408,6 +415,7 @@ export type LeaveBalanceRolloverFilterRequest = {
   employmentType?: string | null;
   leaveTypeId?: string | null;
   userId?: string | null;
+  overrides?: { userId: string; leaveTypeId: string; carryOverDays: number }[];
 };
 
 export type ConfirmLeaveBalanceRolloverBatchRequest = LeaveBalanceRolloverFilterRequest & {
@@ -1038,6 +1046,11 @@ export async function getMyLeaveBalances() {
 
 export async function getLeaveBalances(params?: { year?: number; userId?: string; departmentId?: string; leaveTypeId?: string }) {
   const response = await httpClient.get<ApiResponse<LeaveBalance[]>>("/api/leave-balances", { params });
+  return response.data.data;
+}
+
+export async function getAuditLeaveBalances(params: { year: number; useFiscalYear: boolean }) {
+  const response = await httpClient.get<ApiResponse<LeaveBalance[]>>("/api/leave-balances/audit", { params });
   return response.data.data;
 }
 

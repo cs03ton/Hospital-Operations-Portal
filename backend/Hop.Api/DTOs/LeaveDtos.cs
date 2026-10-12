@@ -60,7 +60,10 @@ public record LeaveRequestResponse(
     DateTime? UpdatedAt,
     Guid? CancellationRequestId = null,
     string? CancellationRequestNumber = null,
-    string? CancellationStatus = null
+    string? CancellationStatus = null,
+    string? EmployeeCode = null,
+    string? DepartmentName = null,
+    string? Position = null
 );
 
 public record SaveLeaveRequestRequest(
@@ -231,7 +234,8 @@ public record LeaveBalanceResponse(
     decimal PendingDays,
     decimal AvailableDays,
     decimal RemainingDays,
-    string? Notes
+    string? Notes,
+    string? EmployeeCode = null
 );
 
 public record SaveLeaveBalanceRequest(
@@ -261,8 +265,11 @@ public record LeaveBalanceRolloverFilterRequest(
     Guid? DepartmentId = null,
     string? EmploymentType = null,
     Guid? LeaveTypeId = null,
-    Guid? UserId = null
+    Guid? UserId = null,
+    IReadOnlyList<LeaveBalanceRolloverOverrideRequest>? Overrides = null
 );
+
+public record LeaveBalanceRolloverOverrideRequest(Guid UserId, Guid LeaveTypeId, decimal CarryOverDays);
 
 public record LeaveBalanceRolloverConfirmBatchRequest(
     int FromFiscalYear,
@@ -271,7 +278,8 @@ public record LeaveBalanceRolloverConfirmBatchRequest(
     string? EmploymentType,
     Guid? LeaveTypeId,
     Guid? UserId,
-    string Reason
+    string Reason,
+    IReadOnlyList<LeaveBalanceRolloverOverrideRequest>? Overrides = null
 );
 
 public record LeaveBalanceRolloverBatchResponse(
@@ -306,10 +314,13 @@ public record LeaveBalanceRolloverItemResponse(
     decimal CarryOverDays,
     decimal ForfeitedDays,
     decimal NewEntitlementDays,
-    decimal NewAvailableDays,
+    decimal? NewAvailableDays,
+    decimal TargetUsedDays,
+    decimal TargetPendingDays,
     string Action,
     string Reason,
-    IReadOnlyList<string> Warnings
+    IReadOnlyList<string> Warnings,
+    decimal? MaximumTotalAvailableDays = null
 );
 
 public record LeaveBalanceRolloverPreviewResponse(

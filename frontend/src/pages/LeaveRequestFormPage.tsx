@@ -36,6 +36,7 @@ export function LeaveRequestFormPage() {
     .filter((item) => item.isActive)
     .filter((item) => !appConfig.hideIneligibleLeaveTypes || isLeaveTypeEligibleByGender(item.code, profile?.gender));
   const selectedLeaveType = leaveTypes.find((item) => item.id === leaveTypeId);
+  const isSickLeave = ["SICK", "SICKLEAVE"].includes(selectedLeaveType?.code?.replace(/[^a-z0-9]/gi, "").toUpperCase() ?? "");
   const shouldValidateBalance = selectedLeaveType?.requiresBalance !== false;
   const canPreviewPolicy = Boolean(
     leaveTypeId &&
@@ -148,6 +149,13 @@ export function LeaveRequestFormPage() {
             {policyWarnings.map((message) => (
               <Alert key={message} severity="warning">{message}</Alert>
             ))}
+            {isSickLeave && policyPreview && (
+              <Alert severity={policyPreview.requestedDays >= 3 ? "warning" : "info"}>
+                {policyPreview.requestedDays >= 3
+                  ? "ลาป่วยตั้งแต่ 3 วันต้องแนบไฟล์ประกอบก่อนส่งคำขอ กรุณาบันทึกแบบร่างแล้วแนบไฟล์ในหน้ารายละเอียดคำขอ"
+                  : "ลาป่วยน้อยกว่า 3 วันส่งคำขอได้โดยไม่ต้องแนบไฟล์"}
+              </Alert>
+            )}
             {policyNotes.map((message) => (
               <Alert key={message} severity="info">{message}</Alert>
             ))}
@@ -180,8 +188,6 @@ export function LeaveRequestFormPage() {
                 <MenuItem key={item.id} value={item.id}>{getLeaveTypeLabel(item.name || item.code)}</MenuItem>
               ))}
             </TextField>
-            {["SICK", "SICKLEAVE"].includes((selectedLeaveType?.code ?? "").replace(/[^a-zA-Z0-9]/g, "").toUpperCase()) &&
-              <Alert severity="info">ลาป่วยน้อยกว่า 3 วันไม่บังคับแนบไฟล์ ตั้งแต่ 3 วันขึ้นไปต้องแนบไฟล์ประกอบก่อนส่งคำขอ โดยใช้จำนวนวันลาที่ระบบคำนวณ</Alert>}
             <Controller
               name="durationType"
               control={control}

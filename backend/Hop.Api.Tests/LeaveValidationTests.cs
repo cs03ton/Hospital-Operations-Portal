@@ -494,6 +494,54 @@ public class LeaveValidationTests
         Assert.Equal(5m, result.CalculatedDays);
     }
 
+    [Theory]
+    [InlineData(19, 22, 2, true)] // Weekend days do not count toward the threshold.
+    [InlineData(22, 24, 3, false)] // Sick leave still requires a file when the type flag is off.
+    public async Task ValidateSubmitAsync_UsesCalculatedSickDaysRegardlessOfAttachmentFlag(
+        int startDay, int endDay, int expectedDays, bool shouldAllowWithoutAttachment)
+    {
+        await using var db = CreateDbContext();
+        var leaveType = await AddLeaveType(db, requiresBalance: false);
+        leaveType.Code = "SICK_LEAVE";
+        leaveType.RequiresAttachment = false;
+        await db.SaveChangesAsync();
+
+        var request = new LeaveRequest
+        {
+            Id = Guid.NewGuid(), UserId = Guid.NewGuid(), LeaveTypeId = leaveType.Id,
+            LeaveType = leaveType, StartDate = new DateOnly(2026, 6, startDay),
+            EndDate = new DateOnly(2026, 6, endDay), DurationType = LeaveDurationTypes.FullDay,
+            Reason = "Sick leave", Status = "Draft"
+        };
+        var result = await CreateService(db).ValidateSubmitAsync(request);
+
+        Assert.Equal(expectedDays, result.CalculatedDays);
+        Assert.Equal(shouldAllowWithoutAttachment, result.IsValid);
+        if (!shouldAllowWithoutAttachment)
+            Assert.Contains("ตั้งแต่ 3 วัน", result.Message);
+
+    }
+
+    [Fact]
+    public async Task ValidateSubmitAsync_StillRequiresAttachmentForOtherLeaveTypes()
+    {
+        await using var db = CreateDbContext();
+        var leaveType = await AddLeaveType(db, requiresBalance: false);
+        leaveType.RequiresAttachment = true;
+        await db.SaveChangesAsync();
+
+        var result = await CreateService(db).ValidateSubmitAsync(new LeaveRequest
+        {
+            Id = Guid.NewGuid(), UserId = Guid.NewGuid(), LeaveTypeId = leaveType.Id,
+            LeaveType = leaveType, StartDate = new DateOnly(2026, 6, 22),
+            EndDate = new DateOnly(2026, 6, 22), DurationType = LeaveDurationTypes.FullDay,
+            Reason = "Other leave", Status = "Draft"
+        });
+
+        Assert.False(result.IsValid);
+        Assert.Contains("ต้องแนบไฟล์", result.Message);
+    }
+
     private static AppDbContext CreateDbContext()
     {
         var options = new DbContextOptionsBuilder<AppDbContext>()

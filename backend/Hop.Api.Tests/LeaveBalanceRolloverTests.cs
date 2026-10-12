@@ -17,6 +17,72 @@ namespace Hop.Api.Tests;
 public class LeaveBalanceRolloverTests
 {
     [Fact]
+    public async Task AuditBalances_IncludesActiveStaffWithoutLeaveRequestsOrSavedBalance()
+    {
+        await using var db = CreateDbContext();
+        var leaveType = new LeaveType
+        {
+            Id = Guid.NewGuid(), Code = "VACATION_LEAVE", Name = "ลาพักผ่อน",
+            RequiresBalance = true, UseFiscalYear = true, IsActive = true
+        };
+        var staff = new User
+        {
+            Id = Guid.NewGuid(), Username = "staff-audit", FullName = "Staff Audit", EmployeeCode = "E001",
+            PasswordHash = "hash", EmploymentType = EmploymentTypes.MophEmployee,
+            EmploymentStartDate = new DateOnly(2020, 1, 1), IsActive = true
+        };
+        var inactive = new User
+        {
+            Id = Guid.NewGuid(), Username = "inactive-audit", FullName = "Inactive Audit",
+            PasswordHash = "hash", IsActive = false
+        };
+        var usedStaff = new User
+        {
+            Id = Guid.NewGuid(), Username = "used-audit", FullName = "Used Audit",
+            PasswordHash = "hash", EmploymentType = EmploymentTypes.MophEmployee,
+            EmploymentStartDate = new DateOnly(2020, 1, 1), IsActive = true
+        };
+        db.Users.AddRange(staff, inactive, usedStaff);
+        db.LeaveTypes.Add(leaveType);
+        db.LeaveBalances.Add(new LeaveBalance
+        {
+            Id = Guid.NewGuid(), UserId = usedStaff.Id, LeaveTypeId = leaveType.Id, Year = 2027,
+            EntitledDays = 8, CarriedOverDays = 2, UsedDays = 99
+        });
+        db.LeaveRequests.Add(new LeaveRequest
+        {
+            Id = Guid.NewGuid(), UserId = usedStaff.Id, LeaveTypeId = leaveType.Id,
+            StartDate = new DateOnly(2026, 10, 5), EndDate = new DateOnly(2026, 10, 7),
+            TotalDays = 3, Status = "Approved", Reason = "Test"
+        });
+        db.LeavePolicyRules.Add(new LeavePolicyRule
+        {
+            Id = Guid.NewGuid(), EmploymentType = EmploymentTypes.MophEmployee,
+            LeaveTypeId = leaveType.Id, EntitlementDays = 10, IsActive = true
+        });
+        await db.SaveChangesAsync();
+
+        var controller = CreateController(db, new FakeAuditLogService());
+        var result = await controller.GetAuditBalances(2027);
+
+        var response = Assert.IsType<ApiResponse<IReadOnlyList<LeaveBalanceResponse>>>(result.Value);
+        Assert.Equal(2, response.Data!.Count);
+        var row = Assert.Single(response.Data, item => item.UserId == staff.Id);
+        Assert.Equal(staff.Id, row.UserId);
+        Assert.Equal("E001", row.EmployeeCode);
+        Assert.Null(row.Id);
+        Assert.Equal(10, row.EntitledDays);
+        Assert.Equal(0, row.UsedDays);
+        Assert.Equal(10, row.AvailableDays);
+        var usedRow = Assert.Single(response.Data, item => item.UserId == usedStaff.Id);
+        Assert.NotNull(usedRow.Id);
+        Assert.Equal(3, usedRow.UsedDays);
+        Assert.Equal(7, usedRow.AvailableDays);
+        Assert.Empty(Assert.IsType<ApiResponse<IReadOnlyList<LeaveBalanceResponse>>>(
+            (await controller.GetAuditBalances(2027, useFiscalYear: false)).Value).Data!);
+    }
+
+    [Fact]
     public async Task PreviewBatchRollover_DoesNotWriteDatabase()
     {
         await using var db = CreateDbContext();
@@ -52,6 +118,138 @@ public class LeaveBalanceRolloverTests
     }
 
     [Fact]
+    public async Task VacationRollover_UsesSpecifiedAmountInPreviewAndConfirmedBalance()
+    {
+        await using var db = CreateDbContext();
+        var (user, leaveType, _) = await SeedPolicyBalance(db, EmploymentTypes.MophEmployee, new DateOnly(2020, 10, 1), true, 15, entitlement: 10);
+        var service = new LeaveBalanceRolloverService(db, new LeavePolicyService(db), new FakeAuditLogService());
+        var manual = new LeaveBalanceRolloverOverrideRequest(user.Id, leaveType.Id, 4.5m);
+        var preview = await service.PreviewAsync(new LeaveBalanceRolloverFilterRequest(2026, 2027, UserId: user.Id, Overrides: [manual]), user.Id);
+        var item = Assert.Single(preview.Items);
+        Assert.Equal(4.5m, item.CarryOverDays);
+        Assert.Equal(5.5m, item.ForfeitedDays);
+
+        await service.ConfirmAsync(new LeaveBalanceRolloverConfirmBatchRequest(2026, 2027, null, null, leaveType.Id, user.Id, "Manual vacation rollover", [manual]), user.Id);
+        Assert.Equal(4.5m, (await db.LeaveBalances.SingleAsync(balance => balance.Year == 2027)).CarriedOverDays);
+    }
+
+    [Fact]
+    public async Task RolloverPreview_ExistingTargetUsesLiveLeaveRequestsAndPreservesSavedEntitlement()
+    {
+        await using var db = CreateDbContext();
+        var (user, leaveType, _) = await SeedPolicyBalance(db, EmploymentTypes.CivilServant, new DateOnly(2010, 10, 1), true, 30, entitlement: 10);
+        var target = new LeaveBalance
+        {
+            Id = Guid.NewGuid(), UserId = user.Id, LeaveTypeId = leaveType.Id, Year = 2027,
+            EntitledDays = 12, CarriedOverDays = 0, AdjustedDays = 1, UsedDays = 99, PendingDays = 99
+        };
+        db.LeaveBalances.Add(target);
+        AddTargetLeaveRequests(db, user.Id, leaveType.Id);
+        await db.SaveChangesAsync();
+        var service = new LeaveBalanceRolloverService(db, new LeavePolicyService(db), new FakeAuditLogService(), new LeaveBalanceReconciliationService(db));
+        var manual = new LeaveBalanceRolloverOverrideRequest(user.Id, leaveType.Id, 4);
+        var filter = new LeaveBalanceRolloverFilterRequest(2026, 2027, UserId: user.Id, Overrides: [manual]);
+
+        var item = Assert.Single((await service.PreviewAsync(filter, user.Id)).Items);
+        Assert.Equal(3, item.TargetUsedDays);
+        Assert.Equal(2, item.TargetPendingDays);
+        Assert.Equal(12, item.NewAvailableDays); // 12 entitlement + 4 carry + 1 adjustment - 3 used - 2 pending
+        var csv = System.Text.Encoding.UTF8.GetString(await service.ExportPreviewCsvAsync(filter, user.Id));
+        Assert.Contains("targetUsed,targetPending,targetAvailable", csv);
+        Assert.Contains(",3,2,12,", csv);
+
+        await service.ConfirmAsync(new LeaveBalanceRolloverConfirmBatchRequest(2026, 2027, null, null, leaveType.Id, user.Id, "Late rollover", [manual]), user.Id);
+        Assert.Equal(4, target.CarriedOverDays);
+        Assert.Equal(12, target.EntitledDays);
+        Assert.Equal(99, target.UsedDays); // Rollover does not rewrite an existing target's usage fields.
+        Assert.Equal(99, target.PendingDays);
+        Assert.Equal(2, await db.LeaveBalances.CountAsync());
+    }
+
+    [Fact]
+    public async Task RolloverPreview_WithoutTargetShowsExistingUsageAndNegativeAvailableDays()
+    {
+        await using var db = CreateDbContext();
+        var (user, leaveType, _) = await SeedPolicyBalance(db, EmploymentTypes.MophEmployee, new DateOnly(2020, 10, 1), true, 15, entitlement: 10);
+        AddTargetLeaveRequests(db, user.Id, leaveType.Id, approvedDays: 20, pendingDays: 2);
+        await db.SaveChangesAsync();
+        var service = new LeaveBalanceRolloverService(db, new LeavePolicyService(db), new FakeAuditLogService(), new LeaveBalanceReconciliationService(db));
+        var manual = new LeaveBalanceRolloverOverrideRequest(user.Id, leaveType.Id, 4);
+
+        var item = Assert.Single((await service.PreviewAsync(new LeaveBalanceRolloverFilterRequest(2026, 2027, UserId: user.Id, Overrides: [manual]), user.Id)).Items);
+        Assert.Equal("Created", item.Action);
+        Assert.Equal(20, item.TargetUsedDays);
+        Assert.Equal(2, item.TargetPendingDays);
+        Assert.Equal(-8, item.NewAvailableDays);
+
+        await service.ConfirmAsync(new LeaveBalanceRolloverConfirmBatchRequest(2026, 2027, null, null, leaveType.Id, user.Id, "Late rollover", [manual]), user.Id);
+        var target = await db.LeaveBalances.SingleAsync(balance => balance.Year == 2027);
+        Assert.Equal(20, target.UsedDays);
+        Assert.Equal(2, target.PendingDays);
+        Assert.Equal(4, target.CarriedOverDays);
+        Assert.Equal(3, await db.LeaveRequests.CountAsync());
+    }
+
+    [Fact]
+    public async Task RolloverPreview_SkippedRowHasNoProjectedAvailableBalance()
+    {
+        await using var db = CreateDbContext();
+        var (user, leaveType, source) = await SeedPolicyBalance(db, EmploymentTypes.MophEmployee, new DateOnly(2020, 10, 1), true, 15);
+        db.LeaveBalances.Remove(source);
+        await db.SaveChangesAsync();
+        var service = new LeaveBalanceRolloverService(db, new LeavePolicyService(db), new FakeAuditLogService(), new LeaveBalanceReconciliationService(db));
+
+        var item = Assert.Single((await service.PreviewAsync(new LeaveBalanceRolloverFilterRequest(2026, 2027, UserId: user.Id, LeaveTypeId: leaveType.Id), user.Id)).Items);
+        Assert.Equal("Skipped", item.Action);
+        Assert.Null(item.NewAvailableDays);
+    }
+
+    private static void AddTargetLeaveRequests(AppDbContext db, Guid userId, Guid leaveTypeId, decimal approvedDays = 3, decimal pendingDays = 2)
+    {
+        db.LeaveRequests.AddRange(
+            new LeaveRequest { Id = Guid.NewGuid(), UserId = userId, LeaveTypeId = leaveTypeId, StartDate = new DateOnly(2026, 10, 5), EndDate = new DateOnly(2026, 10, 5), TotalDays = approvedDays, Status = "Approved", Reason = "Before rollover" },
+            new LeaveRequest { Id = Guid.NewGuid(), UserId = userId, LeaveTypeId = leaveTypeId, StartDate = new DateOnly(2027, 1, 5), EndDate = new DateOnly(2027, 1, 5), TotalDays = pendingDays, Status = "Pending", Reason = "Before rollover" },
+            new LeaveRequest { Id = Guid.NewGuid(), UserId = userId, LeaveTypeId = leaveTypeId, StartDate = new DateOnly(2027, 2, 5), EndDate = new DateOnly(2027, 2, 5), TotalDays = 9, Status = "Cancelled", Reason = "Excluded" });
+    }
+
+    [Fact]
+    public async Task VacationRollover_RejectsAmountAbovePolicyAndOtherLeaveType()
+    {
+        await using var db = CreateDbContext();
+        var (user, leaveType, _) = await SeedPolicyBalance(db, EmploymentTypes.MophEmployee, new DateOnly(2020, 10, 1), true, 15, entitlement: 10);
+        var service = new LeaveBalanceRolloverService(db, new LeavePolicyService(db), new FakeAuditLogService());
+        await Assert.ThrowsAsync<InvalidOperationException>(() => service.PreviewAsync(
+            new LeaveBalanceRolloverFilterRequest(2026, 2027, UserId: user.Id, Overrides: [new(user.Id, leaveType.Id, 11)]), user.Id));
+        leaveType.Code = "PERSONAL_LEAVE";
+        await db.SaveChangesAsync();
+        await Assert.ThrowsAsync<InvalidOperationException>(() => service.PreviewAsync(
+            new LeaveBalanceRolloverFilterRequest(2026, 2027, UserId: user.Id, Overrides: [new(user.Id, leaveType.Id, 4)]), user.Id));
+        Assert.Empty(await db.LeaveBalances.Where(balance => balance.Year == 2027).ToListAsync());
+    }
+
+    [Fact]
+    public async Task VacationRollover_AllowsManualFourteenAboveSourceTenWithinTotalThirty()
+    {
+        await using var db = CreateDbContext();
+        var (user, leaveType, _) = await SeedPolicyBalance(db, EmploymentTypes.CivilServant, new DateOnly(2010, 10, 1), true, 30, entitlement: 10);
+        var service = new LeaveBalanceRolloverService(db, new LeavePolicyService(db), new FakeAuditLogService(), new LeaveBalanceReconciliationService(db));
+        var manual = new LeaveBalanceRolloverOverrideRequest(user.Id, leaveType.Id, 14);
+
+        var item = Assert.Single((await service.PreviewAsync(new LeaveBalanceRolloverFilterRequest(2026, 2027, UserId: user.Id, Overrides: [manual]), user.Id)).Items);
+        Assert.Equal(10, item.EndYearRemaining);
+        Assert.Equal(20, item.CarryOverCap);
+        Assert.Equal(30, item.MaximumTotalAvailableDays);
+        Assert.Equal(14, item.CarryOverDays);
+        Assert.Equal(24, item.NewAvailableDays);
+        Assert.Contains(item.Warnings, warning => warning.Contains("สูงกว่าคงเหลือปีต้นทาง"));
+
+        await service.ConfirmAsync(new LeaveBalanceRolloverConfirmBatchRequest(2026, 2027, null, null, leaveType.Id, user.Id, "Verified prior-year leave balance", [manual]), user.Id);
+        Assert.Equal(14, (await db.LeaveBalances.SingleAsync(balance => balance.Year == 2027)).CarriedOverDays);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => service.PreviewAsync(
+            new LeaveBalanceRolloverFilterRequest(2026, 2027, UserId: user.Id, Overrides: [new(user.Id, leaveType.Id, 21)]), user.Id));
+    }
+
+    [Fact]
     public async Task ConfirmBatchRollover_RequiresReason()
     {
         await using var db = CreateDbContext();
@@ -76,10 +274,10 @@ public class LeaveBalanceRolloverTests
     }
 
     [Theory]
-    [InlineData(EmploymentTypes.CivilServant, "2018-10-01", 20)]
-    [InlineData(EmploymentTypes.CivilServant, "2010-10-01", 30)]
-    [InlineData(EmploymentTypes.GovernmentEmployee, "2018-10-01", 15)]
-    [InlineData(EmploymentTypes.MophEmployee, "2018-10-01", 15)]
+    [InlineData(EmploymentTypes.CivilServant, "2018-10-01", 10)]
+    [InlineData(EmploymentTypes.CivilServant, "2010-10-01", 20)]
+    [InlineData(EmploymentTypes.GovernmentEmployee, "2018-10-01", 5)]
+    [InlineData(EmploymentTypes.MophEmployee, "2018-10-01", 5)]
     [InlineData(EmploymentTypes.TemporaryEmployeeMonthly, "2018-10-01", 0)]
     public async Task PreviewBatchRollover_UsesPolicyCarryOverCapByEmploymentType(string employmentType, string startDateText, decimal expectedCap)
     {
@@ -106,7 +304,7 @@ public class LeaveBalanceRolloverTests
 
         var item = Assert.Single(result.Items);
         Assert.Equal(6, item.EndYearRemaining);
-        Assert.Equal(6, item.CarryOverDays);
+        Assert.Equal(5, item.CarryOverDays);
     }
 
     [Fact]

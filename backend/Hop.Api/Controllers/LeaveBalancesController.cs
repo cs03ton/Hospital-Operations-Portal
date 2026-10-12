@@ -82,6 +82,88 @@ public class LeaveBalancesController(
         return ApiResponse<IReadOnlyList<LeaveBalanceResponse>>.Ok(rows);
     }
 
+    [HttpGet("audit")]
+    [RequirePermission(LeavePermissions.ManageBalances)]
+    public async Task<ActionResult<ApiResponse<IReadOnlyList<LeaveBalanceResponse>>>> GetAuditBalances(
+        [FromQuery] int year,
+        [FromQuery] bool useFiscalYear = true)
+    {
+        if (year < 2000 || year > 2200)
+        {
+            return BadRequest(ApiResponse<IReadOnlyList<LeaveBalanceResponse>>.Fail("Year is invalid."));
+        }
+
+        var cancellationToken = HttpContext.RequestAborted;
+        var users = await db.Users.AsNoTracking().Include(user => user.Department)
+            .Where(user => user.IsActive)
+            .OrderBy(user => user.FullName)
+            .ToListAsync(cancellationToken);
+        var leaveTypes = await db.LeaveTypes.AsNoTracking()
+            .Where(type => type.IsActive && type.RequiresBalance && type.UseFiscalYear == useFiscalYear)
+            .OrderBy(type => type.Name)
+            .ToListAsync(cancellationToken);
+        if (users.Count == 0 || leaveTypes.Count == 0)
+        {
+            return ApiResponse<IReadOnlyList<LeaveBalanceResponse>>.Ok([]);
+        }
+
+        var typeIds = leaveTypes.Select(type => type.Id).ToList();
+        var balances = await db.LeaveBalances.AsNoTracking()
+            .Where(balance => balance.Year == year && typeIds.Contains(balance.LeaveTypeId))
+            .ToListAsync(cancellationToken);
+        var byBalanceKey = balances.ToDictionary(balance => (balance.UserId, balance.LeaveTypeId));
+        var policies = await db.LeavePolicyRules.AsNoTracking()
+            .Where(policy => policy.IsActive && typeIds.Contains(policy.LeaveTypeId) &&
+                (policy.FiscalYear == null || policy.FiscalYear == year))
+            .ToListAsync(cancellationToken);
+
+        var from = useFiscalYear ? new DateOnly(year - 1, 10, 1) : new DateOnly(year, 1, 1);
+        var to = useFiscalYear ? new DateOnly(year, 10, 1) : new DateOnly(year + 1, 1, 1);
+        var usage = await db.LeaveRequests.AsNoTracking()
+            .Where(request => request.StartDate >= from && request.StartDate < to &&
+                typeIds.Contains(request.LeaveTypeId) &&
+                (request.Status == "Approved" || request.Status == "Pending"))
+            .GroupBy(request => new { request.UserId, request.LeaveTypeId })
+            .Select(group => new
+            {
+                group.Key.UserId,
+                group.Key.LeaveTypeId,
+                Used = group.Sum(request => request.Status == "Approved" ? request.TotalDays : 0),
+                Pending = group.Sum(request => request.Status == "Pending" ? request.TotalDays : 0)
+            })
+            .ToListAsync(cancellationToken);
+        var byUsageKey = usage.ToDictionary(item => (item.UserId, item.LeaveTypeId));
+
+        var rows = new List<LeaveBalanceResponse>(users.Count * leaveTypes.Count);
+        foreach (var user in users)
+        {
+            foreach (var leaveType in leaveTypes)
+            {
+                byBalanceKey.TryGetValue((user.Id, leaveType.Id), out var balance);
+                byUsageKey.TryGetValue((user.Id, leaveType.Id), out var used);
+                var policy = policies
+                    .Where(item => item.EmploymentType == user.EmploymentType && item.LeaveTypeId == leaveType.Id)
+                    .OrderByDescending(item => item.FiscalYear == year)
+                    .FirstOrDefault();
+                var hasProfileForPolicy = !string.IsNullOrWhiteSpace(user.EmploymentType) && user.EmploymentStartDate is not null;
+                var entitled = balance?.EntitledDays ?? (policy is null || !hasProfileForPolicy ? 0 : LeavePolicyService.ResolvePolicyEntitlement(user, policy, from));
+                var carried = balance?.CarriedOverDays ?? 0;
+                var adjusted = balance?.AdjustedDays ?? 0;
+                var usedDays = used?.Used ?? 0;
+                var pendingDays = used?.Pending ?? 0;
+                var available = FiscalYearHelper.CalculateAvailableDays(entitled, carried, usedDays, pendingDays, adjusted);
+                rows.Add(new LeaveBalanceResponse(
+                    balance?.Id, user.Id, user.FullName, user.DepartmentId, user.Department?.Name,
+                    leaveType.Id, leaveType.Name, year, useFiscalYear, entitled, carried, adjusted,
+                    usedDays, pendingDays, available, available,
+                    balance is not null ? balance.Notes : !hasProfileForPolicy ? "ยังไม่ตั้งต้นยอดวันลาและข้อมูลบุคลากรไม่ครบ" : policy is null ? "ยังไม่ตั้งต้นยอดวันลาและไม่พบกฎสิทธิ์" : "ยังไม่ตั้งต้นยอดวันลาจริง แสดงสิทธิ์คำนวณจากกฎปัจจุบัน",
+                    user.EmployeeCode));
+            }
+        }
+
+        return ApiResponse<IReadOnlyList<LeaveBalanceResponse>>.Ok(rows);
+    }
+
     [HttpGet("me")]
     [RequirePermission(LeavePermissions.ViewOwn)]
     public async Task<ActionResult<ApiResponse<IReadOnlyList<LeaveBalanceResponse>>>> GetMyBalances([FromQuery] int? year = null)
@@ -568,7 +650,8 @@ public class LeaveBalancesController(
             balance.PendingDays,
             FiscalYearHelper.CalculateAvailableDays(balance.EntitledDays, balance.CarriedOverDays, balance.UsedDays, balance.PendingDays, balance.AdjustedDays),
             FiscalYearHelper.CalculateAvailableDays(balance.EntitledDays, balance.CarriedOverDays, balance.UsedDays, balance.PendingDays, balance.AdjustedDays),
-            balance.Notes
+            balance.Notes,
+            balance.User?.EmployeeCode
         );
     }
 
