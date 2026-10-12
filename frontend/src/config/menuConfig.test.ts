@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { leaveNavigationBadgeCount, navigationModules } from "./menuConfig";
+import { isItemActive } from "../components/layout/ModuleMenuGroup";
 import { getPageTitle, getPageBreadcrumbs } from "./pageTitleConfig";
 
 describe("repair navigation", () => {
@@ -37,6 +38,21 @@ describe("Leave task navigation badge", () => {
     expect(leaveNavigationBadgeCount("/leave/pending-approvals", 120)).toBe(
       120,
     );
+  });
+});
+
+describe("leave balance navigation selection", () => {
+  it("highlights only the matching balance menu, including the adjustment page", () => {
+    const items = navigationModules.find((module) => module.moduleId === "LeaveManagement")!.children;
+    const management = items.find((item) => item.path === "/admin/leave-balances")!;
+    const audit = items.find((item) => item.path === "/admin/leave-balances/audit")!;
+
+    expect(isItemActive("/admin/leave-balances", management)).toBe(true);
+    expect(isItemActive("/admin/leave-balances", audit)).toBe(false);
+    expect(isItemActive("/admin/leave-balances/audit", management)).toBe(false);
+    expect(isItemActive("/admin/leave-balances/audit", audit)).toBe(true);
+    expect(isItemActive("/admin/leave-balances/adjustments", management)).toBe(true);
+    expect(isItemActive("/admin/leave-balances/adjustments", audit)).toBe(false);
   });
 });
 
