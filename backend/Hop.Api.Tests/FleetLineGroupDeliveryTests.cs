@@ -141,6 +141,91 @@ public sealed class FleetLineGroupDeliveryTests
         Assert.Empty(db.LineGroupDeliveryLogs);
     }
 
+    [Fact]
+    public async Task Disabled_trip_overdue_does_not_project_or_discover_and_skips_queued_deliveries()
+    {
+        await using var db = Database();
+        var fixture = await Seed(db, "FLEET", "Fleet.TripOverdue", true, false);
+        db.LineGroupEventSubscriptions.Add(new LineGroupEventSubscription
+        {
+            DestinationId = fixture.Destination.Id, EventType = "Fleet.TripOverdue", IsEnabled = true
+        });
+        var overdueRequest = new FleetRequest
+        {
+            RequestNo = "VH-OVERDUE", Status = FleetRequestStatuses.InProgress,
+            ExpectedReturnAt = DateTime.UtcNow.AddMinutes(-1)
+        };
+        db.FleetRequests.Add(overdueRequest);
+        db.LineGroupDeliveryLogs.AddRange(
+            new LineGroupDeliveryLog { EventId = fixture.Event.EventId, DestinationId = fixture.Destination.Id,
+                CanonicalEventType = "Fleet.TripOverdue", Status = "Pending", AvailableAt = DateTime.UtcNow.AddDays(1), DeduplicationKey = "overdue-pending" },
+            new LineGroupDeliveryLog { EventId = Guid.NewGuid(), DestinationId = fixture.Destination.Id,
+                CanonicalEventType = "Fleet.TripOverdue", Status = "Retry", AvailableAt = DateTime.UtcNow.AddDays(1), DeduplicationKey = "overdue-retry" });
+        await db.SaveChangesAsync();
+        var client = new SequenceClient(Success());
+        var service = Service(db, client);
+
+        Assert.Equal(0, await service.ProjectMissingEventsAsync(CancellationToken.None));
+        Assert.False(await db.DomainEvents.AnyAsync(x => x.AggregateId == overdueRequest.Id));
+        Assert.Equal(0, await service.DiscoverAsync(CancellationToken.None));
+        Assert.Equal(2, await service.ProcessAsync(CancellationToken.None));
+        Assert.Equal(0, client.CallCount);
+        Assert.All(await db.LineGroupDeliveryLogs.ToListAsync(), log =>
+        {
+            Assert.Equal("Skipped", log.Status);
+            Assert.Equal("TRIP_OVERDUE_DISABLED", log.ErrorCode);
+        });
+        Assert.True(fixture.Destination.EventSubscriptions.Single(x => x.EventType == "Fleet.TripOverdue").IsEnabled);
+    }
+
+    [Fact]
+    public async Task Disabled_trip_overdue_does_not_block_other_fleet_notifications()
+    {
+        await using var db = Database();
+        await Seed(db, "FLEET", "Fleet.RequestSubmitted", true, true);
+        var client = new SequenceClient(Success());
+        var service = Service(db, client);
+
+        Assert.Equal(1, await service.DiscoverAsync(CancellationToken.None));
+        Assert.Equal(1, await service.ProcessAsync(CancellationToken.None));
+        Assert.Equal("Sent", (await db.LineGroupDeliveryLogs.SingleAsync()).Status);
+        Assert.Equal(1, client.CallCount);
+    }
+
+    [Fact]
+    public async Task Reenabled_trip_overdue_only_handles_requests_and_events_after_cutoff()
+    {
+        await using var db = Database();
+        var now = DateTime.UtcNow;
+        var fixture = await Seed(db, "FLEET", "Fleet.TripOverdue", true, false);
+        fixture.Event.OccurredAt = now.AddMinutes(-10);
+        db.LineGroupEventSubscriptions.Add(new LineGroupEventSubscription
+        {
+            DestinationId = fixture.Destination.Id, EventType = "Fleet.TripOverdue", IsEnabled = true
+        });
+        db.FleetRequests.AddRange(
+            new FleetRequest { RequestNo = "OLD", Status = FleetRequestStatuses.InProgress, ExpectedReturnAt = now.AddMinutes(-10) },
+            new FleetRequest { RequestNo = "NEW", Status = FleetRequestStatuses.InProgress, ExpectedReturnAt = now.AddMinutes(-1) });
+        db.LineGroupDeliveryLogs.Add(new LineGroupDeliveryLog
+        {
+            EventId = fixture.Event.EventId, DestinationId = fixture.Destination.Id,
+            CanonicalEventType = "Fleet.TripOverdue", Status = "Pending", CreatedAt = now,
+            DeduplicationKey = "old-overdue"
+        });
+        await db.SaveChangesAsync();
+        var cutoff = new DateTimeOffset(now.AddMinutes(-5), TimeSpan.Zero);
+        var client = new SequenceClient(Success());
+        var service = Service(db, client, tripOverdueEnabled: true, tripOverdueEnabledFromUtc: cutoff);
+
+        Assert.Equal(1, await service.ProjectMissingEventsAsync(CancellationToken.None));
+        Assert.Equal(1, await service.DiscoverAsync(CancellationToken.None));
+        Assert.Equal(2, await service.ProcessAsync(CancellationToken.None));
+        Assert.Equal(1, client.CallCount);
+        Assert.Equal("Skipped", (await db.LineGroupDeliveryLogs.SingleAsync(x => x.DeduplicationKey == "old-overdue")).Status);
+        Assert.Equal("Sent", (await db.LineGroupDeliveryLogs.SingleAsync(x => x.DeduplicationKey != "old-overdue")).Status);
+        Assert.Equal(2, await db.DomainEvents.CountAsync(x => x.EventType == "Fleet.TripOverdue"));
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -414,9 +499,11 @@ public sealed class FleetLineGroupDeliveryTests
         Assert.DoesNotContain("Unauthorized", result.ErrorMessage ?? string.Empty);
     }
 
-    private static FleetLineGroupDeliveryService Service(AppDbContext db, ILineGroupPushClient client, bool enabled = true) => new(
+    private static FleetLineGroupDeliveryService Service(AppDbContext db, ILineGroupPushClient client, bool enabled = true,
+        bool tripOverdueEnabled = false, DateTimeOffset? tripOverdueEnabledFromUtc = null) => new(
         db, new FleetLineGroupEventMapper(), new StubTemplate(), client,
-        Options.Create(new LineGroupNotificationsOptions { Enabled = enabled, BatchSize = 20, MaxAttempts = 3 }),
+        Options.Create(new LineGroupNotificationsOptions { Enabled = enabled, BatchSize = 20, MaxAttempts = 3,
+            TripOverdueEnabled = tripOverdueEnabled, TripOverdueEnabledFromUtc = tripOverdueEnabledFromUtc }),
         NullLogger<FleetLineGroupDeliveryService>.Instance);
 
     private static async Task<Fixture> Seed(AppDbContext db, string scope, string eventType, bool active, bool subscribed, bool withUserDelivery = false)

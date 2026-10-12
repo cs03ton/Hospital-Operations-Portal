@@ -16,6 +16,9 @@ public sealed class FleetLineGroupDeliveryService(
     ILogger<FleetLineGroupDeliveryService> logger)
 {
     public bool Enabled => options.Value.Enabled;
+    private DateTime? TripOverdueStartUtc => options.Value.TripOverdueEnabled
+        ? options.Value.TripOverdueEnabledFromUtc?.UtcDateTime
+        : null;
 
     public async Task<int> ProjectMissingEventsAsync(CancellationToken ct)
     {
@@ -54,29 +57,33 @@ public sealed class FleetLineGroupDeliveryService(
             });
         }
         var projected = histories.Count;
-        string[] overdueEligibleStatuses = [FleetRequestStatuses.Approved, FleetRequestStatuses.PendingDriverAck, FleetRequestStatuses.Ready, FleetRequestStatuses.InProgress];
-        var overdueRequests = await db.FleetRequests.AsNoTracking()
-            .Where(x => x.ExpectedReturnAt < DateTime.UtcNow && overdueEligibleStatuses.Contains(x.Status) &&
-                        !db.DomainEvents.Any(e => e.AggregateId == x.Id && e.EventType == "Fleet.TripOverdue"))
-            .OrderBy(x => x.ExpectedReturnAt)
-            .Take(Math.Clamp(options.Value.BatchSize, 1, 100))
-            .Select(x => new { x.Id, x.RequestNo, x.Status, x.ExpectedReturnAt })
-            .ToListAsync(ct);
-        foreach (var request in overdueRequests)
+        if (TripOverdueStartUtc is { } overdueStartUtc)
         {
-            var eventId = Guid.NewGuid();
-            var payload = System.Text.Json.JsonSerializer.Serialize(new { FleetRequestId = request.Id, request.RequestNo, request.Status, request.ExpectedReturnAt });
-            db.DomainEvents.Add(new DomainEventRecord
+            string[] overdueEligibleStatuses = [FleetRequestStatuses.Approved, FleetRequestStatuses.PendingDriverAck, FleetRequestStatuses.Ready, FleetRequestStatuses.InProgress];
+            var overdueRequests = await db.FleetRequests.AsNoTracking()
+                .Where(x => x.ExpectedReturnAt >= overdueStartUtc && x.ExpectedReturnAt < DateTime.UtcNow &&
+                            overdueEligibleStatuses.Contains(x.Status) &&
+                            !db.DomainEvents.Any(e => e.AggregateId == x.Id && e.EventType == "Fleet.TripOverdue"))
+                .OrderBy(x => x.ExpectedReturnAt)
+                .Take(Math.Clamp(options.Value.BatchSize, 1, 100))
+                .Select(x => new { x.Id, x.RequestNo, x.Status, x.ExpectedReturnAt })
+                .ToListAsync(ct);
+            foreach (var request in overdueRequests)
             {
-                EventId = eventId, EventType = "Fleet.TripOverdue", Scope = "FLEET", AggregateType = "FleetRequest",
-                AggregateId = request.Id, OccurredAt = DateTime.UtcNow, CorrelationId = $"fleet-overdue:{request.Id}", Payload = payload
-            });
-            db.OutboxMessages.Add(new OutboxMessage
-            {
-                EventId = eventId, EventType = "Fleet.TripOverdue", Scope = "FLEET", Payload = payload,
-                AvailableAt = DateTime.UtcNow, Status = "PROCESSED", ProcessedAt = DateTime.UtcNow
-            });
-            projected++;
+                var eventId = Guid.NewGuid();
+                var payload = JsonSerializer.Serialize(new { FleetRequestId = request.Id, request.RequestNo, request.Status, request.ExpectedReturnAt });
+                db.DomainEvents.Add(new DomainEventRecord
+                {
+                    EventId = eventId, EventType = "Fleet.TripOverdue", Scope = "FLEET", AggregateType = "FleetRequest",
+                    AggregateId = request.Id, OccurredAt = DateTime.UtcNow, CorrelationId = $"fleet-overdue:{request.Id}", Payload = payload
+                });
+                db.OutboxMessages.Add(new OutboxMessage
+                {
+                    EventId = eventId, EventType = "Fleet.TripOverdue", Scope = "FLEET", Payload = payload,
+                    AvailableAt = DateTime.UtcNow, Status = "PROCESSED", ProcessedAt = DateTime.UtcNow
+                });
+                projected++;
+            }
         }
         if (projected > 0) await db.SaveChangesAsync(ct);
         return projected;
@@ -93,14 +100,22 @@ public sealed class FleetLineGroupDeliveryService(
         var baseEvents = db.DomainEvents.AsNoTracking()
             .Where(x => (x.Scope == "FLEET" || x.Scope == "MEETING_ROOM" || x.Scope == "REPAIR") && x.OccurredAt >= earliest && db.OutboxMessages.Any(o => o.EventId == x.EventId));
         var candidates = baseEvents.Where(x => false);
+        var overdueStartUtc = TripOverdueStartUtc;
         foreach (var canonical in destinations.SelectMany(x => x.EventSubscriptions)
                      .Where(x => x.IsEnabled).Select(x => x.EventType).Distinct())
         {
+            if (canonical == "Fleet.TripOverdue" && overdueStartUtc is null) continue;
             var sources = FleetLineGroupEventMapper.SourceEventsFor(canonical);
             if (sources.Length == 0) continue;
+            var eligibleEvents = baseEvents;
+            if (canonical == "Fleet.TripOverdue")
+            {
+                var cutoff = overdueStartUtc!.Value;
+                eligibleEvents = eligibleEvents.Where(x => x.OccurredAt >= cutoff);
+            }
             // Filter BEFORE batching. Existing deliveries (including Retry/Failed)
             // must not hide newer events, or prevent fan-out to another group.
-            candidates = candidates.Union(baseEvents.Where(e => sources.Contains(e.EventType) &&
+            candidates = candidates.Union(eligibleEvents.Where(e => sources.Contains(e.EventType) &&
                 db.LineGroupDestinations.Any(d => !d.Module.StartsWith("REPAIR_") &&
                     d.Status == LineGroupDestinationStatuses.Active && d.ConfirmedAt != null && d.ConfirmedAt <= e.OccurredAt &&
                     d.EventSubscriptions.Any(s => s.IsEnabled && s.EventType == canonical) &&
@@ -160,8 +175,15 @@ public sealed class FleetLineGroupDeliveryService(
     {
         if (!Enabled) return 0;
         var now = DateTime.UtcNow;
-        var logs = await db.LineGroupDeliveryLogs.Include(x => x.Destination)
-            .Where(x => (x.Status == "Pending" || x.Status == "Retry") && x.AvailableAt <= now)
+        var overdueStartUtc = TripOverdueStartUtc;
+        var skipped = await SkipSuppressedOverdueAsync(overdueStartUtc, now, ct);
+        var deliverable = db.LineGroupDeliveryLogs.Include(x => x.Destination)
+            .Where(x => (x.Status == "Pending" || x.Status == "Retry") && x.AvailableAt <= now);
+        deliverable = overdueStartUtc is { } cutoff
+            ? deliverable.Where(x => x.CanonicalEventType != "Fleet.TripOverdue" ||
+                db.DomainEvents.Any(e => e.EventId == x.EventId && e.OccurredAt >= cutoff))
+            : deliverable.Where(x => x.CanonicalEventType != "Fleet.TripOverdue");
+        var logs = await deliverable
             .OrderBy(x => x.CreatedAt).Take(Math.Clamp(options.Value.BatchSize, 1, 100)).ToListAsync(ct);
         foreach (var log in logs)
         {
@@ -222,7 +244,32 @@ public sealed class FleetLineGroupDeliveryService(
                 log.CanonicalEventType, log.DestinationId, log.AttemptCount, log.ErrorCode);
         }
         if (logs.Count > 0) await db.SaveChangesAsync(ct);
-        return logs.Count;
+        return skipped + logs.Count;
+    }
+
+    private async Task<int> SkipSuppressedOverdueAsync(DateTime? startUtc, DateTime now, CancellationToken ct)
+    {
+        var pending = db.LineGroupDeliveryLogs.Where(x => x.CanonicalEventType == "Fleet.TripOverdue" &&
+            (x.Status == "Pending" || x.Status == "Retry"));
+        if (startUtc is { } cutoff)
+            pending = pending.Where(x => !db.DomainEvents.Any(e => e.EventId == x.EventId && e.OccurredAt >= cutoff));
+        var skipped = 0;
+        while (true)
+        {
+            var batch = await pending.Take(500).ToListAsync(ct);
+            if (batch.Count == 0) break;
+            foreach (var log in batch)
+            {
+                log.Status = "Skipped";
+                log.FailedAt = now;
+                log.UpdatedAt = now;
+                log.ErrorCode = "TRIP_OVERDUE_DISABLED";
+                log.ErrorMessage = "Trip overdue LINE group notifications are disabled.";
+            }
+            await db.SaveChangesAsync(ct);
+            skipped += batch.Count;
+        }
+        return skipped;
     }
 
     private static void MarkPermanent(LineGroupDeliveryLog log, string code, string message, DateTime now)
