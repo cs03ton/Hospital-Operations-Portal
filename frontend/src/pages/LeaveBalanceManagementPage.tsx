@@ -17,6 +17,7 @@ import { PageHeader } from "../components/PageHeader";
 import { useNotification } from "../hooks/useNotification";
 import { employmentTypeOptions } from "../utils/employmentLabels";
 import { getLeaveTypeLabel } from "../utils/leaveLabels";
+import { getLeaveTypeFilterOptions } from "../utils/leaveTypeFilterOptions";
 
 const currentYear = getCurrentFiscalYear();
 const emptyForm: SaveLeaveBalanceRequest = {
@@ -284,8 +285,8 @@ export function LeaveBalanceManagementPage() {
           <Grid item xs={12} md={3}>
             <TextField select size="small" label="ประเภทลา" value={leaveTypeId} onChange={(event) => setLeaveTypeId(event.target.value)} fullWidth>
               <MenuItem value="">ทั้งหมด</MenuItem>
-              {leaveTypes.map((leaveType) => (
-                <MenuItem key={leaveType.id} value={leaveType.id}>{getLeaveTypeLabel(leaveType.name)}</MenuItem>
+              {getLeaveTypeFilterOptions(leaveTypes).map((leaveType) => (
+                <MenuItem key={leaveType.value} value={leaveType.value}>{leaveType.label}</MenuItem>
               ))}
             </TextField>
           </Grid>

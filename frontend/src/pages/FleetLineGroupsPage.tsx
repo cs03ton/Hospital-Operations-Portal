@@ -30,6 +30,7 @@ const eventLabels: Record<string, string> = {
   "Fleet.Cancelled": "ยกเลิก", "Fleet.AssignmentChanged": "เปลี่ยนรถ/คนขับ",
   "Fleet.DriverAcknowledged": "คนขับรับทราบ", "Fleet.TripCompleted": "จบภารกิจ",
   "Fleet.TripOverdue": "ภารกิจเกินกำหนด",
+  "Fleet.DailyDriverJobs": "สรุปภารกิจรถประจำวัน (06:00 น.)",
   "Repair.Submitted": "แจ้งซ่อมใหม่", "Repair.Resubmitted": "ส่งงานซ่อมใหม่", "Repair.Reopened": "เปิดงานซ้ำ",
   "Repair.Started": "เริ่มดำเนินการซ่อม", "Repair.Resumed": "กลับมาดำเนินการซ่อม",
   "Repair.Solved": "ซ่อมเสร็จรอตรวจรับ", "Repair.Closed": "ปิดใบงานซ่อม",
@@ -110,9 +111,11 @@ export function FleetLineGroupsPage() {
     }),
   });
   const saveSubscriptions = useMutation({
-    mutationFn: () => updateFleetLineGroupSubscriptions(selected!.id, selected!.concurrencyToken, subscriptionDraft),
+    mutationFn: () => updateFleetLineGroupSubscriptions(selected!.id, selected!.concurrencyToken,
+      Object.fromEntries(Object.entries(subscriptionDraft).filter(([eventType]) => eventType in eventLabels))),
     onSuccess: async (updated) => {
-      setSelected(current => current ? { ...current, concurrencyToken: updated.concurrencyToken, events: Object.entries(subscriptionDraft).map(([eventType, isEnabled]) => ({ eventType, isEnabled })) } : null);
+      setSelected(current => current ? { ...current, concurrencyToken: updated.concurrencyToken,
+        events: current.events.map(event => ({ ...event, isEnabled: event.eventType in eventLabels ? subscriptionDraft[event.eventType] ?? false : event.isEnabled })) } : null);
       setNotice({ severity: "success", text: "บันทึก Event Subscription แล้ว" }); await refresh();
     },
     onError: (error: { response?: { status?: number; data?: { message?: string } } }) => setNotice({ severity: "error", text: error.response?.data?.message ?? (error.response?.status === 409 ? "ข้อมูล Subscription เปลี่ยนแปลง กรุณาโหลดใหม่" : "บันทึก Subscription ไม่สำเร็จ") }),
@@ -189,7 +192,7 @@ export function FleetLineGroupsPage() {
               <Chip size="small" variant="outlined" label={`เปิด ${enabledCount}/${events.length}`} />
             </Stack>
             <Grid container spacing={0.5}>{events.map(event => <Grid item xs={12} sm={6} md={4} key={event.eventType}><FormControlLabel
-              control={<Checkbox disabled={!canManage || isLegacyRepairGroup(selected)} checked={subscriptionDraft[event.eventType] ?? false} onChange={(_, checked) => setSubscriptionDraft(x => ({ ...x, [event.eventType]: checked }))} />}
+              control={<Checkbox disabled={!canManage || isLegacyRepairGroup(selected) || !(event.eventType in eventLabels)} checked={subscriptionDraft[event.eventType] ?? false} onChange={(_, checked) => setSubscriptionDraft(x => ({ ...x, [event.eventType]: checked }))} />}
               label={eventLabels[event.eventType] ?? event.eventType} sx={{ m: 0, width: "100%" }} /></Grid>)}</Grid>
           </Box>;
         })}

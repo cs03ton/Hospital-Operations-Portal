@@ -10,6 +10,16 @@ namespace Hop.Api.Tests;
 public sealed class MeetingRoomAttendeeValidationTests
 {
     [Fact]
+    public void BookingCount_UsesBookerAndDistinctSelectedPeople()
+    {
+        var booker = Guid.NewGuid();
+        var attendee = Guid.NewGuid();
+        Assert.Equal(1, MeetingRoomAttendeeValidation.CountIncludingBooker([], booker));
+        Assert.Equal(2, MeetingRoomAttendeeValidation.CountIncludingBooker([booker, attendee, attendee], booker));
+        Assert.Equal(1, MeetingRoomAttendeeValidation.CountIncludingBooker(null, booker));
+    }
+
+    [Fact]
     public async Task NamedAttendees_RequireTotalIncludingBooker_AndDeduplicateIds()
     {
         using var db = Database();

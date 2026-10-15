@@ -9,6 +9,7 @@ public class FleetRequest
     public DateOnly RequestDate { get; set; }
     public string Purpose { get; set; } = string.Empty;
     public string MissionType { get; set; } = string.Empty;
+    public string? PatientName { get; set; }
     public Guid? RequestedVehicleTypeId { get; set; }
     public string Destination { get; set; } = string.Empty;
     public string ContactPersonName { get; set; } = string.Empty;

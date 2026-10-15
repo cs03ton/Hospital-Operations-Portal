@@ -18,7 +18,7 @@ import { useQuery } from "@tanstack/react-query";
 import { bangkokDayjs as dayjs } from "../utils/dateFormat";
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { exportFleetReport, getFleetCalendar, getFleetDepartmentReport, getFleetDriverReport, getFleetFeedbackAttention, getFleetFeedbackDriverReport, getFleetFeedbackDriverTrend, getFleetFeedbackManagementSummary, getFleetFeedbackTripReport, getFleetFeedbackVehicleReport, getFleetKpis, getFleetRouteReport, type FleetCalendarEvent, type FleetDriverReport } from "../api/fleetApi";
+import { exportFleetUsageReport, getFleetCalendar, getFleetDepartmentReport, getFleetDriverReport, getFleetFeedbackAttention, getFleetFeedbackDriverReport, getFleetFeedbackDriverTrend, getFleetFeedbackManagementSummary, getFleetFeedbackTripReport, getFleetFeedbackVehicleReport, getFleetKpis, getFleetRouteReport, type FleetCalendarEvent, type FleetDriverReport } from "../api/fleetApi";
 import { AppDatePicker } from "../components/common/AppDatePicker";
 import { EmptyState } from "../components/common/EmptyState";
 import { LoadingState } from "../components/common/LoadingState";
@@ -74,7 +74,10 @@ export function FleetReportsPage() {
 
   const resetFilters = () => { setStartDate(dayjs().startOf("month").format("YYYY-MM-DD")); setEndDate(dayjs().endOf("month").format("YYYY-MM-DD")); setStatus(""); setKeyword(""); setPage(1); };
   const download = async () => {
-    const blob = await exportFleetReport(new URLSearchParams({ ...Object.fromEntries(params), reportType: "summary" }));
+    const exportParams = new URLSearchParams({ startDate, endDate });
+    if (status) exportParams.set("status", status);
+    if (keyword.trim()) exportParams.set("search", keyword.trim());
+    const blob = await exportFleetUsageReport(exportParams);
     const url = URL.createObjectURL(blob); const anchor = document.createElement("a"); anchor.href = url; anchor.download = `รายงานการใช้รถ-${startDate}-${endDate}.csv`; anchor.click(); URL.revokeObjectURL(url);
   };
 

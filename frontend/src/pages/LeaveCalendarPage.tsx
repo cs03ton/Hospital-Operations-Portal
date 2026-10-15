@@ -125,11 +125,12 @@ export function LeaveCalendarPage() {
     return map;
   }, [activeHolidays]);
   const detailLeaveTypeOptions = useMemo(() => {
-    const options = new Map<string, string>();
+    const options = new Map<string, string[]>();
     for (const item of selectedDay?.items ?? []) {
-      options.set(item.leaveTypeId, getLeaveTypeLabel(item.leaveTypeName));
+      const label = getLeaveTypeLabel(item.leaveTypeName);
+      options.set(label, [...(options.get(label) ?? []), item.leaveTypeId]);
     }
-    return Array.from(options, ([id, label]) => ({ id, label }));
+    return Array.from(options, ([label, ids]) => ({ id: [...new Set(ids)].join(","), label }));
   }, [selectedDay]);
   const detailDepartmentOptions = useMemo(() => {
     const options = new Map<string, string>();
@@ -143,7 +144,7 @@ export function LeaveCalendarPage() {
   const detailItems = useMemo(() => {
     const keyword = detailSearch.trim().toLowerCase();
     return (selectedDay?.items ?? []).filter((item) => {
-      const matchesType = !detailLeaveTypeId || item.leaveTypeId === detailLeaveTypeId;
+      const matchesType = !detailLeaveTypeId || detailLeaveTypeId.split(",").includes(item.leaveTypeId);
       const matchesDepartment = !detailDepartmentId || item.departmentId === detailDepartmentId;
       const matchesSearch = !keyword || (item.fullname ?? "").toLowerCase().includes(keyword);
       return matchesType && matchesDepartment && matchesSearch;

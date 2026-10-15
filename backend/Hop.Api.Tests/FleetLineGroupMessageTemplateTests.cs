@@ -11,6 +11,14 @@ namespace Hop.Api.Tests;
 
 public sealed class FleetLineGroupMessageTemplateTests
 {
+    [Theory]
+    [InlineData("นายกรอก นาม", "นายกรอก นxม")]
+    [InlineData("สมชาย ใจ", "สมชาย xx")]
+    public void Refer_patient_name_is_masked_for_line(string fullName, string expected)
+    {
+        Assert.Equal(expected, FleetLineGroupMessageTemplateService.MaskPatientName(fullName));
+    }
+
     [Fact]
     public async Task Refer_maps_existing_subscription_but_renders_acknowledgement_with_assignment()
     {
@@ -18,6 +26,8 @@ public sealed class FleetLineGroupMessageTemplateTests
         var fixture = await Seed(db, withAssignment: true);
         fixture.Request.IsUrgent = true;
         fixture.Request.UrgentReason = "ส่งต่อผู้ป่วย (Refer)";
+        fixture.Request.MissionType = FleetReferPolicy.MissionType;
+        fixture.Request.PatientName = "นายกรอก นาม";
         await db.SaveChangesAsync();
         var canonical = new FleetLineGroupEventMapper().ToCanonical("FLEET", "Fleet.ReferAutoApproved");
         Assert.Equal("Fleet.AssignmentCreated", canonical);
@@ -30,6 +40,10 @@ public sealed class FleetLineGroupMessageTemplateTests
         Assert.Contains("Driver One", contents);
         Assert.Contains("VH-01", contents);
         Assert.Contains("ส่งต่อผู้ป่วย (Refer)", contents);
+        Assert.Contains("นายกรอก นxม", contents);
+        Assert.Contains("นายกรอก นxม", result.Text);
+        Assert.DoesNotContain("นายกรอก นาม", contents);
+        Assert.DoesNotContain("นายกรอก นาม", result.Text);
         Assert.DoesNotContain("รออนุมัติ", result.Text);
         Assert.Equal("ดูรายละเอียดเคส Refer", flex.RootElement.GetProperty("footer").GetProperty("contents")[0].GetProperty("action").GetProperty("label").GetString());
     }

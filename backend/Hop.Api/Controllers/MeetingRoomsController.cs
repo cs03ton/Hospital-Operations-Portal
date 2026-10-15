@@ -88,6 +88,7 @@ public sealed class MeetingRoomsController(AppDbContext db, MeetingRoomAttachmen
     [HttpPost("bookings"), RequirePermission(MeetingRoomPermissions.Create)]
     public async Task<IActionResult> Create(MeetingBookingInput input, CancellationToken ct)
     {
+        input = input with { AttendeeCount = MeetingRoomAttendeeValidation.CountIncludingBooker(input.AttendeeUserIds, Actor) };
         var actor = await db.Users.AsNoTracking().SingleAsync(x => x.Id == Actor && x.IsActive, ct);
         var validation = Validate(input); if (validation is not null) return BadRequest(ApiResponse<object>.Fail(validation));
         var attendeesError = await MeetingRoomAttendeeValidation.ValidateAsync(db, input.AttendeeUserIds, Actor, input.AttendeeCount, ct);

@@ -33,6 +33,7 @@ public class LeaveAnalyticsController(AppDbContext db, IAuditLogService auditLog
         [FromQuery] Guid? leaveTypeId,
         [FromQuery] string? status,
         [FromQuery] bool coreOnly = true,
+        [FromQuery] string? leaveTypeIds = null,
         CancellationToken cancellationToken = default)
     {
         var currentUserId = GetCurrentUserId();
@@ -47,6 +48,7 @@ public class LeaveAnalyticsController(AppDbContext db, IAuditLogService auditLog
             month,
             departmentId,
             leaveTypeId,
+            leaveTypeIds,
             status,
             coreOnly,
             cancellationToken));
@@ -106,6 +108,7 @@ public class LeaveAnalyticsController(AppDbContext db, IAuditLogService auditLog
         [FromQuery] Guid? leaveTypeId,
         [FromQuery] string? status,
         [FromQuery] bool coreOnly = true,
+        [FromQuery] string? leaveTypeIds = null,
         CancellationToken cancellationToken = default)
     {
         var currentUserId = GetCurrentUserId();
@@ -114,7 +117,7 @@ public class LeaveAnalyticsController(AppDbContext db, IAuditLogService auditLog
             return Forbid();
         }
 
-        var report = await BuildAnalytics(fiscalYear, year, month, departmentId, leaveTypeId, status, coreOnly, cancellationToken);
+        var report = await BuildAnalytics(fiscalYear, year, month, departmentId, leaveTypeId, leaveTypeIds, status, coreOnly, cancellationToken);
         var bytes = BuildExcelWorkbook(report);
         await auditLogService.WriteAsync(currentUserId, "LeaveAnalytics.ExportExcel", "LeaveAnalytics", null, $"Exported leave analytics FY {report.Filters.FiscalYear}.", "Success", HttpContext);
 
@@ -130,6 +133,7 @@ public class LeaveAnalyticsController(AppDbContext db, IAuditLogService auditLog
         int? month,
         Guid? departmentId,
         Guid? leaveTypeId,
+        string? leaveTypeIds,
         string? status,
         bool coreOnly,
         CancellationToken cancellationToken)
@@ -158,7 +162,12 @@ public class LeaveAnalyticsController(AppDbContext db, IAuditLogService auditLog
             query = query.Where(item => item.User != null && item.User.DepartmentId == departmentId);
         }
 
-        if (leaveTypeId is not null)
+        if (!string.IsNullOrWhiteSpace(leaveTypeIds))
+        {
+            var ids = Hop.Api.Services.LeaveTypeFilter.ParseIds(leaveTypeIds);
+            query = query.Where(item => ids.Contains(item.LeaveTypeId));
+        }
+        else if (leaveTypeId is not null)
         {
             query = query.Where(item => item.LeaveTypeId == leaveTypeId);
         }

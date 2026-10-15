@@ -30,6 +30,7 @@ public class LeaveReportsController(AppDbContext db, IAuditLogService auditLogSe
         [FromQuery] DateOnly? to,
         [FromQuery] Guid? departmentId,
         [FromQuery] Guid? leaveTypeId,
+        [FromQuery] string? leaveTypeIds = null,
         CancellationToken cancellationToken = default)
     {
         var currentUserId = GetCurrentUserId();
@@ -38,11 +39,11 @@ public class LeaveReportsController(AppDbContext db, IAuditLogService auditLogSe
             return Forbid();
         }
 
-        return ApiResponse<LeaveReportResponse>.Ok(await BuildReport(from, to, departmentId, leaveTypeId));
+        return ApiResponse<LeaveReportResponse>.Ok(await BuildReport(from, to, departmentId, leaveTypeId, leaveTypeIds));
     }
 
     [HttpGet("export-excel")]
-    public async Task<IActionResult> ExportExcel([FromQuery] DateOnly? from, [FromQuery] DateOnly? to, [FromQuery] Guid? departmentId, [FromQuery] Guid? leaveTypeId, CancellationToken cancellationToken = default)
+    public async Task<IActionResult> ExportExcel([FromQuery] DateOnly? from, [FromQuery] DateOnly? to, [FromQuery] Guid? departmentId, [FromQuery] Guid? leaveTypeId, [FromQuery] string? leaveTypeIds = null, CancellationToken cancellationToken = default)
     {
         var currentUserId = GetCurrentUserId();
         if (currentUserId is null || !await CanExportReport(currentUserId.Value, cancellationToken))
@@ -50,14 +51,14 @@ public class LeaveReportsController(AppDbContext db, IAuditLogService auditLogSe
             return Forbid();
         }
 
-        var report = await BuildReport(from, to, departmentId, leaveTypeId);
+        var report = await BuildReport(from, to, departmentId, leaveTypeId, leaveTypeIds);
         var bytes = BuildExcelWorkbook(report);
         await auditLogService.WriteAsync(currentUserId, "LeaveReport.ExportExcel", "LeaveReport", null, "Exported leave report Excel.", "Success", HttpContext);
         return File(bytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "leave-report.xlsx");
     }
 
     [HttpGet("export-pdf")]
-    public async Task<IActionResult> ExportPdf([FromQuery] DateOnly? from, [FromQuery] DateOnly? to, [FromQuery] Guid? departmentId, [FromQuery] Guid? leaveTypeId, CancellationToken cancellationToken = default)
+    public async Task<IActionResult> ExportPdf([FromQuery] DateOnly? from, [FromQuery] DateOnly? to, [FromQuery] Guid? departmentId, [FromQuery] Guid? leaveTypeId, [FromQuery] string? leaveTypeIds = null, CancellationToken cancellationToken = default)
     {
         var currentUserId = GetCurrentUserId();
         if (currentUserId is null || !await CanExportReport(currentUserId.Value, cancellationToken))
@@ -65,14 +66,14 @@ public class LeaveReportsController(AppDbContext db, IAuditLogService auditLogSe
             return Forbid();
         }
 
-        var report = await BuildReport(from, to, departmentId, leaveTypeId);
+        var report = await BuildReport(from, to, departmentId, leaveTypeId, leaveTypeIds);
         var pages = BuildPdfPages(report);
 
         await auditLogService.WriteAsync(currentUserId, "LeaveReport.ExportPdf", "LeaveReport", null, "Exported leave report PDF.", "Success", HttpContext);
         return File(SimplePdfWriter.CreateA4Pages(pages, logo: null), "application/pdf", "leave-report.pdf");
     }
 
-    private async Task<LeaveReportResponse> BuildReport(DateOnly? from, DateOnly? to, Guid? departmentId, Guid? leaveTypeId)
+    private async Task<LeaveReportResponse> BuildReport(DateOnly? from, DateOnly? to, Guid? departmentId, Guid? leaveTypeId, string? leaveTypeIds)
     {
         var startDate = from ?? new DateOnly(Hop.Api.Services.HospitalTime.Today.Year, 1, 1);
         var endDate = to ?? new DateOnly(Hop.Api.Services.HospitalTime.Today.Year, 12, 31);
@@ -90,7 +91,12 @@ public class LeaveReportsController(AppDbContext db, IAuditLogService auditLogSe
             leaveQuery = leaveQuery.Where(item => item.User != null && item.User.DepartmentId == departmentId);
         }
 
-        if (leaveTypeId is not null)
+        if (!string.IsNullOrWhiteSpace(leaveTypeIds))
+        {
+            var ids = Hop.Api.Services.LeaveTypeFilter.ParseIds(leaveTypeIds);
+            leaveQuery = leaveQuery.Where(item => ids.Contains(item.LeaveTypeId));
+        }
+        else if (leaveTypeId is not null)
         {
             leaveQuery = leaveQuery.Where(item => item.LeaveTypeId == leaveTypeId);
         }
@@ -121,6 +127,15 @@ public class LeaveReportsController(AppDbContext db, IAuditLogService auditLogSe
         if (departmentId is not null)
         {
             balanceQuery = balanceQuery.Where(item => item.User != null && item.User.DepartmentId == departmentId);
+        }
+        if (!string.IsNullOrWhiteSpace(leaveTypeIds))
+        {
+            var ids = Hop.Api.Services.LeaveTypeFilter.ParseIds(leaveTypeIds);
+            balanceQuery = balanceQuery.Where(item => ids.Contains(item.LeaveTypeId));
+        }
+        else if (leaveTypeId is not null)
+        {
+            balanceQuery = balanceQuery.Where(item => item.LeaveTypeId == leaveTypeId);
         }
 
         var balances = await balanceQuery

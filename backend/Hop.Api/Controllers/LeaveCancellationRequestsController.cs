@@ -43,6 +43,7 @@ public sealed class LeaveCancellationRequestsController(
         [FromQuery] DateOnly? toDate,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 10,
+        [FromQuery] string? leaveTypeIds = null,
         CancellationToken cancellationToken = default)
     {
         var userId = GetCurrentUserId();
@@ -58,7 +59,12 @@ public sealed class LeaveCancellationRequestsController(
             query = query.Where(item => item.Status == NormalizeCancellationStatus(status));
         }
 
-        if (leaveTypeId is not null)
+        if (!string.IsNullOrWhiteSpace(leaveTypeIds))
+        {
+            var ids = Hop.Api.Services.LeaveTypeFilter.ParseIds(leaveTypeIds);
+            query = query.Where(item => ids.Contains(item.LeaveTypeId));
+        }
+        else if (leaveTypeId is not null)
         {
             query = query.Where(item => item.LeaveTypeId == leaveTypeId);
         }

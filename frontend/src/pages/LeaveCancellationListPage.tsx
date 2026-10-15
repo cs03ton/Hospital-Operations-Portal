@@ -25,6 +25,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { Link as RouterLink, useSearchParams } from "react-router-dom";
 import { getLeaveCancellationRequests, getLeaveTypes } from "../api/leaveApi";
+import { getLeaveTypeFilterOptions } from "../utils/leaveTypeFilterOptions";
 import { AppDatePicker } from "../components/common/AppDatePicker";
 import { PageHeader } from "../components/PageHeader";
 import { PermissionGuard, usePermission } from "../context/PermissionContext";
@@ -121,9 +122,9 @@ export function LeaveCancellationListPage() {
             <Grid item xs={12} sm={6} md={2}>
               <TextField select fullWidth size="small" label="ประเภทลา" value={filters.leaveTypeId} onChange={(event) => updateFilters({ ...filters, leaveTypeId: event.target.value })}>
                 <MenuItem value="">ทุกประเภทลา</MenuItem>
-                {leaveTypes.map((item) => (
-                  <MenuItem key={item.id} value={item.id}>
-                    {getLeaveTypeLabel(item.name || item.code)}
+                {getLeaveTypeFilterOptions(leaveTypes).map((item) => (
+                  <MenuItem key={item.value} value={item.value}>
+                    {item.label}
                   </MenuItem>
                 ))}
               </TextField>

@@ -96,7 +96,8 @@ public static class FleetLineGroupEvents
         ["Fleet.AssignmentChanged"] = true,
         ["Fleet.DriverAcknowledged"] = true,
         ["Fleet.TripCompleted"] = true,
-        ["Fleet.TripOverdue"] = true
+        ["Fleet.TripOverdue"] = true,
+        ["Fleet.DailyDriverJobs"] = false
     };
 }
 

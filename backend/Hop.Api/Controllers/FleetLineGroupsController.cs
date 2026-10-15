@@ -24,7 +24,13 @@ public sealed partial class FleetLineGroupsController(AppDbContext db, ILineGrou
         IQueryable<LineGroupDestination> query = db.LineGroupDestinations.AsNoTracking().Include(x => x.EventSubscriptions);
         if (!string.IsNullOrWhiteSpace(status)) query = query.Where(x => x.Status == status.Trim());
         if (!string.IsNullOrWhiteSpace(search)) query = query.Where(x => EF.Functions.ILike(x.DisplayName, $"%{search.Trim()}%"));
-        var rows = await query.OrderBy(x => x.Status).ThenBy(x => x.DisplayName).Select(x => new
+        // Older groups may not have rows for events introduced after registration.
+        // Present the same catalog to every group without enabling or persisting missing subscriptions.
+        var eventTypes = LineGroupEvents.Defaults.Keys
+            .Concat(await db.LineGroupEventSubscriptions.AsNoTracking().Select(x => x.EventType).Distinct().ToListAsync(ct))
+            .Distinct(StringComparer.Ordinal).OrderBy(x => x, StringComparer.Ordinal).ToArray();
+        var destinations = await query.OrderBy(x => x.Status).ThenBy(x => x.DisplayName).ToListAsync(ct);
+        var rows = destinations.Select(x => new
         {
             x.Id,
             x.DisplayName,
@@ -44,8 +50,12 @@ public sealed partial class FleetLineGroupsController(AppDbContext db, ILineGrou
             x.ConfirmedAt,
             x.DisabledAt,
             x.ConcurrencyToken,
-            Events = x.EventSubscriptions.OrderBy(s => s.EventType).Select(s => new { s.EventType, s.IsEnabled })
-        }).ToListAsync(ct);
+            Events = eventTypes.Select(eventType => new
+            {
+                EventType = eventType,
+                IsEnabled = x.EventSubscriptions.Any(s => s.EventType == eventType && s.IsEnabled)
+            }).ToArray()
+        }).ToArray();
         return ApiResponse<object>.Ok(rows);
     }
 

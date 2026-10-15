@@ -23,7 +23,7 @@ import { applyReferPolicy, REFER_MISSION_TYPE } from "../utils/fleetReferPolicy"
 import { getFleetDestinationOptions } from "../api/fleetApi";
 
 type FormState = {
-  purpose: string; missionType: string; destination: string;
+  purpose: string; missionType: string; patientName: string; destination: string;
   contactPersonName: string; contactPhone: string; departureAt: string; expectedReturnAt: string;
   specialRequirement: string; isUrgent: boolean; urgentReason: string; requesterTravels: boolean;
 };
@@ -111,7 +111,7 @@ export function FleetRequestFormPage() {
   const [files, setFiles] = useState<File[]>([]);
   const [fileError, setFileError] = useState("");
   const [form, setForm] = useState<FormState>({
-    purpose: "", missionType: "ทั่วไป", destination: "",
+    purpose: "", missionType: "ทั่วไป", patientName: "", destination: "",
     contactPersonName: user?.fullname ?? "", contactPhone: "", departureAt: "", expectedReturnAt: "",
     specialRequirement: "", isUrgent: false, urgentReason: "", requesterTravels: true,
   });
@@ -135,7 +135,7 @@ export function FleetRequestFormPage() {
     if (initializedRequest.current === data.id) return;
     initializedRequest.current = data.id;
     setForm(applyReferPolicy({
-      purpose: data.purpose, missionType: data.missionType,
+      purpose: data.purpose, missionType: data.missionType, patientName: data.patientName ?? "",
       destination: data.destination, contactPersonName: user?.fullname ?? data.requesterName, contactPhone: profile.data?.phoneNumber?.trim() || data.contactPhone,
       departureAt: toBangkokLocalValue(data.departureAt), expectedReturnAt: toBangkokLocalValue(data.expectedReturnAt),
       specialRequirement: data.specialRequirement ?? "", isUrgent: data.isUrgent,
@@ -169,7 +169,7 @@ export function FleetRequestFormPage() {
     const requesterPassenger: FleetPassenger[] = form.requesterTravels && profile.data ? [{ userId: profile.data.id, fullName: profile.data.fullname, positionOrOrganization: profile.data.departmentName, phone: profile.data.phoneNumber, passengerType: "EMPLOYEE", isRequester: true, sortOrder: 0 }] : [];
     const passengers = [...requesterPassenger, ...employees, ...preservedExternal.map((item, index) => ({ ...item, sortOrder: requesterPassenger.length + employees.length + index }))];
     return {
-      purpose: form.purpose.trim(), missionType: form.missionType, requestedVehicleTypeId: null,
+      purpose: form.purpose.trim(), missionType: form.missionType, patientName: form.missionType === REFER_MISSION_TYPE ? form.patientName.trim() : null, requestedVehicleTypeId: null,
       destination: form.destination.trim(), contactPersonName: form.contactPersonName.trim(), contactPhone: form.contactPhone.trim(),
       departureAt: toUtcIso(form.departureAt), expectedReturnAt: toUtcIso(form.expectedReturnAt),
       passengerCount: passengers.length, requesterTravels: form.requesterTravels, specialRequirement: form.specialRequirement.trim(), isUrgent: form.isUrgent,
@@ -201,7 +201,7 @@ export function FleetRequestFormPage() {
     },
   });
 
-  const field = (key: keyof FormState) => (event: React.ChangeEvent<HTMLInputElement>) => setForm(current => key === "missionType" ? applyReferPolicy({ ...current, missionType: event.target.value }) : ({ ...current, [key]: event.target.value }));
+  const field = (key: keyof FormState) => (event: React.ChangeEvent<HTMLInputElement>) => setForm(current => key === "missionType" ? applyReferPolicy({ ...current, missionType: event.target.value, patientName: event.target.value === REFER_MISSION_TYPE ? current.patientName : "" }) : ({ ...current, [key]: event.target.value }));
 
   return (
     <Stack spacing={2.5}>
@@ -239,6 +239,7 @@ export function FleetRequestFormPage() {
           <Grid item xs={12} md={6}><ThaiDateTimeField label="คาดว่าจะกลับ" value={form.expectedReturnAt} error={hasInvalidTripTime} helperText={hasInvalidTripTime ? "กรุณาระบุวันและเวลากลับให้หลังเวลาออกเดินทาง" : undefined} onChange={value => setForm(current => ({ ...current, expectedReturnAt: value }))} /></Grid>
           {hasInvalidTripTime && <Grid item xs={12}><Alert severity="warning">{tripTimeErrorMessage}</Alert></Grid>}
           {form.missionType === REFER_MISSION_TYPE && <Grid item xs={12}><Alert severity="warning">ภารกิจนี้ใช้รถพยาบาลและจัดเป็นคำขอเร่งด่วนอัตโนมัติ</Alert></Grid>}
+          {form.missionType === REFER_MISSION_TYPE && <Grid item xs={12} md={6}><TextField fullWidth label="ชื่อ–สกุลผู้ป่วย" value={form.patientName} onChange={field("patientName")} inputProps={{ maxLength: 200 }} helperText="บันทึกร่างได้ก่อน แต่ต้องกรอกก่อนส่งคำขอ" /></Grid>}
           <Grid item xs={12} md={6}><Stack direction="row" alignItems="center" sx={{ height: "100%" }}><FormControlLabel control={<Switch checked={form.isUrgent} disabled={form.missionType === REFER_MISSION_TYPE} onChange={(_, checked) => setForm(current => ({ ...current, isUrgent: checked, urgentReason: checked ? current.urgentReason : "" }))} />} label="เร่งด่วน" /></Stack></Grid>
           <Grid item xs={12} md={form.isUrgent ? 6 : 12}><TextField fullWidth multiline minRows={3} label="ความต้องการพิเศษ (ถ้ามี)" placeholder="เช่น ต้องการรถตู้ มีสัมภาระจำนวนมาก หรือมีอุปกรณ์พิเศษ" value={form.specialRequirement} onChange={field("specialRequirement")} /></Grid>
           {form.isUrgent && <Grid item xs={12} md={6}><TextField required fullWidth multiline minRows={3} label="เหตุผลความเร่งด่วน" value={form.urgentReason} onChange={field("urgentReason")} /></Grid>}
@@ -279,7 +280,7 @@ export function FleetRequestFormPage() {
           <Button variant="outlined" onClick={() => navigate(-1)} disabled={save.isPending}>ยกเลิก</Button>
           <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5}>
             <Button variant="outlined" startIcon={<SaveOutlinedIcon />} disabled={!hasRequiredFields || invalidFiles || attachmentCount > 2 || attachments.isError || (Boolean(attachmentRequestId) && attachments.isLoading) || save.isPending || profile.isLoading || profile.isError} onClick={() => { setFileError(""); save.mutate(false); }}>{save.isPending && !submitAfterSave ? "กำลังบันทึก..." : "บันทึกร่าง"}</Button>
-            <Button variant="contained" startIcon={<SendOutlinedIcon />} disabled={!hasRequiredFields || invalidFiles || attachmentCount > 2 || attachments.isError || (Boolean(attachmentRequestId) && attachments.isLoading) || save.isPending || profile.isLoading || profile.isError} onClick={() => { setFileError(""); save.mutate(true); }}>{save.isPending && submitAfterSave ? "กำลังส่งคำขอ..." : "ส่งคำขอ"}</Button>
+            <Button variant="contained" startIcon={<SendOutlinedIcon />} disabled={!hasRequiredFields || (form.missionType === REFER_MISSION_TYPE && form.patientName.trim().split(/\s+/).length < 2) || invalidFiles || attachmentCount > 2 || attachments.isError || (Boolean(attachmentRequestId) && attachments.isLoading) || save.isPending || profile.isLoading || profile.isError} onClick={() => { setFileError(""); save.mutate(true); }}>{save.isPending && submitAfterSave ? "กำลังส่งคำขอ..." : "ส่งคำขอ"}</Button>
           </Stack>
         </Stack>
       </Box></Card>

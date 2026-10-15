@@ -15,6 +15,62 @@ namespace Hop.Api.Tests;
 
 public sealed class FleetLineGroupDeliveryTests
 {
+    [Fact]
+    public async Task Daily_digest_snapshots_only_assigned_approved_jobs_for_enabled_groups_once()
+    {
+        await using var db = Database();
+        var now = new DateTime(2026, 10, 14, 23, 1, 0, DateTimeKind.Utc); // 06:01 Bangkok
+        foreach (var (name, enabled, active) in new[]
+                 { ("subscribed", true, true), ("unsubscribed", false, true), ("disabled", true, false) })
+        {
+            var group = new LineGroupDestination
+            {
+                LineGroupId = name, Module = "CENTRAL", DisplayName = name,
+                Status = active ? LineGroupDestinationStatuses.Active : LineGroupDestinationStatuses.Disabled,
+                ConfirmedAt = now.AddDays(-1)
+            };
+            group.EventSubscriptions.Add(new LineGroupEventSubscription
+                { EventType = FleetDailyDriverJobsDigest.EventType, IsEnabled = enabled });
+            db.LineGroupDestinations.Add(group);
+        }
+        foreach (var (status, departure, assigned) in new[]
+                 {
+                     (FleetRequestStatuses.Approved, now.AddHours(3), true),
+                     (FleetRequestStatuses.InProgress, now.AddHours(4), true),
+                     (FleetRequestStatuses.PendingDispatch, now.AddHours(5), true),
+                     (FleetRequestStatuses.Approved, now.AddHours(6), false),
+                     (FleetRequestStatuses.Approved, now.AddDays(1), true),
+                     (FleetRequestStatuses.Cancelled, now.AddHours(7), true)
+                 })
+        {
+            var request = new FleetRequest
+            {
+                Id = Guid.NewGuid(), RequestNo = $"VH-{Guid.NewGuid():N}", Status = status,
+                DepartureAt = departure, Destination = "โรงพยาบาลปลายทาง"
+            };
+            if (assigned) request.Assignments.Add(new FleetAssignment
+            {
+                IsActive = true, Vehicle = new FleetVehicle { RegistrationNumber = "กข 1234" },
+                DriverUser = new User { FullName = "คนขับทดสอบ" }
+            });
+            db.FleetRequests.Add(request);
+        }
+        await db.SaveChangesAsync();
+        var service = Service(db, new SequenceClient(Success()));
+
+        Assert.Equal(0, await service.ProjectDailyDriverJobsAsync(now.AddMinutes(-2), default));
+        Assert.Equal(1, await service.ProjectDailyDriverJobsAsync(now, default));
+        Assert.Equal(0, await service.ProjectDailyDriverJobsAsync(now.AddHours(1), default));
+        var log = Assert.Single(await db.LineGroupDeliveryLogs.ToListAsync());
+        Assert.Equal("subscribed", (await db.LineGroupDestinations.FindAsync(log.DestinationId))!.LineGroupId);
+        var snapshot = await db.DomainEvents.SingleAsync(x => x.EventId == log.EventId);
+        using var payload = JsonDocument.Parse(snapshot.Payload);
+        var text = payload.RootElement.GetProperty("Text").GetString()!;
+        Assert.Contains("รวม 2 ภารกิจ", text);
+        Assert.Contains("กข 1234", text);
+        Assert.DoesNotContain("PendingDispatch", text);
+    }
+
     [Theory]
     [InlineData("Fleet.RequestSubmitted", "Fleet.RequestSubmitted", "delivered")]
     [InlineData("Fleet.RequestCancelled", "Fleet.Cancelled", "delivered")]
@@ -281,9 +337,9 @@ public sealed class FleetLineGroupDeliveryTests
         Assert.Equal(0, await service.ProjectMissingEventsAsync(CancellationToken.None));
         Assert.Equal(1, await service.DiscoverAsync(CancellationToken.None));
 
-        var domainEvent = await db.DomainEvents.SingleAsync();
+        var domainEvent = await db.DomainEvents.SingleAsync(x => x.EventType == "Fleet.RequestSubmitted");
         Assert.Equal(history.Id, domainEvent.EventId);
-        Assert.Empty((await db.OutboxMessages.Include(x => x.Deliveries).SingleAsync()).Deliveries);
+        Assert.Empty((await db.OutboxMessages.Include(x => x.Deliveries).SingleAsync(x => x.EventType == "Fleet.RequestSubmitted")).Deliveries);
         Assert.Single(db.LineGroupDeliveryLogs);
     }
 
@@ -329,7 +385,7 @@ public sealed class FleetLineGroupDeliveryTests
         Assert.Equal(0, await service.ProjectMissingEventsAsync(CancellationToken.None));
         Assert.Equal(1, await service.DiscoverAsync(CancellationToken.None));
         Assert.Equal(0, await service.DiscoverAsync(CancellationToken.None));
-        Assert.Single(await db.DomainEvents.ToListAsync());
+        Assert.Single(await db.DomainEvents.Where(x => x.EventType == "Fleet.RequestSubmitted").ToListAsync());
         Assert.Single(await db.LineGroupDeliveryLogs.ToListAsync());
     }
 

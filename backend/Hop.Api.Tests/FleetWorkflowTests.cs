@@ -106,6 +106,8 @@ public sealed class FleetWorkflowTests
         var passenger = new User { Id = Guid.NewGuid(), Username = "passenger", FullName = "ผู้ร่วมเดินทาง" };
         var otherRequester = new User { Id = Guid.NewGuid(), Username = "other", FullName = "ผู้ขออื่น" };
         var sharedRequest = MinimalRequest("VH-202608-0100", requester.Id);
+        sharedRequest.MissionType = FleetReferPolicy.MissionType;
+        sharedRequest.PatientName = "นายกรอก นาม";
         sharedRequest.Passengers.Add(new FleetRequestPassenger
         {
             Id = Guid.NewGuid(),
@@ -138,6 +140,13 @@ public sealed class FleetWorkflowTests
         var response = Assert.IsType<ApiResponse<PagedResponse<FleetRequestDto>>>(result.Value);
         var item = Assert.Single(response.Data!.Items);
         Assert.Equal(sharedRequest.Id, item.Id);
+        Assert.Null(item.PatientName);
+        var detail = await controller.Get(sharedRequest.Id, default);
+        Assert.Null(Assert.IsType<ApiResponse<FleetRequestDto>>(detail.Value).Data!.PatientName);
+        controller.ControllerContext.HttpContext.User = new ClaimsPrincipal(new ClaimsIdentity(
+            [new Claim(ClaimTypes.NameIdentifier, requester.Id.ToString())], "Test"));
+        var requesterDetail = await controller.Get(sharedRequest.Id, default);
+        Assert.Equal(sharedRequest.PatientName, Assert.IsType<ApiResponse<FleetRequestDto>>(requesterDetail.Value).Data!.PatientName);
     }
 
     [Fact]

@@ -17,6 +17,7 @@ import { brandColors } from "../theme/theme";
 import { formatThaiDate } from "../utils/dateFormat";
 import { getLeaveStatusLabel, getLeaveTypeLabel, getLeaveTypeWithDurationLabel } from "../utils/leaveLabels";
 import { dashboardPollingOptions } from "../config/queryPolling";
+import { getLeaveTypeFilterOptions } from "../utils/leaveTypeFilterOptions";
 
 const coreLeaveCodes = new Set(["SICK_LEAVE", "PERSONAL_LEAVE", "VACATION_LEAVE"]);
 
@@ -109,7 +110,7 @@ export function LeaveAnalyticsPage() {
             <Grid item xs={12} md={3}>
               <TextField fullWidth select size="small" label="ประเภทลา" value={filters.leaveTypeId ?? ""} onChange={(event) => updateFilters({ ...filters, leaveTypeId: event.target.value || undefined })}>
                 <MenuItem value="">ทุกประเภทลา</MenuItem>
-                {filteredLeaveTypes.map((item) => <MenuItem key={item.id} value={item.id}>{getLeaveTypeLabel(item.name || item.code)}</MenuItem>)}
+                {getLeaveTypeFilterOptions(filteredLeaveTypes).map((item) => <MenuItem key={item.value} value={item.value}>{item.label}</MenuItem>)}
               </TextField>
             </Grid>
             <Grid item xs={12} md={2}>

@@ -15,6 +15,7 @@ import { getLeaveStatusLabel, getLeaveTypeLabel, getLeaveTypeWithDurationLabel }
 import { getCancellationStatusLabel } from "./LeaveCancellationListPage";
 import { formatDays as formatLeaveDays } from "./LeaveCancellationCreatePage";
 import { dashboardPollingOptions } from "../config/queryPolling";
+import { getLeaveTypeFilterOptions } from "../utils/leaveTypeFilterOptions";
 
 export function LeaveReportsPage() {
   const [filters, setFilters] = useState<LeaveReportQuery>({});
@@ -83,7 +84,7 @@ export function LeaveReportsPage() {
             <Box sx={{ minWidth: 0 }}>
               <TextField fullWidth size="small" select label="ประเภทลา" value={filters.leaveTypeId ?? ""} onChange={(event) => updateFilters({ ...filters, leaveTypeId: event.target.value || undefined })}>
                 <MenuItem value="">ทุกประเภทลา</MenuItem>
-                {leaveTypes.map((item) => <MenuItem key={item.id} value={item.id}>{getLeaveTypeLabel(item.name || item.code)}</MenuItem>)}
+                {getLeaveTypeFilterOptions(leaveTypes).map((item) => <MenuItem key={item.value} value={item.value}>{item.label}</MenuItem>)}
               </TextField>
             </Box>
             <Stack

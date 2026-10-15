@@ -1,7 +1,7 @@
 import { Card, CardContent, Grid, MenuItem, TextField } from "@mui/material";
 import type { DepartmentSummary } from "../../api/adminApi";
 import type { LeaveType } from "../../api/leaveApi";
-import { getLeaveTypeLabel } from "../../utils/leaveLabels";
+import { getLeaveTypeFilterOptions } from "../../utils/leaveTypeFilterOptions";
 
 type LeaveCalendarToolbarProps = {
   month: number;
@@ -75,9 +75,9 @@ export function LeaveCalendarToolbar({
           <Grid item xs={12} sm={6} md={3}>
             <TextField select fullWidth size="small" label="ประเภทการลา" value={leaveTypeId} onChange={(event) => onLeaveTypeChange(event.target.value)}>
               <MenuItem value="">ทุกประเภทลา</MenuItem>
-              {leaveTypes.map((item) => (
-                <MenuItem key={item.id} value={item.id}>
-                  {getLeaveTypeLabel(item.name || item.code)}
+              {getLeaveTypeFilterOptions(leaveTypes).map((item) => (
+                <MenuItem key={item.value} value={item.value}>
+                  {item.label}
                 </MenuItem>
               ))}
             </TextField>

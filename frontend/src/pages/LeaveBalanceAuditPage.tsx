@@ -60,14 +60,21 @@ export function LeaveBalanceAuditPage() {
   const periodRows = useMemo(() => current.filter((row) => row.useFiscalYear === fiscal), [current, fiscal]);
   const people = useMemo(() => [...new Map(periodRows.map((row) => [row.userId, { name: row.fullname ?? "-", code: row.employeeCode }])).entries()].sort((a, b) => a[1].name.localeCompare(b[1].name, "th")), [periodRows]);
   const departments = useMemo(() => [...new Map(periodRows.filter((row) => row.departmentId).map((row) => [row.departmentId!, row.departmentName ?? "-"])).entries()].sort((a, b) => a[1].localeCompare(b[1], "th")), [periodRows]);
-  const leaveTypes = useMemo(() => [...new Map(periodRows.map((row) => [row.leaveTypeId, row.leaveTypeName])).entries()].sort((a, b) => a[1].localeCompare(b[1], "th")), [periodRows]);
+  const leaveTypes = useMemo(() => {
+    const groups = new Map<string, string[]>();
+    for (const row of periodRows) {
+      const label = getLeaveTypeLabel(row.leaveTypeName);
+      groups.set(label, [...(groups.get(label) ?? []), row.leaveTypeId]);
+    }
+    return [...groups].map(([label, ids]) => [([...new Set(ids)].join(",")), label] as const).sort((a, b) => a[1].localeCompare(b[1], "th"));
+  }, [periodRows]);
   const priorByKey = useMemo(() => new Map(previous.filter((row) => row.useFiscalYear === fiscal).map((row) => [`${row.userId}:${row.leaveTypeId}`, row])), [previous, fiscal]);
   const filtered = useMemo(() => periodRows.filter((row) => {
     const term = search.trim().toLocaleLowerCase("th");
     return (!term || `${row.fullname ?? ""} ${row.employeeCode ?? ""} ${row.departmentName ?? ""} ${row.leaveTypeName}`.toLocaleLowerCase("th").includes(term))
       && (!userId || row.userId === userId)
       && (!departmentId || row.departmentId === departmentId)
-      && (!leaveTypeId || row.leaveTypeId === leaveTypeId);
+      && (!leaveTypeId || leaveTypeId.split(",").includes(row.leaveTypeId));
   }).sort((a, b) => (a.fullname ?? "").localeCompare(b.fullname ?? "", "th") || a.leaveTypeName.localeCompare(b.leaveTypeName, "th")), [periodRows, search, userId, departmentId, leaveTypeId]);
   const visible = filtered.slice(page * pageSize, (page + 1) * pageSize);
   const peopleCount = new Set(filtered.map((row) => row.userId)).size;

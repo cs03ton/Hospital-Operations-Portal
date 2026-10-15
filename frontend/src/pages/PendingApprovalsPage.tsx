@@ -59,8 +59,8 @@ export function PendingApprovalsPage() {
   });
 
   const leaveTypeOptions = useMemo(() => {
-    const types = new Set(data.map((item) => item.leaveType).filter(Boolean) as string[]);
-    return Array.from(types).sort((a, b) => getLeaveTypeLabel(a).localeCompare(getLeaveTypeLabel(b), "th"));
+    const types = new Set(data.map((item) => getLeaveTypeLabel(item.leaveType)).filter(Boolean));
+    return Array.from(types).sort((a, b) => a.localeCompare(b, "th"));
   }, [data]);
 
   const filteredData = useMemo(() => {
@@ -81,7 +81,7 @@ export function PendingApprovalsPage() {
 
       return (
         (!keyword || haystack.includes(keyword)) &&
-        (!filters.leaveType || item.leaveType === filters.leaveType) &&
+        (!filters.leaveType || getLeaveTypeLabel(item.leaveType) === filters.leaveType) &&
         (!filters.priority || item.priority === filters.priority)
       );
     });
@@ -138,7 +138,7 @@ export function PendingApprovalsPage() {
                 <MenuItem value="">ทุกประเภทลา</MenuItem>
                 {leaveTypeOptions.map((leaveType) => (
                   <MenuItem key={leaveType} value={leaveType}>
-                    {getLeaveTypeLabel(leaveType)}
+                    {leaveType}
                   </MenuItem>
                 ))}
               </TextField>

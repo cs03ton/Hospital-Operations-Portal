@@ -6,6 +6,7 @@ public sealed class SaveFleetRequestDto : IValidatableObject
 {
     [Required, StringLength(2000)] public string Purpose { get; init; } = string.Empty;
     [Required, StringLength(100)] public string MissionType { get; init; } = string.Empty;
+    [StringLength(200)] public string? PatientName { get; init; }
     public Guid? RequestedVehicleTypeId { get; init; }
     [Required, StringLength(1000)] public string Destination { get; init; } = string.Empty;
     [Required, StringLength(200)] public string ContactPersonName { get; init; } = string.Empty;
@@ -50,7 +51,7 @@ public sealed record FleetPassengerDto(Guid Id, Guid? UserId, string FullName, s
 public sealed record FleetPersonnelOptionDto(Guid Id, string FullName, string? EmployeeCode, Guid? DepartmentId, string? DepartmentName);
 public sealed record FleetStatusHistoryDto(Guid Id, string? FromStatus, string ToStatus, string Action, string? ReturnTarget, string? Reason, Guid ActorUserId, string? ActorName, DateTime CreatedAt);
 public sealed record FleetAssignmentDto(Guid Id, Guid VehicleId, string VehicleCode, string RegistrationNumber, Guid DriverUserId, string DriverName, DateTime AssignedAt, string AssignmentStatus, bool IsActive, Guid ConcurrencyToken, Guid? ReplacementOfAssignmentId);
-public sealed record FleetRequestDto(Guid Id, string RequestNo, Guid RequesterUserId, string RequesterName, Guid? RequesterDepartmentId, string? RequesterDepartmentName, DateOnly RequestDate, string Purpose, string MissionType, Guid? RequestedVehicleTypeId, string? RequestedVehicleTypeName, string Destination, string ContactPersonName, string ContactPhone, DateTime DepartureAt, DateTime ExpectedReturnAt, int PassengerCount, string? SpecialRequirement, bool IsUrgent, string? UrgentReason, string Status, string? ReturnTarget, DateTime? SubmittedAt, DateTime? CancelledAt, string? CancellationReason, DateTime CreatedAt, DateTime? UpdatedAt, Guid ConcurrencyToken, IReadOnlyList<FleetPassengerDto> Passengers, IReadOnlyList<FleetStatusHistoryDto> StatusHistories, FleetAssignmentDto? ActiveAssignment);
+public sealed record FleetRequestDto(Guid Id, string RequestNo, Guid RequesterUserId, string RequesterName, Guid? RequesterDepartmentId, string? RequesterDepartmentName, DateOnly RequestDate, string Purpose, string MissionType, string? PatientName, Guid? RequestedVehicleTypeId, string? RequestedVehicleTypeName, string Destination, string ContactPersonName, string ContactPhone, DateTime DepartureAt, DateTime ExpectedReturnAt, int PassengerCount, string? SpecialRequirement, bool IsUrgent, string? UrgentReason, string Status, string? ReturnTarget, DateTime? SubmittedAt, DateTime? CancelledAt, string? CancellationReason, DateTime CreatedAt, DateTime? UpdatedAt, Guid ConcurrencyToken, IReadOnlyList<FleetPassengerDto> Passengers, IReadOnlyList<FleetStatusHistoryDto> StatusHistories, FleetAssignmentDto? ActiveAssignment);
 
 public sealed record FleetTransitionRequest(Guid ConcurrencyToken, string? Reason);
 public sealed record FleetAssignRequest(Guid VehicleId, Guid DriverUserId, Guid ConcurrencyToken, string? Reason);

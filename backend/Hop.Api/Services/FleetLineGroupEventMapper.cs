@@ -23,6 +23,7 @@ public sealed class FleetLineGroupEventMapper : IFleetLineGroupEventMapper
         ["Fleet.DriverAccepted"] = "Fleet.DriverAcknowledged",
         ["Fleet.TripCompleted"] = "Fleet.TripCompleted",
         ["Fleet.TripOverdue"] = "Fleet.TripOverdue",
+        ["Fleet.DailyDriverJobs"] = "Fleet.DailyDriverJobs",
         ["MeetingRoom.BookingCreated"] = "MeetingRoom.BookingCreated",
         ["Repair.Submitted"] = "Repair.Submitted", ["Repair.Resubmitted"] = "Repair.Resubmitted",
         ["Repair.Reopened"] = "Repair.Reopened", ["Repair.Started"] = "Repair.Started",

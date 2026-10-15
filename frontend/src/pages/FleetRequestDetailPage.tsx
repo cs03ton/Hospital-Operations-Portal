@@ -240,6 +240,7 @@ export function FleetRequestDetailPage() {
             <Grid container spacing={2}>
               <Info label="ภารกิจ" value={data.purpose} />
               <Info label="ประเภทภารกิจ" value={data.missionType} />
+              {data.missionType === "ส่งต่อผู้ป่วย (Refer)" && data.patientName && <Info label="ชื่อ–สกุลผู้ป่วย" value={data.patientName} />}
               <Info label="ปลายทาง" value={data.destination} />
               <Info
                 label="ผู้ประสานงาน"

@@ -168,6 +168,7 @@ internal static class FleetModelConfiguration
             entity.Property(x => x.RequestDate).HasColumnName("request_date");
             entity.Property(x => x.Purpose).HasColumnName("purpose").HasMaxLength(2000);
             entity.Property(x => x.MissionType).HasColumnName("mission_type").HasMaxLength(100);
+            entity.Property(x => x.PatientName).HasColumnName("patient_name").HasMaxLength(200);
             entity.Property(x => x.RequestedVehicleTypeId).HasColumnName("requested_vehicle_type_id");
             entity.Property(x => x.Destination).HasColumnName("destination").HasMaxLength(1000);
             entity.Property(x => x.ContactPersonName).HasColumnName("contact_person_name").HasMaxLength(200);

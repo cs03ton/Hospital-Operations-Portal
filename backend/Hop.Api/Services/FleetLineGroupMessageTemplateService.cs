@@ -44,6 +44,13 @@ public sealed partial class FleetLineGroupMessageTemplateService(
 
     public async Task<FleetGroupRenderedMessage?> RenderAsync(DomainEventRecord domainEvent, string canonicalEventType, CancellationToken ct)
     {
+        if (canonicalEventType == FleetDailyDriverJobsDigest.EventType && domainEvent.Scope == "FLEET")
+        {
+            using var snapshot = JsonDocument.Parse(domainEvent.Payload);
+            var digestText = snapshot.RootElement.GetProperty("Text").GetString();
+            return string.IsNullOrWhiteSpace(digestText) ? null :
+                new FleetGroupRenderedMessage("text", digestText, canonicalEventType, Guid.Empty);
+        }
         if (canonicalEventType == "MeetingRoom.BookingCreated" && domainEvent.Scope == "MEETING_ROOM")
             return await RenderMeetingBookingAsync(domainEvent, ct);
         if (canonicalEventType.StartsWith("Repair.", StringComparison.Ordinal) && domainEvent.Scope == "REPAIR")
@@ -101,6 +108,8 @@ public sealed partial class FleetLineGroupMessageTemplateService(
             builder.AppendLine("ระดับความสำคัญ: คำขอเร่งด่วน");
             builder.AppendLine($"เหตุผลเร่งด่วน: {Safe(request.UrgentReason, 500)}");
         }
+        if (FleetReferPolicy.IsRefer(request) && !string.IsNullOrWhiteSpace(request.PatientName))
+            builder.AppendLine($"ผู้ป่วย: {Safe(MaskPatientName(request.PatientName), 200)}");
 
         if (canonicalEventType == "Fleet.AssignmentChanged")
             AppendAssignmentChange(builder, request.Assignments, domainEvent.Payload);
@@ -229,6 +238,8 @@ public sealed partial class FleetLineGroupMessageTemplateService(
             rows.Insert(0, FlexRow("ระดับความสำคัญ", "⚠ คำขอเร่งด่วน", true));
             rows.Insert(1, FlexRow("เหตุผลเร่งด่วน", Safe(request.UrgentReason, 500), true));
         }
+        if (FleetReferPolicy.IsRefer(request) && !string.IsNullOrWhiteSpace(request.PatientName))
+            rows.Add(FlexRow("ผู้ป่วย", Safe(MaskPatientName(request.PatientName), 200)));
         if (eventType is "Fleet.ReferAutoApproved" or "Fleet.AssignmentCreated" or "Fleet.AdminReviewed" or "Fleet.DirectorApproved" or "Fleet.DriverAcknowledged" or "Fleet.TripCompleted" or "Fleet.TripOverdue" or "Fleet.AssignmentChanged")
             rows.Add(FlexRow("รถ / คนขับ", assignment));
         if (ShouldShowActor(eventType) && !string.IsNullOrWhiteSpace(actorName))
@@ -381,6 +392,15 @@ public sealed partial class FleetLineGroupMessageTemplateService(
     private static bool ShouldShowActor(string eventType) => eventType is
         "Fleet.AssignmentCreated" or "Fleet.AdminReviewed" or "Fleet.Returned" or "Fleet.DirectorApproved" or
         "Fleet.Rejected" or "Fleet.Cancelled" or "Fleet.AssignmentChanged";
+
+    internal static string MaskPatientName(string name)
+    {
+        var parts = name.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length < 2) return string.Concat(parts.Select(part => part.Length <= 1 ? "x" : $"{part[0]}{new string('x', part.Length - 1)}"));
+        var surname = parts[^1];
+        var maskedSurname = surname.Length <= 2 ? new string('x', surname.Length) : $"{surname[0]}{new string('x', surname.Length - 2)}{surname[^1]}";
+        return $"{string.Join(' ', parts[..^1])} {maskedSurname}";
+    }
 
     private static string Safe(string? value, int maxLength)
     {

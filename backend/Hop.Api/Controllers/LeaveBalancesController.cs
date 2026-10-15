@@ -35,7 +35,8 @@ public class LeaveBalancesController(
         [FromQuery] int? year = null,
         [FromQuery] Guid? userId = null,
         [FromQuery] Guid? departmentId = null,
-        [FromQuery] Guid? leaveTypeId = null)
+        [FromQuery] Guid? leaveTypeId = null,
+        [FromQuery] string? leaveTypeIds = null)
     {
         var query = db.LeaveBalances
             .AsNoTracking()
@@ -59,7 +60,12 @@ public class LeaveBalancesController(
             query = query.Where(item => item.User != null && item.User.DepartmentId == departmentId.Value);
         }
 
-        if (leaveTypeId is not null)
+        if (!string.IsNullOrWhiteSpace(leaveTypeIds))
+        {
+            var ids = Hop.Api.Services.LeaveTypeFilter.ParseIds(leaveTypeIds);
+            query = query.Where(item => ids.Contains(item.LeaveTypeId));
+        }
+        else if (leaveTypeId is not null)
         {
             query = query.Where(item => item.LeaveTypeId == leaveTypeId.Value);
         }

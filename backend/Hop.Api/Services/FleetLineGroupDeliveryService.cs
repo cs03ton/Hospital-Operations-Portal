@@ -4,6 +4,8 @@ using Hop.Api.Data;
 using Hop.Api.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using Npgsql;
+using System.Globalization;
 
 namespace Hop.Api.Services;
 
@@ -23,10 +25,11 @@ public sealed class FleetLineGroupDeliveryService(
     public async Task<int> ProjectMissingEventsAsync(CancellationToken ct)
     {
         if (!Enabled) return 0;
+        var dailyProjected = await ProjectDailyDriverJobsAsync(DateTime.UtcNow, ct);
         var earliest = await db.LineGroupDestinations.AsNoTracking()
             .Where(x => !x.Module.StartsWith("REPAIR_") && x.Status == LineGroupDestinationStatuses.Active && x.ConfirmedAt != null)
             .MinAsync(x => (DateTime?)x.ConfirmedAt, ct);
-        if (earliest is null) return 0;
+        if (earliest is null) return dailyProjected;
         string[] projectedActions = ["Fleet.RequestSubmitted", "Fleet.VehicleAssigned", "Fleet.RequestCancelled"];
         var histories = await db.FleetRequestStatusHistories.AsNoTracking().Include(x => x.FleetRequest)
             .Where(x => projectedActions.Contains(x.Action) && x.CreatedAt >= earliest &&
@@ -86,7 +89,88 @@ public sealed class FleetLineGroupDeliveryService(
             }
         }
         if (projected > 0) await db.SaveChangesAsync(ct);
-        return projected;
+        return projected + dailyProjected;
+    }
+
+    internal async Task<int> ProjectDailyDriverJobsAsync(DateTime now, CancellationToken ct)
+    {
+        var zone = ResolveBangkokTimeZone();
+        var local = TimeZoneInfo.ConvertTimeFromUtc(now, zone);
+        if (local.Hour < 6) return 0;
+        var day = DateOnly.FromDateTime(local);
+        var markerId = FleetDailyDriverJobsDigest.StableId(day, -1);
+        if (await db.DomainEvents.AsNoTracking().AnyAsync(x => x.EventId == markerId, ct)) return 0;
+
+        var start = TimeZoneInfo.ConvertTimeToUtc(day.ToDateTime(TimeOnly.MinValue), zone);
+        var end = TimeZoneInfo.ConvertTimeToUtc(day.AddDays(1).ToDateTime(TimeOnly.MinValue), zone);
+        string[] statuses = [FleetRequestStatuses.Approved, FleetRequestStatuses.PendingDriverAck,
+            FleetRequestStatuses.Ready, FleetRequestStatuses.InProgress];
+        var requests = await db.FleetRequests.AsNoTracking()
+            .Where(x => x.DepartureAt >= start && x.DepartureAt < end && statuses.Contains(x.Status) &&
+                x.Assignments.Any(a => a.IsActive))
+            .Include(x => x.Assignments.Where(a => a.IsActive)).ThenInclude(a => a.Vehicle)
+            .Include(x => x.Assignments.Where(a => a.IsActive)).ThenInclude(a => a.DriverUser)
+            .OrderBy(x => x.DepartureAt).ThenBy(x => x.RequestNo).ToListAsync(ct);
+        var destinations = await db.LineGroupDestinations.AsNoTracking().Include(x => x.EventSubscriptions)
+            .Where(x => !x.Module.StartsWith("REPAIR_") && x.Status == LineGroupDestinationStatuses.Active &&
+                x.ConfirmedAt != null && x.ConfirmedAt <= now &&
+                x.EventSubscriptions.Any(s => s.EventType == FleetDailyDriverJobsDigest.EventType && s.IsEnabled))
+            .ToListAsync(ct);
+
+        var lines = requests.Select((request, index) =>
+        {
+            var assignment = request.Assignments.First(a => a.IsActive);
+            var departure = TimeZoneInfo.ConvertTimeFromUtc(request.DepartureAt, zone);
+            return $"{index + 1}. {departure:HH:mm} {request.RequestNo} → {request.Destination}\n   รถ: {assignment.Vehicle?.RegistrationNumber ?? "-"} · คนขับ: {assignment.DriverUser?.FullName ?? "-"}";
+        }).ToArray();
+        var messages = FleetDailyDriverJobsDigest.BuildMessages(day, lines);
+        var dayKey = day.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+        var markerPayload = JsonSerializer.Serialize(new { Day = dayKey });
+        db.DomainEvents.Add(new DomainEventRecord
+        {
+            EventId = markerId, EventType = FleetDailyDriverJobsDigest.MarkerType, Scope = "FLEET",
+            AggregateType = "FleetDailyDigest", AggregateId = Guid.Empty, OccurredAt = now,
+            CorrelationId = $"fleet-daily:{dayKey}", Payload = markerPayload
+        });
+        for (var part = 0; part < messages.Count; part++)
+        {
+            var eventId = FleetDailyDriverJobsDigest.StableId(day, part);
+            var payload = JsonSerializer.Serialize(new { Text = messages[part] });
+            db.DomainEvents.Add(new DomainEventRecord
+            {
+                EventId = eventId, EventType = FleetDailyDriverJobsDigest.EventType, Scope = "FLEET",
+                AggregateType = "FleetDailyDigest", AggregateId = Guid.Empty, OccurredAt = now,
+                CorrelationId = $"fleet-daily:{dayKey}:{part + 1}", Payload = payload
+            });
+            db.OutboxMessages.Add(new OutboxMessage
+            {
+                EventId = eventId, EventType = FleetDailyDriverJobsDigest.EventType, Scope = "FLEET",
+                Payload = payload, CreatedAt = now, AvailableAt = now, ProcessedAt = now, Status = "PROCESSED"
+            });
+            foreach (var destination in destinations)
+                db.LineGroupDeliveryLogs.Add(new LineGroupDeliveryLog
+                {
+                    EventId = eventId, DestinationId = destination.Id,
+                    CanonicalEventType = FleetDailyDriverJobsDigest.EventType,
+                    SourceEventType = FleetDailyDriverJobsDigest.EventType, RequestId = Guid.Empty,
+                    DeduplicationKey = $"{eventId}:{destination.Id}:{FleetDailyDriverJobsDigest.EventType}",
+                    CorrelationId = $"fleet-daily:{dayKey}:{part + 1}"
+                });
+        }
+        try { await db.SaveChangesAsync(ct); }
+        catch (DbUpdateException ex) when (ex.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation })
+        {
+            // Another worker recorded this day's snapshot first.
+            foreach (var entry in db.ChangeTracker.Entries().Where(x => x.State == EntityState.Added).ToArray()) entry.State = EntityState.Detached;
+            return 0;
+        }
+        return messages.Count;
+    }
+
+    private static TimeZoneInfo ResolveBangkokTimeZone()
+    {
+        try { return TimeZoneInfo.FindSystemTimeZoneById("Asia/Bangkok"); }
+        catch (TimeZoneNotFoundException) { return TimeZoneInfo.FindSystemTimeZoneById("SE Asia Standard Time"); }
     }
 
     public async Task<int> DiscoverAsync(CancellationToken ct)
@@ -105,6 +189,7 @@ public sealed class FleetLineGroupDeliveryService(
                      .Where(x => x.IsEnabled).Select(x => x.EventType).Distinct())
         {
             if (canonical == "Fleet.TripOverdue" && overdueStartUtc is null) continue;
+            if (canonical == FleetDailyDriverJobsDigest.EventType) continue; // Recipients are frozen when the snapshot is created.
             var sources = FleetLineGroupEventMapper.SourceEventsFor(canonical);
             if (sources.Length == 0) continue;
             var eligibleEvents = baseEvents;
@@ -193,6 +278,15 @@ public sealed class FleetLineGroupDeliveryService(
                 log.FailedAt = now;
                 log.ErrorCode = "DESTINATION_DISABLED";
                 log.ErrorMessage = "Destination is not active.";
+                continue;
+            }
+            if (log.CanonicalEventType == FleetDailyDriverJobsDigest.EventType &&
+                !await db.LineGroupEventSubscriptions.AsNoTracking().AnyAsync(s => s.DestinationId == log.DestinationId &&
+                    s.EventType == FleetDailyDriverJobsDigest.EventType && s.IsEnabled, ct))
+            {
+                log.Status = "Skipped";
+                log.FailedAt = now;
+                log.ErrorCode = "SUBSCRIPTION_DISABLED";
                 continue;
             }
             FleetGroupRenderedMessage? rendered = null;

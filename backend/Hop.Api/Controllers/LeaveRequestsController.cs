@@ -41,14 +41,20 @@ public class LeaveRequestsController(
         [FromQuery(Name = "userId")] Guid? filterUserId,
         [FromQuery] string? scope,
         [FromQuery] int? page,
-        [FromQuery] int? pageSize)
+        [FromQuery] int? pageSize,
+        [FromQuery] string? leaveTypeIds = null)
     {
         var currentUserId = GetCurrentUserId();
         var visibility = await leaveRequestAccessService.GetVisibilityAsync(currentUserId);
 
         var query = leaveRequestAccessService.ApplyVisibility(LoadLeaveRequests(), currentUserId, visibility);
 
-        if (leaveTypeId is not null)
+        if (!string.IsNullOrWhiteSpace(leaveTypeIds))
+        {
+            var ids = Hop.Api.Services.LeaveTypeFilter.ParseIds(leaveTypeIds);
+            query = query.Where(item => ids.Contains(item.LeaveTypeId));
+        }
+        else if (leaveTypeId is not null)
         {
             query = query.Where(item => item.LeaveTypeId == leaveTypeId);
         }

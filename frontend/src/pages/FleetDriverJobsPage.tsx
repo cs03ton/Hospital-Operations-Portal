@@ -261,6 +261,11 @@ function DriverJobCard({ job, busy, onAction }: { job: DriverJob; busy: boolean;
               {job.requiredCapabilities.map((capability) => <Chip key={capability} size="small" variant="outlined" label={capability} />)}
             </Stack>
           )}
+          {(["PENDING_DRIVER_ACK", "READY", "IN_PROGRESS"].includes(job.status)) && (
+            <Button component={Link} to={`/fleet/requests/${job.id}`} variant="text" sx={{ alignSelf: { sm: "flex-end" } }}>
+              ดูรายละเอียดคำขอ
+            </Button>
+          )}
 
           {(job.status === "READY" || job.status === "IN_PROGRESS") && (
             <Button component={Link} to={`/fleet/driver/trips/${job.id}/action`} variant="contained" sx={{ alignSelf: { sm: "flex-end" }, minHeight: 44 }}>

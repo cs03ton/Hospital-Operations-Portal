@@ -20,7 +20,8 @@ public class LeaveCalendarController(AppDbContext db, ILeaveRequestAccessService
         [FromQuery] int? month,
         [FromQuery] Guid? departmentId,
         [FromQuery] Guid? leaveTypeId,
-        [FromQuery] string? status)
+        [FromQuery] string? status,
+        [FromQuery] string? leaveTypeIds = null)
     {
         var now = Hop.Api.Services.HospitalTime.Today;
         var selectedYear = year ?? now.Year;
@@ -52,7 +53,12 @@ public class LeaveCalendarController(AppDbContext db, ILeaveRequestAccessService
             query = query.Where(item => item.User != null && item.User.DepartmentId == departmentId);
         }
 
-        if (leaveTypeId is not null)
+        if (!string.IsNullOrWhiteSpace(leaveTypeIds))
+        {
+            var ids = Hop.Api.Services.LeaveTypeFilter.ParseIds(leaveTypeIds);
+            query = query.Where(item => ids.Contains(item.LeaveTypeId));
+        }
+        else if (leaveTypeId is not null)
         {
             query = query.Where(item => item.LeaveTypeId == leaveTypeId);
         }

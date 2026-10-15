@@ -65,7 +65,8 @@ public sealed class FleetRequestsController(AppDbContext db, FleetRequestNumberS
         if (!await HasPermission(FleetPermissions.RequestViewAll, ct))
             query = query.Where(x => x.RequesterUserId == userId || x.Passengers.Any(passenger => passenger.UserId == userId));
         var items = await query.OrderByDescending(x => x.CreatedAt).ToListAsync(ct);
-        return ApiResponse<IReadOnlyList<FleetRequestDto>>.Ok(items.Select(ToDto).ToList());
+        var canViewAll = await HasPermission(FleetPermissions.RequestViewAll, ct);
+        return ApiResponse<IReadOnlyList<FleetRequestDto>>.Ok(items.Select(x => ToDto(x, canViewAll || x.RequesterUserId == userId)).ToList());
     }
 
     [HttpGet("mine/paged")]
@@ -111,7 +112,8 @@ public sealed class FleetRequestsController(AppDbContext db, FleetRequestNumberS
 
         var totalItems = await query.CountAsync(ct);
         var items = await query.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(ct);
-        var result = new PagedResponse<FleetRequestDto>(items.Select(ToDto).ToList(), page, pageSize, totalItems, (int)Math.Ceiling(totalItems / (double)pageSize));
+        var canViewAll = await HasPermission(FleetPermissions.RequestViewAll, ct);
+        var result = new PagedResponse<FleetRequestDto>(items.Select(x => ToDto(x, canViewAll || x.RequesterUserId == userId)).ToList(), page, pageSize, totalItems, (int)Math.Ceiling(totalItems / (double)pageSize));
         return ApiResponse<PagedResponse<FleetRequestDto>>.Ok(result);
     }
 
@@ -128,13 +130,17 @@ public sealed class FleetRequestsController(AppDbContext db, FleetRequestNumberS
                          await HasPermission(FleetPermissions.DirectorReject, ct);
         var currentUserId = CurrentUserId();
         var isPassenger = currentUserId is not null && item.Passengers.Any(passenger => passenger.UserId == currentUserId);
+        var isAssignedDriver = currentUserId is not null && item.Assignments.Any(assignment => assignment.IsActive && assignment.DriverUserId == currentUserId);
+        var canViewAll = await HasPermission(FleetPermissions.RequestViewAll, ct);
+        var canDispatch = await HasPermission(FleetPermissions.DispatchView, ct);
         if (item.RequesterUserId != currentUserId &&
             !isPassenger &&
-            !await HasPermission(FleetPermissions.RequestViewAll, ct) &&
-            !await HasPermission(FleetPermissions.DispatchView, ct) &&
+            !isAssignedDriver &&
+            !canViewAll &&
+            !canDispatch &&
             !canReview &&
             !canApprove) return Forbid();
-        return ApiResponse<FleetRequestDto>.Ok(ToDto(item));
+        return ApiResponse<FleetRequestDto>.Ok(ToDto(item, item.RequesterUserId == currentUserId || isAssignedDriver || canViewAll || canDispatch || canReview || canApprove));
     }
 
     [HttpPost]
@@ -203,7 +209,7 @@ public sealed class FleetRequestsController(AppDbContext db, FleetRequestNumberS
     public async Task<ActionResult<ApiResponse<IReadOnlyList<FleetRequestDto>>>> GetDispatcherQueue(CancellationToken ct)
     {
         var items = await BaseQuery().Where(x => x.Status == FleetRequestStatuses.PendingDispatch || (x.Status == FleetRequestStatuses.Returned && x.ReturnTarget == FleetReturnTargets.Dispatcher)).OrderBy(x => x.IsUrgent ? 0 : 1).ThenBy(x => x.DepartureAt).ToListAsync(ct);
-        return ApiResponse<IReadOnlyList<FleetRequestDto>>.Ok(items.Select(ToDto).ToList());
+        return ApiResponse<IReadOnlyList<FleetRequestDto>>.Ok(items.Select(x => ToDto(x)).ToList());
     }
 
     [HttpGet("{id:guid}/availability")]
@@ -276,6 +282,7 @@ public sealed class FleetRequestsController(AppDbContext db, FleetRequestNumberS
             item.ContactPhone = contactPhone;
             var missionError = await FleetReferPolicy.ApplyAsync(db, item, ct);
             if (missionError is not null) return BadRequest(ApiResponse<FleetRequestDto>.Fail(missionError));
+            if (FleetReferPolicy.IsRefer(item) && (item.PatientName?.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length ?? 0) < 2) return BadRequest(ApiResponse<FleetRequestDto>.Fail("กรุณาระบุชื่อ–สกุลผู้ป่วยก่อนส่งคำขอ Refer"));
             if (item.Passengers.Count != item.PassengerCount || item.PassengerCount <= 0) return BadRequest(ApiResponse<FleetRequestDto>.Fail("Passenger list must match passenger count."));
             item.Status = FleetRequestStatuses.PendingDispatch; item.SubmittedAt = DateTime.UtcNow; item.ReturnTarget = null;
             var history = AddHistory(item, from, item.Status, "Fleet.RequestSubmitted", actor.Value, null, null);
@@ -328,7 +335,7 @@ public sealed class FleetRequestsController(AppDbContext db, FleetRequestNumberS
     }
 
     private IQueryable<FleetRequest> BaseQuery() => db.FleetRequests.AsNoTracking().Include(x => x.RequesterUser).ThenInclude(x => x!.Department).Include(x => x.RequestedVehicleType).Include(x => x.Passengers).Include(x => x.StatusHistories).ThenInclude(x => x.ActorUser).Include(x => x.Assignments).ThenInclude(x => x.Vehicle).Include(x => x.Assignments).ThenInclude(x => x.DriverUser).AsSplitQuery();
-    private void ApplyDraft(FleetRequest x, SaveFleetRequestDto r, Guid actor, string contactPhone, int passengerCount) { x.Purpose = r.Purpose.Trim(); x.MissionType = r.MissionType.Trim(); x.RequestedVehicleTypeId = null; x.Destination = r.Destination.Trim(); x.ContactPersonName = r.ContactPersonName.Trim(); x.ContactPhone = contactPhone; x.DepartureAt = r.DepartureAt; x.ExpectedReturnAt = r.ExpectedReturnAt; x.PassengerCount = passengerCount; x.SpecialRequirement = Clean(r.SpecialRequirement); x.IsUrgent = r.IsUrgent; x.UrgentReason = Clean(r.UrgentReason); x.UpdatedAt = DateTime.UtcNow; x.UpdatedByUserId = actor; }
+    private void ApplyDraft(FleetRequest x, SaveFleetRequestDto r, Guid actor, string contactPhone, int passengerCount) { x.Purpose = r.Purpose.Trim(); x.MissionType = r.MissionType.Trim(); x.PatientName = x.MissionType == FleetReferPolicy.MissionType ? Clean(r.PatientName) : null; x.RequestedVehicleTypeId = null; x.Destination = r.Destination.Trim(); x.ContactPersonName = r.ContactPersonName.Trim(); x.ContactPhone = contactPhone; x.DepartureAt = r.DepartureAt; x.ExpectedReturnAt = r.ExpectedReturnAt; x.PassengerCount = passengerCount; x.SpecialRequirement = Clean(r.SpecialRequirement); x.IsUrgent = r.IsUrgent; x.UrgentReason = Clean(r.UrgentReason); x.UpdatedAt = DateTime.UtcNow; x.UpdatedByUserId = actor; }
     private static string? ResolveContactPhone(string? profilePhone, string? requestPhone)
     {
         var value = !string.IsNullOrWhiteSpace(profilePhone) ? profilePhone : requestPhone;
@@ -388,5 +395,5 @@ public sealed class FleetRequestsController(AppDbContext db, FleetRequestNumberS
     private Guid? CurrentUserId() => Guid.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var id) ? id : null;
     private static string? Clean(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
     private static TimeZoneInfo BangkokTimeZone() { try { return TimeZoneInfo.FindSystemTimeZoneById("Asia/Bangkok"); } catch (TimeZoneNotFoundException) { return TimeZoneInfo.FindSystemTimeZoneById("SE Asia Standard Time"); } }
-    private static FleetRequestDto ToDto(FleetRequest x) { var a = x.Assignments.FirstOrDefault(y => y.IsActive); return new(x.Id, x.RequestNo, x.RequesterUserId, x.RequesterUser?.FullName ?? "-", x.RequesterDepartmentId, x.RequesterUser?.Department?.Name, x.RequestDate, x.Purpose, x.MissionType, x.RequestedVehicleTypeId, x.RequestedVehicleType?.Name, x.Destination, x.ContactPersonName, x.ContactPhone, x.DepartureAt, x.ExpectedReturnAt, x.PassengerCount, x.SpecialRequirement, x.IsUrgent, x.UrgentReason, x.Status, x.ReturnTarget, x.SubmittedAt, x.CancelledAt, x.CancellationReason, x.CreatedAt, x.UpdatedAt, x.ConcurrencyToken, x.Passengers.OrderBy(y => y.SortOrder).Select(y => new FleetPassengerDto(y.Id, y.UserId, y.FullName, y.PositionOrOrganization, y.Phone, y.PassengerType, y.IsRequester, y.SortOrder)).ToList(), x.StatusHistories.OrderBy(y => y.CreatedAt).Select(y => new FleetStatusHistoryDto(y.Id, y.FromStatus, y.ToStatus, y.Action, y.ReturnTarget, y.Reason, y.ActorUserId, y.ActorUser?.FullName, y.CreatedAt)).ToList(), a is null ? null : new FleetAssignmentDto(a.Id, a.VehicleId, a.Vehicle?.VehicleCode ?? "-", a.Vehicle?.RegistrationNumber ?? "-", a.DriverUserId, a.DriverUser?.FullName ?? "-", a.AssignedAt, a.AssignmentStatus, a.IsActive, a.ConcurrencyToken, a.ReplacedAssignmentId)); }
+    private static FleetRequestDto ToDto(FleetRequest x, bool includePatientName = true) { var a = x.Assignments.FirstOrDefault(y => y.IsActive); return new(x.Id, x.RequestNo, x.RequesterUserId, x.RequesterUser?.FullName ?? "-", x.RequesterDepartmentId, x.RequesterUser?.Department?.Name, x.RequestDate, x.Purpose, x.MissionType, includePatientName ? x.PatientName : null, x.RequestedVehicleTypeId, x.RequestedVehicleType?.Name, x.Destination, x.ContactPersonName, x.ContactPhone, x.DepartureAt, x.ExpectedReturnAt, x.PassengerCount, x.SpecialRequirement, x.IsUrgent, x.UrgentReason, x.Status, x.ReturnTarget, x.SubmittedAt, x.CancelledAt, x.CancellationReason, x.CreatedAt, x.UpdatedAt, x.ConcurrencyToken, x.Passengers.OrderBy(y => y.SortOrder).Select(y => new FleetPassengerDto(y.Id, y.UserId, y.FullName, y.PositionOrOrganization, y.Phone, y.PassengerType, y.IsRequester, y.SortOrder)).ToList(), x.StatusHistories.OrderBy(y => y.CreatedAt).Select(y => new FleetStatusHistoryDto(y.Id, y.FromStatus, y.ToStatus, y.Action, y.ReturnTarget, y.Reason, y.ActorUserId, y.ActorUser?.FullName, y.CreatedAt)).ToList(), a is null ? null : new FleetAssignmentDto(a.Id, a.VehicleId, a.Vehicle?.VehicleCode ?? "-", a.Vehicle?.RegistrationNumber ?? "-", a.DriverUserId, a.DriverUser?.FullName ?? "-", a.AssignedAt, a.AssignmentStatus, a.IsActive, a.ConcurrencyToken, a.ReplacedAssignmentId)); }
 }

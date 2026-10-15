@@ -2125,6 +2125,11 @@ namespace Hop.Api.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("passenger_count");
 
+                    b.Property<string>("PatientName")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("patient_name");
+
                     b.Property<bool?>("PostReviewRequiredSnapshot")
                         .HasColumnType("boolean")
                         .HasColumnName("post_review_required_snapshot");

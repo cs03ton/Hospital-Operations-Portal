@@ -18,6 +18,28 @@ namespace Hop.Api.Tests;
 public sealed class FleetLineGroupRegistrationTests
 {
     [Fact]
+    public async Task List_shows_the_same_event_catalog_for_old_and_new_groups_without_enabling_missing_events()
+    {
+        await using var db = Database();
+        var oldGroup = new LineGroupDestination { LineGroupId = "old", DisplayName = "กลุ่มเก่า", Status = LineGroupDestinationStatuses.Active };
+        oldGroup.EventSubscriptions.Add(new LineGroupEventSubscription { EventType = "Fleet.RequestSubmitted", IsEnabled = true });
+        var newGroup = new LineGroupDestination { LineGroupId = "new", DisplayName = "กลุ่มใหม่", Status = LineGroupDestinationStatuses.Active };
+        db.LineGroupDestinations.AddRange(oldGroup, newGroup);
+        await db.SaveChangesAsync();
+
+        var result = await Controller(db).List(null, null, CancellationToken.None);
+        using var json = JsonDocument.Parse(JsonSerializer.Serialize(result.Value!.Data));
+        var groups = json.RootElement.EnumerateArray().ToArray();
+        var oldEvents = groups.Single(x => x.GetProperty("DisplayName").GetString() == "กลุ่มเก่า").GetProperty("Events").EnumerateArray().ToArray();
+        var newEvents = groups.Single(x => x.GetProperty("DisplayName").GetString() == "กลุ่มใหม่").GetProperty("Events").EnumerateArray().ToArray();
+        Assert.Equal(LineGroupEvents.Defaults.Count, oldEvents.Length);
+        Assert.Equal(oldEvents.Select(x => x.GetProperty("EventType").GetString()), newEvents.Select(x => x.GetProperty("EventType").GetString()));
+        Assert.False(oldEvents.Single(x => x.GetProperty("EventType").GetString() == "Fleet.DailyDriverJobs").GetProperty("IsEnabled").GetBoolean());
+        Assert.False(newEvents.Single(x => x.GetProperty("EventType").GetString() == "Fleet.DailyDriverJobs").GetProperty("IsEnabled").GetBoolean());
+        Assert.Single(await db.LineGroupEventSubscriptions.ToListAsync()); // Reading does not change subscriptions.
+    }
+
+    [Fact]
     public async Task Registration_command_creates_pending_destination_with_default_subscriptions()
     {
         await using var db = Database();

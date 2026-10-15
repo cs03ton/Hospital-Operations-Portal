@@ -614,26 +614,24 @@ export function MeetingRoomCreatePage() {
     queryFn: () => getMeetingPersonnelOptions(personnelSearch),
     staleTime: 30_000,
   });
-  const [form, setForm] = useState<BookingInput>({
+  const [form, setForm] = useState<Omit<BookingInput, "attendeeCount">>({
     roomId: "",
     date: dateOnly(new Date()),
     startTime: "09:00",
     endTime: "10:00",
     subject: "",
     purpose: "",
-    attendeeCount: 1,
     meetingLink: "",
     additionalRequest: "",
   });
   const [files, setFiles] = useState<File[]>([]);
   const room = rooms.data?.find((x) => x.id === form.roomId);
-  const capacityError = !!room && form.attendeeCount > room.capacity;
   const namedCount = 1 + selectedAttendees.filter((item) => item.id !== user?.id).length;
-  const countError = form.attendeeCount < namedCount;
+  const capacityError = !!room && namedCount > room.capacity;
   const personnelOptions = [...new Map([...selectedAttendees, ...(personnel.data ?? [])].filter((item) => item.id !== user?.id).map((item) => [item.id, item])).values()];
   const mutation = useMutation({
     mutationFn: async () => {
-      const booking = await createMeetingBooking({ ...form, attendeeUserIds: selectedAttendees.map((item) => item.id) });
+      const booking = await createMeetingBooking({ ...form, attendeeCount: namedCount, attendeeUserIds: selectedAttendees.map((item) => item.id) });
       if (files.length) await uploadMeetingAttachments(booking.id, files);
       return booking;
     },
@@ -642,7 +640,7 @@ export function MeetingRoomCreatePage() {
       navigate(`/meeting-rooms/bookings/${x.id}`);
     },
   });
-  const set = (key: keyof BookingInput, value: string | number) =>
+  const set = (key: keyof Omit<BookingInput, "attendeeCount">, value: string) =>
     setForm((x) => ({ ...x, [key]: value }));
   return (
     <Box>
@@ -732,29 +730,24 @@ export function MeetingRoomCreatePage() {
             onChange={(_, value) => {
               const unique = [...new Map(value.map((item) => [item.id, item])).values()];
               setSelectedAttendees(unique);
-              setForm((current) => ({ ...current, attendeeCount: Math.max(current.attendeeCount, unique.length + 1) }));
             }}
             renderOption={(props, option) => <li {...props} key={option.id}><Box><Typography variant="body2" fontWeight={700}>{option.fullName}</Typography><Typography variant="caption" color="text.secondary">{[option.employeeCode, option.departmentName].filter(Boolean).join(" · ")}</Typography></Box></li>}
             renderTags={(value, getTagProps) => value.map((option, index) => <Chip label={option.fullName} {...getTagProps({ index })} key={option.id} />)}
-            renderInput={(params) => <TextField {...params} label="ผู้เข้าประชุมที่ทราบชื่อ" placeholder="ค้นหาชื่อ รหัสพนักงาน หรือหน่วยงาน" helperText="ผู้จองถูกนับรวมโดยอัตโนมัติ หากยังไม่ทราบชื่อครบให้ระบุจำนวนรวมด้านล่าง" />}
+            renderInput={(params) => <TextField {...params} label="ผู้เข้าประชุม" placeholder="ค้นหาชื่อ รหัสพนักงาน หรือหน่วยงาน" helperText="ผู้จองถูกนับรวมโดยอัตโนมัติ เพิ่มหรือลบรายชื่อเพื่อปรับจำนวนคน" />}
             sx={{ gridColumn: { md: "1/-1" } }}
           />
           <TextField
-            required
             type="number"
             label="จำนวนผู้เข้าประชุมทั้งหมด (รวมผู้จอง)"
-            value={form.attendeeCount}
-            onChange={(e) => set("attendeeCount", Number(e.target.value))}
-            error={capacityError || countError}
-            inputProps={{ min: namedCount }}
+            value={namedCount}
+            disabled
+            error={capacityError}
             helperText={
               capacityError
                 ? `ห้องรองรับได้สูงสุด ${room?.capacity} คน`
-                : countError
-                  ? `ต้องไม่น้อยกว่า ${namedCount} คนตามรายชื่อที่เลือกและผู้จอง`
                 : room
-                  ? `ระบุยอดรวมได้แม้ไม่ทราบชื่อครบ · ความจุ ${room.capacity} คน`
-                  : `อย่างน้อย ${namedCount} คนรวมผู้จอง`
+                  ? `คำนวณจากรายชื่อที่เลือกและผู้จอง · ความจุ ${room.capacity} คน`
+                  : "คำนวณจากรายชื่อที่เลือกและผู้จอง"
             }
           />
           <TextField
@@ -799,7 +792,6 @@ export function MeetingRoomCreatePage() {
               disabled={
                 mutation.isPending ||
                 capacityError ||
-                countError ||
                 files.some((f) => f.size > 10 * 1024 * 1024)
               }
             >

@@ -14,6 +14,7 @@ import { PermissionGuard, usePermission } from "../context/PermissionContext";
 import { formatThaiDate } from "../utils/dateFormat";
 import { getLeaveStatusColor, getLeaveStatusLabel, getLeaveTypeLabel, getLeaveTypeWithDurationLabel } from "../utils/leaveLabels";
 import { getLeaveRequestCode, getTrackingStatusLabel, getTrackingStepLabel } from "../utils/leaveTrackingLabels";
+import { getLeaveTypeFilterOptions } from "../utils/leaveTypeFilterOptions";
 
 type LeaveListFilters = {
   leaveTypeId: string;
@@ -57,6 +58,7 @@ export function LeaveManagementPage() {
   );
   const { data, isLoading } = useQuery({ queryKey: ["leave-requests", "paged", queryFilters], queryFn: () => getLeaveRequestsPaged(queryFilters) });
   const { data: leaveTypes = [] } = useQuery({ queryKey: ["leave-types"], queryFn: getLeaveTypes });
+  const leaveTypeOptions = useMemo(() => getLeaveTypeFilterOptions(leaveTypes), [leaveTypes]);
   const { data: departments = [] } = useQuery({
     queryKey: ["departments"],
     queryFn: getDepartmentOptions,
@@ -110,9 +112,9 @@ export function LeaveManagementPage() {
             <Grid item xs={12} sm={6} md={2}>
               <TextField select fullWidth size="small" label="ประเภทลา" value={filters.leaveTypeId} onChange={(event) => updateFilters({ ...filters, leaveTypeId: event.target.value })}>
                 <MenuItem value="">ทุกประเภทลา</MenuItem>
-                {leaveTypes.map((item) => (
-                  <MenuItem key={item.id} value={item.id}>
-                    {getLeaveTypeLabel(item.name || item.code)}
+                {leaveTypeOptions.map((item) => (
+                  <MenuItem key={item.value} value={item.value}>
+                    {item.label}
                   </MenuItem>
                 ))}
               </TextField>

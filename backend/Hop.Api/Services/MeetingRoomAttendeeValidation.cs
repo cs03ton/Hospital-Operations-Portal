@@ -5,6 +5,9 @@ namespace Hop.Api.Services;
 
 public static class MeetingRoomAttendeeValidation
 {
+    public static int CountIncludingBooker(IReadOnlyList<Guid>? attendeeIds, Guid bookerId) =>
+        attendeeIds?.Append(bookerId).Distinct().Count() ?? 1;
+
     public static async Task<string?> ValidateAsync(AppDbContext db, IReadOnlyList<Guid>? attendeeIds, Guid bookerId, int total, CancellationToken ct)
     {
         if (attendeeIds is null) return null;

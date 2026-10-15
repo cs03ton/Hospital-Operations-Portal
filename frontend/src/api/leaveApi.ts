@@ -1,6 +1,7 @@
 import { httpClient } from "./httpClient";
 import type { ApiResponse } from "../types/auth";
 import type { DepartmentSummary } from "./adminApi";
+import { withLeaveTypeFilter } from "../utils/leaveTypeFilterOptions";
 
 export type LeaveType = {
   id: string;
@@ -814,12 +815,12 @@ export async function deactivateLeaveType(id: string) {
 }
 
 export async function getLeaveRequests(params?: LeaveRequestQuery) {
-  const response = await httpClient.get<ApiResponse<LeaveRequest[]>>("/api/leave-requests", { params });
+  const response = await httpClient.get<ApiResponse<LeaveRequest[]>>("/api/leave-requests", { params: params ? withLeaveTypeFilter(params) : undefined });
   return response.data.data;
 }
 
 export async function getLeaveRequestsPaged(params: LeaveRequestQuery) {
-  const response = await httpClient.get<ApiResponse<PagedResponse<LeaveRequest>>>("/api/leave-requests", { params });
+  const response = await httpClient.get<ApiResponse<PagedResponse<LeaveRequest>>>("/api/leave-requests", { params: withLeaveTypeFilter(params) });
   return response.data.data;
 }
 
@@ -844,7 +845,7 @@ export async function getLeaveCancellationRequests(params?: {
   fromDate?: string;
   toDate?: string;
 }) {
-  const response = await httpClient.get<ApiResponse<PagedResponse<LeaveCancellationRequest>>>("/api/leave-cancellation-requests", { params });
+  const response = await httpClient.get<ApiResponse<PagedResponse<LeaveCancellationRequest>>>("/api/leave-cancellation-requests", { params: params ? withLeaveTypeFilter(params) : undefined });
   return response.data.data;
 }
 
@@ -1045,7 +1046,7 @@ export async function getMyLeaveBalances() {
 }
 
 export async function getLeaveBalances(params?: { year?: number; userId?: string; departmentId?: string; leaveTypeId?: string }) {
-  const response = await httpClient.get<ApiResponse<LeaveBalance[]>>("/api/leave-balances", { params });
+  const response = await httpClient.get<ApiResponse<LeaveBalance[]>>("/api/leave-balances", { params: params ? withLeaveTypeFilter(params) : undefined });
   return response.data.data;
 }
 
@@ -1219,7 +1220,7 @@ export async function confirmLeaveHolidayImport(payload: LeaveHolidayImportConfi
 }
 
 export async function getLeaveCalendar(params: { year?: number; month?: number; departmentId?: string; leaveTypeId?: string; status?: string }) {
-  const response = await httpClient.get<ApiResponse<LeaveCalendarItem[]>>("/api/leave-calendar", { params });
+  const response = await httpClient.get<ApiResponse<LeaveCalendarItem[]>>("/api/leave-calendar", { params: withLeaveTypeFilter(params) });
   return response.data.data;
 }
 
@@ -1258,22 +1259,22 @@ export async function runApprovalEscalation() {
 }
 
 export async function getLeaveReport(params: LeaveReportQuery) {
-  const response = await httpClient.get<ApiResponse<LeaveReport>>("/api/reports/leaves", { params });
+  const response = await httpClient.get<ApiResponse<LeaveReport>>("/api/reports/leaves", { params: withLeaveTypeFilter(params) });
   return response.data.data;
 }
 
 export async function downloadLeaveReportExcel(params: LeaveReportQuery) {
-  const response = await httpClient.get("/api/reports/leaves/export-excel", { params, responseType: "blob" });
+  const response = await httpClient.get("/api/reports/leaves/export-excel", { params: withLeaveTypeFilter(params), responseType: "blob" });
   return response.data as Blob;
 }
 
 export async function downloadLeaveReportPdf(params: LeaveReportQuery) {
-  const response = await httpClient.get("/api/reports/leaves/export-pdf", { params, responseType: "blob" });
+  const response = await httpClient.get("/api/reports/leaves/export-pdf", { params: withLeaveTypeFilter(params), responseType: "blob" });
   return response.data as Blob;
 }
 
 export async function getLeaveAnalytics(params: LeaveAnalyticsQuery) {
-  const response = await httpClient.get<ApiResponse<LeaveAnalytics>>("/api/reports/leave-analytics", { params });
+  const response = await httpClient.get<ApiResponse<LeaveAnalytics>>("/api/reports/leave-analytics", { params: withLeaveTypeFilter(params) });
   return response.data.data;
 }
 
@@ -1283,6 +1284,6 @@ export async function getLeaveAnalyticsOptions() {
 }
 
 export async function downloadLeaveAnalyticsExcel(params: LeaveAnalyticsQuery) {
-  const response = await httpClient.get("/api/reports/leave-analytics/export-excel", { params, responseType: "blob" });
+  const response = await httpClient.get("/api/reports/leave-analytics/export-excel", { params: withLeaveTypeFilter(params), responseType: "blob" });
   return response.data as Blob;
 }

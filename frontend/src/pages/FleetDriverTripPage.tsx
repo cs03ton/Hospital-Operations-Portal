@@ -172,6 +172,7 @@ export function FleetDriverTripPage() {
         {job.requestNo} · {job.vehicle.vehicleCode}{" "}
         {job.vehicle.registrationNumber} · {job.destination}
       </Alert>
+      {job.patientName && <Alert severity="info">ชื่อ–สกุลผู้ป่วย: {job.patientName}</Alert>}
       {error && (
         <Alert
           severity="error"

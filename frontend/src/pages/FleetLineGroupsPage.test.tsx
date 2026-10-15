@@ -89,13 +89,25 @@ describe("FleetLineGroupsPage", () => {
     expect(within(screen.getByRole("region", { name: "ระบบแจ้งซ่อม" })).getByRole("checkbox", { name: "แจ้งซ่อมใหม่" })).not.toBeChecked();
     expect(within(screen.getByRole("region", { name: "ระบบจองห้องประชุม" })).getByRole("checkbox", { name: "มีการจองห้องประชุมใหม่" })).toBeChecked();
     expect(within(screen.getByRole("region", { name: "เหตุการณ์อื่น" })).getByRole("checkbox", { name: "Future.Event" })).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: "Future.Event" })).toBeDisabled();
     expect(screen.getAllByText("เปิด 1/1")).toHaveLength(2);
     await user.click(screen.getByRole("checkbox", { name: "แจ้งซ่อมใหม่" }));
     expect(within(screen.getByRole("region", { name: "ระบบแจ้งซ่อม" })).getByText("เปิด 1/1")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "บันทึกเหตุการณ์แจ้งเตือน" }));
     await waitFor(() => expect(updateFleetLineGroupSubscriptions).toHaveBeenCalledWith(group.id, group.concurrencyToken, {
-      "Fleet.RequestSubmitted": true, "Repair.Submitted": true, "MeetingRoom.BookingCreated": true, "Future.Event": false,
+      "Fleet.RequestSubmitted": true, "Repair.Submitted": true, "MeetingRoom.BookingCreated": true,
     }));
+  });
+
+  it("shows the daily driving summary event in Thai", async () => {
+    vi.mocked(getFleetLineGroups).mockResolvedValue([{ ...group, events: [
+      ...group.events, { eventType: "Fleet.DailyDriverJobs", isEnabled: false },
+    ] }]);
+    const user = userEvent.setup();
+    renderFleet(<FleetLineGroupsPage />);
+    await user.click(await screen.findByRole("button", { name: "รายละเอียด" }));
+    expect(screen.getByRole("checkbox", { name: "สรุปภารกิจรถประจำวัน (06:00 น.)" })).toBeEnabled();
+    expect(screen.queryByText("Fleet.DailyDriverJobs")).not.toBeInTheDocument();
   });
 
   it("shows the source system alongside delivery history events", async () => {
