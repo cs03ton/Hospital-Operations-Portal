@@ -99,6 +99,11 @@ export type DashboardSummary = {
   totalUsers: number;
   totalDepartments: number;
   pendingApprovals: number;
+  pendingLeaveApprovals: number;
+  pendingLeaveCancellationApprovals: number;
+  pendingFleetReviewRequests: number;
+  pendingFleetDirectorRequests: number;
+  myActiveFleetRequests: number;
   totalPendingLeaveRequests: number;
   openRepairRequests: number;
   activeBorrowRequests: number;

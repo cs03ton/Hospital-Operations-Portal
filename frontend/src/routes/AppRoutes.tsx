@@ -241,7 +241,7 @@ export function AppRoutes() {
           <Route path="/admin/leave-holidays" element={withPermission(<LeaveHolidayManagementPage />, "LeaveAdmin.ManageHolidays")} />
           <Route path="/leave" element={withAnyPermission(<LeaveManagementPage />, leaveViewPermissions)} />
           <Route path={quickServiceRoutes.leave} element={<LeaveCreateGuard />} />
-          <Route path="/leave/pending-approvals" element={withAnyPermission(<PendingApprovalsPage />, ["LeaveRequest.ViewPendingApproval", "LeaveApproval.ApproveCurrentStep"])} />
+          <Route path="/leave/pending-approvals" element={withAnyPermission(<PendingApprovalsPage />, ["LeaveRequest.ViewPendingApproval", "LeaveApproval.ApproveCurrentStep", "LeaveCancellation.ApproveCurrentStep"])} />
           <Route path="/leave/calendar" element={withAnyPermission(<LeaveCalendarPage />, leaveViewPermissions)} />
           <Route path="/leave/cancellations" element={withAnyPermission(<LeaveCancellationListPage />, leaveCancellationViewPermissions)} />
           <Route path="/leave/cancellations/create" element={withPermission(<LeaveCancellationCreatePage />, "LeaveCancellation.Create")} />

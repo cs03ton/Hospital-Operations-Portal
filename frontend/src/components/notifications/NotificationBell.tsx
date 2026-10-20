@@ -8,6 +8,8 @@ import {
   ListItemText,
   Menu,
   Button,
+  Tab,
+  Tabs,
   Stack,
   Typography,
 } from "@mui/material";
@@ -15,17 +17,24 @@ import { alpha } from "@mui/material/styles";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { getNotificationBadge, getNotificationItems } from "../../services/notificationService";
+import { getNotificationBadge, getNotificationCenterItems } from "../../services/notificationService";
+import { getDashboardActionItems } from "../../api/dashboardActionApi";
 import { brandColors } from "../../theme/theme";
 import { StatusBadge } from "../common/StatusBadge";
 import { notificationPollingOptions } from "../../config/queryPolling";
 
 export function NotificationBell() {
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
+  const [tab, setTab] = useState(0);
   const navigate = useNavigate();
-  const { data: notifications = [] } = useQuery({
-    queryKey: ["notifications", "me"],
-    queryFn: () => getNotificationItems(),
+  const { data: updates } = useQuery({
+    queryKey: ["notifications", "hub-updates"],
+    queryFn: () => getNotificationCenterItems({ filter: "hub-updates", pageSize: 12 }),
+    ...notificationPollingOptions,
+  });
+  const { data: actionData } = useQuery({
+    queryKey: ["dashboard", "action-items"],
+    queryFn: getDashboardActionItems,
     ...notificationPollingOptions,
   });
   const { data: badgeCount = 0 } = useQuery({
@@ -55,8 +64,9 @@ export function NotificationBell() {
         onClose={() => setAnchorEl(null)}
         PaperProps={{
           sx: (theme) => ({
-            width: { xs: 320, sm: 390 },
+            width: { xs: "calc(100vw - 24px)", sm: 410 },
             maxWidth: "calc(100vw - 32px)",
+            maxHeight: "min(75vh, 640px)",
             mt: 1,
             borderRadius: 3,
             border: "1px solid",
@@ -69,20 +79,38 @@ export function NotificationBell() {
           <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={1.5}>
             <Box>
               <Typography variant="subtitle1" fontWeight={700}>
-                การแจ้งเตือน
+                การแจ้งเตือนของฉัน
               </Typography>
               <Typography variant="caption" color="text.secondary">
-                รายการแจ้งเตือนตามบทบาทและหน้าที่ของคุณ
+                คิวงานปัจจุบันและข่าวสารที่เกี่ยวข้องกับคุณ
               </Typography>
             </Box>
-            <Button size="small" variant="text" onClick={() => handleSelect("/notifications")}>
-              ดูทั้งหมด
+            <Button size="small" variant="text" onClick={() => handleSelect(tab === 0 ? "/dashboard" : "/notifications")}>
+              {tab === 0 ? "ดูคิวงาน" : "ดูทั้งหมด"}
             </Button>
           </Stack>
         </Box>
         <Divider />
-        {notifications.length ? (
-          notifications.map((item) => (
+        <Tabs value={tab} onChange={(_, next: number) => setTab(next)} variant="fullWidth" aria-label="ประเภทการแจ้งเตือน">
+          <Tab label={`ต้องดำเนินการ (${(actionData?.leaveCount ?? 0) + (actionData?.fleetCount ?? 0) + (actionData?.repairCount ?? 0)})`} />
+          <Tab label={`อัปเดตทั่วไป (${updates?.totalItems ?? 0})`} />
+        </Tabs>
+        <Divider />
+        {tab === 0 && (actionData?.items.length ? (
+          actionData.items.map((item) => (
+            <ListItemButton key={item.id} onClick={() => handleSelect(item.path)} sx={{ alignItems: "flex-start", py: 1.25 }}>
+              <ListItemText
+                primary={<Typography variant="body2" fontWeight={700}>{item.title}</Typography>}
+                secondary={item.detail}
+                secondaryTypographyProps={{ variant: "caption", color: "text.secondary" }}
+              />
+            </ListItemButton>
+          ))
+        ) : (
+          <Box sx={{ px: 2, py: 3 }}><Typography variant="body2" color="text.secondary">ไม่มีงานที่ต้องดำเนินการ</Typography></Box>
+        ))}
+        {tab === 1 && (updates?.items.length ? (
+          updates.items.map((item) => (
             <ListItemButton key={item.id} onClick={() => handleSelect(item.path)} sx={{ alignItems: "flex-start", py: 1.25 }}>
               <ListItemText
                 primary={
@@ -104,10 +132,10 @@ export function NotificationBell() {
         ) : (
           <Box sx={{ px: 2, py: 3 }}>
             <Typography variant="body2" color="text.secondary">
-              ไม่มีรายการแจ้งเตือน
+              ไม่มีอัปเดตทั่วไป
             </Typography>
           </Box>
-        )}
+        ))}
       </Menu>
     </>
   );

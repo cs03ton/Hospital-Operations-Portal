@@ -30,7 +30,7 @@ public class NotificationsController(IPendingApprovalNotificationService notific
                 .OrderBy(item => item.NotificationType == "ActionRequired" ? 0 : 1)
                 .ThenBy(item => GetPriorityOrder(item.Priority))
                 .ThenByDescending(item => item.CreatedAt)
-                .Take(12)
+                .Take(50)
                 .ToList()
         );
     }
@@ -483,6 +483,8 @@ public class NotificationsController(IPendingApprovalNotificationService notific
             query = filter.Trim().ToLowerInvariant() switch
             {
                 "action-required" => query.Where(item => item.NotificationType == "ActionRequired"),
+                "hub-updates" => query.Where(item => item.NotificationType != "ActionRequired" ||
+                    (item.Category != "Leave" && item.Category != "Fleet" && item.Category != "Repair")),
                 "unread" => query.Where(item => item.Unread),
                 "read" => query.Where(item => !item.Unread),
                 _ => query

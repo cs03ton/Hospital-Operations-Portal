@@ -144,6 +144,49 @@ export function getDashboardModuleMetricLabel(module: DashboardModuleDefinition,
   return module.metricLabel;
 }
 
+export type DashboardHubMetric = { label: string; value: number | string; to?: string };
+
+export function getDashboardHubMetrics(module: DashboardModuleDefinition, user: AuthUser | null | undefined, summary?: DashboardSummary): DashboardHubMetric[] {
+  const permissions = new Set(user?.permissions ?? []);
+  const isDirector = user?.role === "Director";
+  if (module.key === "leave") {
+    const canApprove = permissions.has("LeaveRequest.ViewPendingApproval") ||
+      permissions.has("LeaveApproval.ApproveCurrentStep") ||
+      permissions.has("LeaveCancellation.ApproveCurrentStep");
+    const metrics: DashboardHubMetric[] = canApprove || isDirector ? [
+      { label: "คำขอลารออนุมัติ", value: summary?.pendingLeaveApprovals ?? 0, to: canApprove ? "/leave/pending-approvals" : undefined },
+      { label: "คำขอยกเลิกใบลารออนุมัติ", value: summary?.pendingLeaveCancellationApprovals ?? 0, to: canApprove ? "/leave/pending-approvals" : undefined },
+    ] : [];
+    if (!isDirector) {
+      metrics.push(
+        { label: "คำขอลาของฉันที่รออนุมัติ", value: summary?.myLeaveRequestsPending ?? 0, to: permissions.has("LeaveRequest.ViewOwn") || permissions.has("LeaveRequest.ViewAll") ? "/leave?scope=mine&status=pending" : undefined },
+        { label: "คำขอยกเลิกใบลาของฉันที่รออนุมัติ", value: summary?.myLeaveCancellationRequestsPending ?? 0, to: permissions.has("LeaveCancellation.ViewOwn") || permissions.has("LeaveCancellation.ViewAll") ? "/leave/cancellations?scope=mine&status=pending" : undefined },
+      );
+    }
+    return metrics;
+  }
+  if (module.key === "vehicle") {
+    const canReview = ["FleetAdminReview.Approve", "FleetAdminReview.Return", "FleetAdminReview.Reject"].some(code => permissions.has(code));
+    const canDirectorApprove = ["FleetDirector.Approve", "FleetDirector.Return", "FleetDirector.Reject"].some(code => permissions.has(code));
+    const metrics: DashboardHubMetric[] = canReview || canDirectorApprove || isDirector ? [
+      {
+        label: "คำขอใช้รถรออนุมัติ",
+        value: (summary?.pendingFleetReviewRequests ?? 0) + (summary?.pendingFleetDirectorRequests ?? 0),
+        to: canReview || canDirectorApprove ? "/fleet/approvals" : undefined,
+      },
+    ] : [];
+    if (!isDirector) {
+      metrics.push({
+        label: canReview || canDirectorApprove ? "คำขอใช้รถของฉันที่ยังดำเนินการอยู่" : getDashboardModuleMetricLabel(module, user),
+        value: canReview || canDirectorApprove ? summary?.myActiveFleetRequests ?? 0 : module.metricSelector(summary),
+        to: permissions.has("FleetRequest.ViewOwn") || permissions.has("FleetRequest.ViewAll") ? "/fleet/requests" : undefined,
+      });
+    }
+    return metrics;
+  }
+  return [{ label: getDashboardModuleMetricLabel(module, user), value: module.metricSelector(summary) }];
+}
+
 export const dashboardHubModule = {
   title: "Dashboard Hub",
   route: "/dashboard",

@@ -307,6 +307,9 @@ export function LeaveRequestDetailPage() {
             <Grid item xs={12} sm={6} md={3}>
               <DetailItem label="วันที่สิ้นสุด" value={formatThaiDate(request.endDate)} />
             </Grid>
+            <Grid item xs={12} sx={{ display: { xs: "block", sm: "none" } }}>
+              <DetailItem label="จำนวนวัน" value={`${request.totalDays.toLocaleString("th-TH")} วัน`} />
+            </Grid>
           </Grid>
         </InfoCard>
 

@@ -44,6 +44,107 @@ public class DashboardController(
         configuration ?? new ConfigurationBuilder().Build());
     private readonly ILeaveBalanceReconciliationService reconciliationService = reconciliationService ?? new LeaveBalanceReconciliationService(db);
 
+    [HttpGet("action-items")]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+    public async Task<ActionResult<ApiResponse<DashboardActionItemsResponse>>> GetActionItems(CancellationToken ct)
+    {
+        var userId = GetCurrentUserId();
+        if (userId is null) return Unauthorized();
+        var permissions = await GetPermissionCodesAsync(userId.Value);
+        var items = new List<DashboardActionItemResponse>();
+        var leaveCount = 0;
+        var fleetCount = 0;
+        var repairCount = 0;
+
+        if (permissions.Contains(LeavePermissions.ViewPendingApproval) ||
+            permissions.Contains(LeavePermissions.ApproveCurrentStep) ||
+            permissions.Contains(LeavePermissions.CancellationApproveCurrentStep))
+        {
+            var approvals = await new PendingApprovalNotificationService(db).GetMyPendingApprovalsAsync(userId.Value, ct);
+            foreach (var approval in approvals)
+            {
+                if (approval.SourceType == "LeaveCancellationRequest" &&
+                    !permissions.Contains(LeavePermissions.CancellationApproveCurrentStep) &&
+                    !permissions.Contains(LeavePermissions.ViewPendingApproval)) continue;
+                if (approval.SourceType != "LeaveCancellationRequest" &&
+                    !permissions.Contains(LeavePermissions.ApproveCurrentStep) &&
+                    !permissions.Contains(LeavePermissions.ViewPendingApproval)) continue;
+                leaveCount++;
+                items.Add(new DashboardActionItemResponse(
+                    $"leave-{approval.RequestId}", "leave",
+                    approval.SourceType == "LeaveCancellationRequest" ? "คำขอยกเลิกใบลารออนุมัติ" : "คำขอลารออนุมัติ",
+                    $"{approval.RequestNumber ?? "-"} · {approval.EmployeeName ?? "-"}",
+                    approval.DetailPath ?? $"/leave/{approval.RequestId}", approval.SubmittedAt ?? DateTime.UtcNow));
+            }
+        }
+
+        var canReviewFleet = permissions.Contains(FleetPermissions.AdminReviewApprove) ||
+            permissions.Contains(FleetPermissions.AdminReviewReturn) || permissions.Contains(FleetPermissions.AdminReviewReject);
+        var canApproveFleet = permissions.Contains(FleetPermissions.DirectorApprove) ||
+            permissions.Contains(FleetPermissions.DirectorReturn) || permissions.Contains(FleetPermissions.DirectorReject);
+        if (canReviewFleet || canApproveFleet)
+        {
+            var fleetQuery = db.FleetRequests.AsNoTracking()
+                .Where(x => (canReviewFleet && x.Status == FleetRequestStatuses.PendingAdminReview) ||
+                            (canApproveFleet && x.Status == FleetRequestStatuses.PendingDirector));
+            fleetCount = await fleetQuery.CountAsync(ct);
+            var fleet = await fleetQuery
+                .OrderBy(x => x.SubmittedAt).ThenBy(x => x.Id)
+                .Take(12)
+                .Select(x => new { x.Id, x.RequestNo, x.Destination, x.Status, x.SubmittedAt, x.CreatedAt })
+                .ToListAsync(ct);
+            items.AddRange(fleet.Select(x => new DashboardActionItemResponse(
+                $"fleet-{x.Id}", "fleet", "คำขอใช้รถรออนุมัติ",
+                $"{x.RequestNo} · {x.Destination}",
+                x.Status == FleetRequestStatuses.PendingDirector ? $"/fleet/director/{x.Id}" : $"/fleet/review/{x.Id}",
+                x.SubmittedAt ?? x.CreatedAt)));
+        }
+
+        var canViewAllRepairs = permissions.Contains(RepairPermissions.ViewAll);
+        var canWorkIt = permissions.Contains(RepairPermissions.WorkIT);
+        var canWorkGeneral = permissions.Contains(RepairPermissions.WorkGeneral);
+        if (canViewAllRepairs || canWorkIt || canWorkGeneral)
+        {
+            var repairQuery = db.Set<RepairRequest>().AsNoTracking()
+                .Where(x => (x.Status == "Submitted" || x.Status == "InProgress" || x.Status == "WaitingParts") &&
+                            (canViewAllRepairs || (canWorkIt && x.TeamCode == "IT") ||
+                             (canWorkGeneral && x.TeamCode == "GENERAL")));
+            repairCount = await repairQuery.CountAsync(ct);
+            var repairs = await repairQuery
+                .OrderByDescending(x => x.UpdatedAt).ThenByDescending(x => x.Number)
+                .Take(12)
+                .Select(x => new { x.Id, x.Number, x.Title, x.CreatedAt })
+                .ToListAsync(ct);
+            items.AddRange(repairs.Select(x => new DashboardActionItemResponse(
+                $"repair-{x.Id}", "repair", "งานแจ้งซ่อมของทีม",
+                $"#{x.Number} · {x.Title}", $"/repairs/{x.Id}", x.CreatedAt)));
+        }
+
+        var meetings = new List<DashboardActionItemResponse>();
+        var meetingCount = 0;
+        if (permissions.Contains(MeetingRoomPermissions.ViewCalendar))
+        {
+            var today = GetBangkokDate(DateTime.UtcNow);
+            var start = BangkokDateStartUtc(today);
+            var end = BangkokDateStartUtc(today.AddDays(1));
+            var meetingQuery = db.MeetingRoomBookings.AsNoTracking()
+                .Where(x => x.Status == "Confirmed" && x.StartAt < end && x.EndAt > start);
+            meetingCount = await meetingQuery.CountAsync(ct);
+            var bookings = await meetingQuery
+                .OrderBy(x => x.StartAt).ThenBy(x => x.Id)
+                .Take(6)
+                .Select(x => new { x.Id, x.Number, x.Subject, x.StartAt })
+                .ToListAsync(ct);
+            meetings.AddRange(bookings.Select(x => new DashboardActionItemResponse(
+                $"meeting-{x.Id}", "meeting", "การจองห้องประชุมวันนี้",
+                $"#{x.Number} · {x.Subject}", $"/meeting-rooms/bookings/{x.Id}", x.StartAt)));
+        }
+
+        return ApiResponse<DashboardActionItemsResponse>.Ok(new DashboardActionItemsResponse(
+            leaveCount, fleetCount, repairCount, meetingCount,
+            items.OrderBy(x => x.CreatedAt).Take(12).ToList(), meetings));
+    }
+
     [HttpGet("summary")]
     [RequirePermission("Dashboard.View")]
     [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
@@ -70,6 +171,8 @@ public class DashboardController(
         var canViewSecurityDashboard = isSuperAdmin || permissionCodes.Contains("SystemSettings.View");
         var canViewPendingApprovals = permissionCodes.Contains(LeavePermissions.ViewPendingApproval) ||
             permissionCodes.Contains(LeavePermissions.ApproveCurrentStep);
+        var canViewCancellationApprovals = canViewPendingApprovals ||
+            permissionCodes.Contains(LeavePermissions.CancellationApproveCurrentStep);
 
         var totalUsers = canViewAdminDashboard ? await db.Users.CountAsync(user => user.IsActive) : 0;
         var totalDepartments = canViewAdminDashboard ? await db.Departments.CountAsync(department => department.IsActive) : 0;
@@ -89,7 +192,7 @@ public class DashboardController(
                 item.LeaveRequest != null &&
                 item.LeaveRequest.Status == "Pending" &&
                 item.LeaveRequest.CurrentApproverId == userId);
-        var pendingCancellationApprovals = userId is null || !canViewPendingApprovals
+        var pendingCancellationApprovals = userId is null || !canViewCancellationApprovals
             ? 0
             : await db.LeaveCancellationApprovals.CountAsync(item =>
                 item.ApproverId == userId &&
@@ -98,6 +201,18 @@ public class DashboardController(
                 item.LeaveCancellationRequest.Status == LeaveCancellationStatuses.Pending &&
                 item.LeaveCancellationRequest.CurrentApproverId == userId);
         var pendingApprovals = pendingLeaveApprovals + pendingCancellationApprovals;
+        var canReviewFleet = permissionCodes.Contains(FleetPermissions.AdminReviewApprove) ||
+            permissionCodes.Contains(FleetPermissions.AdminReviewReturn) ||
+            permissionCodes.Contains(FleetPermissions.AdminReviewReject);
+        var canApproveFleetAsDirector = permissionCodes.Contains(FleetPermissions.DirectorApprove) ||
+            permissionCodes.Contains(FleetPermissions.DirectorReturn) ||
+            permissionCodes.Contains(FleetPermissions.DirectorReject);
+        var pendingFleetReviewRequests = canReviewFleet
+            ? await db.FleetRequests.CountAsync(item => item.Status == FleetRequestStatuses.PendingAdminReview)
+            : 0;
+        var pendingFleetDirectorRequests = canApproveFleetAsDirector
+            ? await db.FleetRequests.CountAsync(item => item.Status == FleetRequestStatuses.PendingDirector)
+            : 0;
 
         var canViewLeaveOverview = canViewTeamDashboard || canViewAdminDashboard || roleNames.Contains("Director");
         var totalPendingLeaveRequests = canViewAdminDashboard || permissionCodes.Contains(LeavePermissions.SupportViewAll)
@@ -187,6 +302,10 @@ public class DashboardController(
         var isFleetDriver = permissionCodes.Contains(FleetPermissions.DriverViewOwnJobs) ||
             permissionCodes.Contains(FleetPermissions.DriverViewOwn) ||
             permissionCodes.Contains(FleetPermissions.DriverViewJobs);
+        var myActiveFleetRequests = userId is null
+            ? 0
+            : await db.FleetRequests.CountAsync(item =>
+                item.RequesterUserId == userId && ActiveFleetRequestStatuses.Contains(item.Status));
         var activeBorrowRequests = userId is null
             ? 0
             : isFleetDriver
@@ -197,9 +316,7 @@ public class DashboardController(
                     (item.FleetRequest.Status == FleetRequestStatuses.PendingDriverAck ||
                      item.FleetRequest.Status == FleetRequestStatuses.Ready ||
                      item.FleetRequest.Status == FleetRequestStatuses.InProgress))
-                : await db.FleetRequests.CountAsync(item =>
-                    item.RequesterUserId == userId &&
-                    ActiveFleetRequestStatuses.Contains(item.Status));
+                : myActiveFleetRequests;
         var canViewAllRepairs = permissionCodes.Contains(RepairPermissions.ViewAll) ||
             permissionCodes.Contains(RepairPermissions.Manage);
         var canWorkItRepairs = permissionCodes.Contains(RepairPermissions.WorkIT);
@@ -262,7 +379,12 @@ public class DashboardController(
             leaveCancellationSummary,
             DateTime.UtcNow,
             leaveTracking,
-            MeetingBookingsToday: meetingBookingsToday
+            MeetingBookingsToday: meetingBookingsToday,
+            PendingLeaveApprovals: pendingLeaveApprovals,
+            PendingLeaveCancellationApprovals: pendingCancellationApprovals,
+            PendingFleetReviewRequests: pendingFleetReviewRequests,
+            PendingFleetDirectorRequests: pendingFleetDirectorRequests,
+            MyActiveFleetRequests: myActiveFleetRequests
         ));
     }
 

@@ -1,13 +1,15 @@
 import ArrowForwardOutlinedIcon from "@mui/icons-material/ArrowForwardOutlined";
+import AssignmentTurnedInOutlinedIcon from "@mui/icons-material/AssignmentTurnedInOutlined";
 import LockOutlinedIcon from "@mui/icons-material/LockOutlined";
 import { Alert, Box, Button, Card, CardContent, Chip, Grid, Skeleton, Stack, Typography } from "@mui/material";
 import { alpha, useTheme } from "@mui/material/styles";
 import { useQuery } from "@tanstack/react-query";
 import { Link as RouterLink } from "react-router-dom";
 import { getDashboardSummary } from "../api/adminApi";
+import { getDashboardActionItems, type DashboardActionItems } from "../api/dashboardActionApi";
 import { getFeaturedAnnouncements } from "../api/announcementsApi";
 import { PageHeader } from "../components/PageHeader";
-import { dashboardModules, getDashboardModuleMetricLabel, getVisibleDashboardModules } from "../config/dashboardModules";
+import { dashboardModules, getDashboardHubMetrics, getVisibleDashboardModules } from "../config/dashboardModules";
 import { hospitalName } from "../config/appConfig";
 import { useAuth } from "../context/AuthContext";
 import { brandColors } from "../theme/theme";
@@ -28,6 +30,17 @@ export function DashboardHubPage() {
     enabled: Boolean(user?.permissions?.includes("Announcement.View")),
     ...dashboardPollingOptions,
   });
+  const { data: actionData } = useQuery({
+    queryKey: ["dashboard", "action-items"],
+    queryFn: getDashboardActionItems,
+    ...dashboardPollingOptions,
+  });
+  const actionCards = [
+    { key: "leave", title: "ระบบลา", count: actionData?.leaveCount ?? 0, detail: "คำขอรออนุมัติ", to: "/leave/pending-approvals" },
+    { key: "vehicle", title: "ระบบจองรถ", count: actionData?.fleetCount ?? 0, detail: "คำขอใช้รถรออนุมัติ", to: "/fleet/approvals" },
+    { key: "repair", title: "ระบบแจ้งซ่อม", count: actionData?.repairCount ?? 0, detail: "งานเปิดอยู่ของทีม", to: "/repairs?scope=team" },
+    { key: "meeting", title: "จองห้องประชุม", count: actionData?.meetingTodayCount ?? 0, detail: "การจองวันนี้", to: "/meeting-rooms/calendar" },
+  ].filter(card => card.count > 0 && visibleModules.some(module => module.key === card.key));
 
   return (
     <Box>
@@ -69,12 +82,50 @@ export function DashboardHubPage() {
         </Card>
       )}
 
+      {actionCards.length > 0 && (
+        <Card sx={{ mb: 2.5, border: `1px solid ${alpha(theme.palette.warning.main, 0.45)}`, bgcolor: alpha(theme.palette.warning.light, 0.07) }}>
+          <CardContent>
+            <Stack direction={{ xs: "column", sm: "row" }} justifyContent="space-between" alignItems={{ xs: "flex-start", sm: "center" }} spacing={1} sx={{ mb: 2 }}>
+              <Stack direction="row" spacing={1} alignItems="center">
+                <AssignmentTurnedInOutlinedIcon color="primary" />
+                <Box>
+                  <Typography variant="h6" fontWeight={800}>งานที่ต้องดำเนินการและรายการวันนี้</Typography>
+                  <Typography variant="body2" color="text.secondary">คิวงานของคุณและการจองห้องประชุมในวันนี้</Typography>
+                </Box>
+              </Stack>
+              <Typography variant="body2" fontWeight={700} color="primary.main">
+                คิวงาน {(actionData!.leaveCount + actionData!.fleetCount + actionData!.repairCount).toLocaleString("th-TH")} รายการ
+              </Typography>
+            </Stack>
+            <Grid container spacing={1.5}>
+              {actionCards.map(card => (
+                <Grid item xs={12} sm={6} lg={3} key={card.key}>
+                  <Box component={RouterLink} to={card.to} aria-label={`${card.title} ${card.count} รายการ`} sx={{ display: "block", height: "100%", p: 1.5, borderRadius: 2, bgcolor: "background.paper", border: `1px solid ${theme.palette.divider}`, color: "inherit", textDecoration: "none", "&:hover, &:focus-visible": { borderColor: "primary.main", boxShadow: `0 6px 18px ${alpha(theme.palette.primary.main, 0.13)}` } }}>
+                    <Typography fontWeight={800}>{card.title}</Typography>
+                    <Typography variant="h6" color="primary.main" fontWeight={900}>{card.count.toLocaleString("th-TH")} <Typography component="span" variant="body2">{card.key === "meeting" ? "ครั้ง" : "รายการ"}</Typography></Typography>
+                    <Typography variant="caption" color="text.secondary">{card.detail}</Typography>
+                  </Box>
+                </Grid>
+              ))}
+            </Grid>
+            {actionData?.meetingBookings.length ? (
+              <Box sx={{ mt: 1.5 }}>
+                <Typography variant="caption" color="text.secondary">การจองห้องประชุมวันนี้</Typography>
+                <Stack direction="row" gap={1} flexWrap="wrap" sx={{ mt: 0.5 }}>
+                  {actionData.meetingBookings.map(booking => <Chip key={booking.id} component={RouterLink} to={booking.path} clickable label={booking.detail} variant="outlined" sx={{ maxWidth: "100%" }} />)}
+                </Stack>
+              </Box>
+            ) : null}
+          </CardContent>
+        </Card>
+      )}
+
       <Grid container spacing={2.5}>
         {visibleModules.map((module) => {
           const Icon = module.icon;
           const disabled = module.status !== "active";
-          const metric = module.metricSelector(data);
-          const metricLabel = getDashboardModuleMetricLabel(module, user);
+          const metrics = getDashboardHubMetrics(module, user, data);
+          const badge = actionCountForModule(module.key, actionData);
 
           return (
             <Grid item xs={12} sm={6} lg={4} key={module.key}>
@@ -108,6 +159,7 @@ export function DashboardHubPage() {
                           <Typography variant="h6" fontWeight={800}>
                             {module.title}
                           </Typography>
+                          {badge > 0 && <Chip size="small" color={module.key === "meeting" ? "info" : "error"} label={module.key === "meeting" ? `วันนี้ ${badge} ครั้ง` : `${badge} ต้องดำเนินการ`} />}
                           {module.status !== "active" && (
                             <Chip
                               size="small"
@@ -126,18 +178,11 @@ export function DashboardHubPage() {
                     <Box
                       sx={{
                         display: "grid",
-                        gridTemplateColumns: module.key === "leave" ? { xs: "1fr", sm: "repeat(2, minmax(0, 1fr))" } : "1fr",
+                        gridTemplateColumns: metrics.length > 1 ? { xs: "1fr", sm: "repeat(2, minmax(0, 1fr))" } : "1fr",
                         gap: 1.25,
                       }}
                     >
-                      <ModuleMetricBox label={metricLabel} value={metric} isLoading={isLoading} />
-                      {module.key === "leave" && (
-                        <ModuleMetricBox
-                          label="คำขอยกเลิกใบลา"
-                          value={data?.myLeaveCancellationRequestsPending ?? 0}
-                          isLoading={isLoading}
-                        />
-                      )}
+                      {metrics.map((metric) => <ModuleMetricBox key={metric.label} {...metric} isLoading={isLoading} />)}
                     </Box>
 
                     <Box sx={{ mt: "auto" }}>
@@ -178,9 +223,20 @@ export function DashboardHubPage() {
   );
 }
 
-function ModuleMetricBox({ label, value, isLoading }: { label: string; value: number | string; isLoading: boolean }) {
+function actionCountForModule(key: string, data?: DashboardActionItems) {
+  if (!data) return 0;
+  switch (key) {
+    case "leave": return data.leaveCount;
+    case "vehicle": return data.fleetCount;
+    case "repair": return data.repairCount;
+    case "meeting": return data.meetingTodayCount;
+    default: return 0;
+  }
+}
+
+function ModuleMetricBox({ label, value, to, isLoading }: { label: string; value: number | string; to?: string; isLoading: boolean }) {
   const theme = useTheme();
-  return (
+  const box = (
     <Box
       sx={{
         p: 1.5,
@@ -191,6 +247,7 @@ function ModuleMetricBox({ label, value, isLoading }: { label: string; value: nu
         display: "flex",
         flexDirection: "column",
         justifyContent: "center",
+        height: "100%",
       }}
     >
       <Typography variant="caption" color="text.secondary">
@@ -205,4 +262,9 @@ function ModuleMetricBox({ label, value, isLoading }: { label: string; value: nu
       )}
     </Box>
   );
+  return to ? (
+    <Box component={RouterLink} to={to} aria-label={`${label} ${value}`} sx={{ textDecoration: "none", color: "inherit", borderRadius: 2, "&:focus-visible": { outline: `3px solid ${theme.palette.primary.main}`, outlineOffset: 2 }, "&:hover > *": { borderColor: theme.palette.primary.main, bgcolor: alpha(theme.palette.primary.main, 0.085) } }}>
+      {box}
+    </Box>
+  ) : box;
 }

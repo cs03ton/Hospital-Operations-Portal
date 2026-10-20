@@ -70,8 +70,21 @@ public record DashboardSummaryResponse(
     DashboardLeaveCancellationSummaryResponse? LeaveCancellationSummary = null,
     DateTime? GeneratedAtUtc = null,
     DashboardLeaveTrackingResponse? LeaveTracking = null,
-    int MeetingBookingsToday = 0
+    int MeetingBookingsToday = 0,
+    int PendingLeaveApprovals = 0,
+    int PendingLeaveCancellationApprovals = 0,
+    int PendingFleetReviewRequests = 0,
+    int PendingFleetDirectorRequests = 0,
+    int MyActiveFleetRequests = 0
 );
+
+public record DashboardActionItemResponse(
+    string Id, string Module, string Title, string Detail, string Path, DateTime CreatedAt);
+
+public record DashboardActionItemsResponse(
+    int LeaveCount, int FleetCount, int RepairCount, int MeetingTodayCount,
+    IReadOnlyList<DashboardActionItemResponse> Items,
+    IReadOnlyList<DashboardActionItemResponse> MeetingBookings);
 
 public record DashboardLeaveTrackingResponse(
     string Scope, int Total, int Draft, int Pending, int ReturnedForRevision,

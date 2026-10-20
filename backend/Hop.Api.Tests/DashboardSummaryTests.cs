@@ -14,6 +14,47 @@ namespace Hop.Api.Tests;
 
 public class DashboardSummaryTests
 {
+    [Fact]
+    public async Task ActionItems_UseCurrentAuthorizedQueuesAndTodayBookings()
+    {
+        await using var db = CreateDbContext();
+        var actor = new User { Id = Guid.NewGuid(), Username = "action-owner", FullName = "Approver", PasswordHash = "hash", IsActive = true };
+        var other = new User { Id = Guid.NewGuid(), Username = "action-other", FullName = "Other", PasswordHash = "hash", IsActive = true };
+        db.Users.AddRange(actor, other);
+        GrantRoleWithPermissions(db, actor.Id, "Approver", LeavePermissions.ViewPendingApproval,
+            FleetPermissions.AdminReviewApprove, FleetPermissions.DirectorApprove,
+            RepairPermissions.WorkIT, MeetingRoomPermissions.ViewCalendar);
+        var leaveType = AddLeaveType(db, "PERSONAL_LEAVE", "Personal");
+        var leave = AddLeaveRequest(db, other.Id, leaveType.Id, DateOnly.FromDateTime(DateTime.UtcNow), 1, "Pending");
+        leave.CurrentApproverId = actor.Id;
+        db.LeaveApprovals.Add(new LeaveApproval { Id = Guid.NewGuid(), LeaveRequest = leave, LeaveRequestId = leave.Id, ApproverId = actor.Id, Status = "Pending" });
+        AddFleetRequest(db, other.Id, FleetRequestStatuses.PendingAdminReview);
+        AddFleetRequest(db, other.Id, FleetRequestStatuses.PendingDirector);
+        AddFleetRequest(db, other.Id, FleetRequestStatuses.Completed);
+        db.Set<RepairRequest>().AddRange(
+            new RepairRequest { TeamCode = "IT", Title = "IT work", Status = "Submitted", RequesterId = other.Id },
+            new RepairRequest { TeamCode = "GENERAL", Title = "Other team's work", Status = "Submitted", RequesterId = other.Id },
+            new RepairRequest { TeamCode = "IT", Title = "Closed", Status = "Closed", RequesterId = other.Id });
+        var today = DashboardController.GetBangkokDate(DateTime.UtcNow);
+        var todayUtc = DateTime.SpecifyKind(today.ToDateTime(TimeOnly.MinValue).AddHours(-7), DateTimeKind.Utc);
+        db.MeetingRoomBookings.AddRange(
+            new MeetingRoomBooking { BookerId = other.Id, Subject = "Today", StartAt = todayUtc.AddHours(2), EndAt = todayUtc.AddHours(3) },
+            new MeetingRoomBooking { BookerId = other.Id, Subject = "Cancelled", Status = "Cancelled", StartAt = todayUtc.AddHours(4), EndAt = todayUtc.AddHours(5) });
+        await db.SaveChangesAsync();
+
+        var controller = new DashboardController(db);
+        SetUserContext(controller, actor.Id);
+        var result = Assert.IsType<ApiResponse<DashboardActionItemsResponse>>((await controller.GetActionItems(default)).Value).Data!;
+        Assert.Equal((1, 2, 1, 1), (result.LeaveCount, result.FleetCount, result.RepairCount, result.MeetingTodayCount));
+        Assert.Equal(4, result.Items.Count);
+        Assert.Single(result.MeetingBookings);
+
+        leave.Status = "Approved";
+        await db.SaveChangesAsync();
+        result = Assert.IsType<ApiResponse<DashboardActionItemsResponse>>((await controller.GetActionItems(default)).Value).Data!;
+        Assert.Equal(0, result.LeaveCount);
+    }
+
     [Theory]
     [InlineData("Admin", true, true)]
     [InlineData("SuperAdmin", true, true)]
@@ -267,6 +308,68 @@ public class DashboardSummaryTests
 
         var response = Assert.IsType<ApiResponse<DashboardSummaryResponse>>(result.Value);
         Assert.Equal(1, response.Data!.ActiveBorrowRequests);
+    }
+
+    [Fact]
+    public async Task GetSummary_SeparatesCurrentApprovalQueuesFromOwnRequests()
+    {
+        await using var db = CreateDbContext();
+        var approver = new User { Id = Guid.NewGuid(), FullName = "Approver", Username = "approver", PasswordHash = "hash", IsActive = true };
+        var requester = new User { Id = Guid.NewGuid(), FullName = "Requester", Username = "requester", PasswordHash = "hash", IsActive = true };
+        db.Users.AddRange(approver, requester);
+        GrantRoleWithPermissions(db, approver.Id, "Director",
+            LeavePermissions.ViewPendingApproval, LeavePermissions.CancellationApproveCurrentStep,
+            FleetPermissions.AdminReviewApprove, FleetPermissions.DirectorApprove);
+        var type = AddLeaveType(db, "PERSONAL_LEAVE", "Personal");
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var pendingLeave = AddLeaveRequest(db, requester.Id, type.Id, today, 1, "Pending");
+        pendingLeave.CurrentApproverId = approver.Id;
+        db.LeaveApprovals.Add(new LeaveApproval { Id = Guid.NewGuid(), LeaveRequest = pendingLeave, LeaveRequestId = pendingLeave.Id, ApproverId = approver.Id, Status = "Pending" });
+        var otherLeave = AddLeaveRequest(db, requester.Id, type.Id, today, 1, "Pending");
+        otherLeave.CurrentApproverId = requester.Id;
+        db.LeaveApprovals.Add(new LeaveApproval { Id = Guid.NewGuid(), LeaveRequest = otherLeave, LeaveRequestId = otherLeave.Id, ApproverId = approver.Id, Status = "Pending" });
+        var ownLeave = AddLeaveRequest(db, approver.Id, type.Id, today, 1, "Pending");
+        var cancellation = AddCancellation(db, ownLeave, approver.Id, type.Id, LeaveCancellationStatuses.Pending, 1);
+        cancellation.CurrentApproverId = approver.Id;
+        db.LeaveCancellationApprovals.Add(new LeaveCancellationApproval { Id = Guid.NewGuid(), LeaveCancellationRequest = cancellation, LeaveCancellationRequestId = cancellation.Id, ApproverId = approver.Id, Status = "Pending" });
+        AddFleetRequest(db, requester.Id, FleetRequestStatuses.PendingAdminReview);
+        AddFleetRequest(db, requester.Id, FleetRequestStatuses.PendingDirector);
+        AddFleetRequest(db, requester.Id, FleetRequestStatuses.Completed);
+        AddFleetRequest(db, approver.Id, FleetRequestStatuses.InProgress);
+        await db.SaveChangesAsync();
+
+        var controller = new DashboardController(db);
+        SetUserContext(controller, approver.Id);
+        var summary = Assert.IsType<ApiResponse<DashboardSummaryResponse>>((await controller.GetSummary()).Value).Data!;
+
+        Assert.Equal(1, summary.PendingLeaveApprovals);
+        Assert.Equal(1, summary.PendingLeaveCancellationApprovals);
+        Assert.Equal(2, summary.PendingApprovals);
+        Assert.Equal(1, summary.PendingFleetReviewRequests);
+        Assert.Equal(1, summary.PendingFleetDirectorRequests);
+        Assert.Equal(1, summary.MyLeaveRequestsPending);
+        Assert.Equal(1, summary.MyLeaveCancellationRequestsPending);
+        Assert.Equal(1, summary.MyActiveFleetRequests);
+    }
+
+    [Fact]
+    public async Task GetSummary_DoesNotExposeFleetApprovalQueueWithoutPermission()
+    {
+        await using var db = CreateDbContext();
+        var user = new User { Id = Guid.NewGuid(), FullName = "Staff", Username = "staff", PasswordHash = "hash", IsActive = true };
+        db.Users.Add(user);
+        GrantRoleWithPermissions(db, user.Id, "Staff", LeavePermissions.ViewOwn);
+        AddFleetRequest(db, user.Id, FleetRequestStatuses.PendingAdminReview);
+        AddFleetRequest(db, user.Id, FleetRequestStatuses.PendingDirector);
+        await db.SaveChangesAsync();
+
+        var controller = new DashboardController(db);
+        SetUserContext(controller, user.Id);
+        var summary = Assert.IsType<ApiResponse<DashboardSummaryResponse>>((await controller.GetSummary()).Value).Data!;
+
+        Assert.Equal(0, summary.PendingFleetReviewRequests);
+        Assert.Equal(0, summary.PendingFleetDirectorRequests);
+        Assert.Equal(2, summary.MyActiveFleetRequests);
     }
 
     [Fact]
