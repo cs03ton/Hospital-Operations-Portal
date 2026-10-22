@@ -1,4 +1,5 @@
 using Hop.Api.Configuration;
+using Hop.Api.Authorization;
 using System.Text.Json;
 using Hop.Api.Data;
 using Hop.Api.Models;
@@ -12,6 +13,7 @@ namespace Hop.Api.Services;
 public sealed class FleetLineGroupDeliveryService(
     AppDbContext db,
     IFleetLineGroupEventMapper mapper,
+    IFleetEffectivePermissionService effectivePermissions,
     IFleetLineGroupMessageTemplateService templates,
     ILineGroupPushClient line,
     IOptions<LineGroupNotificationsOptions> options,
@@ -26,10 +28,11 @@ public sealed class FleetLineGroupDeliveryService(
     {
         if (!Enabled) return 0;
         var dailyProjected = await ProjectDailyDriverJobsAsync(DateTime.UtcNow, ct);
+        var approvalProjected = await ProjectPendingApprovalsAsync(DateTime.UtcNow, ct);
         var earliest = await db.LineGroupDestinations.AsNoTracking()
             .Where(x => !x.Module.StartsWith("REPAIR_") && x.Status == LineGroupDestinationStatuses.Active && x.ConfirmedAt != null)
             .MinAsync(x => (DateTime?)x.ConfirmedAt, ct);
-        if (earliest is null) return dailyProjected;
+        if (earliest is null) return dailyProjected + approvalProjected;
         string[] projectedActions = ["Fleet.RequestSubmitted", "Fleet.VehicleAssigned", "Fleet.RequestCancelled"];
         var histories = await db.FleetRequestStatusHistories.AsNoTracking().Include(x => x.FleetRequest)
             .Where(x => projectedActions.Contains(x.Action) && x.CreatedAt >= earliest &&
@@ -89,7 +92,7 @@ public sealed class FleetLineGroupDeliveryService(
             }
         }
         if (projected > 0) await db.SaveChangesAsync(ct);
-        return projected + dailyProjected;
+        return projected + dailyProjected + approvalProjected;
     }
 
     internal async Task<int> ProjectDailyDriverJobsAsync(DateTime now, CancellationToken ct)
@@ -165,6 +168,115 @@ public sealed class FleetLineGroupDeliveryService(
             return 0;
         }
         return messages.Count;
+    }
+
+    internal async Task<int> ProjectPendingApprovalsAsync(DateTime now, CancellationToken ct)
+    {
+        var zone = ResolveBangkokTimeZone();
+        var local = TimeZoneInfo.ConvertTimeFromUtc(now, zone);
+        var slot = PendingApprovalDigest.CurrentSlot(TimeOnly.FromDateTime(local));
+        if (slot < 0) return 0;
+        var day = DateOnly.FromDateTime(local);
+        var markerId = PendingApprovalDigest.StableId(day, slot, true);
+        if (await db.DomainEvents.AsNoTracking().AnyAsync(x => x.EventId == markerId, ct)) return 0;
+        var slotUtc = TimeZoneInfo.ConvertTimeToUtc(day.ToDateTime(PendingApprovalDigest.Slots[slot]), zone);
+
+        string[] approverRoles = ["director", "ผู้อำนวยการ", "departmenthead", "หัวหน้าหน่วยงานสูงสุด"];
+        var candidates = await db.Users.AsNoTracking()
+            .Include(x => x.Department)
+            .Include(x => x.UserRoles).ThenInclude(x => x.Role)
+            .Where(x => x.IsActive && x.UserRoles.Any(ur => ur.Role != null && ur.Role.IsActive &&
+                approverRoles.Contains(ur.Role.Name.Trim().ToLower())))
+            .ToListAsync(ct);
+        var sections = new List<(string Title, int Leave, int Cancellation, int Fleet)>();
+        foreach (var (title, matches) in new (string, User[])[]
+        {
+            ("ผู้อำนวยการ", candidates.Where(u => HasRole(u, "Director", "ผู้อำนวยการ")).ToArray()),
+            ("หัวหน้าสูงสุดฝ่ายพยาบาล", DepartmentHeadCandidates(candidates, "พยาบาล")),
+            ("หัวหน้าสูงสุดฝ่ายบริหาร", DepartmentHeadCandidates(candidates, "บริหาร"))
+        })
+        {
+            if (matches.Length != 1)
+            {
+                logger.LogWarning("Pending approval digest skipped {Role}: expected one active approver, found {Count}.", title, matches.Length);
+                continue;
+            }
+            var userId = matches[0].Id;
+            var leave = await db.LeaveApprovals.AsNoTracking().CountAsync(x => x.ApproverId == userId &&
+                x.Status == "Pending" && x.LeaveRequest != null && x.LeaveRequest.Status == "Pending" &&
+                x.LeaveRequest.CurrentApproverId == userId, ct);
+            var cancellation = await db.LeaveCancellationApprovals.AsNoTracking().CountAsync(x => x.ApproverId == userId &&
+                x.Status == "Pending" && x.LeaveCancellationRequest != null &&
+                x.LeaveCancellationRequest.Status == LeaveCancellationStatuses.Pending &&
+                x.LeaveCancellationRequest.CurrentApproverId == userId, ct);
+            var permissions = await effectivePermissions.ResolveAsync(userId, now, ct);
+            var fleet = 0;
+            if (permissions.HasAny(FleetPermissions.AdminReviewApprove, FleetPermissions.AdminReviewReturn, FleetPermissions.AdminReviewReject))
+                fleet += await db.FleetRequests.AsNoTracking().CountAsync(x => x.Status == FleetRequestStatuses.PendingAdminReview, ct);
+            if (permissions.HasAny(FleetPermissions.DirectorApprove, FleetPermissions.DirectorReturn, FleetPermissions.DirectorReject))
+                fleet += await db.FleetRequests.AsNoTracking().CountAsync(x => x.Status == FleetRequestStatuses.PendingDirector, ct);
+            sections.Add((title, leave, cancellation, fleet));
+        }
+
+        var text = PendingApprovalDigest.Format(day, PendingApprovalDigest.Slots[slot], sections);
+        var destinations = text is null ? [] : await db.LineGroupDestinations.AsNoTracking()
+            .Include(x => x.EventSubscriptions)
+            .Where(x => !x.Module.StartsWith("REPAIR_") && x.Status == LineGroupDestinationStatuses.Active &&
+                x.ConfirmedAt != null && x.ConfirmedAt <= slotUtc &&
+                x.EventSubscriptions.Any(s => s.EventType == PendingApprovalDigest.EventType && s.IsEnabled))
+            .ToListAsync(ct);
+        var eligible = destinations.Where(x => x.EventSubscriptions.Any(s => s.EventType == PendingApprovalDigest.EventType &&
+            s.IsEnabled && (s.UpdatedAt ?? s.CreatedAt) <= slotUtc)).ToArray();
+        db.DomainEvents.Add(new DomainEventRecord
+        {
+            EventId = markerId, EventType = PendingApprovalDigest.MarkerType, Scope = "OPERATIONS",
+            AggregateType = "PendingApprovalDigest", AggregateId = Guid.Empty, OccurredAt = now,
+            CorrelationId = $"pending-approvals:{day:yyyy-MM-dd}:{slot}", Payload = "{}"
+        });
+        if (text is not null && eligible.Length > 0)
+        {
+            var eventId = PendingApprovalDigest.StableId(day, slot, false);
+            db.DomainEvents.Add(new DomainEventRecord
+            {
+                EventId = eventId, EventType = PendingApprovalDigest.EventType, Scope = "OPERATIONS",
+                AggregateType = "PendingApprovalDigest", AggregateId = Guid.Empty, OccurredAt = now,
+                CorrelationId = $"pending-approvals:{day:yyyy-MM-dd}:{slot}", Payload = JsonSerializer.Serialize(new { Text = text })
+            });
+            db.OutboxMessages.Add(new OutboxMessage
+            {
+                EventId = eventId, EventType = PendingApprovalDigest.EventType, Scope = "OPERATIONS",
+                Payload = JsonSerializer.Serialize(new { Text = text }), CreatedAt = now, AvailableAt = now,
+                ProcessedAt = now, Status = "PROCESSED"
+            });
+            foreach (var destination in eligible)
+                db.LineGroupDeliveryLogs.Add(new LineGroupDeliveryLog
+                {
+                    EventId = eventId, DestinationId = destination.Id,
+                    CanonicalEventType = PendingApprovalDigest.EventType,
+                    SourceEventType = PendingApprovalDigest.EventType, RequestId = Guid.Empty,
+                    DeduplicationKey = $"{eventId}:{destination.Id}:{PendingApprovalDigest.EventType}",
+                    CorrelationId = $"pending-approvals:{day:yyyy-MM-dd}:{slot}", MessageText = text
+                });
+        }
+        try { await db.SaveChangesAsync(ct); }
+        catch (DbUpdateException ex) when (ex.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation })
+        {
+            foreach (var entry in db.ChangeTracker.Entries().Where(x => x.State == EntityState.Added).ToArray()) entry.State = EntityState.Detached;
+            return 0;
+        }
+        return eligible.Length;
+    }
+
+    private static bool HasRole(User user, params string[] names) =>
+        user.UserRoles.Any(x => x.Role?.IsActive == true && names.Contains(x.Role.Name.Trim(), StringComparer.OrdinalIgnoreCase));
+
+    private static User[] DepartmentHeadCandidates(IEnumerable<User> candidates, string departmentName)
+    {
+        var department = candidates.Where(u => u.Department?.IsActive == true &&
+            u.Department.Name.Contains(departmentName, StringComparison.OrdinalIgnoreCase)).ToArray();
+        var highestHeads = department.Where(u => HasRole(u, "หัวหน้าหน่วยงานสูงสุด")).ToArray();
+        // Generic department heads must not make the explicitly assigned highest head ambiguous.
+        return highestHeads.Length > 0 ? highestHeads : department.Where(u => HasRole(u, "DepartmentHead")).ToArray();
     }
 
     private static TimeZoneInfo ResolveBangkokTimeZone()
@@ -280,9 +392,9 @@ public sealed class FleetLineGroupDeliveryService(
                 log.ErrorMessage = "Destination is not active.";
                 continue;
             }
-            if (log.CanonicalEventType == FleetDailyDriverJobsDigest.EventType &&
+            if ((log.CanonicalEventType is PendingApprovalDigest.EventType or FleetDailyDriverJobsDigest.EventType) &&
                 !await db.LineGroupEventSubscriptions.AsNoTracking().AnyAsync(s => s.DestinationId == log.DestinationId &&
-                    s.EventType == FleetDailyDriverJobsDigest.EventType && s.IsEnabled, ct))
+                    s.EventType == log.CanonicalEventType && s.IsEnabled, ct))
             {
                 log.Status = "Skipped";
                 log.FailedAt = now;
@@ -329,10 +441,14 @@ public sealed class FleetLineGroupDeliveryService(
                 log.Destination.AttentionReason = log.ErrorCode;
                 if (result.DestinationUnavailable)
                 {
-                    log.Destination.Status = LineGroupDestinationStatuses.Disabled;
-                    log.Destination.DisabledAt = DateTime.UtcNow;
+                    if (log.Destination.Status != LineGroupDestinationStatuses.Disabled)
+                    {
+                        log.Destination.Status = LineGroupDestinationStatuses.Disabled;
+                        log.Destination.DisabledAt = DateTime.UtcNow;
+                        log.Destination.ConcurrencyToken = Guid.NewGuid();
+                        logger.LogWarning("LINE group configuration changed. Change=DestinationDisabled DestinationId={DestinationId}", log.DestinationId);
+                    }
                 }
-                log.Destination.ConcurrencyToken = Guid.NewGuid();
             }
             logger.LogWarning("Fleet LINE group delivery issue. EventType={EventType} DestinationId={DestinationId} Attempt={Attempt} ErrorCode={ErrorCode}",
                 log.CanonicalEventType, log.DestinationId, log.AttemptCount, log.ErrorCode);

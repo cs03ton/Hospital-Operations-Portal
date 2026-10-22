@@ -21,38 +21,8 @@ public sealed class LineMessagingService(
 {
     public async Task NotifyLeaveRequestAsync(LeaveNotificationMessage message, CancellationToken cancellationToken = default)
     {
-        var enabled = IsLineEnabled();
         var payload = BuildPayload(message);
-        var deliveryLog = new LineDeliveryLog
-        {
-            LeaveRequestId = message.LeaveRequestId,
-            RecipientUserId = message.UserId,
-            EventName = $"LeaveRequest.{message.Status}",
-            Status = enabled ? "Queued" : "Disabled",
-            Payload = payload,
-            ResponseDetail = enabled ? "Queued for LINE Messaging delivery." : "LINE delivery is disabled.",
-            AttemptCount = 0,
-            NextRetryAt = enabled ? DateTime.UtcNow : null
-        };
-
-        db.LineDeliveryLogs.Add(deliveryLog);
-
-        await db.SaveChangesAsync(cancellationToken);
-
-        if (!enabled)
-        {
-            logger.LogInformation("LINE notification disabled: leave request {LeaveRequestId}.", message.LeaveRequestId);
-            return;
-        }
-
-        await SendAsync(deliveryLog, message.UserId, payload, cancellationToken);
-        await db.SaveChangesAsync(cancellationToken);
-
-        logger.LogInformation(
-            "LINE notification delivery recorded: leave request {LeaveRequestId} status {Status}, delivery {DeliveryStatus}.",
-            message.LeaveRequestId,
-            message.Status,
-            deliveryLog.Status);
+        await NotifyUserPayloadAsync(message.UserId, $"LeaveRequest.{message.Status}", payload, message.LeaveRequestId, cancellationToken);
     }
 
     public async Task NotifyUserAsync(Guid userId, string eventName, string message, Guid? leaveRequestId = null, CancellationToken cancellationToken = default)
@@ -75,22 +45,24 @@ public sealed class LineMessagingService(
     public async Task<LineDeliveryLog> NotifyUserPayloadAsync(Guid userId, string eventName, string payload, Guid? leaveRequestId = null, CancellationToken cancellationToken = default)
     {
         var enabled = IsLineEnabled();
+        var isConnected = await db.Users.AsNoTracking()
+            .AnyAsync(user => user.Id == userId && user.LineUserId != null && user.LineUserId != "", cancellationToken);
         var deliveryLog = new LineDeliveryLog
         {
             LeaveRequestId = leaveRequestId,
             RecipientUserId = userId,
             EventName = eventName,
-            Status = enabled ? "Queued" : "Disabled",
+            Status = !enabled ? "Disabled" : isConnected ? "Queued" : "Skipped",
             Payload = payload,
-            ResponseDetail = enabled ? "Queued for LINE Messaging delivery." : "LINE delivery is disabled.",
+            ResponseDetail = !enabled ? "LINE delivery is disabled." : isConnected ? "Queued for LINE Messaging delivery." : "Recipient has not connected LINE.",
             AttemptCount = 0,
-            NextRetryAt = enabled ? DateTime.UtcNow : null
+            NextRetryAt = null
         };
 
         db.LineDeliveryLogs.Add(deliveryLog);
         await db.SaveChangesAsync(cancellationToken);
 
-        if (!enabled)
+        if (!enabled || !isConnected)
         {
             logger.LogInformation("LINE notification disabled: event {EventName} leave request {LeaveRequestId}.", eventName, leaveRequestId);
             return deliveryLog;
@@ -305,31 +277,18 @@ public sealed class LineMessagingService(
 
     public async Task<int> RetryPendingDeliveriesAsync(CancellationToken cancellationToken = default)
     {
-        var maxAttempts = Math.Max(1, configuration.GetValue("LineRetry:MaxAttempts", 3));
-        var now = DateTime.UtcNow;
+        // Old personal deliveries must not be replayed after deployment or after LINE is reconnected.
         var logs = await db.LineDeliveryLogs
-            .Where(item => (item.Status == "Failed" || item.Status == "Queued") &&
-                item.AttemptCount < maxAttempts &&
-                (item.NextRetryAt == null || item.NextRetryAt <= now))
+            .Where(item => item.Status == "Queued" || (item.Status == "Failed" && item.NextRetryAt != null))
             .OrderBy(item => item.CreatedAt)
-            .Take(20)
+            .Take(100)
             .ToListAsync(cancellationToken);
 
         foreach (var log in logs)
         {
-            if (log.RecipientUserId is null)
-            {
-                MarkFailed(log, "Recipient user id is not configured.");
-                continue;
-            }
-
-            await SendAsync(log, log.RecipientUserId.Value, log.Payload, cancellationToken);
-            if (log.AttemptCount >= maxAttempts && log.Status != "Sent")
-            {
-                log.Status = "Failed";
-                log.NextRetryAt = null;
-                log.ResponseDetail = $"{log.ResponseDetail} Max retry attempts reached.";
-            }
+            log.Status = log.AttemptCount == 0 ? "Skipped" : "Failed";
+            log.NextRetryAt = null;
+            log.UpdatedAt = DateTime.UtcNow;
         }
 
         await db.SaveChangesAsync(cancellationToken);
@@ -353,8 +312,10 @@ public sealed class LineMessagingService(
 
         if (string.IsNullOrWhiteSpace(recipient))
         {
-            MarkFailed(deliveryLog, "Recipient LINE user id is not configured.");
-            logger.LogWarning("LINE delivery failed: recipient LINE user id missing for delivery {DeliveryLogId} recipient user {RecipientUserId}.", deliveryLog.Id, recipientUserId);
+            deliveryLog.Status = "Skipped";
+            deliveryLog.ResponseDetail = "Recipient has not connected LINE.";
+            deliveryLog.NextRetryAt = null;
+            deliveryLog.UpdatedAt = DateTime.UtcNow;
             return;
         }
 
@@ -372,7 +333,7 @@ public sealed class LineMessagingService(
             deliveryLog.AttemptCount += 1;
             deliveryLog.Status = "Failed";
             deliveryLog.ResponseDetail = ex.Message;
-            deliveryLog.NextRetryAt = DateTime.UtcNow.AddMinutes(GetRetryDelayMinutes(deliveryLog.AttemptCount));
+            deliveryLog.NextRetryAt = null;
             deliveryLog.UpdatedAt = DateTime.UtcNow;
             logger.LogWarning(ex, "LINE delivery failed for leave request {LeaveRequestId}.", deliveryLog.LeaveRequestId);
         }
@@ -413,7 +374,7 @@ public sealed class LineMessagingService(
             }
 
             deliveryLog.Status = "Failed";
-            deliveryLog.NextRetryAt = DateTime.UtcNow.AddMinutes(GetRetryDelayMinutes(deliveryLog.AttemptCount));
+            deliveryLog.NextRetryAt = null;
             logger.LogWarning(
                 "LINE delivery failed for delivery {DeliveryLogId} leave request {LeaveRequestId}. StatusCode={StatusCode}",
                 deliveryLog.Id,
@@ -425,7 +386,7 @@ public sealed class LineMessagingService(
             deliveryLog.AttemptCount += 1;
             deliveryLog.Status = "Failed";
             deliveryLog.ResponseDetail = ex.Message;
-            deliveryLog.NextRetryAt = DateTime.UtcNow.AddMinutes(GetRetryDelayMinutes(deliveryLog.AttemptCount));
+            deliveryLog.NextRetryAt = null;
             deliveryLog.UpdatedAt = DateTime.UtcNow;
             logger.LogWarning(ex, "LINE delivery failed for delivery {DeliveryLogId}.", deliveryLog.Id);
         }
@@ -436,13 +397,8 @@ public sealed class LineMessagingService(
         deliveryLog.Status = "Failed";
         deliveryLog.ResponseDetail = reason;
         deliveryLog.AttemptCount += 1;
-        deliveryLog.NextRetryAt = DateTime.UtcNow.AddMinutes(GetRetryDelayMinutes(deliveryLog.AttemptCount));
+        deliveryLog.NextRetryAt = null;
         deliveryLog.UpdatedAt = DateTime.UtcNow;
-    }
-
-    private static int GetRetryDelayMinutes(int attemptCount)
-    {
-        return Math.Min(60, (int)Math.Pow(2, Math.Max(0, attemptCount - 1)) * 5);
     }
 
     private bool IsLineEnabled()

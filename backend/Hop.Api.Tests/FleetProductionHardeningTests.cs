@@ -65,7 +65,7 @@ public sealed class FleetProductionHardeningTests
     [Fact]
     public async Task Publisher_CreatesIdempotentPerChannelDeliveries()
     {
-        await using var db = CreateDb(); var requester = User("requester"); db.Users.Add(requester); var request = Request(requester.Id); db.FleetRequests.Add(request); await db.SaveChangesAsync();
+        await using var db = CreateDb(); var requester = User("requester"); requester.LineUserId = "U12345678901234567890"; db.Users.Add(requester); var request = Request(requester.Id); db.FleetRequests.Add(request); await db.SaveChangesAsync();
         var publisher = new DomainEventPublisher(db, new FleetNotificationRecipientResolver(db));
         await publisher.PublishAsync(new("Fleet.RequestRejected", "FLEET", "FleetRequest", request.Id, requester.Id, "corr-1", new { request.RequestNo }, []), default);
         await db.SaveChangesAsync();

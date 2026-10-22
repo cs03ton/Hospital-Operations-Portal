@@ -82,11 +82,15 @@ public sealed class LineGroupRegistrationService(
             var existing = await db.LineGroupDestinations.SingleOrDefaultAsync(x => x.LineGroupId == item.SourceGroupId, ct);
             if (existing is not null)
             {
-                existing.Status = LineGroupDestinationStatuses.Disabled;
+                if (existing.Status != LineGroupDestinationStatuses.Disabled)
+                {
+                    existing.Status = LineGroupDestinationStatuses.Disabled;
+                    existing.DisabledAt = DateTime.UtcNow;
+                    existing.ConcurrencyToken = Guid.NewGuid();
+                    logger.LogInformation("LINE group configuration changed. Change=WebhookLeave DestinationId={DestinationId}", existing.Id);
+                }
                 existing.AttentionRequired = true;
                 existing.AttentionReason = "LINE OA ถูกนำออกจากกลุ่ม";
-                existing.DisabledAt = DateTime.UtcNow;
-                existing.ConcurrencyToken = Guid.NewGuid();
             }
             return;
         }
@@ -113,8 +117,9 @@ public sealed class LineGroupRegistrationService(
                 destination.AttentionReason = null;
                 destination.DisabledAt = null;
                 destination.DisabledByUserId = null;
+                destination.ConcurrencyToken = Guid.NewGuid();
+                logger.LogInformation("LINE group configuration changed. Change=WebhookRejoined DestinationId={DestinationId}", destination.Id);
             }
-            destination.ConcurrencyToken = Guid.NewGuid();
         }
     }
 

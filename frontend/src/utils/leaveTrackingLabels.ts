@@ -39,7 +39,7 @@ export function getTrackingStepLabel(request: Pick<LeaveRequest, "status" | "cur
   }
 
   if (request.status === "Pending") {
-    return request.currentStepName || "รออนุมัติ";
+    return "กำลังดำเนินการ";
   }
 
   if (request.status === "Approved") {

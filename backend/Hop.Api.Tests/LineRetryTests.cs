@@ -96,7 +96,7 @@ public class LineRetryTests
     }
 
     [Fact]
-    public async Task RetryPendingDeliveriesAsync_SendsQueuedDeliveryAndMarksSent()
+    public async Task RetryPendingDeliveriesAsync_ClosesLegacyQueuedDeliveryWithoutSending()
     {
         await using var db = CreateDbContext();
         var userId = Guid.NewGuid();
@@ -129,13 +129,13 @@ public class LineRetryTests
         var log = await db.LineDeliveryLogs.SingleAsync();
 
         Assert.Equal(1, processed);
-        Assert.Equal("Sent", log.Status);
-        Assert.Equal(1, log.AttemptCount);
-        Assert.Contains($"\"to\":\"{TestLineUserId}\"", log.Payload);
+        Assert.Equal("Skipped", log.Status);
+        Assert.Equal(0, log.AttemptCount);
+        Assert.Null(log.NextRetryAt);
     }
 
     [Fact]
-    public async Task RetryPendingDeliveriesAsync_MarksFailedWhenTokenMissing()
+    public async Task RetryPendingDeliveriesAsync_DoesNotNeedTokenToCloseLegacyQueue()
     {
         await using var db = CreateDbContext();
         var userId = Guid.NewGuid();
@@ -167,8 +167,51 @@ public class LineRetryTests
         await service.RetryPendingDeliveriesAsync();
         var log = await db.LineDeliveryLogs.SingleAsync();
 
+        Assert.Equal("Skipped", log.Status);
+        Assert.Null(log.NextRetryAt);
+    }
+
+    [Fact]
+    public async Task NotifyUserPayloadAsync_SkipsUnconnectedRecipientWithoutHttpOrRetry()
+    {
+        await using var db = CreateDbContext();
+        var userId = Guid.NewGuid();
+        db.Users.Add(new User { Id = userId, Username = "unconnected", FullName = "Unconnected", PasswordHash = "hash" });
+        await db.SaveChangesAsync();
+        var handler = new CountingLineHandler(HttpStatusCode.OK, "{}");
+        var config = CreateConfiguration();
+        var service = new LineMessagingService(db, config, CreateLineResolver(config), new HttpClient(handler), NullLogger<LineMessagingService>.Instance);
+
+        var log = await service.NotifyUserPayloadAsync(userId, "Leave.Pending", "{\"to\":\"\"}");
+
+        Assert.Equal("Skipped", log.Status);
+        Assert.Equal(0, log.AttemptCount);
+        Assert.Null(log.NextRetryAt);
+        Assert.Equal(0, handler.CallCount);
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.TooManyRequests, "{\"message\":\"You have reached your monthly limit.\"}")]
+    [InlineData(HttpStatusCode.BadRequest, "{\"message\":\"bad request\"}")]
+    public async Task NotifyUserPayloadAsync_FailureIsRecordedOnceWithoutRetry(HttpStatusCode status, string body)
+    {
+        await using var db = CreateDbContext();
+        var userId = Guid.NewGuid();
+        db.Users.Add(new User { Id = userId, Username = "connected", FullName = "Connected", PasswordHash = "hash", LineUserId = TestLineUserId });
+        await db.SaveChangesAsync();
+        var handler = new CountingLineHandler(status, body);
+        var config = CreateConfiguration();
+        var service = new LineMessagingService(db, config, CreateLineResolver(config), new HttpClient(handler), NullLogger<LineMessagingService>.Instance);
+
+        var log = await service.NotifyUserPayloadAsync(userId, "Leave.Pending", "{\"to\":\"\"}");
+        var retired = await service.RetryPendingDeliveriesAsync();
+
         Assert.Equal("Failed", log.Status);
-        Assert.Contains("token", log.ResponseDetail, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(1, log.AttemptCount);
+        Assert.Null(log.NextRetryAt);
+        Assert.Contains(body, log.ResponseDetail);
+        Assert.Equal(0, retired);
+        Assert.Equal(1, handler.CallCount);
     }
 
     [Fact]
@@ -534,6 +577,17 @@ public class LineRetryTests
             {
                 Content = new StringContent(responseBody)
             });
+        }
+    }
+
+    private sealed class CountingLineHandler(HttpStatusCode statusCode, string responseBody) : HttpMessageHandler
+    {
+        public int CallCount { get; private set; }
+
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            CallCount++;
+            return Task.FromResult(new HttpResponseMessage(statusCode) { Content = new StringContent(responseBody) });
         }
     }
 }

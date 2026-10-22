@@ -105,6 +105,7 @@ public static class LineGroupEvents
 {
     public static readonly IReadOnlyDictionary<string, bool> Defaults = new Dictionary<string, bool>(FleetLineGroupEvents.Defaults)
     {
+        ["Operations.PendingApprovalDigest"] = false,
         ["Repair.Submitted"] = true,
         ["Repair.Resubmitted"] = true,
         ["Repair.Reopened"] = true,

@@ -15,7 +15,7 @@ using Microsoft.AspNetCore.DataProtection;
 namespace Hop.Api.Controllers;
 
 [ApiController, Route("api/admin/line-groups"), Authorize]
-public sealed partial class FleetLineGroupsController(AppDbContext db, ILineGroupPushClient groupLine, IOptions<LineGroupNotificationsOptions> groupOptions, IDataProtectionProvider? dataProtectionProvider = null, IWebHostEnvironment? environment = null) : ControllerBase
+public sealed partial class FleetLineGroupsController(AppDbContext db, ILineGroupPushClient groupLine, IOptions<LineGroupNotificationsOptions> groupOptions, IDataProtectionProvider? dataProtectionProvider = null, IWebHostEnvironment? environment = null, ILogger<FleetLineGroupsController>? logger = null) : ControllerBase
 {
     private readonly IDataProtector credentialProtector = (dataProtectionProvider ?? new EphemeralDataProtectionProvider()).CreateProtector("HOP.LineGroupDestinationCredentials.v1");
     [HttpGet, RequireAnyPermission("LineGroup.View", "LineGroup.Manage")]
@@ -187,7 +187,11 @@ public sealed partial class FleetLineGroupsController(AppDbContext db, ILineGrou
     {
         var item = await db.LineGroupDestinations.Include(x => x.EventSubscriptions).SingleOrDefaultAsync(x => x.Id == id, ct);
         if (item is null) return NotFound(ApiResponse<object>.Fail("LINE group destination not found."));
-        if (item.ConcurrencyToken != body.ConcurrencyToken) return Conflict(ApiResponse<object>.Fail("Concurrency conflict."));
+        if (item.ConcurrencyToken != body.ConcurrencyToken)
+        {
+            logger?.LogWarning("LINE group subscription conflict. Change=TokenAlreadyChanged DestinationId={DestinationId}", id);
+            return Conflict(ApiResponse<object>.Fail("ข้อมูลกลุ่มเปลี่ยนแปลงแล้ว กรุณาโหลดใหม่และเลือกเหตุการณ์อีกครั้ง"));
+        }
         if (body.Events.Keys.Any(x => !LineGroupEvents.Defaults.ContainsKey(x))) return BadRequest(ApiResponse<object>.Fail("Unsupported notification event."));
         if (body.Events.Any(x => x.Key.StartsWith("Repair.") && x.Value) && item.RepairTeamCode is not ("IT" or "GENERAL"))
             return BadRequest(ApiResponse<object>.Fail("กรุณาจับคู่ทีมแจ้งซ่อมก่อนเปิดเหตุการณ์"));
@@ -196,6 +200,38 @@ public sealed partial class FleetLineGroupsController(AppDbContext db, ILineGrou
             !await db.LineGroupDeliveryLogs.AnyAsync(x => x.DestinationId == id && x.CanonicalEventType == "Fleet.LineGroupTest" &&
                 x.Status == "Sent" && x.CreatedAt >= item.RepairTeamAssignedAt, ct))
             return Conflict(ApiResponse<object>.Fail("กรุณาทดสอบส่งจากกลุ่มนี้ให้สำเร็จก่อนเปิดเหตุการณ์แจ้งซ่อม"));
+        if (db.Database.ProviderName == "Npgsql.EntityFrameworkCore.PostgreSQL")
+        {
+            // Compare-and-swap the configuration token first. This serializes admin edits
+            // without asking EF to update every tracked subscription row individually.
+            await using var transaction = await db.Database.BeginTransactionAsync(ct);
+            var nextToken = Guid.NewGuid();
+            var changed = await db.Database.ExecuteSqlInterpolatedAsync(
+                $"UPDATE line_group_destinations SET concurrency_token = {nextToken} WHERE id = {id} AND concurrency_token = {body.ConcurrencyToken}", ct);
+            if (changed != 1)
+            {
+                logger?.LogWarning("LINE group subscription conflict. Change=TokenChangedDuringSave DestinationId={DestinationId}", id);
+                return Conflict(ApiResponse<object>.Fail("ข้อมูลกลุ่มเปลี่ยนแปลงระหว่างบันทึก กรุณาโหลดใหม่และเลือกเหตุการณ์อีกครั้ง"));
+            }
+            var now = DateTime.UtcNow;
+            foreach (var definition in LineGroupEvents.Defaults)
+            {
+                var eventType = definition.Key;
+                var enabled = body.Events.GetValueOrDefault(eventType, false);
+                var subscriptionId = Guid.NewGuid();
+                await db.Database.ExecuteSqlInterpolatedAsync($"""
+                    INSERT INTO line_group_event_subscriptions (id, destination_id, event_type, is_enabled, created_at, updated_at)
+                    VALUES ({subscriptionId}, {id}, {eventType}, {enabled}, {now}, {now})
+                    ON CONFLICT (destination_id, event_type)
+                    DO UPDATE SET is_enabled = EXCLUDED.is_enabled, updated_at = EXCLUDED.updated_at
+                    """, ct);
+            }
+            Audit("Fleet.LineGroupSubscriptionsUpdated", item, Actor(), null);
+            await db.SaveChangesAsync(ct);
+            await transaction.CommitAsync(ct);
+            logger?.LogInformation("LINE group configuration changed. Change=SubscriptionsUpdated DestinationId={DestinationId}", id);
+            return ApiResponse<object>.Ok(new { item.Id, ConcurrencyToken = nextToken });
+        }
         foreach (var definition in LineGroupEvents.Defaults)
         {
             var subscription = item.EventSubscriptions.SingleOrDefault(x => x.EventType == definition.Key);
@@ -205,7 +241,16 @@ public sealed partial class FleetLineGroupsController(AppDbContext db, ILineGrou
         }
         item.ConcurrencyToken = Guid.NewGuid();
         Audit("Fleet.LineGroupSubscriptionsUpdated", item, Actor(), null);
-        await db.SaveChangesAsync(ct);
+        try
+        {
+            await db.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateConcurrencyException ex)
+        {
+            var entries = string.Join(",", ex.Entries.Select(entry => $"{entry.Metadata.ClrType.Name}:{entry.State}"));
+            logger?.LogWarning("LINE group subscription conflict. Change=ConcurrentSave DestinationId={DestinationId} Entries={Entries}", id, entries);
+            return Conflict(ApiResponse<object>.Fail("ข้อมูลกลุ่มเปลี่ยนแปลงระหว่างบันทึก กรุณาโหลดใหม่และเลือกเหตุการณ์อีกครั้ง"));
+        }
         return ApiResponse<object>.Ok(new { item.Id, item.ConcurrencyToken });
     }
 

@@ -44,6 +44,13 @@ public sealed partial class FleetLineGroupMessageTemplateService(
 
     public async Task<FleetGroupRenderedMessage?> RenderAsync(DomainEventRecord domainEvent, string canonicalEventType, CancellationToken ct)
     {
+        if (canonicalEventType == PendingApprovalDigest.EventType && domainEvent.Scope == "OPERATIONS")
+        {
+            using var snapshot = JsonDocument.Parse(domainEvent.Payload);
+            var digestText = snapshot.RootElement.GetProperty("Text").GetString();
+            return string.IsNullOrWhiteSpace(digestText) ? null :
+                new FleetGroupRenderedMessage("text", digestText, canonicalEventType, Guid.Empty);
+        }
         if (canonicalEventType == FleetDailyDriverJobsDigest.EventType && domainEvent.Scope == "FLEET")
         {
             using var snapshot = JsonDocument.Parse(domainEvent.Payload);

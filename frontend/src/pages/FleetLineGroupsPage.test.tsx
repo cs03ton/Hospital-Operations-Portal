@@ -110,6 +110,17 @@ describe("FleetLineGroupsPage", () => {
     expect(screen.queryByText("Fleet.DailyDriverJobs")).not.toBeInTheDocument();
   });
 
+  it("shows the pending approval digest as a separate opt-in event", async () => {
+    vi.mocked(getFleetLineGroups).mockResolvedValue([{ ...group, events: [
+      ...group.events, { eventType: "Operations.PendingApprovalDigest", isEnabled: false },
+    ] }]);
+    const user = userEvent.setup();
+    renderFleet(<FleetLineGroupsPage />);
+    await user.click(await screen.findByRole("button", { name: "รายละเอียด" }));
+    const section = screen.getByRole("region", { name: "สรุปงานรออนุมัติ · ระบบลาและรถ" });
+    expect(within(section).getByRole("checkbox", { name: "สรุปงานรออนุมัติ (08:00, 12:30, 16:00 น.)" })).not.toBeChecked();
+  });
+
   it("shows the source system alongside delivery history events", async () => {
     vi.mocked(getFleetLineGroupDeliveries).mockResolvedValue({
       items: [{ id: "delivery-1", eventType: "Repair.Submitted", destinationType: "GROUP", destinationIdMasked: "masked", requestId: "request-1", status: "Sent", attemptCount: 1, correlationId: "corr-1", createdAt: "2026-09-25T01:00:00Z" }],

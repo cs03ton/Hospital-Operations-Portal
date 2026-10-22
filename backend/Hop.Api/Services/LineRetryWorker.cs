@@ -9,12 +9,7 @@ public sealed class LineRetryWorker(
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        if (!configuration.GetValue("LineRetry:Enabled", true))
-        {
-            logger.LogInformation("LINE retry worker is disabled.");
-            return;
-        }
-
+        // Keep the worker for retiring legacy queued deliveries; it never sends them.
         var intervalMinutes = Math.Max(1, configuration.GetValue("LineRetry:IntervalMinutes", 5));
         using var timer = new PeriodicTimer(TimeSpan.FromMinutes(intervalMinutes));
 

@@ -16,6 +16,124 @@ namespace Hop.Api.Tests;
 public sealed class FleetLineGroupDeliveryTests
 {
     [Fact]
+    public async Task Approval_digest_prefers_highest_heads_over_other_department_heads_in_both_departments()
+    {
+        await using var db = Database();
+        var now = new DateTime(2026, 10, 21, 5, 31, 0, DateTimeKind.Utc);
+        var highestRole = new Role { Name = "หัวหน้าหน่วยงานสูงสุด", IsActive = true };
+        var genericRole = new Role { Name = "DepartmentHead", IsActive = true };
+        var reviewRole = new Role { Name = "FleetAdminReviewer", IsActive = true,
+            RolePermissions = [new RolePermission { Permission = new Permission
+            { Code = "FleetAdminReview.Approve", Name = "Review", IsActive = true } }] };
+        var nursing = new Department { Name = "กลุ่มงานการพยาบาล", IsActive = true };
+        var administration = new Department { Name = "กลุ่มงานบริหารทั่วไป", IsActive = true };
+        User Head(string name, Department department, Role role) => new()
+        {
+            Username = name, FullName = name, IsActive = true, Department = department,
+            UserRoles = [new UserRole { Role = role }]
+        };
+        var nurse = Head("highest-nurse", nursing, highestRole);
+        var admin = Head("highest-admin", administration, highestRole);
+        admin.UserRoles.Add(new UserRole { Role = reviewRole });
+        db.Users.AddRange(nurse, admin, Head("other-nurse", nursing, genericRole), Head("other-admin", administration, genericRole));
+        db.LineGroupDestinations.Add(new LineGroupDestination
+        {
+            LineGroupId = "highest-head-digest", Module = "CENTRAL", Status = LineGroupDestinationStatuses.Active,
+            ConfirmedAt = now.AddDays(-1), EventSubscriptions = [new LineGroupEventSubscription
+            { EventType = PendingApprovalDigest.EventType, IsEnabled = true, CreatedAt = now.AddDays(-1) }]
+        });
+        db.LeaveApprovals.Add(new LeaveApproval
+        {
+            ApproverId = nurse.Id, Status = "Pending",
+            LeaveRequest = new LeaveRequest { Status = "Pending", CurrentApproverId = nurse.Id }
+        });
+        db.LeaveCancellationApprovals.Add(new LeaveCancellationApproval
+        {
+            ApproverId = admin.Id, Status = "Pending",
+            LeaveCancellationRequest = new LeaveCancellationRequest
+            { Status = LeaveCancellationStatuses.Pending, CurrentApproverId = admin.Id }
+        });
+        db.FleetRequests.Add(new FleetRequest { RequestNo = "VH-ADMIN-DIGEST", Status = FleetRequestStatuses.PendingAdminReview });
+        await db.SaveChangesAsync();
+
+        Assert.Equal(1, await Service(db, new SequenceClient(Success())).ProjectPendingApprovalsAsync(now, default));
+        var text = (await db.LineGroupDeliveryLogs.SingleAsync()).MessageText;
+        Assert.Contains("👤 หัวหน้าสูงสุดฝ่ายพยาบาล\n📄 คำขอลา: 1 คำขอ", text);
+        Assert.Contains("👤 หัวหน้าสูงสุดฝ่ายบริหาร\n↩️ ยกเลิกใบลา: 1 คำขอ\n🚗 คำขอใช้รถ: 1 คำขอ", text);
+    }
+
+    [Fact]
+    public async Task Pending_approval_digest_snapshots_current_queue_once_per_slot_for_subscribed_group()
+    {
+        await using var db = Database();
+        var now = new DateTime(2026, 10, 21, 1, 1, 0, DateTimeKind.Utc); // 08:01 Bangkok
+        var director = new User
+        {
+            Id = Guid.NewGuid(), Username = "director-digest", FullName = "ผู้อำนวยการ", IsActive = true,
+            UserRoles = [new UserRole { Role = new Role
+            {
+                Name = "Director", IsActive = true,
+                RolePermissions = [new RolePermission { Permission = new Permission
+                { Code = "FleetDirector.Approve", Name = "FleetDirector.Approve", IsActive = true } }]
+            } }]
+        };
+        var group = new LineGroupDestination
+        {
+            LineGroupId = "digest-group", Module = "CENTRAL", Status = LineGroupDestinationStatuses.Active,
+            ConfirmedAt = now.AddDays(-1),
+            EventSubscriptions = [new LineGroupEventSubscription
+            { EventType = PendingApprovalDigest.EventType, IsEnabled = true, CreatedAt = now.AddDays(-1) }]
+        };
+        db.Users.Add(director);
+        db.LineGroupDestinations.Add(group);
+        db.LeaveApprovals.Add(new LeaveApproval
+        {
+            ApproverId = director.Id, Status = "Pending",
+            LeaveRequest = new LeaveRequest { Status = "Pending", CurrentApproverId = director.Id }
+        });
+        db.LeaveApprovals.Add(new LeaveApproval
+        {
+            ApproverId = director.Id, Status = "Approved",
+            LeaveRequest = new LeaveRequest { Status = "Approved", CurrentApproverId = director.Id }
+        });
+        db.FleetRequests.Add(new FleetRequest { RequestNo = "VH-DIGEST-1", Status = FleetRequestStatuses.PendingDirector });
+        db.FleetRequests.Add(new FleetRequest { RequestNo = "VH-DIGEST-2", Status = FleetRequestStatuses.Cancelled });
+        await db.SaveChangesAsync();
+        var service = Service(db, new SequenceClient(Success()));
+
+        Assert.Equal(1, await service.ProjectPendingApprovalsAsync(now, default));
+        Assert.Equal(0, await service.ProjectPendingApprovalsAsync(now.AddMinutes(10), default));
+        var log = Assert.Single(await db.LineGroupDeliveryLogs.ToListAsync());
+        Assert.Contains("📄 คำขอลา: 1 คำขอ", log.MessageText);
+        Assert.Contains("🚗 คำขอใช้รถ: 1 คำขอ", log.MessageText);
+        Assert.DoesNotContain("หัวหน้าสูงสุดฝ่าย", log.MessageText);
+        var snapshot = await db.DomainEvents.SingleAsync(x => x.EventId == log.EventId);
+        Assert.Equal(log.MessageText, JsonDocument.Parse(snapshot.Payload).RootElement.GetProperty("Text").GetString());
+    }
+
+    [Fact]
+    public async Task Pending_approval_digest_with_no_work_creates_no_delivery_or_backfill()
+    {
+        await using var db = Database();
+        var now = new DateTime(2026, 10, 21, 5, 31, 0, DateTimeKind.Utc); // 12:31 Bangkok
+        var group = new LineGroupDestination
+        {
+            LineGroupId = "empty-digest", Module = "CENTRAL", Status = LineGroupDestinationStatuses.Active,
+            ConfirmedAt = now.AddDays(-1),
+            EventSubscriptions = [new LineGroupEventSubscription
+            { EventType = PendingApprovalDigest.EventType, IsEnabled = true, CreatedAt = now.AddDays(-1) }]
+        };
+        db.LineGroupDestinations.Add(group);
+        await db.SaveChangesAsync();
+        var service = Service(db, new SequenceClient(Success()));
+
+        Assert.Equal(0, await service.ProjectPendingApprovalsAsync(now, default));
+        Assert.Equal(0, await service.ProjectPendingApprovalsAsync(now.AddMinutes(1), default));
+        Assert.Empty(db.LineGroupDeliveryLogs);
+        Assert.Single(db.DomainEvents.Where(x => x.EventType == PendingApprovalDigest.MarkerType));
+    }
+
+    [Fact]
     public async Task Daily_digest_snapshots_only_assigned_approved_jobs_for_enabled_groups_once()
     {
         await using var db = Database();
@@ -431,6 +549,41 @@ public sealed class FleetLineGroupDeliveryTests
     }
 
     [Fact]
+    public async Task Permanent_delivery_failures_keep_subscription_token_until_destination_is_disabled()
+    {
+        await using var db = Database();
+        var fixture = await Seed(db, "FLEET", "Fleet.RequestSubmitted", true, true);
+        var originalToken = fixture.Destination.ConcurrencyToken;
+        var client = new SequenceClient(new LineGroupPushResult(false, false, false, "LINE_HTTP_400", "rejected"));
+        var service = Service(db, client);
+        await service.DiscoverAsync(CancellationToken.None);
+        await service.ProcessAsync(CancellationToken.None);
+
+        Assert.Equal(originalToken, fixture.Destination.ConcurrencyToken);
+        Assert.True(fixture.Destination.AttentionRequired);
+        Assert.Equal("Failed", (await db.LineGroupDeliveryLogs.SingleAsync()).Status);
+
+        var nextEvent = new DomainEventRecord
+        {
+            EventId = Guid.NewGuid(), EventType = "Fleet.RequestSubmitted", Scope = "FLEET",
+            AggregateType = "FleetRequest", AggregateId = Guid.NewGuid(), OccurredAt = DateTime.UtcNow,
+            CorrelationId = "second-failure", Payload = "{}"
+        };
+        db.DomainEvents.Add(nextEvent);
+        db.LineGroupDeliveryLogs.Add(new LineGroupDeliveryLog
+        {
+            EventId = nextEvent.EventId, DestinationId = fixture.Destination.Id,
+            CanonicalEventType = "Fleet.RequestSubmitted", SourceEventType = "Fleet.RequestSubmitted",
+            RequestId = nextEvent.AggregateId, DeduplicationKey = $"second-failure:{nextEvent.EventId}",
+            CorrelationId = nextEvent.CorrelationId, AvailableAt = DateTime.UtcNow.AddSeconds(-1)
+        });
+        await db.SaveChangesAsync();
+        await service.ProcessAsync(CancellationToken.None);
+        Assert.Equal(originalToken, fixture.Destination.ConcurrencyToken);
+        Assert.Equal(2, client.CallCount);
+    }
+
+    [Fact]
     public async Task Group_failure_does_not_change_user_delivery_or_domain_event_outbox()
     {
         await using var db = Database();
@@ -557,7 +710,7 @@ public sealed class FleetLineGroupDeliveryTests
 
     private static FleetLineGroupDeliveryService Service(AppDbContext db, ILineGroupPushClient client, bool enabled = true,
         bool tripOverdueEnabled = false, DateTimeOffset? tripOverdueEnabledFromUtc = null) => new(
-        db, new FleetLineGroupEventMapper(), new StubTemplate(), client,
+        db, new FleetLineGroupEventMapper(), new FleetEffectivePermissionService(db), new StubTemplate(), client,
         Options.Create(new LineGroupNotificationsOptions { Enabled = enabled, BatchSize = 20, MaxAttempts = 3,
             TripOverdueEnabled = tripOverdueEnabled, TripOverdueEnabledFromUtc = tripOverdueEnabledFromUtc }),
         NullLogger<FleetLineGroupDeliveryService>.Instance);

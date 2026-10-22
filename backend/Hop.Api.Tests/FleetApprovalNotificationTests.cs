@@ -23,6 +23,8 @@ public sealed class FleetApprovalNotificationTests
         await using var db = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>().UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
         var admin = Approver("admin", FleetPermissions.AdminReviewApprove);
         var director = Approver("director", FleetPermissions.DirectorApprove);
+        admin.LineUserId = "U12345678901234567890";
+        director.LineUserId = "U12345678901234567891";
         var request = new FleetRequest { Id = Guid.NewGuid(), RequesterUserId = Guid.NewGuid() };
         db.AddRange(admin, director, request);
         await db.SaveChangesAsync();

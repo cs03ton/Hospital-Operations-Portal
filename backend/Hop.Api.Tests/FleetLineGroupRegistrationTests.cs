@@ -257,6 +257,26 @@ public sealed class FleetLineGroupRegistrationTests
     }
 
     [Fact]
+    public async Task Subscription_save_concurrency_race_returns_conflict_instead_of_server_error()
+    {
+        await using var db = new ConcurrencyRaceDbContext(new DbContextOptionsBuilder<AppDbContext>()
+            .UseInMemoryDatabase($"line-subscription-race-{Guid.NewGuid()}").Options);
+        var destination = new LineGroupDestination { LineGroupId = "C12345678901234567890123456789012", Status = LineGroupDestinationStatuses.Active };
+        db.LineGroupDestinations.Add(destination);
+        await db.SaveChangesAsync();
+        db.FailNextSave = true;
+        var controller = Controller(db);
+        controller.ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() };
+
+        var response = await controller.Subscriptions(destination.Id,
+            new LineGroupSubscriptionsRequest(destination.ConcurrencyToken, new Dictionary<string, bool>
+            { ["Operations.PendingApprovalDigest"] = true }), CancellationToken.None);
+
+        Assert.IsType<ConflictObjectResult>(response.Result);
+        Assert.False(await db.LineGroupEventSubscriptions.AnyAsync());
+    }
+
+    [Fact]
     public async Task Failed_test_of_disabled_group_is_logged_and_does_not_enable_delivery()
     {
         await using var db = Database();
@@ -295,6 +315,21 @@ public sealed class FleetLineGroupRegistrationTests
 
     private static AppDbContext Database() => new(new DbContextOptionsBuilder<AppDbContext>()
         .UseInMemoryDatabase($"fleet-line-group-{Guid.NewGuid()}").Options);
+
+    private sealed class ConcurrencyRaceDbContext(DbContextOptions<AppDbContext> options) : AppDbContext(options)
+    {
+        public bool FailNextSave { get; set; }
+
+        public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+        {
+            if (FailNextSave)
+            {
+                FailNextSave = false;
+                throw new DbUpdateConcurrencyException("Simulated concurrent update.");
+            }
+            return base.SaveChangesAsync(cancellationToken);
+        }
+    }
 
     private static FleetLineGroupsController Controller(AppDbContext db) => new(
         db, new SuccessfulGroupClient(), Options.Create(new LineGroupNotificationsOptions { Enabled = true }));

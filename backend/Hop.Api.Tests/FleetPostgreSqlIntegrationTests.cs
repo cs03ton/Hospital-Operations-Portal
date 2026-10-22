@@ -4,6 +4,8 @@ using Hop.Api.Data;
 using Hop.Api.DTOs;
 using Hop.Api.Models;
 using Hop.Api.Services;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Npgsql;
@@ -15,6 +17,62 @@ namespace Hop.Api.Tests;
 [Collection("FleetPostgreSql")]
 public sealed class FleetPostgreSqlIntegrationTests
 {
+    [Fact, Trait("Category", "PostgreSqlIntegration")]
+    public async Task Line_group_subscriptions_save_atomically_and_reject_a_stale_admin()
+    {
+        await using var db = await Database(); if (db is null) return;
+        var destination = new LineGroupDestination
+        {
+            LineGroupId = "C-line-group-integration", Status = LineGroupDestinationStatuses.Active,
+            Module = "CENTRAL"
+        };
+        destination.EventSubscriptions.Add(new LineGroupEventSubscription
+        { EventType = "Fleet.RequestSubmitted", IsEnabled = false });
+        db.LineGroupDestinations.Add(destination);
+        await db.SaveChangesAsync();
+        var originalToken = destination.ConcurrencyToken;
+        var controller = new FleetLineGroupsController(db, new NoopGroupPushClient(),
+            Options.Create(new LineGroupNotificationsOptions { Enabled = true }))
+        { ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() } };
+
+        var first = await controller.Subscriptions(destination.Id,
+            new LineGroupSubscriptionsRequest(originalToken, new Dictionary<string, bool>
+            { ["Fleet.RequestSubmitted"] = true, ["Operations.PendingApprovalDigest"] = true }), default);
+        Assert.NotNull(first.Value);
+        db.ChangeTracker.Clear();
+        Assert.True((await db.LineGroupEventSubscriptions.SingleAsync(x => x.DestinationId == destination.Id &&
+            x.EventType == "Operations.PendingApprovalDigest")).IsEnabled);
+        Assert.True((await db.LineGroupEventSubscriptions.SingleAsync(x => x.DestinationId == destination.Id &&
+            x.EventType == "Fleet.RequestSubmitted")).IsEnabled);
+        Assert.Equal(LineGroupEvents.Defaults.Count,
+            await db.LineGroupEventSubscriptions.CountAsync(x => x.DestinationId == destination.Id));
+
+        var stale = await controller.Subscriptions(destination.Id,
+            new LineGroupSubscriptionsRequest(originalToken, new Dictionary<string, bool>
+            { ["Operations.PendingApprovalDigest"] = false }), default);
+        Assert.IsType<ConflictObjectResult>(stale.Result);
+        Assert.True((await db.LineGroupEventSubscriptions.SingleAsync(x => x.DestinationId == destination.Id &&
+            x.EventType == "Operations.PendingApprovalDigest")).IsEnabled);
+
+        var currentToken = (await db.LineGroupDestinations.AsNoTracking()
+            .SingleAsync(x => x.Id == destination.Id)).ConcurrencyToken;
+        await db.LineGroupDestinations.Where(x => x.Id == destination.Id).ExecuteUpdateAsync(setters => setters
+            .SetProperty(x => x.Status, LineGroupDestinationStatuses.Disabled)
+            .SetProperty(x => x.ConcurrencyToken, Guid.NewGuid()));
+        var disabled = await controller.Subscriptions(destination.Id,
+            new LineGroupSubscriptionsRequest(currentToken, new Dictionary<string, bool>
+            { ["Operations.PendingApprovalDigest"] = false }), default);
+        Assert.IsType<ConflictObjectResult>(disabled.Result);
+        Assert.True((await db.LineGroupEventSubscriptions.SingleAsync(x => x.DestinationId == destination.Id &&
+            x.EventType == "Operations.PendingApprovalDigest")).IsEnabled);
+    }
+
+    private sealed class NoopGroupPushClient : ILineGroupPushClient
+    {
+        public Task<LineGroupPushResult> PushTextAsync(string groupId, string text, CancellationToken ct) =>
+            Task.FromResult(new LineGroupPushResult(true, false, false, null, null));
+    }
+
     [Fact, Trait("Category", "PostgreSqlIntegration")]
     public async Task Utilization_uses_PostgreSQL_multirange_and_expected_overlap()
     {

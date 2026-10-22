@@ -31,6 +31,7 @@ const eventLabels: Record<string, string> = {
   "Fleet.DriverAcknowledged": "คนขับรับทราบ", "Fleet.TripCompleted": "จบภารกิจ",
   "Fleet.TripOverdue": "ภารกิจเกินกำหนด",
   "Fleet.DailyDriverJobs": "สรุปภารกิจรถประจำวัน (06:00 น.)",
+  "Operations.PendingApprovalDigest": "สรุปงานรออนุมัติ (08:00, 12:30, 16:00 น.)",
   "Repair.Submitted": "แจ้งซ่อมใหม่", "Repair.Resubmitted": "ส่งงานซ่อมใหม่", "Repair.Reopened": "เปิดงานซ้ำ",
   "Repair.Started": "เริ่มดำเนินการซ่อม", "Repair.Resumed": "กลับมาดำเนินการซ่อม",
   "Repair.Solved": "ซ่อมเสร็จรอตรวจรับ", "Repair.Closed": "ปิดใบงานซ่อม",
@@ -38,6 +39,7 @@ const eventLabels: Record<string, string> = {
 };
 
 const eventSystems = [
+  { key: "Operations", title: "สรุปงานรออนุมัติ · ระบบลาและรถ" },
   { key: "Fleet", title: "ระบบขอรถ" },
   { key: "Repair", title: "ระบบแจ้งซ่อม" },
   { key: "MeetingRoom", title: "ระบบจองห้องประชุม" },
@@ -46,6 +48,7 @@ const eventSystems = [
 
 type EventSystem = (typeof eventSystems)[number]["key"];
 const eventSystem = (eventType: string): EventSystem => {
+  if (eventType.startsWith("Operations.")) return "Operations";
   if (eventType.startsWith("Fleet.")) return "Fleet";
   if (eventType.startsWith("Repair.")) return "Repair";
   if (eventType.startsWith("MeetingRoom.")) return "MeetingRoom";
@@ -118,7 +121,13 @@ export function FleetLineGroupsPage() {
         events: current.events.map(event => ({ ...event, isEnabled: event.eventType in eventLabels ? subscriptionDraft[event.eventType] ?? false : event.isEnabled })) } : null);
       setNotice({ severity: "success", text: "บันทึก Event Subscription แล้ว" }); await refresh();
     },
-    onError: (error: { response?: { status?: number; data?: { message?: string } } }) => setNotice({ severity: "error", text: error.response?.data?.message ?? (error.response?.status === 409 ? "ข้อมูล Subscription เปลี่ยนแปลง กรุณาโหลดใหม่" : "บันทึก Subscription ไม่สำเร็จ") }),
+    onError: async (error: { response?: { status?: number; data?: { message?: string } } }) => {
+      setNotice({ severity: "error", text: error.response?.data?.message ?? (error.response?.status === 409 ? "ข้อมูล Subscription เปลี่ยนแปลง กรุณาเปิดกลุ่มใหม่แล้วลองอีกครั้ง" : "บันทึก Subscription ไม่สำเร็จ") });
+      if (error.response?.status === 409) {
+        setSelected(null);
+        await refresh();
+      }
+    },
   });
   const saveConfiguration = useMutation({
     mutationFn: async () => {

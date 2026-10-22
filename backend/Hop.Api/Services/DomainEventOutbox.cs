@@ -29,10 +29,15 @@ public sealed class DomainEventPublisher(AppDbContext db, INotificationRecipient
         var recipientIds = e.RecipientUserIds.Count > 0 ? e.RecipientUserIds : await recipientResolver.ResolveAsync(e.EventType, e.AggregateId, ct);
         if (e.EventType is "Fleet.Assigned" or "Fleet.AdminReviewApproved" or "Fleet.ReferAutoApproved")
             logger?.LogInformation("Fleet approval notification queued. EventType={EventType} RequestId={RequestId} RecipientCount={RecipientCount} CorrelationId={CorrelationId}", e.EventType, e.AggregateId, recipientIds.Distinct().Count(), e.CorrelationId);
+        var connectedIds = await db.Users.AsNoTracking()
+            .Where(user => recipientIds.Contains(user.Id) && user.LineUserId != null && user.LineUserId != "")
+            .Select(user => user.Id)
+            .ToListAsync(ct);
         foreach (var userId in recipientIds.Distinct())
         {
             outbox.Deliveries.Add(new NotificationDelivery { RecipientUserId = userId, Channel = "IN_APP", IdempotencyKey = $"{eventId}:{userId}:IN_APP" });
-            outbox.Deliveries.Add(new NotificationDelivery { RecipientUserId = userId, Channel = "LINE", IdempotencyKey = $"{eventId}:{userId}:LINE" });
+            if (connectedIds.Contains(userId))
+                outbox.Deliveries.Add(new NotificationDelivery { RecipientUserId = userId, Channel = "LINE", IdempotencyKey = $"{eventId}:{userId}:LINE" });
         }
         db.OutboxMessages.Add(outbox);
     }
@@ -90,6 +95,14 @@ public sealed class OutboxProcessor(IServiceScopeFactory scopeFactory, ILogger<O
                     }
                     else
                     {
+                        var connected = await db.Users.AsNoTracking().AnyAsync(user => user.Id == delivery.RecipientUserId && user.LineUserId != null && user.LineUserId != "", ct);
+                        if (!connected)
+                        {
+                            delivery.Status = "PROCESSED";
+                            delivery.ProcessedAt = DateTime.UtcNow;
+                            delivery.LastError = "LINE_NOT_CONNECTED_SKIPPED";
+                            continue;
+                        }
                         var root = lineConfiguration.PublicAppUrl.TrimEnd('/');
                         var url = string.IsNullOrWhiteSpace(root) ? actionPath : $"{root}{actionPath}";
                         string payload;
@@ -115,10 +128,16 @@ public sealed class OutboxProcessor(IServiceScopeFactory scopeFactory, ILogger<O
                         else
                             payload = JsonSerializer.Serialize(new { to = "", messages = new[] { new { type = "text", text = $"{detail}\nดูรายละเอียด: {url}" } } });
                         var result = await line.NotifyUserPayloadAsync(delivery.RecipientUserId, message.EventType, payload, null, ct);
+                        if (result.Status == "Skipped")
+                        {
+                            delivery.Status = "PROCESSED";
+                            delivery.ProcessedAt = DateTime.UtcNow;
+                            delivery.LastError = "LINE_NOT_CONNECTED_SKIPPED";
+                            continue;
+                        }
                         if (result.Status != "Sent")
                         {
-                            // The LINE service owns its delivery log/retry schedule.
-                            // Never report transport failure as successfully processed.
+                            // Personal LINE failures are terminal; the delivery log retains the first attempt.
                             delivery.Status = "FAILED";
                             delivery.AttemptCount++;
                             delivery.LastError = $"LINE_{result.Status.ToUpperInvariant()}; DeliveryLogId={result.Id}";
@@ -128,7 +147,7 @@ public sealed class OutboxProcessor(IServiceScopeFactory scopeFactory, ILogger<O
                     }
                     delivery.Status = "PROCESSED"; delivery.ProcessedAt = DateTime.UtcNow;
                 }
-                catch (Exception ex) { delivery.AttemptCount++; delivery.LastError = ex.Message[..Math.Min(ex.Message.Length, 1000)]; delivery.Status = delivery.AttemptCount >= 5 ? "FAILED" : "RETRY"; }
+                catch (Exception ex) { delivery.AttemptCount++; delivery.LastError = ex.Message[..Math.Min(ex.Message.Length, 1000)]; delivery.Status = delivery.Channel == "LINE" || delivery.AttemptCount >= 5 ? "FAILED" : "RETRY"; }
                 if (delivery.Status is "FAILED" or "RETRY") logger.LogWarning("Fleet notification delivery issue. EventType={EventType} OutboxMessageId={OutboxMessageId} DeliveryChannel={DeliveryChannel} RetryCount={RetryCount} ErrorCode={ErrorCode}", message.EventType, message.Id, delivery.Channel, delivery.AttemptCount, delivery.Status);
             }
             message.AttemptCount++; message.ProcessedAt = message.Deliveries.All(x => x.Status is "PROCESSED" or "FAILED") ? DateTime.UtcNow : null; message.Status = message.Deliveries.Any(x => x.Status == "RETRY") ? "RETRY" : message.Deliveries.Any(x => x.Status == "FAILED") ? "FAILED" : "PROCESSED"; message.AvailableAt = DateTime.UtcNow.AddMinutes(Math.Min(message.AttemptCount, 5)); message.ConcurrencyToken = Guid.NewGuid();
