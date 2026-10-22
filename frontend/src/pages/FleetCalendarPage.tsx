@@ -43,6 +43,7 @@ import { LoadingState } from "../components/common/LoadingState";
 import { formatThaiDateTime } from "../utils/dateFormat";
 import { getFleetStatusLabel } from "../utils/fleetLabels";
 import { brandColors } from "../theme/theme";
+import { FleetCalendarEventPreview } from "../components/fleet/FleetCalendarEventPreview";
 
 
 
@@ -288,11 +289,11 @@ function TimedEventGroup({ events, day, selectedId, onSelect }: { events: FleetC
           const colors = eventColors(event);
           const selected = event.id === selectedId;
           return (
-            <Box key={event.id} component="button" type="button" onClick={() => onSelect(event)} sx={{ flexShrink: 0, width: "100%", border: "1px solid", borderColor: selected ? "primary.main" : colors.border, borderRadius: 1, bgcolor: colors.background, px: 0.65, py: 0.5, textAlign: "left", cursor: "pointer", font: "inherit", boxShadow: selected ? 2 : "none", "&:hover": { filter: "brightness(0.98)", borderColor: "primary.main" } }}>
+            <FleetCalendarEventPreview key={event.id} event={event}><Box component="button" type="button" onClick={() => onSelect(event)} sx={{ flexShrink: 0, width: "100%", border: "1px solid", borderColor: selected ? "primary.main" : colors.border, borderRadius: 1, bgcolor: colors.background, px: 0.65, py: 0.5, textAlign: "left", cursor: "pointer", font: "inherit", boxShadow: selected ? 2 : "none", "&:hover": { filter: "brightness(0.98)", borderColor: "primary.main" } }}>
               <Typography variant="caption" color="text.secondary" display="block">{dayjs(event.startAt).format("HH:mm")} - {dayjs(event.endAt).format("HH:mm")}</Typography>
               <Typography variant="caption" fontWeight={900} color="primary.dark" display="block" sx={{ overflowWrap: "anywhere" }}>{event.title}</Typography>
               {(isGroup || height >= 65) && <Typography variant="caption" color="text.secondary" display="block">{getFleetStatusLabel(event.status)}</Typography>}
-            </Box>
+            </Box></FleetCalendarEventPreview>
           );
         })}
       </Stack>
@@ -341,7 +342,7 @@ function deduplicateRequestEvents(events: FleetCalendarEvent[]) {
 
 function MiniEvent({ event, selected, onSelect }: { event: FleetCalendarEvent; selected: boolean; onSelect: (event: FleetCalendarEvent) => void }) {
   const colors = eventColors(event);
-  return <Box component="button" type="button" onClick={() => onSelect(event)} sx={{ border: "1px solid", borderColor: selected ? "primary.main" : colors.border, bgcolor: colors.background, borderRadius: 1, px: 0.75, py: 0.35, textAlign: "left", cursor: "pointer" }}><Typography variant="caption" noWrap>{event.title}</Typography></Box>;
+  return <FleetCalendarEventPreview event={event}><Box component="button" type="button" onClick={() => onSelect(event)} sx={{ border: "1px solid", borderColor: selected ? "primary.main" : colors.border, bgcolor: colors.background, borderRadius: 1, px: 0.75, py: 0.35, textAlign: "left", cursor: "pointer" }}><Typography variant="caption" noWrap>{event.title}</Typography></Box></FleetCalendarEventPreview>;
 }
 
 function MonthCalendar({ month, events, selectedId, onSelect }: { month: Dayjs; events: FleetCalendarEvent[]; selectedId?: string; onSelect: (event: FleetCalendarEvent) => void }) {
@@ -357,8 +358,7 @@ function AgendaCalendar({ events, selectedId, onSelect }: { events: FleetCalenda
         const colors = eventColors(event);
         const selected = event.id === selectedId;
         return (
-          <Card
-            key={event.id}
+          <FleetCalendarEventPreview key={event.id} event={event}><Card
             component="button"
             type="button"
             variant="outlined"
@@ -417,7 +417,7 @@ function AgendaCalendar({ events, selectedId, onSelect }: { events: FleetCalenda
               </Stack>
               <Chip size="small" label={getFleetStatusLabel(event.status)} sx={{ display: { xs: "inline-flex", sm: "none" }, mt: 1, ml: 7.75, border: "1px solid", borderColor: alpha(colors.border, 0.42), bgcolor: colors.background, fontWeight: 800 }} />
             </CardContent>
-          </Card>
+          </Card></FleetCalendarEventPreview>
         );
       })}
     </Stack>
@@ -436,7 +436,18 @@ function agendaEventIcon(eventType: string) {
 
 function EventDetail({ event, onClose }: { event: FleetCalendarEvent; onClose: () => void }) {
   const metadata = event.metadata || {};
-  return <Card sx={{ mb: 2 }}><CardContent><Stack spacing={1.5}><Stack direction="row" justifyContent="space-between" alignItems="center"><Typography variant="h6" color="primary">รายละเอียด</Typography><Button size="small" onClick={onClose}>ปิด</Button></Stack><Chip size="small" sx={{ alignSelf: "flex-start" }} label={getFleetStatusLabel(event.status)} /><Typography fontWeight={900}>{event.title}</Typography><Detail label="ประเภท" value={eventTypeLabels[event.eventType] ?? "กิจกรรมอื่น"} /><Detail label="ช่วงเวลา" value={`${formatThaiDateTime(event.startAt)} ถึง ${formatThaiDateTime(event.endAt)}`} />{Object.entries(metadata).slice(0, 6).map(([key, value]) => <Detail key={key} label={metadataLabel(key)} value={formatMetadata(key, value)} />)}<Button component={Link} to={event.detailUrl} variant="outlined" fullWidth>ดูรายละเอียด</Button></Stack></CardContent></Card>;
+  const isTrip = event.eventType === "TRIP";
+  const actualTimeKeys = ["actualstartat", "actualendat", "abortedat"];
+  const tripTimes = Object.fromEntries(Object.entries(metadata).map(([key, value]) => [normalizeMetadataKey(key), value]));
+  const actualEnd = tripTimes.actualendat ?? tripTimes.abortedat;
+  const formatActualTime = (value: unknown) => typeof value === "string" && value ? formatThaiDateTime(value) : "-";
+  const details = Object.entries(metadata).filter(([key]) => !isTrip || !actualTimeKeys.includes(normalizeMetadataKey(key)));
+  return <Card sx={{ mb: 2 }}><CardContent><Stack spacing={1.5}><Stack direction="row" justifyContent="space-between" alignItems="center"><Typography variant="h6" color="primary">รายละเอียด</Typography><Button size="small" onClick={onClose}>ปิด</Button></Stack><Chip size="small" sx={{ alignSelf: "flex-start" }} label={getFleetStatusLabel(event.status)} /><Typography fontWeight={900}>{event.title}</Typography><Detail label="ประเภท" value={eventTypeLabels[event.eventType] ?? "กิจกรรมอื่น"} /><Detail label={isTrip ? "กำหนดเดินทางตามคำขอ" : "ช่วงเวลา"} value={`${formatThaiDateTime(event.startAt)} ถึง ${formatThaiDateTime(event.endAt)}`} />
+    {isTrip && <>
+      <Detail label="เวลาเริ่มจริง" value={formatActualTime(tripTimes.actualstartat)} />
+      <Detail label={tripTimes.abortedat ? "เวลายุติภารกิจ" : "เวลาจบจริง"} value={actualEnd ? formatActualTime(actualEnd) : event.status === "IN_PROGRESS" ? "ยังไม่บันทึกจบทริป" : "-"} />
+    </>}
+    {details.slice(0, 6).map(([key, value]) => <Detail key={key} label={metadataLabel(key)} value={formatMetadata(key, value)} />)}<Button component={Link} to={event.detailUrl} variant="outlined" fullWidth>ดูรายละเอียด</Button></Stack></CardContent></Card>;
 }
 
 function WeekSummary({ events }: { events: FleetCalendarEvent[] }) {

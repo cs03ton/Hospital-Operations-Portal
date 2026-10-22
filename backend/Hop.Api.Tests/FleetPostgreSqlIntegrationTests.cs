@@ -18,6 +18,25 @@ namespace Hop.Api.Tests;
 public sealed class FleetPostgreSqlIntegrationTests
 {
     [Fact, Trait("Category", "PostgreSqlIntegration")]
+    public async Task Announcement_group_publishers_share_one_queue_entry_and_migration_is_repeatable()
+    {
+        await using var db = await Database(); if (db is null) return;
+        await db.Database.MigrateAsync(); // A second application is a no-op.
+        var (announcement, _) = await AnnouncementLineGroupTests.Seed(db, 1);
+        var connection = db.Database.GetConnectionString();
+        async Task<int> Publish()
+        {
+            await using var publisher = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(connection).Options);
+            return await new AnnouncementLineGroupService(publisher, AnnouncementLineGroupTests.Configuration()).QueueAsync(announcement.Id, null, default);
+        }
+        var results = await Task.WhenAll(Publish(), Publish());
+        Assert.Equal(1, results.Sum());
+        Assert.Single(await db.LineGroupDeliveryLogs.Where(x => x.RequestId == announcement.Id).ToListAsync());
+        Assert.Single(await db.DomainEvents.Where(x => x.AggregateId == announcement.Id).ToListAsync());
+        Assert.Equal("Queued", await new AnnouncementLineGroupService(db, AnnouncementLineGroupTests.Configuration()).DispatchStatusAsync(announcement.Id, default));
+    }
+
+    [Fact, Trait("Category", "PostgreSqlIntegration")]
     public async Task Line_group_subscriptions_save_atomically_and_reject_a_stale_admin()
     {
         await using var db = await Database(); if (db is null) return;

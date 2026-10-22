@@ -8,10 +8,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Globalization;
-using System.IO.Compression;
 using System.Text;
-using System.Xml;
-using System.Xml.Linq;
 
 namespace Hop.Api.Controllers;
 
@@ -20,12 +17,6 @@ namespace Hop.Api.Controllers;
 [Authorize]
 public class LeaveHolidaysController(AppDbContext db, IAuditLogService auditLogService) : ControllerBase
 {
-    private static readonly string[] TemplateHeaders = ["วันที่", "ชื่อวันหยุด", "ประเภทวันหยุด"];
-    private static readonly XNamespace Spreadsheet = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
-    private const long MaxImportFileBytes = 2 * 1024 * 1024;
-    private const int MaxImportRows = 5000;
-    private const long MaxZipEntryBytes = 5 * 1024 * 1024;
-
     [HttpGet]
     [RequireAnyPermission(LeavePermissions.ViewOwn, LeavePermissions.ViewPendingApproval, LeavePermissions.ViewDepartment, LeavePermissions.ViewAll, LeavePermissions.ManageHolidays)]
     public async Task<ActionResult<ApiResponse<object>>> GetHolidays(
@@ -146,12 +137,14 @@ public class LeaveHolidaysController(AppDbContext db, IAuditLogService auditLogS
     {
         var rows = new[]
         {
-            "วันที่,ชื่อวันหยุด,ประเภทวันหยุด",
-            "2027-01-01,วันขึ้นปีใหม่,National",
-            "2027-04-06,วันจักรี,National",
-            "2027-04-13,วันสงกรานต์,National",
+            "วันที่,ชื่อวันหยุด",
+            "1/1/2027,วันขึ้นปีใหม่",
+            "6/4/2027,วันจักรี",
+            "13/4/2027,วันสงกรานต์",
+            "14/4/2027,วันสงกรานต์",
+            "15/4/2027,วันสงกรานต์",
             "",
-            "คำอธิบาย: วันที่ใช้รูปแบบ yyyy-MM-dd, วันที่และชื่อวันหยุดเป็นฟิลด์บังคับ, ประเภทวันหยุดใช้เช่น National หรือ Local"
+            "คำอธิบาย: บังคับคอลัมน์ วันที่ และ ชื่อวันหยุด; วันที่ใช้ d/M/yyyy หรือ yyyy-MM-dd ปี ค.ศ. หรือ พ.ศ.; ประเภทวันหยุดเป็นคอลัมน์เสริมของไฟล์เดิม"
         };
         var bytes = Encoding.UTF8.GetPreamble().Concat(Encoding.UTF8.GetBytes(string.Join(Environment.NewLine, rows))).ToArray();
         return File(bytes, "text/csv; charset=utf-8", "leave-holiday-import-template.csv");
@@ -161,7 +154,7 @@ public class LeaveHolidaysController(AppDbContext db, IAuditLogService auditLogS
     [RequirePermission(LeavePermissions.ManageHolidays)]
     public async Task<ActionResult<ApiResponse<LeaveHolidayImportPreviewResponse>>> PreviewImport(IFormFile file)
     {
-        var parsedRows = await ParseImportFile(file);
+        var parsedRows = await LeaveHolidayImportReader.ReadAsync(file);
         var response = await ValidateRows(parsedRows);
         await auditLogService.WriteAsync(GetCurrentUserId(), "LeaveHoliday.ImportPreview", "LeaveHoliday", null, $"Previewed {response.TotalRows} holiday rows.", "Success", HttpContext);
         return ApiResponse<LeaveHolidayImportPreviewResponse>.Ok(response);
@@ -171,6 +164,9 @@ public class LeaveHolidaysController(AppDbContext db, IAuditLogService auditLogS
     [RequirePermission(LeavePermissions.ManageHolidays)]
     public async Task<ActionResult<ApiResponse<LeaveHolidayImportConfirmResponse>>> ConfirmImport(LeaveHolidayImportConfirmRequest request)
     {
+        if (request.Rows.Count == 0 || request.Rows.Count > LeaveHolidayImportReader.MaxRows)
+            return BadRequest(ApiResponse<LeaveHolidayImportConfirmResponse>.Fail("กรุณาระบุรายการนำเข้า 1–5,000 รายการ"));
+
         var parsedRows = request.Rows.Select((row, index) => new ParsedHolidayRow(index + 2, row.HolidayDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture), row.Name, row.HolidayType)).ToList();
         var validation = await ValidateRows(parsedRows);
         var validRows = validation.Rows.Where(row => row.IsValid && row.HolidayDate is not null).ToList();
@@ -190,7 +186,14 @@ public class LeaveHolidaysController(AppDbContext db, IAuditLogService auditLogS
             });
         }
 
-        await db.SaveChangesAsync();
+        try
+        {
+            await db.SaveChangesAsync();
+        }
+        catch (DbUpdateException ex) when (ex.InnerException is Npgsql.PostgresException { SqlState: "23505" })
+        {
+            return Conflict(ApiResponse<LeaveHolidayImportConfirmResponse>.Fail("มีวันที่ซ้ำจากการบันทึกอื่น กรุณาตรวจสอบ Preview ใหม่ ยังไม่ได้นำเข้าข้อมูลชุดนี้"));
+        }
         await auditLogService.WriteAsync(GetCurrentUserId(), "LeaveHoliday.ImportConfirm", "LeaveHoliday", null, $"Imported {validRows.Count} holidays.", "Success", HttpContext);
         return ApiResponse<LeaveHolidayImportConfirmResponse>.Ok(new LeaveHolidayImportConfirmResponse(validRows.Count, []));
     }
@@ -206,106 +209,11 @@ public class LeaveHolidaysController(AppDbContext db, IAuditLogService auditLogS
             item.UpdatedAt);
     }
 
-    private async Task<IReadOnlyList<ParsedHolidayRow>> ParseImportFile(IFormFile file)
-    {
-        if (file.Length == 0)
-        {
-            return [];
-        }
-
-        if (file.Length > MaxImportFileBytes)
-        {
-            return [new ParsedHolidayRow(1, string.Empty, string.Empty, string.Empty, "ไฟล์นำเข้าต้องมีขนาดไม่เกิน 2 MB")];
-        }
-
-        var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
-        await using var stream = file.OpenReadStream();
-        return extension switch
-        {
-            ".csv" => await ParseCsv(stream),
-            ".xlsx" => ParseXlsx(stream),
-            _ => [new ParsedHolidayRow(1, string.Empty, string.Empty, string.Empty, "รองรับเฉพาะไฟล์ .csv หรือ .xlsx")]
-        };
-    }
-
-    private static async Task<IReadOnlyList<ParsedHolidayRow>> ParseCsv(Stream stream)
-    {
-        using var reader = new StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true);
-        var rows = new List<ParsedHolidayRow>();
-        var rowNumber = 0;
-        while (!reader.EndOfStream)
-        {
-            rowNumber++;
-            if (rows.Count >= MaxImportRows)
-            {
-                rows.Add(new ParsedHolidayRow(rowNumber, string.Empty, string.Empty, string.Empty, $"รองรับการนำเข้าไม่เกิน {MaxImportRows:N0} รายการต่อครั้ง"));
-                break;
-            }
-
-            var line = await reader.ReadLineAsync() ?? string.Empty;
-            if (rowNumber == 1 || string.IsNullOrWhiteSpace(line) || line.StartsWith("คำอธิบาย:", StringComparison.OrdinalIgnoreCase))
-            {
-                continue;
-            }
-
-            var cells = SplitCsv(line);
-            rows.Add(new ParsedHolidayRow(rowNumber, cells.ElementAtOrDefault(0) ?? string.Empty, cells.ElementAtOrDefault(1) ?? string.Empty, cells.ElementAtOrDefault(2) ?? string.Empty));
-        }
-
-        return rows;
-    }
-
-    private static IReadOnlyList<ParsedHolidayRow> ParseXlsx(Stream stream)
-    {
-        using var archive = new ZipArchive(stream, ZipArchiveMode.Read, leaveOpen: true);
-        if (!ValidateArchive(archive, out var archiveError))
-        {
-            return [new ParsedHolidayRow(1, string.Empty, string.Empty, string.Empty, archiveError)];
-        }
-
-        var sharedStrings = ReadSharedStrings(archive);
-        var sheetEntry = archive.GetEntry("xl/worksheets/sheet1.xml");
-        if (sheetEntry is null)
-        {
-            return [new ParsedHolidayRow(1, string.Empty, string.Empty, string.Empty, "ไม่พบ worksheet ในไฟล์ .xlsx")];
-        }
-
-        using var sheetStream = sheetEntry.Open();
-        var document = LoadXml(sheetStream);
-        var rows = new List<ParsedHolidayRow>();
-        foreach (var row in document.Descendants(Spreadsheet + "row"))
-        {
-            var rowNumber = int.TryParse(row.Attribute("r")?.Value, out var parsedNumber) ? parsedNumber : rows.Count + 1;
-            if (rowNumber == 1)
-            {
-                continue;
-            }
-
-            var cells = row.Elements(Spreadsheet + "c").Select(cell => ReadCellValue(cell, sharedStrings)).ToList();
-            if (cells.All(string.IsNullOrWhiteSpace))
-            {
-                continue;
-            }
-
-            if (rows.Count >= MaxImportRows)
-            {
-                rows.Add(new ParsedHolidayRow(rowNumber, string.Empty, string.Empty, string.Empty, $"รองรับการนำเข้าไม่เกิน {MaxImportRows:N0} รายการต่อครั้ง"));
-                break;
-            }
-
-            rows.Add(new ParsedHolidayRow(rowNumber, cells.ElementAtOrDefault(0) ?? string.Empty, cells.ElementAtOrDefault(1) ?? string.Empty, cells.ElementAtOrDefault(2) ?? string.Empty));
-        }
-
-        return rows;
-    }
-
     private async Task<LeaveHolidayImportPreviewResponse> ValidateRows(IReadOnlyList<ParsedHolidayRow> rows)
     {
-        var existing = await db.LeaveHolidays.AsNoTracking().Select(item => new { item.HolidayDate, item.Name }).ToListAsync();
-        var duplicateDates = new HashSet<DateOnly>();
-        var duplicateNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        var seenDates = new HashSet<DateOnly>();
-        var seenNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var existing = (await db.LeaveHolidays.AsNoTracking().Select(item => item.HolidayDate).ToListAsync()).ToHashSet();
+        var repeatedDates = rows.Select(row => LeaveHolidayImportReader.TryParseDate(row.Date, out var date) ? (DateOnly?)date : null)
+            .Where(date => date.HasValue).GroupBy(date => date!.Value).Where(group => group.Count() > 1).Select(group => group.Key).ToHashSet();
         var currentYear = Hop.Api.Services.HospitalTime.Today.Year;
         var result = new List<LeaveHolidayImportPreviewRow>();
 
@@ -314,16 +222,17 @@ public class LeaveHolidaysController(AppDbContext db, IAuditLogService auditLogS
             var errors = new List<string>();
             if (!string.IsNullOrWhiteSpace(row.Error))
             {
-                errors.Add(row.Error);
+                result.Add(new LeaveHolidayImportPreviewRow(row.RowNumber, null, row.Name, row.HolidayType, false, [row.Error]));
+                continue;
             }
 
             var name = row.Name.Trim();
             var holidayType = string.IsNullOrWhiteSpace(row.HolidayType) ? "National" : row.HolidayType.Trim();
             DateOnly? date = null;
 
-            if (!CalendarDateInput.TryParse(row.Date.Trim(), out var parsedDate))
+            if (!LeaveHolidayImportReader.TryParseDate(row.Date, out var parsedDate))
             {
-                errors.Add("วันที่ไม่ถูกต้อง ต้องใช้รูปแบบ yyyy-MM-dd");
+                errors.Add("วันที่ไม่ถูกต้อง ใช้วัน/เดือน/ปี เช่น 6/4/2027 หรือ yyyy-MM-dd ปี ค.ศ. หรือ พ.ศ.");
             }
             else
             {
@@ -333,9 +242,8 @@ public class LeaveHolidaysController(AppDbContext db, IAuditLogService auditLogS
                     errors.Add("ปีไม่ถูกต้อง ต้องเป็นปีปัจจุบันหรือปีในอนาคต");
                 }
 
-                if (existing.Any(item => item.HolidayDate == parsedDate) || !seenDates.Add(parsedDate))
+                if (existing.Contains(parsedDate) || repeatedDates.Contains(parsedDate))
                 {
-                    duplicateDates.Add(parsedDate);
                     errors.Add("วันที่ซ้ำ");
                 }
             }
@@ -344,110 +252,12 @@ public class LeaveHolidaysController(AppDbContext db, IAuditLogService auditLogS
             {
                 errors.Add("ชื่อวันหยุดห้ามว่าง");
             }
-            else if (existing.Any(item => item.Name.Equals(name, StringComparison.OrdinalIgnoreCase)) || !seenNames.Add(name))
-            {
-                duplicateNames.Add(name);
-                errors.Add("ชื่อวันหยุดซ้ำ");
-            }
 
             result.Add(new LeaveHolidayImportPreviewRow(row.RowNumber, date, name, holidayType, errors.Count == 0, errors));
         }
 
         return new LeaveHolidayImportPreviewResponse(result.Count, result.Count(item => item.IsValid), result.Count(item => !item.IsValid), result);
     }
-
-    private static IReadOnlyList<string> SplitCsv(string line)
-    {
-        var values = new List<string>();
-        var builder = new StringBuilder();
-        var quoted = false;
-        for (var index = 0; index < line.Length; index++)
-        {
-            var current = line[index];
-            if (current == '"' && index + 1 < line.Length && line[index + 1] == '"')
-            {
-                builder.Append('"');
-                index++;
-            }
-            else if (current == '"')
-            {
-                quoted = !quoted;
-            }
-            else if (current == ',' && !quoted)
-            {
-                values.Add(builder.ToString().Trim());
-                builder.Clear();
-            }
-            else
-            {
-                builder.Append(current);
-            }
-        }
-
-        values.Add(builder.ToString().Trim());
-        return values;
-    }
-
-    private static IReadOnlyList<string> ReadSharedStrings(ZipArchive archive)
-    {
-        var entry = archive.GetEntry("xl/sharedStrings.xml");
-        if (entry is null)
-        {
-            return [];
-        }
-
-        using var stream = entry.Open();
-        var document = LoadXml(stream);
-        return document.Descendants(Spreadsheet + "si").Select(item => string.Concat(item.Descendants(Spreadsheet + "t").Select(text => text.Value))).ToList();
-    }
-
-    private static XDocument LoadXml(Stream stream)
-    {
-        var settings = new XmlReaderSettings
-        {
-            DtdProcessing = DtdProcessing.Prohibit,
-            XmlResolver = null,
-            MaxCharactersInDocument = MaxZipEntryBytes
-        };
-
-        using var reader = XmlReader.Create(stream, settings);
-        return XDocument.Load(reader, LoadOptions.None);
-    }
-
-    private static bool ValidateArchive(ZipArchive archive, out string error)
-    {
-        foreach (var entry in archive.Entries)
-        {
-            if (entry.FullName.Contains("..", StringComparison.Ordinal) ||
-                Path.IsPathRooted(entry.FullName) ||
-                entry.Length > MaxZipEntryBytes)
-            {
-                error = "ไฟล์ .xlsx ไม่ปลอดภัยหรือมีขนาดภายในใหญ่เกินกำหนด";
-                return false;
-            }
-        }
-
-        error = string.Empty;
-        return true;
-    }
-
-    private static string ReadCellValue(XElement cell, IReadOnlyList<string> sharedStrings)
-    {
-        var type = cell.Attribute("t")?.Value;
-        if (type == "s" && int.TryParse(cell.Element(Spreadsheet + "v")?.Value, out var sharedIndex))
-        {
-            return sharedStrings.ElementAtOrDefault(sharedIndex) ?? string.Empty;
-        }
-
-        if (type == "inlineStr")
-        {
-            return string.Concat(cell.Descendants(Spreadsheet + "t").Select(text => text.Value)).Trim();
-        }
-
-        return (cell.Element(Spreadsheet + "v")?.Value ?? string.Empty).Trim();
-    }
-
-    private record ParsedHolidayRow(int RowNumber, string Date, string Name, string HolidayType, string? Error = null);
 
     private Guid? GetCurrentUserId()
     {

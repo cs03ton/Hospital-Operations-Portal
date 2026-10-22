@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Hop.Api.Configuration;
 using Hop.Api.Data;
 using Hop.Api.DTOs;
@@ -14,7 +15,8 @@ public sealed class AnnouncementNotificationDispatcher(
     ILineMessagingService lineMessagingService,
     LineConfigurationResolver lineConfiguration,
     IAuditLogService auditLogService,
-    ILogger<AnnouncementNotificationDispatcher> logger) : IAnnouncementNotificationDispatcher
+    ILogger<AnnouncementNotificationDispatcher> logger,
+    AnnouncementLineGroupService? lineGroups = null) : IAnnouncementNotificationDispatcher
 {
     public async Task<AnnouncementNotificationPreviewResponse> PreviewAsync(
         Announcement announcement,
@@ -27,7 +29,7 @@ public sealed class AnnouncementNotificationDispatcher(
         var audience = await audienceResolver.ResolveAsync(announcement, cancellationToken);
         var warnings = new List<string>();
 
-        if (!inApp && !line)
+        if (!inApp && !line && !announcement.NotifyViaLineGroup)
         {
             warnings.Add("ประกาศจะแสดงในศูนย์ประกาศเท่านั้น และไม่สร้างรายการแจ้งเตือน");
         }
@@ -46,6 +48,17 @@ public sealed class AnnouncementNotificationDispatcher(
             warnings.Add($"ตัดผู้ใช้ที่ปิดใช้งานออก {audience.InactiveUsers:N0} ราย");
         }
 
+        var groups = announcement.NotifyViaLineGroup && lineGroups is not null
+            ? await lineGroups.PreviewAsync(announcement.Id, cancellationToken) : [];
+        var groupQueueCount = announcement.NotifyViaLineGroup && lineGroups is not null
+            ? await lineGroups.QueueCountAsync(announcement.Id, cancellationToken) : 0;
+        if (announcement.NotifyViaLineGroup)
+        {
+            if (groups.Count == 0) warnings.Add("ไม่พบกลุ่ม LINE ที่เลือกสำหรับประกาศนี้");
+            if (groups.Any(x => x.Status != LineGroupDestinationStatuses.Active)) warnings.Add("บางกลุ่มปิดใช้งานอยู่ ระบบจะข้ามการส่งไปยังกลุ่มนั้น");
+            if (announcement.Targets.Any(x => x.TargetType != AnnouncementTargetTypes.Everyone))
+                warnings.Add("สมาชิกทุกคนในกลุ่ม LINE จะเห็นชื่อและสรุปประกาศ ส่วนรายละเอียดใน HOP ยังตรวจสิทธิ์ตามกลุ่มเป้าหมายเดิม");
+        }
         return new AnnouncementNotificationPreviewResponse(
             announcement.Id,
             inApp,
@@ -55,8 +68,8 @@ public sealed class AnnouncementNotificationDispatcher(
             line ? audience.LineBoundUsers : 0,
             line ? audience.LineUnboundUsers : 0,
             audience.InactiveUsers,
-            (inApp ? audience.ActiveUsers : 0) + (line ? audience.LineBoundUsers : 0),
-            warnings);
+            (inApp ? audience.ActiveUsers : 0) + (line ? audience.LineBoundUsers : 0) + groupQueueCount,
+            warnings, announcement.NotifyViaLineGroup, groups, groupQueueCount);
     }
 
     public async Task DispatchAsync(
@@ -64,7 +77,7 @@ public sealed class AnnouncementNotificationDispatcher(
         Guid? actorUserId,
         CancellationToken cancellationToken = default)
     {
-        if (!announcement.NotifyInApp && !announcement.NotifyViaLine)
+        if (!announcement.NotifyInApp && !announcement.NotifyViaLine && !announcement.NotifyViaLineGroup)
         {
             announcement.NotificationDispatchStatus = "Skipped";
             announcement.NotificationDispatchError = null;
@@ -74,6 +87,8 @@ public sealed class AnnouncementNotificationDispatcher(
         }
 
         var now = DateTime.UtcNow;
+        var groupQueued = announcement.NotifyViaLineGroup && lineGroups is not null
+            ? await lineGroups.QueueAsync(announcement.Id, actorUserId, cancellationToken) : 0;
         var audience = await audienceResolver.ResolveAsync(announcement, cancellationToken);
         var existingKeys = await db.AnnouncementNotificationDeliveries
             .Where(item => item.AnnouncementId == announcement.Id)
@@ -168,6 +183,12 @@ public sealed class AnnouncementNotificationDispatcher(
 
         announcement.NotificationDispatchError = null;
         announcement.NotificationDispatchStatus = await ResolveDispatchStatusAsync(announcement.Id, inAppCreated, lineQueued, cancellationToken);
+        if (announcement.NotifyViaLineGroup && lineGroups is not null)
+        {
+            var groupStatus = await lineGroups.DispatchStatusAsync(announcement.Id, cancellationToken);
+            if (groupStatus is "Queued" or "Failed" || announcement.NotificationDispatchStatus == "Skipped")
+                announcement.NotificationDispatchStatus = groupStatus;
+        }
         announcement.UpdatedAt = now;
 
         await db.SaveChangesAsync(cancellationToken);
@@ -176,7 +197,7 @@ public sealed class AnnouncementNotificationDispatcher(
             "Announcement.NotificationDispatched",
             "Announcement",
             announcement.Id.ToString(),
-            $"InApp={inAppCreated}; LineQueued={lineQueued}; Audience={audience.ActiveUsers}",
+            $"InApp={inAppCreated}; LineQueued={lineQueued}; LineGroupsQueued={groupQueued}; Audience={audience.ActiveUsers}",
             "Success");
 
         logger.LogInformation(
@@ -258,7 +279,7 @@ public sealed class AnnouncementNotificationDispatcher(
         return value.Length <= 1000 ? value : value[..1000];
     }
 
-    private static string BuildLineFlexPayload(Announcement announcement, string publicAppUrl)
+    internal static string BuildLineFlexPayload(Announcement announcement, string publicAppUrl)
     {
         var detailUrl = BuildUrl(publicAppUrl, $"/announcements/{announcement.Id}");
         var header = announcement.Priority == AnnouncementPriorities.Critical
@@ -282,7 +303,7 @@ public sealed class AnnouncementNotificationDispatcher(
         var publishedAt = announcement.PublishedAt ?? announcement.PublishAt ?? announcement.CreatedAt;
         var altText = Truncate($"{header}: {announcement.Title}", 390);
 
-        return JsonSerializer.Serialize(new
+        var payload = JsonSerializer.Serialize(new
         {
             to = string.Empty,
             messages = new object[]
@@ -432,6 +453,14 @@ public sealed class AnnouncementNotificationDispatcher(
                 }
             }
         });
+        if (Uri.TryCreate(detailUrl, UriKind.Absolute, out var uri) && uri.Scheme is "https" or "http") return payload;
+        var node = JsonNode.Parse(payload)!;
+        var contents = node["messages"]![0]!["contents"]!.AsObject();
+        contents.Remove("footer");
+        contents.Remove("styles");
+        var bodyContents = contents["body"]!["contents"]!.AsArray();
+        bodyContents.RemoveAt(bodyContents.Count - 1); // Remove the instruction referring to the omitted link.
+        return node.ToJsonString();
     }
 
     private static object InfoRow(string label, string value, string valueColor)

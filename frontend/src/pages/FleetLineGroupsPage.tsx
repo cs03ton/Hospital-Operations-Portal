@@ -54,7 +54,7 @@ const eventSystem = (eventType: string): EventSystem => {
   if (eventType.startsWith("MeetingRoom.")) return "MeetingRoom";
   return "Other";
 };
-const eventSystemTitle = (eventType: string) => eventSystems.find(system => system.key === eventSystem(eventType))!.title;
+const eventSystemTitle = (eventType: string) => eventType.startsWith("Announcement.") ? "ระบบประกาศ" : eventSystems.find(system => system.key === eventSystem(eventType))!.title;
 
 type DialogState = { type: "confirm" | "disable" | "test" | "migrate" | "activate"; group: FleetLineGroup } | null;
 type ConfigState = { group?: FleetLineGroup; displayName: string; groupId: string; endpointUrl: string; clientId: string; clientSecret: string; repairTeamCode: "IT" | "GENERAL" | "" } | null;
@@ -210,7 +210,7 @@ export function FleetLineGroupsPage() {
       <Typography variant="h6" fontWeight={900}>ประวัติการส่งข้อความ</Typography>
       {deliveries.isLoading ? <LoadingState message="กำลังโหลดประวัติการส่ง..." /> : deliveries.isError ? <Alert severity="error">โหลดประวัติการส่งไม่สำเร็จ</Alert> : (deliveries.data?.items.length ?? 0) === 0 ? <EmptyState message="ยังไม่มีประวัติการส่งสำหรับกลุ่มนี้" /> : <>
         <TableContainer><Table size="small"><TableHead><TableRow><TableCell>วันเวลา</TableCell><TableCell>เหตุการณ์</TableCell><TableCell>ผลการส่ง</TableCell><TableCell>จำนวนครั้ง</TableCell><TableCell>ข้อผิดพลาด</TableCell><TableCell>รหัสติดตาม</TableCell></TableRow></TableHead><TableBody>
-          {deliveries.data!.items.map(item => <TableRow key={item.id}><TableCell>{formatThaiDateTime(item.createdAt)}</TableCell><TableCell><Typography variant="body2" fontWeight={700}>{eventSystemTitle(item.eventType)}</Typography><Typography variant="body2">{eventLabels[item.eventType] ?? item.eventType}</Typography></TableCell><TableCell><Chip size="small" label={deliveryStatusLabel(item.status)} color={item.status === "Sent" ? "success" : item.status === "Failed" ? "error" : "default"} /></TableCell><TableCell>{item.attemptCount}</TableCell><TableCell>{item.errorCode ? "ส่งไม่สำเร็จ" : "-"}</TableCell><TableCell>{item.correlationId}</TableCell></TableRow>)}
+          {deliveries.data!.items.map(item => <TableRow key={item.id}><TableCell>{formatThaiDateTime(item.createdAt)}</TableCell><TableCell><Typography variant="body2" fontWeight={700}>{eventSystemTitle(item.eventType)}</Typography><Typography variant="body2">{item.eventType === "Announcement.PublishedToGroup" ? "เผยแพร่ประกาศไปยังกลุ่มที่เลือก" : eventLabels[item.eventType] ?? item.eventType}</Typography></TableCell><TableCell><Chip size="small" label={deliveryStatusLabel(item.status)} color={item.status === "Sent" ? "success" : item.status === "Failed" ? "error" : "default"} /></TableCell><TableCell>{item.attemptCount}</TableCell><TableCell>{item.errorCode ? "ส่งไม่สำเร็จ" : "-"}</TableCell><TableCell>{item.correlationId}</TableCell></TableRow>)}
         </TableBody></Table></TableContainer>
         <ListPagination page={deliveryPage} pageSize={20} totalItems={deliveries.data!.totalItems} onPageChange={setDeliveryPage} onPageSizeChange={() => undefined} pageSizeOptions={[20]} />
       </>}

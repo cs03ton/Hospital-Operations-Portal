@@ -17,6 +17,30 @@ namespace Hop.Api.Tests;
 public class AnnouncementNotificationDispatcherTests
 {
     [Fact]
+    public async Task Groups_are_separate_from_bell_and_personal_LINE_and_restricted_audiences_are_warned()
+    {
+        await using var db = CreateDbContext();
+        var announcement = SeedAnnouncementWithUsers(db);
+        announcement.NotifyViaLineGroup = true;
+        db.AnnouncementLineGroupTargets.Add(new AnnouncementLineGroupTarget { Announcement = announcement, Destination = AnnouncementLineGroupTests.Group("MorProm") });
+        await db.SaveChangesAsync();
+        var dispatcher = CreateDispatcher(db);
+        var preview = await dispatcher.PreviewAsync(announcement);
+        Assert.Equal(1, preview.LineGroupQueueCount);
+        Assert.Equal(4, preview.EstimatedQueueItems);
+        await dispatcher.DispatchAsync(announcement, null);
+        await dispatcher.DispatchAsync(announcement, null);
+        Assert.Equal(2, await db.Notifications.CountAsync());
+        Assert.Single(await db.LineDeliveryLogs.ToListAsync());
+        Assert.Single(await db.LineGroupDeliveryLogs.ToListAsync());
+        announcement.Targets.Clear();
+        announcement.Targets.Add(new AnnouncementTarget { TargetType = "Role", TargetValue = "Staff" });
+        var restricted = await dispatcher.PreviewAsync(announcement);
+        Assert.Contains(restricted.Warnings, warning => warning.Contains("สมาชิกทุกคนในกลุ่ม LINE"));
+        Assert.Equal(0, restricted.LineGroupQueueCount);
+    }
+
+    [Fact]
     public async Task PreviewAsync_CountsInAppAndLineRecipients()
     {
         await using var db = CreateDbContext();
@@ -75,7 +99,8 @@ public class AnnouncementNotificationDispatcherTests
             new FakeLineMessagingService(db),
             CreateLineConfiguration(),
             new NoopAuditLogService(),
-            NullLogger<AnnouncementNotificationDispatcher>.Instance);
+            NullLogger<AnnouncementNotificationDispatcher>.Instance,
+            new AnnouncementLineGroupService(db, CreateLineConfiguration()));
     }
 
     private static LineConfigurationResolver CreateLineConfiguration()

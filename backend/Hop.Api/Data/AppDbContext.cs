@@ -38,6 +38,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<LinePairingCode> LinePairingCodes => Set<LinePairingCode>();
     public DbSet<LineConnectToken> LineConnectTokens => Set<LineConnectToken>();
     public DbSet<LineGroupDestination> LineGroupDestinations => Set<LineGroupDestination>();
+    public DbSet<AnnouncementLineGroupTarget> AnnouncementLineGroupTargets => Set<AnnouncementLineGroupTarget>();
     public DbSet<LineGroupEventSubscription> LineGroupEventSubscriptions => Set<LineGroupEventSubscription>();
     public DbSet<LineWebhookInbox> LineWebhookInbox => Set<LineWebhookInbox>();
     public DbSet<LineGroupDeliveryLog> LineGroupDeliveryLogs => Set<LineGroupDeliveryLog>();
@@ -1134,6 +1135,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             entity.Property(item => item.ViewCount).HasColumnName("view_count");
             entity.Property(item => item.NotifyInApp).HasColumnName("notify_in_app").HasDefaultValue(true);
             entity.Property(item => item.NotifyViaLine).HasColumnName("notify_via_line").HasDefaultValue(false);
+            entity.Property(item => item.NotifyViaLineGroup).HasColumnName("notify_via_line_group").HasDefaultValue(false);
             entity.Property(item => item.NotificationSentAt).HasColumnName("notification_sent_at");
             entity.Property(item => item.LineNotificationQueuedAt).HasColumnName("line_notification_queued_at");
             entity.Property(item => item.NotificationDispatchStatus).HasColumnName("notification_dispatch_status").HasMaxLength(40);
@@ -1159,6 +1161,16 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             entity.HasOne(item => item.PublishedByUser)
                 .WithMany()
                 .HasForeignKey(item => item.PublishedByUserId);
+        });
+
+        modelBuilder.Entity<AnnouncementLineGroupTarget>(entity =>
+        {
+            entity.ToTable("announcement_line_group_targets");
+            entity.HasKey(x => new { x.AnnouncementId, x.DestinationId });
+            entity.Property(x => x.AnnouncementId).HasColumnName("announcement_id");
+            entity.Property(x => x.DestinationId).HasColumnName("destination_id");
+            entity.HasOne(x => x.Announcement).WithMany(x => x.LineGroupTargets).HasForeignKey(x => x.AnnouncementId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(x => x.Destination).WithMany().HasForeignKey(x => x.DestinationId).OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.Entity<AnnouncementNotificationDelivery>(entity =>

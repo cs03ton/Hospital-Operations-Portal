@@ -44,6 +44,13 @@ public sealed partial class FleetLineGroupMessageTemplateService(
 
     public async Task<FleetGroupRenderedMessage?> RenderAsync(DomainEventRecord domainEvent, string canonicalEventType, CancellationToken ct)
     {
+        if (canonicalEventType == AnnouncementLineGroupService.EventType && domainEvent.Scope == "ANNOUNCEMENT")
+        {
+            using var snapshot = JsonDocument.Parse(domainEvent.Payload);
+            var root = snapshot.RootElement;
+            return new FleetGroupRenderedMessage("flex", root.GetProperty("Text").GetString() ?? string.Empty,
+                canonicalEventType, domainEvent.AggregateId, root.GetProperty("FlexContentsJson").GetString(), root.GetProperty("AltText").GetString());
+        }
         if (canonicalEventType == PendingApprovalDigest.EventType && domainEvent.Scope == "OPERATIONS")
         {
             using var snapshot = JsonDocument.Parse(domainEvent.Payload);

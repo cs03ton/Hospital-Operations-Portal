@@ -80,7 +80,8 @@ public record AnnouncementSummaryResponse(
     int LineQueuedCount,
     int LineSentCount,
     int LineFailedCount,
-    AnnouncementCapabilitiesResponse? Capabilities = null
+    AnnouncementCapabilitiesResponse? Capabilities = null,
+    bool NotifyViaLineGroup = false
 );
 
 public record AnnouncementDetailResponse(
@@ -125,7 +126,10 @@ public record AnnouncementDetailResponse(
     int LineQueuedCount,
     int LineSentCount,
     int LineFailedCount,
-    AnnouncementCapabilitiesResponse? Capabilities = null
+    AnnouncementCapabilitiesResponse? Capabilities = null,
+    bool NotifyViaLineGroup = false,
+    IReadOnlyList<Guid>? LineGroupIds = null,
+    IReadOnlyList<AnnouncementLineGroupOptionResponse>? LineGroups = null
 );
 
 public record CreateAnnouncementRequest(
@@ -143,7 +147,9 @@ public record CreateAnnouncementRequest(
     string? Tags,
     bool? NotifyInApp,
     bool? NotifyViaLine,
-    IReadOnlyList<AnnouncementTargetRequest>? Targets
+    IReadOnlyList<AnnouncementTargetRequest>? Targets,
+    bool NotifyViaLineGroup = false,
+    IReadOnlyList<Guid>? LineGroupIds = null
 );
 
 public record UpdateAnnouncementRequest(
@@ -161,7 +167,9 @@ public record UpdateAnnouncementRequest(
     string? Tags,
     bool? NotifyInApp,
     bool? NotifyViaLine,
-    IReadOnlyList<AnnouncementTargetRequest>? Targets
+    IReadOnlyList<AnnouncementTargetRequest>? Targets,
+    bool NotifyViaLineGroup = false,
+    IReadOnlyList<Guid>? LineGroupIds = null
 );
 
 public record AnnouncementAcknowledgeResponse(
@@ -191,5 +199,13 @@ public record AnnouncementNotificationPreviewResponse(
     int LineUnboundRecipientCount,
     int InactiveUserCount,
     int EstimatedQueueItems,
-    IReadOnlyList<string> Warnings
+    IReadOnlyList<string> Warnings,
+    bool NotifyViaLineGroup = false,
+    IReadOnlyList<AnnouncementLineGroupOptionResponse>? LineGroups = null,
+    int LineGroupQueueCount = 0
 );
+
+public record AnnouncementLineGroupOptionResponse(Guid Id, string DisplayName, string Status);
+public record AnnouncementLineGroupDeliveryResponse(Guid Id, Guid DestinationId, string DisplayName,
+    string Status, int AttemptCount, string? ErrorCode, string? ErrorMessage,
+    DateTime CreatedAt, DateTime? SentAt, DateTime? FailedAt);

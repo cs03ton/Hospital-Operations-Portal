@@ -148,6 +148,7 @@ builder.Services.AddScoped<IDocumentationService, DocumentationService>();
 builder.Services.AddScoped<IPasswordPolicyService, PasswordPolicyService>();
 builder.Services.AddScoped<IAnnouncementAudienceResolver, AnnouncementAudienceResolver>();
 builder.Services.AddScoped<IAnnouncementNotificationDispatcher, AnnouncementNotificationDispatcher>();
+builder.Services.AddScoped<AnnouncementLineGroupService>();
 builder.Services.AddScoped<LineConfigurationResolver>();
 builder.Services.AddScoped<IUserAvatarUrlResolver, UserAvatarUrlResolver>();
 builder.Services.AddSingleton<ILoginRateLimiter, InMemoryLoginRateLimiter>();

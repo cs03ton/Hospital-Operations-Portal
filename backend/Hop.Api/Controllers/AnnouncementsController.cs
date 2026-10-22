@@ -4,6 +4,7 @@ using Hop.Api.Data;
 using Hop.Api.DTOs;
 using Hop.Api.Interfaces;
 using Hop.Api.Models;
+using Hop.Api.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -324,11 +325,11 @@ public class AnnouncementsController(
             item.NotificationDeliveries.Count(delivery => delivery.Channel == AnnouncementNotificationChannels.Line && (delivery.LineQueue == null || delivery.LineQueue.Status == "Queued")),
             item.NotificationDeliveries.Count(delivery => delivery.Channel == AnnouncementNotificationChannels.Line && delivery.LineQueue != null && delivery.LineQueue.Status == "Sent"),
             item.NotificationDeliveries.Count(delivery => delivery.Channel == AnnouncementNotificationChannels.Line && delivery.LineQueue != null && delivery.LineQueue.Status == "Failed"),
-            capabilities
+            capabilities, item.NotifyViaLineGroup
         );
     }
 
-    internal static AnnouncementDetailResponse ToDetail(Announcement item, Guid userId, IUrlHelper? url = null, AnnouncementCapabilitiesResponse? capabilities = null)
+    internal static AnnouncementDetailResponse ToDetail(Announcement item, Guid userId, IUrlHelper? url = null, AnnouncementCapabilitiesResponse? capabilities = null, bool includeLineGroups = false)
     {
         var read = item.Reads.FirstOrDefault(read => read.UserId == userId);
         return new AnnouncementDetailResponse(
@@ -373,7 +374,10 @@ public class AnnouncementsController(
             item.NotificationDeliveries.Count(delivery => delivery.Channel == AnnouncementNotificationChannels.Line && (delivery.LineQueue == null || delivery.LineQueue.Status == "Queued")),
             item.NotificationDeliveries.Count(delivery => delivery.Channel == AnnouncementNotificationChannels.Line && delivery.LineQueue != null && delivery.LineQueue.Status == "Sent"),
             item.NotificationDeliveries.Count(delivery => delivery.Channel == AnnouncementNotificationChannels.Line && delivery.LineQueue != null && delivery.LineQueue.Status == "Failed"),
-            capabilities
+            capabilities, includeLineGroups && item.NotifyViaLineGroup,
+            includeLineGroups ? item.LineGroupTargets.Select(x => x.DestinationId).ToArray() : null,
+            includeLineGroups ? item.LineGroupTargets.Where(x => x.Destination != null)
+                .Select(x => new AnnouncementLineGroupOptionResponse(x.DestinationId, x.Destination!.DisplayName, x.Destination.Status)).ToArray() : null
         );
     }
 
@@ -502,13 +506,15 @@ public class AnnouncementsController(
     AnnouncementPermissions.AnalyticsView,
     AnnouncementPermissions.AnalyticsViewUsers,
     AnnouncementPermissions.NotificationConfigure,
+    AnnouncementPermissions.NotificationSendLine,
     AnnouncementPermissions.NotificationPreview,
     AnnouncementPermissions.NotificationViewDelivery)]
 public class AdminAnnouncementsController(
     AppDbContext db,
     IAuditLogService auditLogService,
     IAnnouncementMediaStorageService mediaStorage,
-    IAnnouncementNotificationDispatcher notificationDispatcher) : ControllerBase
+    IAnnouncementNotificationDispatcher notificationDispatcher,
+    AnnouncementLineGroupService? lineGroups = null) : ControllerBase
 {
     [HttpGet]
     public async Task<ActionResult<ApiResponse<PagedResponse<AnnouncementSummaryResponse>>>> Get(
@@ -576,7 +582,18 @@ public class AdminAnnouncementsController(
 
         var userId = GetCurrentUserId() ?? Guid.Empty;
         var permissions = await GetCurrentPermissionCodesAsync(userId, cancellationToken);
-        return ApiResponse<AnnouncementDetailResponse>.Ok(AnnouncementsController.ToDetail(item, userId, Url, BuildCapabilities(item, userId, permissions)));
+        return ApiResponse<AnnouncementDetailResponse>.Ok(AnnouncementsController.ToDetail(item, userId, Url, BuildCapabilities(item, userId, permissions), true));
+    }
+
+    [HttpGet("line-group-options"), RequireAnyPermission(AnnouncementPermissions.NotificationSendLine)]
+    public async Task<ActionResult<ApiResponse<IReadOnlyList<AnnouncementLineGroupOptionResponse>>>> LineGroupOptions(CancellationToken ct) =>
+        ApiResponse<IReadOnlyList<AnnouncementLineGroupOptionResponse>>.Ok(await lineGroups!.OptionsAsync(ct));
+
+    [HttpGet("{id:guid}/line-group-deliveries"), RequireAnyPermission(AnnouncementPermissions.Manage, AnnouncementPermissions.NotificationViewDelivery)]
+    public async Task<ActionResult<ApiResponse<IReadOnlyList<AnnouncementLineGroupDeliveryResponse>>>> LineGroupDeliveries(Guid id, CancellationToken ct)
+    {
+        if (!await db.Announcements.AnyAsync(x => x.Id == id, ct)) return NotFound(ApiResponse<IReadOnlyList<AnnouncementLineGroupDeliveryResponse>>.Fail("ไม่พบประกาศ"));
+        return ApiResponse<IReadOnlyList<AnnouncementLineGroupDeliveryResponse>>.Ok(await lineGroups!.DeliveriesAsync(id, ct));
     }
 
     [HttpGet("categories")]
@@ -828,12 +845,14 @@ public class AdminAnnouncementsController(
             return Unauthorized(ApiResponse<AnnouncementDetailResponse>.Fail("Invalid access token."));
         }
 
-        var channelValidation = await ValidateNotificationChannelsAsync(request.NotifyInApp ?? true, request.NotifyViaLine ?? false, userId.Value, cancellationToken);
+        var channelValidation = await ValidateNotificationChannelsAsync(request.NotifyInApp ?? true, request.NotifyViaLine == true || request.NotifyViaLineGroup, userId.Value, cancellationToken);
         if (channelValidation is not null)
         {
             return StatusCode(StatusCodes.Status403Forbidden, ApiResponse<AnnouncementDetailResponse>.Fail(channelValidation));
         }
 
+        var groupValidation = await ValidateLineGroupsAsync(request.NotifyViaLineGroup, request.LineGroupIds, cancellationToken);
+        if (groupValidation is not null) return BadRequest(ApiResponse<AnnouncementDetailResponse>.Fail(groupValidation));
         var item = new Announcement
         {
             Title = request.Title.Trim(),
@@ -851,16 +870,21 @@ public class AdminAnnouncementsController(
             Tags = NormalizeTags(request.Tags),
             NotifyInApp = request.NotifyInApp ?? true,
             NotifyViaLine = request.NotifyViaLine ?? false,
+            NotifyViaLineGroup = request.NotifyViaLineGroup,
             NotificationDispatchStatus = "Pending",
             Status = request.PublishAt is not null && request.PublishAt > DateTime.UtcNow ? AnnouncementStatuses.Scheduled : AnnouncementStatuses.Draft
         };
         ReplaceTargets(item, request.Targets);
+        ReplaceLineGroups(item, request.NotifyViaLineGroup ? request.LineGroupIds : null);
         db.Announcements.Add(item);
         await db.SaveChangesAsync(cancellationToken);
         await auditLogService.WriteAsync(userId, "Announcement.Created", "Announcement", item.Id.ToString(), item.Title, httpContext: HttpContext);
+        if (item.NotifyViaLineGroup)
+            await auditLogService.WriteAsync(userId, "Announcement.LineGroupsConfigured", "Announcement", item.Id.ToString(),
+                $"Enabled=True; Destinations={string.Join(',', item.LineGroupTargets.Select(x => x.DestinationId))}", httpContext: HttpContext);
 
         var created = await LoadAnnouncementAsync(item.Id, cancellationToken);
-        return CreatedAtAction(nameof(GetDetail), new { id = item.Id }, ApiResponse<AnnouncementDetailResponse>.Ok(AnnouncementsController.ToDetail(created!, userId.Value, Url), "บันทึกประกาศเรียบร้อยแล้ว"));
+        return CreatedAtAction(nameof(GetDetail), new { id = item.Id }, ApiResponse<AnnouncementDetailResponse>.Ok(AnnouncementsController.ToDetail(created!, userId.Value, Url, includeLineGroups: true), "บันทึกประกาศเรียบร้อยแล้ว"));
     }
 
     [HttpPut("{id:guid}")]
@@ -881,6 +905,7 @@ public class AdminAnnouncementsController(
 
         var item = await db.Announcements
             .Include(item => item.Targets)
+            .Include(item => item.LineGroupTargets)
             .FirstOrDefaultAsync(item => item.Id == id, cancellationToken);
         if (item is null)
         {
@@ -897,12 +922,18 @@ public class AdminAnnouncementsController(
             return BadRequest(ApiResponse<AnnouncementDetailResponse>.Fail("ไม่สามารถแก้ไขประกาศที่ปิดรายการแล้ว"));
         }
 
-        var channelValidation = await ValidateNotificationChannelsAsync(request.NotifyInApp ?? true, request.NotifyViaLine ?? false, userId.Value, cancellationToken);
+        var channelValidation = await ValidateNotificationChannelsAsync(request.NotifyInApp ?? true, request.NotifyViaLine == true || request.NotifyViaLineGroup, userId.Value, cancellationToken);
         if (channelValidation is not null)
         {
             return StatusCode(StatusCodes.Status403Forbidden, ApiResponse<AnnouncementDetailResponse>.Fail(channelValidation));
         }
 
+        var groupValidation = await ValidateLineGroupsAsync(request.NotifyViaLineGroup, request.LineGroupIds, cancellationToken);
+        if (groupValidation is not null) return BadRequest(ApiResponse<AnnouncementDetailResponse>.Fail(groupValidation));
+        var groupsChanged = item.NotifyViaLineGroup != request.NotifyViaLineGroup ||
+            !item.LineGroupTargets.Select(x => x.DestinationId).ToHashSet().SetEquals(request.NotifyViaLineGroup ? request.LineGroupIds ?? [] : []);
+        item.NotifyViaLineGroup = request.NotifyViaLineGroup;
+        ReplaceLineGroups(item, request.NotifyViaLineGroup ? request.LineGroupIds : null);
         item.Title = request.Title.Trim();
         item.Summary = NormalizeSummary(request.Summary, request.Body);
         item.Body = request.Body.Trim();
@@ -925,15 +956,18 @@ public class AdminAnnouncementsController(
             item.NotificationDispatchStatus = item.Status == AnnouncementStatuses.Published ? "Pending" : item.NotificationDispatchStatus;
             item.NotificationDispatchError = null;
         }
+        if (groupsChanged && item.Status == AnnouncementStatuses.Published) item.NotificationDispatchStatus = "Pending";
         item.UpdatedByUserId = userId;
         item.UpdatedAt = DateTime.UtcNow;
         ReplaceTargets(item, request.Targets);
 
         await db.SaveChangesAsync(cancellationToken);
         await auditLogService.WriteAsync(userId, "Announcement.Updated", "Announcement", item.Id.ToString(), item.Title, httpContext: HttpContext);
+        if (groupsChanged) await auditLogService.WriteAsync(userId, "Announcement.LineGroupsConfigured", "Announcement", item.Id.ToString(),
+            $"Enabled={item.NotifyViaLineGroup}; Groups={string.Join(',', item.LineGroupTargets.Select(x => x.DestinationId))}", httpContext: HttpContext);
 
         var updated = await LoadAnnouncementAsync(item.Id, cancellationToken);
-        return ApiResponse<AnnouncementDetailResponse>.Ok(AnnouncementsController.ToDetail(updated!, userId.Value, Url), "บันทึกประกาศเรียบร้อยแล้ว");
+        return ApiResponse<AnnouncementDetailResponse>.Ok(AnnouncementsController.ToDetail(updated!, userId.Value, Url, includeLineGroups: true), "บันทึกประกาศเรียบร้อยแล้ว");
     }
 
     [HttpPost("{id:guid}/publish")]
@@ -1064,6 +1098,12 @@ public class AdminAnnouncementsController(
             return NotFound(ApiResponse<AnnouncementDetailResponse>.Fail("ไม่พบประกาศ"));
         }
 
+        if (status == AnnouncementStatuses.Published)
+        {
+            if (userId is null) return Unauthorized();
+            var denied = await ValidateNotificationChannelsAsync(item.NotifyInApp, item.NotifyViaLine || item.NotifyViaLineGroup, userId.Value, cancellationToken);
+            if (denied is not null) return StatusCode(StatusCodes.Status403Forbidden, ApiResponse<AnnouncementDetailResponse>.Fail(denied));
+        }
         var wasPublished = item.Status == AnnouncementStatuses.Published;
         item.Status = status;
         item.UpdatedAt = DateTime.UtcNow;
@@ -1103,7 +1143,7 @@ public class AdminAnnouncementsController(
             }
         }
 
-        return ApiResponse<AnnouncementDetailResponse>.Ok(AnnouncementsController.ToDetail(updated!, userId ?? Guid.Empty, Url), "อัปเดตสถานะประกาศเรียบร้อยแล้ว");
+        return ApiResponse<AnnouncementDetailResponse>.Ok(AnnouncementsController.ToDetail(updated!, userId ?? Guid.Empty, Url, includeLineGroups: true), "อัปเดตสถานะประกาศเรียบร้อยแล้ว");
     }
 
     private async Task<Announcement?> LoadAnnouncementAsync(Guid id, CancellationToken cancellationToken)
@@ -1112,6 +1152,7 @@ public class AdminAnnouncementsController(
             .AsSplitQuery()
             .Include(item => item.Category)
             .Include(item => item.Targets)
+            .Include(item => item.LineGroupTargets).ThenInclude(x => x.Destination)
             .Include(item => item.Files)
             .Include(item => item.Images)
             .Include(item => item.Reads)
@@ -1140,6 +1181,24 @@ public class AdminAnnouncementsController(
         }
 
         return null;
+    }
+
+    private Task<string?> ValidateLineGroupsAsync(bool enabled, IReadOnlyList<Guid>? ids, CancellationToken ct) =>
+        lineGroups is not null ? lineGroups.ValidateAsync(enabled, ids, ct) : Task.FromResult<string?>(enabled ? "ยังไม่พร้อมส่งประกาศไปยัง LINE กลุ่ม" : null);
+
+    private void ReplaceLineGroups(Announcement item, IReadOnlyList<Guid>? ids)
+    {
+        var selected = (ids ?? []).ToHashSet();
+        foreach (var existing in item.LineGroupTargets.Where(x => !selected.Contains(x.DestinationId)).ToArray())
+        {
+            db.AnnouncementLineGroupTargets.Remove(existing);
+            item.LineGroupTargets.Remove(existing);
+        }
+        foreach (var id in selected.Where(id => item.LineGroupTargets.All(x => x.DestinationId != id)))
+        {
+            var target = new AnnouncementLineGroupTarget { Announcement = item, DestinationId = id };
+            db.AnnouncementLineGroupTargets.Add(target);
+        }
     }
 
     private async Task<string?> ValidateNotificationChannelsAsync(bool notifyInApp, bool notifyViaLine, Guid userId, CancellationToken cancellationToken)

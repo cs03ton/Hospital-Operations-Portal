@@ -80,7 +80,9 @@ export function AdminAnnouncementsPage() {
           `ยืนยันเผยแพร่ประกาศ?\n\n` +
           `ผู้รับทั้งหมด: ${preview.totalTargetUsers.toLocaleString("th-TH")} ราย\n` +
           `Notification Bell: ${preview.inAppRecipientCount.toLocaleString("th-TH")} ราย\n` +
-          `LINE: ${preview.lineBoundRecipientCount.toLocaleString("th-TH")} ราย\n` +
+          `LINE ส่วนบุคคล: ${preview.lineBoundRecipientCount.toLocaleString("th-TH")} ราย\n` +
+          `LINE กลุ่ม (หมอพร้อม): ${preview.lineGroupQueueCount ?? 0} กลุ่ม\n` +
+          (preview.lineGroups?.length ? `กลุ่มที่เลือก: ${preview.lineGroups.map(group => group.displayName).join(", ")}\n` : "") +
           `รายการที่คาดว่าจะเข้าคิว: ${preview.estimatedQueueItems.toLocaleString("th-TH")} รายการ${warningText}`
         );
         if (!confirmed) throw new Error("__cancelled__");
@@ -174,7 +176,7 @@ export function AdminAnnouncementsPage() {
                         <Typography fontWeight={900}>{item.title}</Typography>
                         <Typography variant="body2" color="text.secondary">{item.summary}</Typography>
                         <Typography variant="caption" color="text.secondary">
-                          แจ้งเตือน: {item.notifyInApp ? "Bell" : "-"} {item.notifyViaLine ? "· LINE" : ""} {item.notificationDispatchStatus ? `· ${item.notificationDispatchStatus}` : ""}
+                          แจ้งเตือน: {item.notifyInApp ? "Bell" : "-"} {item.notifyViaLine ? "· LINE ส่วนบุคคล" : ""} {item.notifyViaLineGroup ? "· LINE กลุ่ม" : ""} {item.notificationDispatchStatus ? `· ${item.notificationDispatchStatus}` : ""}
                         </Typography>
                       </TableCell>
                       <TableCell>{item.category?.name ?? "-"}</TableCell>

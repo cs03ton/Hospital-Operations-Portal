@@ -81,7 +81,10 @@ export function LeaveHolidayManagementPage() {
       setPreview(null);
       await queryClient.invalidateQueries({ queryKey: ["leave-holidays"] });
     },
-    onError: (error: unknown) => showSaveError(error, "Import วันหยุดราชการไม่สำเร็จ"),
+    onError: (error: unknown) => {
+      setPreview(null);
+      showSaveError(error, "Import วันหยุดราชการไม่สำเร็จ กรุณากด Preview เพื่อตรวจสอบใหม่");
+    },
   });
 
   const validRows = useMemo(() => preview?.rows.filter((row) => row.isValid && row.holidayDate).map((row) => ({
@@ -114,6 +117,7 @@ export function LeaveHolidayManagementPage() {
   }
 
   function handleCloseImport() {
+    if (previewMutation.isPending || confirmMutation.isPending) return;
     setImportOpen(false);
     setImportFile(null);
     setPreview(null);
@@ -288,15 +292,17 @@ export function LeaveHolidayManagementPage() {
         <DialogContent>
           <Stack spacing={2} sx={{ pt: 1 }}>
             <Alert severity="info">
-              รองรับไฟล์ .csv และ .xlsx โดยใช้คอลัมน์ วันที่, ชื่อวันหยุด, ประเภทวันหยุด วันที่ในไฟล์ใช้รูปแบบ YYYY-MM-DD เช่น 2027-01-01 และระบบจะแสดงเป็น 01/01/2027
+              รองรับไฟล์ .csv (UTF-8) และ .xlsx โดยใช้คอลัมน์ วันที่ และ ชื่อวันหยุด เช่น 6/4/2027 หมายถึง 6 เมษายน 2570
+              รองรับวันที่แบบวัน/เดือน/ปี หรือ YYYY-MM-DD ปี ค.ศ./พ.ศ. และเซลล์วันที่ Excel คอลัมน์ประเภทวันหยุดเป็นตัวเลือกของไฟล์เดิม
             </Alert>
+            <Typography variant="body2" color="text.secondary">ชื่อวันหยุดซ้ำกันได้หากคนละวันที่ หากมีวันที่ซ้ำหรือข้อมูลผิด ต้องแก้ไฟล์และตรวจสอบใหม่ก่อนนำเข้าทั้งชุด ระบบจะไม่เขียนทับข้อมูลเดิม</Typography>
             {(previewMutation.isError || confirmMutation.isError) && (
               <Alert severity="error">Import ไม่สำเร็จ กรุณาตรวจสอบไฟล์และข้อมูลอีกครั้ง</Alert>
             )}
             <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
               <Button component="label" variant="outlined" startIcon={<UploadFileOutlinedIcon />}>
                 Upload File
-                <input hidden type="file" accept=".csv,.xlsx" onChange={(event) => { setImportFile(event.target.files?.[0] ?? null); setPreview(null); }} />
+                <input aria-label="ไฟล์นำเข้าวันหยุด" hidden type="file" accept=".csv,.xlsx" disabled={previewMutation.isPending || confirmMutation.isPending} onChange={(event) => { setImportFile(event.target.files?.[0] ?? null); setPreview(null); }} />
               </Button>
               <Button variant="outlined" startIcon={<DownloadOutlinedIcon />} onClick={handleDownloadTemplate}>
                 ดาวน์โหลด Template
@@ -304,7 +310,7 @@ export function LeaveHolidayManagementPage() {
               <Button variant="contained" disabled={!importFile || previewMutation.isPending} onClick={() => importFile && previewMutation.mutate(importFile)}>
                 Preview ก่อน Import
               </Button>
-              <Button variant="contained" color="success" disabled={!preview || preview.invalidRows > 0 || validRows.length === 0 || confirmMutation.isPending} onClick={() => confirmMutation.mutate({ rows: validRows })}>
+              <Button variant="contained" color="success" disabled={!preview || preview.invalidRows > 0 || validRows.length === 0 || previewMutation.isPending || confirmMutation.isPending} onClick={() => confirmMutation.mutate({ rows: validRows })}>
                 Confirm Import
               </Button>
             </Stack>

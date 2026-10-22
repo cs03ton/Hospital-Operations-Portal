@@ -22,11 +22,50 @@ public sealed class FleetCalendarController(AppDbContext db, FleetDateRangeServi
 
         var requests = db.FleetRequests.AsNoTracking().Where(x => x.DepartureAt < range.End && x.ExpectedReturnAt > range.Start && (includeCancelled || x.Status != "CANCELLED"));
         if (departmentId != null) requests = requests.Where(x => x.RequesterDepartmentId == departmentId); if (vehicleId != null) requests = requests.Where(x => x.Assignments.Any(a => a.VehicleId == vehicleId)); if (driverUserId != null) requests = requests.Where(x => x.Assignments.Any(a => a.DriverUserId == driverUserId)); if (statusFilter.Count > 0) requests = requests.Where(x => statusFilter.Contains(x.Status));
-        if (Include("REQUEST")) all.AddRange(await requests.Select(x => new CalendarEventDto("request:"+x.Id,"REQUEST",(x.Priority=="EMERGENCY"?"[EMERGENCY] ":x.Priority=="URGENT"?"[URGENT] ":"")+x.RequestNo+" · "+x.Destination,x.DepartureAt,x.ExpectedReturnAt,false,x.Status,x.Priority=="EMERGENCY"?"danger":x.IsUrgent?"warning":"info",x.Id,null,null,x.Assignments.Where(a=>a.IsActive).Select(a=>(Guid?)a.VehicleId).FirstOrDefault(),x.Assignments.Where(a=>a.IsActive).Select(a=>(Guid?)a.DriverUserId).FirstOrDefault(),null,null,"/fleet/requests/"+x.Id,new { x.RequestNo,x.Priority, Department=x.RequesterDepartment!=null?x.RequesterDepartment.Name:null, x.Destination, x.PassengerCount })).ToListAsync(ct));
+        if (Include("REQUEST")) all.AddRange(await requests.Select(x => new CalendarEventDto("request:"+x.Id,"REQUEST",(x.Priority=="EMERGENCY"?"[EMERGENCY] ":x.Priority=="URGENT"?"[URGENT] ":"")+x.RequestNo+" · "+x.Destination,x.DepartureAt,x.ExpectedReturnAt,false,x.Status,x.Priority=="EMERGENCY"?"danger":x.IsUrgent?"warning":"info",x.Id,null,null,x.Assignments.Where(a=>a.IsActive).Select(a=>(Guid?)a.VehicleId).FirstOrDefault(),x.Assignments.Where(a=>a.IsActive).Select(a=>(Guid?)a.DriverUserId).FirstOrDefault(),null,null,"/fleet/requests/"+x.Id,new
+        {
+            x.RequestNo, x.Priority, Department = x.RequesterDepartment != null ? x.RequesterDepartment.Name : null,
+            x.Destination, x.PassengerCount, Requester = x.RequesterUser != null ? x.RequesterUser.FullName : null,
+            x.Purpose, x.MissionType,
+            Vehicle = x.Assignments.OrderByDescending(a => a.IsActive).ThenByDescending(a => a.AssignedAt).ThenByDescending(a => a.Id).Select(a => a.Vehicle!.VehicleCode).FirstOrDefault(),
+            RegistrationNumber = x.Assignments.OrderByDescending(a => a.IsActive).ThenByDescending(a => a.AssignedAt).ThenByDescending(a => a.Id).Select(a => a.Vehicle!.RegistrationNumber).FirstOrDefault(),
+            Driver = x.Assignments.OrderByDescending(a => a.IsActive).ThenByDescending(a => a.AssignedAt).ThenByDescending(a => a.Id).Select(a => a.DriverUser!.FullName).FirstOrDefault()
+        })).ToListAsync(ct));
 
-        if (Include("ASSIGNMENT")) { var q=db.FleetAssignments.AsNoTracking().Where(a=>a.FleetRequest!.DepartureAt<range.End&&a.FleetRequest.ExpectedReturnAt>range.Start); if(vehicleId!=null)q=q.Where(a=>a.VehicleId==vehicleId);if(driverUserId!=null)q=q.Where(a=>a.DriverUserId==driverUserId);if(departmentId!=null)q=q.Where(a=>a.FleetRequest!.RequesterDepartmentId==departmentId); all.AddRange(await q.Select(a=>new CalendarEventDto("assignment:"+a.Id,"ASSIGNMENT",a.Vehicle!.VehicleCode+" · "+a.DriverUser!.FullName,a.FleetRequest!.DepartureAt,db.FleetAssignments.Where(n=>n.ReplacedAssignmentId==a.Id).Select(n=>n.AssignedAt).FirstOrDefault()==default?a.FleetRequest.ExpectedReturnAt:db.FleetAssignments.Where(n=>n.ReplacedAssignmentId==a.Id).Select(n=>n.AssignedAt).First(),false,a.AssignmentStatus,a.IsActive?"info":"muted",a.FleetRequestId,a.Id,null,a.VehicleId,a.DriverUserId,null,null,"/fleet/requests/"+a.FleetRequestId,new { a.IsActive,a.ReplacedAssignmentId,a.AssignedAt })).ToListAsync(ct)); }
+        if (Include("ASSIGNMENT")) { var q=db.FleetAssignments.AsNoTracking().Where(a=>a.FleetRequest!.DepartureAt<range.End&&a.FleetRequest.ExpectedReturnAt>range.Start); if(vehicleId!=null)q=q.Where(a=>a.VehicleId==vehicleId);if(driverUserId!=null)q=q.Where(a=>a.DriverUserId==driverUserId);if(departmentId!=null)q=q.Where(a=>a.FleetRequest!.RequesterDepartmentId==departmentId); all.AddRange(await q.Select(a=>new CalendarEventDto("assignment:"+a.Id,"ASSIGNMENT",a.Vehicle!.VehicleCode+" · "+a.DriverUser!.FullName,a.FleetRequest!.DepartureAt,db.FleetAssignments.Where(n=>n.ReplacedAssignmentId==a.Id).Select(n=>n.AssignedAt).FirstOrDefault()==default?a.FleetRequest.ExpectedReturnAt:db.FleetAssignments.Where(n=>n.ReplacedAssignmentId==a.Id).Select(n=>n.AssignedAt).First(),false,a.AssignmentStatus,a.IsActive?"info":"muted",a.FleetRequestId,a.Id,null,a.VehicleId,a.DriverUserId,null,null,"/fleet/requests/"+a.FleetRequestId,new
+        {
+            a.IsActive, a.ReplacedAssignmentId, a.AssignedAt, a.FleetRequest.RequestNo,
+            Requester = a.FleetRequest.RequesterUser != null ? a.FleetRequest.RequesterUser.FullName : null,
+            Department = a.FleetRequest.RequesterDepartment != null ? a.FleetRequest.RequesterDepartment.Name : null,
+            a.FleetRequest.Destination, a.FleetRequest.Purpose, a.FleetRequest.MissionType, a.FleetRequest.PassengerCount,
+            Vehicle = a.Vehicle.VehicleCode, a.Vehicle.RegistrationNumber, Driver = a.DriverUser.FullName
+        })).ToListAsync(ct)); }
 
-        if (Include("TRIP")) { var q=db.FleetTripRecords.AsNoTracking().Where(t=>t.ActualStartAt<range.End&&(t.ActualEndAt??t.AbortedAt??now)>range.Start); if(vehicleId!=null)q=q.Where(t=>t.Assignment!.VehicleId==vehicleId);if(driverUserId!=null)q=q.Where(t=>t.DriverUserId==driverUserId); all.AddRange(await q.Select(t=>new CalendarEventDto("trip:"+t.Id,"TRIP","Trip · "+t.FleetRequest!.RequestNo,t.ActualStartAt!.Value,t.ActualEndAt??t.AbortedAt??now,false,t.IsAborted?"ABORTED":t.ActualEndAt!=null?"COMPLETED":"IN_PROGRESS",t.IsAborted?"danger":"success",t.FleetRequestId,t.AssignmentId,t.Id,t.Assignment!.VehicleId,t.DriverUserId,null,null,"/fleet/requests/"+t.FleetRequestId,new { t.StartMileage,t.EndMileage })).ToListAsync(ct)); }
+        if (Include("TRIP"))
+        {
+            // Calendar placement follows the requested travel schedule. An unfinished
+            // trip must not extend through every subsequent day up to the current time.
+            var trips = db.FleetTripRecords.AsNoTracking().Where(t =>
+                t.FleetRequest!.DepartureAt < range.End && t.FleetRequest.ExpectedReturnAt > range.Start);
+            if (vehicleId != null) trips = trips.Where(t => t.Assignment!.VehicleId == vehicleId);
+            if (driverUserId != null) trips = trips.Where(t => t.DriverUserId == driverUserId);
+            if (departmentId != null) trips = trips.Where(t => t.FleetRequest!.RequesterDepartmentId == departmentId);
+            all.AddRange(await trips.Select(t => new CalendarEventDto(
+                "trip:" + t.Id, "TRIP", "Trip · " + t.FleetRequest!.RequestNo,
+                t.FleetRequest.DepartureAt, t.FleetRequest.ExpectedReturnAt, false,
+                t.IsAborted ? "ABORTED" : t.ActualEndAt != null ? "COMPLETED" : "IN_PROGRESS",
+                t.IsAborted ? "danger" : "success", t.FleetRequestId, t.AssignmentId, t.Id,
+                t.Assignment!.VehicleId, t.DriverUserId, null, null, "/fleet/requests/" + t.FleetRequestId,
+                new
+                {
+                    t.StartMileage, t.EndMileage, t.ActualStartAt, t.ActualEndAt, t.AbortedAt,
+                    t.FleetRequest.RequestNo, Requester = t.FleetRequest.RequesterUser != null ? t.FleetRequest.RequesterUser.FullName : null,
+                    Department = t.FleetRequest.RequesterDepartment != null ? t.FleetRequest.RequesterDepartment.Name : null,
+                    t.FleetRequest.Destination, t.FleetRequest.Purpose, t.FleetRequest.MissionType, t.FleetRequest.PassengerCount,
+                    Vehicle = t.Assignment.Vehicle!.VehicleCode, t.Assignment.Vehicle.RegistrationNumber,
+                    Driver = t.DriverUser != null ? t.DriverUser.FullName : null
+                })).ToListAsync(ct));
+        }
 
         if (Include("VEHICLE_UNAVAILABILITY")) { var q=db.FleetVehicleUnavailability.AsNoTracking().Where(x=>x.StartAt<range.End&&x.EndAt>range.Start);if(vehicleId!=null)q=q.Where(x=>x.VehicleId==vehicleId);all.AddRange(await q.Select(x=>new CalendarEventDto("vehicle-unavailability:"+x.Id,"VEHICLE_UNAVAILABILITY",x.Vehicle!.VehicleCode+" · "+x.Reason,x.StartAt,x.EndAt,false,x.Type,"warning",null,null,null,x.VehicleId,null,null,null,"/fleet/calendar",new { x.Reason,x.Type })).ToListAsync(ct)); }
         if (Include("DRIVER_UNAVAILABILITY")) { var q=db.FleetDriverUnavailability.AsNoTracking().Where(x=>x.StartAt<range.End&&x.EndAt>range.Start);if(driverUserId!=null)q=q.Where(x=>x.UserId==driverUserId);all.AddRange(await q.Select(x=>new CalendarEventDto("driver-unavailability:"+x.Id,"DRIVER_UNAVAILABILITY",x.User!.FullName+" · ไม่พร้อมใช้งาน",x.StartAt,x.EndAt,false,"UNAVAILABLE","warning",null,null,null,null,x.UserId,null,null,"/fleet/calendar",new { x.Reason })).ToListAsync(ct)); }

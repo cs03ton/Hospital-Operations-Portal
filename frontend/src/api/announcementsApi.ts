@@ -49,6 +49,7 @@ export type AnnouncementSummary = {
   acknowledgedCount: number;
   notifyInApp: boolean;
   notifyViaLine: boolean;
+  notifyViaLineGroup?: boolean;
   notificationDispatchStatus?: string | null;
   inAppRecipientCount: number;
   lineEligibleRecipientCount: number;
@@ -66,6 +67,8 @@ export type AnnouncementSummary = {
 };
 
 export type AnnouncementDetail = AnnouncementSummary & {
+  lineGroupIds?: string[] | null;
+  lineGroups?: AnnouncementLineGroupOption[] | null;
   body: string;
   targets: AnnouncementTarget[];
   files: AnnouncementFile[];
@@ -117,6 +120,8 @@ export type AnnouncementPayload = {
   tags?: string | null;
   notifyInApp?: boolean;
   notifyViaLine?: boolean;
+  notifyViaLineGroup?: boolean;
+  lineGroupIds?: string[];
   targets?: Array<{ targetType: string; targetValue?: string | null }>;
 };
 
@@ -131,7 +136,20 @@ export type AnnouncementNotificationPreview = {
   inactiveUserCount: number;
   estimatedQueueItems: number;
   warnings: string[];
+  notifyViaLineGroup?: boolean;
+  lineGroups?: AnnouncementLineGroupOption[] | null;
+  lineGroupQueueCount?: number;
 };
+
+export type AnnouncementLineGroupOption = { id: string; displayName: string; status: string };
+export type AnnouncementLineGroupDelivery = { id: string; destinationId: string; displayName: string; status: string;
+  attemptCount: number; errorCode?: string | null; errorMessage?: string | null; createdAt: string; sentAt?: string | null; failedAt?: string | null };
+export async function getAnnouncementLineGroupOptions() {
+  return (await httpClient.get<ApiResponse<AnnouncementLineGroupOption[]>>("/api/admin/announcements/line-group-options")).data.data;
+}
+export async function getAnnouncementLineGroupDeliveries(id: string) {
+  return (await httpClient.get<ApiResponse<AnnouncementLineGroupDelivery[]>>(`/api/admin/announcements/${id}/line-group-deliveries`)).data.data;
+}
 
 export type AnnouncementQuery = {
   page?: number;

@@ -9,6 +9,7 @@ import NotificationsActiveOutlinedIcon from "@mui/icons-material/NotificationsAc
 import PushPinOutlinedIcon from "@mui/icons-material/PushPinOutlined";
 import SaveOutlinedIcon from "@mui/icons-material/SaveOutlined";
 import TaskAltOutlinedIcon from "@mui/icons-material/TaskAltOutlined";
+import GroupsOutlinedIcon from "@mui/icons-material/GroupsOutlined";
 import {
   Alert,
   Autocomplete,
@@ -35,6 +36,7 @@ import {
   deleteAnnouncementImage,
   getAdminAnnouncementDetail,
   getAnnouncementCategories,
+  getAnnouncementLineGroupOptions,
   reorderAnnouncementImages,
   updateAnnouncement,
   uploadAnnouncementAttachments,
@@ -48,6 +50,8 @@ import { PageHeader } from "../components/PageHeader";
 import { useAuthenticatedMediaUrl } from "../hooks/useAuthenticatedMediaUrl";
 import { useNotification } from "../hooks/useNotification";
 import { brandColors } from "../theme/theme";
+import { usePermission } from "../context/PermissionContext";
+import { AnnouncementGroupDeliveryPanel } from "../components/announcements/AnnouncementGroupDeliveryPanel";
 
 type TargetType = "Everyone" | "Role" | "Department" | "User" | "Permission";
 
@@ -68,6 +72,8 @@ type FormState = {
   requiresAcknowledgement: boolean;
   notifyInApp: boolean;
   notifyViaLine: boolean;
+  notifyViaLineGroup: boolean;
+  lineGroupIds: string[];
 };
 
 const defaultState: FormState = {
@@ -87,6 +93,8 @@ const defaultState: FormState = {
   requiresAcknowledgement: false,
   notifyInApp: true,
   notifyViaLine: false,
+  notifyViaLineGroup: false,
+  lineGroupIds: [],
 };
 
 export function AdminAnnouncementFormPage() {
@@ -102,6 +110,9 @@ export function AdminAnnouncementFormPage() {
   const navigate = useNavigate();
   const notify = useNotification();
   const queryClient = useQueryClient();
+  const { hasPermission } = usePermission();
+  const canSendLine = hasPermission("Announcement.Notification.SendLine");
+  const groupsQuery = useQuery({ queryKey: ["admin", "announcement-line-groups"], queryFn: getAnnouncementLineGroupOptions, enabled: canSendLine });
   const { data: categories = [] } = useQuery({ queryKey: ["admin", "announcement-categories"], queryFn: getAnnouncementCategories });
   const { data: departments = [] } = useQuery({ queryKey: ["departments"], queryFn: getDepartments });
   const { data: users = [] } = useQuery({ queryKey: ["users"], queryFn: getUsers });
@@ -141,6 +152,8 @@ export function AdminAnnouncementFormPage() {
       requiresAcknowledgement: detail.requiresAcknowledgement,
       notifyInApp: detail.notifyInApp,
       notifyViaLine: detail.notifyViaLine,
+      notifyViaLineGroup: detail.notifyViaLineGroup ?? false,
+      lineGroupIds: detail.lineGroupIds ?? [],
     });
   }, [detail]);
 
@@ -188,6 +201,10 @@ export function AdminAnnouncementFormPage() {
   }
 
   function submit() {
+    if (form.notifyViaLineGroup && form.lineGroupIds.length === 0) {
+      notify.showError("กรุณาเลือกกลุ่ม LINE หมอพร้อมอย่างน้อยหนึ่งกลุ่ม");
+      return;
+    }
     if (form.targetType !== "Everyone" && form.targetValues.length === 0) {
       notify.showError("กรุณาเลือกค่าเป้าหมายอย่างน้อย 1 รายการ");
       return;
@@ -208,6 +225,8 @@ export function AdminAnnouncementFormPage() {
       requiresAcknowledgement: form.requiresAcknowledgement,
       notifyInApp: form.notifyInApp,
       notifyViaLine: form.notifyViaLine,
+      notifyViaLineGroup: form.notifyViaLineGroup,
+      lineGroupIds: form.notifyViaLineGroup ? form.lineGroupIds : [],
       targets: buildTargetPayload(form.targetType, form.targetValues),
     };
     saveMutation.mutate(payload);
@@ -398,19 +417,37 @@ export function AdminAnnouncementFormPage() {
                         checked={form.notifyViaLine}
                         onChange={(checked) => update("notifyViaLine", checked)}
                         icon={<NotificationsActiveOutlinedIcon />}
-                        title="LINE Official Account"
+                        title="LINE ส่วนบุคคล"
                         description="ส่ง Flex Card ประกาศไปยัง LINE ของผู้รับ"
                       />
                     </Box>
-                    {form.priority === "Critical" && !form.notifyViaLine && (
+                    <AnnouncementOptionTile checked={form.notifyViaLineGroup} onChange={(checked) => update("notifyViaLineGroup", checked)}
+                      disabled={!canSendLine} icon={<GroupsOutlinedIcon />} title="LINE กลุ่ม (หมอพร้อม)"
+                      description="ส่ง Flex Card ไปยังกลุ่มส่วนกลางที่เลือก" />
+                    {form.notifyViaLineGroup && <>
+                      <Autocomplete multiple disableCloseOnSelect options={[...new Map([...(detail?.lineGroups ?? []), ...(groupsQuery.data ?? [])].map(group => [group.id, group])).values()]}
+                        value={form.lineGroupIds.map(id => groupsQuery.data?.find(group => group.id === id) ?? detail?.lineGroups?.find(group => group.id === id) ?? { id, displayName: "กลุ่มที่ไม่พร้อมใช้งาน", status: "Disabled" })}
+                        isOptionEqualToValue={(option, value) => option.id === value.id}
+                        getOptionLabel={group => `${group.displayName}${group.status !== "Active" ? " (ปิดใช้งาน)" : ""}`}
+                        getOptionDisabled={group => group.status !== "Active"}
+                        onChange={(_, groups) => update("lineGroupIds", groups.map(group => group.id))} disabled={!canSendLine}
+                        loading={groupsQuery.isLoading} renderInput={params => <TextField {...params} label="กลุ่ม LINE หมอพร้อมที่ต้องการแจ้ง" required
+                          helperText="เลือกได้หลายกลุ่มจากกลุ่มแจ้งเตือนส่วนกลางที่เปิดใช้งาน" />} />
+                      {groupsQuery.isError && <Alert severity="error" action={<Button onClick={() => void groupsQuery.refetch()}>ลองใหม่</Button>}>โหลดกลุ่ม LINE ไม่สำเร็จ</Alert>}
+                      {!groupsQuery.isLoading && !groupsQuery.isError && groupsQuery.data?.length === 0 && <Alert severity="info">ยังไม่มีกลุ่มหมอพร้อมที่เปิดใช้งาน กรุณาตั้งค่าจากกลุ่มแจ้งเตือนส่วนกลาง</Alert>}
+                      {form.targetType !== "Everyone" && <Alert severity="warning">สมาชิกทุกคนในกลุ่ม LINE จะเห็นชื่อและสรุปประกาศ ส่วนรายละเอียดใน HOP ยังตรวจสิทธิ์ตามกลุ่มเป้าหมายเดิม</Alert>}
+                      <Typography variant="caption" color="text.secondary">ระบบจะส่งเมื่อเผยแพร่หรือถึงเวลาที่ตั้งไว้ การบันทึกแบบร่างยังไม่ส่ง</Typography>
+                    </>}
+                    {form.priority === "Critical" && !form.notifyViaLine && !form.notifyViaLineGroup && (
                       <Alert severity="warning">ประกาศเร่งด่วนควรเปิด LINE ด้วย เพื่อให้ผู้รับเห็นเร็วขึ้น</Alert>
                     )}
-                    {!form.notifyInApp && !form.notifyViaLine && (
+                    {!form.notifyInApp && !form.notifyViaLine && !form.notifyViaLineGroup && (
                       <Alert severity="info">ประกาศนี้จะไม่ส่งแจ้งเตือนเพิ่มเติม แต่ยังเปิดอ่านได้จากศูนย์ประกาศและหน้า Dashboard</Alert>
                     )}
                   </Stack>
                 </CardContent>
               </Card>
+              {isEdit && id && <AnnouncementGroupDeliveryPanel announcementId={id} />}
               <Box sx={{ display: "flex", justifyContent: "flex-end" }}>
                 <Button variant="contained" startIcon={<SaveOutlinedIcon />} disabled={saveMutation.isPending} onClick={submit}>
                   บันทึกข้อมูล
@@ -430,12 +467,14 @@ function AnnouncementOptionTile({
   icon,
   title,
   description,
+  disabled = false,
 }: {
   checked: boolean;
   onChange: (checked: boolean) => void;
   icon: ReactNode;
   title: string;
   description: string;
+  disabled?: boolean;
 }) {
   return (
     <Box
@@ -459,6 +498,8 @@ function AnnouncementOptionTile({
       }}
     >
       <Checkbox
+        disabled={disabled}
+        inputProps={{ "aria-label": title }}
         checked={checked}
         onChange={(event) => onChange(event.target.checked)}
         sx={{ p: 0.25, mt: 0.1, color: brandColors.primary }}

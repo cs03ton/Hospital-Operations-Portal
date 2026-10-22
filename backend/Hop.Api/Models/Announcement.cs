@@ -26,6 +26,7 @@ public class Announcement
     public int ViewCount { get; set; }
     public bool NotifyInApp { get; set; } = true;
     public bool NotifyViaLine { get; set; }
+    public bool NotifyViaLineGroup { get; set; }
     public DateTime? NotificationSentAt { get; set; }
     public DateTime? LineNotificationQueuedAt { get; set; }
     public string? NotificationDispatchStatus { get; set; }
@@ -43,4 +44,5 @@ public class Announcement
     public ICollection<AnnouncementImage> Images { get; set; } = [];
     public ICollection<AnnouncementRead> Reads { get; set; } = [];
     public ICollection<AnnouncementNotificationDelivery> NotificationDeliveries { get; set; } = [];
+    public ICollection<AnnouncementLineGroupTarget> LineGroupTargets { get; set; } = [];
 }

@@ -392,6 +392,17 @@ public sealed class FleetLineGroupDeliveryService(
                 log.ErrorMessage = "Destination is not active.";
                 continue;
             }
+            if (log.CanonicalEventType == AnnouncementLineGroupService.EventType &&
+                (log.Destination.DeliveryProvider != "CUSTOM_ENDPOINT" || log.Destination.Module.StartsWith("REPAIR_") ||
+                 !await db.Announcements.AsNoTracking().AnyAsync(x => x.Id == log.RequestId && x.Status == AnnouncementStatuses.Published &&
+                     (x.ExpiresAt == null || x.ExpiresAt > now), ct)))
+            {
+                log.Status = "Skipped";
+                log.FailedAt = now;
+                log.ErrorCode = "ANNOUNCEMENT_NOT_DELIVERABLE";
+                log.ErrorMessage = "Announcement is no longer published or the selected destination is unavailable.";
+                continue;
+            }
             if ((log.CanonicalEventType is PendingApprovalDigest.EventType or FleetDailyDriverJobsDigest.EventType) &&
                 !await db.LineGroupEventSubscriptions.AsNoTracking().AnyAsync(s => s.DestinationId == log.DestinationId &&
                     s.EventType == log.CanonicalEventType && s.IsEnabled, ct))

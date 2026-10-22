@@ -18,6 +18,7 @@ import { useAuthenticatedMediaUrl } from "../hooks/useAuthenticatedMediaUrl";
 import { useNotification } from "../hooks/useNotification";
 import { brandColors } from "../theme/theme";
 import { formatThaiDateTime } from "../utils/dateFormat";
+import { AnnouncementGroupDeliveryPanel } from "../components/announcements/AnnouncementGroupDeliveryPanel";
 
 export function AnnouncementDetailPage() {
   const { id } = useParams();
@@ -58,6 +59,7 @@ export function AnnouncementDetailPage() {
           {isAdminPreview ? "กลับหน้าจัดการประกาศ" : "กลับศูนย์ประกาศ"}
         </Button>
 
+        {isAdminPreview && id && <AnnouncementGroupDeliveryPanel announcementId={id} />}
         <Card sx={{ border: `1px solid ${brandColors.border}`, borderTop: `5px solid ${data.priority === "Critical" ? theme.palette.error.main : brandColors.accent}`, borderRadius: 3, boxShadow: `0 14px 34px ${alpha(theme.palette.primary.dark, 0.06)}` }}>
           <AnnouncementCoverImage data={data} />
           <CardContent sx={{ p: { xs: 2.5, md: 4 } }}>
