@@ -18,7 +18,7 @@ import { useQuery } from "@tanstack/react-query";
 import { bangkokDayjs as dayjs } from "../utils/dateFormat";
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { exportFleetUsageReport, getFleetCalendar, getFleetDepartmentReport, getFleetDriverReport, getFleetFeedbackAttention, getFleetFeedbackDriverReport, getFleetFeedbackDriverTrend, getFleetFeedbackManagementSummary, getFleetFeedbackTripReport, getFleetFeedbackVehicleReport, getFleetKpis, getFleetRouteReport, type FleetCalendarEvent, type FleetDriverReport } from "../api/fleetApi";
+import { exportFleetUsageReport, getFleetCalendar, getFleetDepartmentReport, getFleetDriverReport, getFleetFeedbackAttention, getFleetFeedbackDriverReport, getFleetFeedbackDriverTrend, getFleetFeedbackManagementSummary, getFleetFeedbackTripReport, getFleetFeedbackVehicleReport, getFleetKpis, getFleetDistanceSummary, getFleetRouteReport, type FleetCalendarEvent, type FleetDriverReport } from "../api/fleetApi";
 import { AppDatePicker } from "../components/common/AppDatePicker";
 import { EmptyState } from "../components/common/EmptyState";
 import { LoadingState } from "../components/common/LoadingState";
@@ -37,7 +37,7 @@ export function FleetReportsPage() {
   const [keyword, setKeyword] = useState("");
   const [page, setPage] = useState(1);
   const params = useMemo(() => {
-    const value = new URLSearchParams({ startDate, endDate, excludeCancelled: "true" });
+    const value = new URLSearchParams({ preset: "custom", startDate, endDate, excludeCancelled: "true" });
     if (status) value.set("status", status);
     return value;
   }, [endDate, startDate, status]);
@@ -47,6 +47,8 @@ export function FleetReportsPage() {
     if (status) value.set("statuses", status);
     return value;
   }, [endDate, startDate, status]);
+  const distance = useQuery({ queryKey: ["fleet-report-distance", params.toString()], queryFn: () => getFleetDistanceSummary(params) });
+  const distanceValue = distance.isLoading ? "กำลังโหลด..." : distance.isError ? "โหลดระยะทางไม่สำเร็จ" : distance.data?.totalDistanceKm == null ? "ยังไม่มีข้อมูลเลขไมล์ครบถ้วน" : `${distance.data.totalDistanceKm.toLocaleString("th-TH", { maximumFractionDigits: 2 })} กม.`;
   const kpis = useQuery({ queryKey: ["fleet-report-kpis", params.toString()], queryFn: () => getFleetKpis(params) });
   const departments = useQuery({ queryKey: ["fleet-report-departments", params.toString()], queryFn: () => getFleetDepartmentReport(params) });
   const drivers = useQuery({ queryKey: ["fleet-report-drivers", params.toString()], queryFn: () => getFleetDriverReport(params) });
@@ -95,7 +97,7 @@ export function FleetReportsPage() {
     {!isLoading && !hasError && <>
       <Grid container spacing={1.5} sx={{ width: "calc(100% + 12px)", ml: "-12px" }}>
         <KpiCard icon={<CalendarMonthOutlinedIcon />} label="จำนวนเที่ยวทั้งหมด" value={`${kpis.data?.totalRequests ?? 0} เที่ยว`} color="#1E8E4A" />
-        <KpiCard icon={<AltRouteOutlinedIcon />} label="ระยะทางรวม" value="ยังไม่มีข้อมูล กม." color="#287BC1" compact />
+        <KpiCard icon={<AltRouteOutlinedIcon />} label="ระยะทางรวม" value={distanceValue} color="#287BC1" compact />
         <KpiCard icon={<AccessTimeOutlinedIcon />} label="ชั่วโมงการใช้งานรวม" value={`${reportSummary.hours.toLocaleString("th-TH", { maximumFractionDigits: 1 })} ชม.`} color="#7651C9" />
         <KpiCard icon={<PeopleAltOutlinedIcon />} label="ผู้ใช้บริการรวม" value={`${reportSummary.passengers.toLocaleString("th-TH")} คน`} color="#D88923" />
         <KpiCard icon={<LocalShippingOutlinedIcon />} label="อัตราการใช้งานรถ" value={`${reportSummary.utilization}%`} color="#238B8B" />
@@ -109,7 +111,7 @@ export function FleetReportsPage() {
         <Grid item xs={12} lg={3.5}><Stack spacing={2}>
           <Card><CardContent><SectionTitle title="สรุปสถานะการจอง" subtitle="รายการตามสถานะ" /><StatusSummary counts={statusCounts} /></CardContent></Card>
           <Card><CardContent><SectionTitle title="จุดหมายที่ใช้บริการบ่อย" subtitle="5 อันดับแรก" /><Stack spacing={1.25}>{(routes.data ?? []).sort((a, b) => b.requestCount - a.requestCount).slice(0, 5).map((item, index) => <Stack key={item.destination} direction="row" spacing={1.25} alignItems="center"><Chip size="small" label={index + 1} color={index === 0 ? "primary" : "default"} /><Box flex={1}><Typography variant="body2" fontWeight={700}>{item.destination || "ไม่ระบุจุดหมาย"}</Typography><Typography variant="caption" color="text.secondary">{item.requestCount} เที่ยว · เสร็จ {item.completedTripCount}</Typography></Box></Stack>)}</Stack></CardContent></Card>
-          <Card><CardContent><SectionTitle title="สรุประยะทางตามช่วง" subtitle="ข้อมูลเลขไมล์จากการปิดงาน" /><Typography variant="body2" color="text.secondary">ระยะทางรวม</Typography><Typography variant="h5" fontWeight={900}>ยังไม่มีข้อมูล</Typography></CardContent></Card>
+          <Card><CardContent><SectionTitle title="สรุประยะทางตามช่วง" subtitle="ข้อมูลเลขไมล์จากการปิดงาน" /><Typography variant="body2" color="text.secondary">ระยะทางรวม</Typography><Typography variant="h5" fontWeight={900}>{distanceValue}</Typography>{distance.data && !distance.isError && <Stack spacing={0.5} sx={{ mt: 1 }}><Typography variant="body2">คำนวณจาก {distance.data.calculatedTripCount.toLocaleString("th-TH")} ทริป</Typography><Typography variant="body2" color={distance.data.incompleteTripCount ? "warning.main" : "text.secondary"}>ทริปที่จบแล้วแต่เลขไมล์ไม่ครบหรือผิดปกติ {distance.data.incompleteTripCount.toLocaleString("th-TH")} ทริป</Typography><Typography variant="caption" color="text.secondary">ยึดวันออกเดินทางตามคำขอ ไม่รวมทริปที่ยังไม่จบหรือถูกยุติ</Typography></Stack>}</CardContent></Card>
         </Stack></Grid>
       </Grid>
       <Card><CardContent><Stack direction={{ xs: "column", md: "row" }} justifyContent="space-between" spacing={1.5} sx={{ mb: 2 }}><SectionTitle title="รายละเอียดคำขอใช้รถ" subtitle={`พบ ${requestRows.length.toLocaleString("th-TH")} รายการ`} /><TextField size="small" placeholder="ค้นหาเลขคำขอ หน่วยงาน หรือปลายทาง" value={keyword} onChange={(event) => { setKeyword(event.target.value); setPage(1); }} sx={{ minWidth: { md: 360 } }} InputProps={{ startAdornment: <InputAdornment position="start"><SearchOutlinedIcon /></InputAdornment> }} /></Stack>
@@ -148,7 +150,7 @@ function Score({value}:{value?:number|null}){return value==null?<Typography colo
 function FeedbackSummaryList({title,rows}:{title:string;rows:Array<{id:string;label:string;detail:string;score?:number|null}>}){return <Box sx={{p:2,border:"1px solid",borderColor:"divider",borderRadius:3,height:"100%"}}><Typography fontWeight={900} sx={{mb:1}}>{title}</Typography><Stack spacing={1}>{rows.slice(0,5).map(x=><Stack key={x.id} direction="row" justifyContent="space-between" alignItems="center"><Box><Typography variant="body2" fontWeight={800}>{x.label}</Typography><Typography variant="caption" color="text.secondary">{x.detail}</Typography></Box><Score value={x.score}/></Stack>)}{!rows.length&&<Typography variant="body2" color="text.secondary">ยังไม่มีข้อมูล</Typography>}</Stack></Box>}
 function FeedbackTrend({rows}:{rows:Array<{year:number;month:number;feedbackCount:number;overallAverage?:number|null;safetyAverage?:number|null;punctualityAverage?:number|null}>}){if(!rows.length)return <Typography color="text.secondary" sx={{mt:2}}>ยังไม่มีข้อมูลแนวโน้มในช่วงเวลานี้</Typography>;return <Stack direction="row" spacing={1} sx={{mt:2,overflowX:"auto",pb:1}}>{rows.map(x=><Box key={`${x.year}-${x.month}`} sx={{minWidth:150,p:1.5,borderRadius:2,bgcolor:alpha("#176B55",.06),border:"1px solid",borderColor:alpha("#176B55",.18)}}><Typography fontWeight={900}>{String(x.month).padStart(2,"0")}/{x.year+543}</Typography><Typography variant="caption" color="text.secondary">{x.feedbackCount} Feedback</Typography><Stack spacing={.35} sx={{mt:1}}><Typography variant="body2">คะแนนรวม <b>{x.overallAverage?.toFixed(1)??"–"}</b></Typography><Typography variant="body2">ความปลอดภัย <b>{x.safetyAverage?.toFixed(1)??"–"}</b></Typography><Typography variant="body2">ตรงต่อเวลา <b>{x.punctualityAverage?.toFixed(1)??"–"}</b></Typography></Stack></Box>)}</Stack>}
 
-function KpiCard({ icon, label, value, color }: { icon: React.ReactNode; label: string; value: string; color: string; compact?: boolean }) { return <Grid item xs={12} sm={6} md={4} lg><Card sx={{ height: "100%" }}><CardContent><Stack direction="row" spacing={1.25} alignItems="center"><Box sx={{ width: 44, height: 44, flex: "0 0 auto", display: "grid", placeItems: "center", borderRadius: 2.5, color, bgcolor: `${color}18` }}>{icon}</Box><Box minWidth={0}><Typography variant="body2" color="text.secondary" noWrap>{label}</Typography><Typography variant="h5" fontWeight={900} noWrap sx={{ fontSize: { xs: "1.25rem", xl: "1.5rem" } }}>{value}</Typography></Box></Stack></CardContent></Card></Grid>; }
+function KpiCard({ icon, label, value, color, compact }: { icon: React.ReactNode; label: string; value: string; color: string; compact?: boolean }) { return <Grid item xs={12} sm={6} md={4} lg><Card sx={{ height: "100%" }}><CardContent><Stack direction="row" spacing={1.25} alignItems="center"><Box sx={{ width: 44, height: 44, flex: "0 0 auto", display: "grid", placeItems: "center", borderRadius: 2.5, color, bgcolor: `${color}18` }}>{icon}</Box><Box minWidth={0}><Typography variant="body2" color="text.secondary" noWrap>{label}</Typography><Typography variant="h5" fontWeight={900} noWrap={!compact} sx={{ fontSize: compact ? { xs: "1.1rem", xl: "1.3rem" } : { xs: "1.25rem", xl: "1.5rem" }, overflowWrap: "anywhere" }}>{value}</Typography></Box></Stack></CardContent></Card></Grid>; }
 function DriverStatisticCard({ item, index }: { item: FleetDriverReport; index: number }) {
   const colors = ["#176B55", "#287BC1", "#7651C9", "#D88923", "#238B8B", "#B55252"];
   const color = colors[index % colors.length];

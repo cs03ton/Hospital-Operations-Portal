@@ -97,7 +97,8 @@ public static class FleetLineGroupEvents
         ["Fleet.DriverAcknowledged"] = true,
         ["Fleet.TripCompleted"] = true,
         ["Fleet.TripOverdue"] = true,
-        ["Fleet.DailyDriverJobs"] = false
+        ["Fleet.DailyDriverJobs"] = false,
+        ["Fleet.DaytimeRefer"] = false
     };
 }
 

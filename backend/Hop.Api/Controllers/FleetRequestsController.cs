@@ -14,7 +14,8 @@ namespace Hop.Api.Controllers;
 [ApiController]
 [Route("api/fleet/requests")]
 [Authorize]
-public sealed class FleetRequestsController(AppDbContext db, FleetRequestNumberService numberService, FleetAvailabilityService availabilityService, IDomainEventPublisher events, ILogger<FleetRequestsController>? logger = null) : ControllerBase
+public sealed class FleetRequestsController(AppDbContext db, FleetRequestNumberService numberService, FleetAvailabilityService availabilityService, IDomainEventPublisher events, ILogger<FleetRequestsController>? logger = null,
+    Microsoft.Extensions.Options.IOptions<Hop.Api.Configuration.LineGroupNotificationsOptions>? lineGroupOptions = null) : ControllerBase
 {
     [HttpGet("destination-options")]
     [RequireAnyPermission(FleetPermissions.RequestCreate, FleetPermissions.RequestEditOwn)]
@@ -240,12 +241,15 @@ public sealed class FleetRequestsController(AppDbContext db, FleetRequestNumberS
         var vehicle = available.Vehicles.FirstOrDefault(x => x.Id == request.VehicleId); var driver = available.Drivers.FirstOrDefault(x => x.Id == request.DriverUserId);
         if (vehicle is null || !vehicle.IsAvailable) return Conflict(ApiResponse<FleetRequestDto>.Fail($"Vehicle is unavailable: {string.Join(", ", vehicle?.Reasons ?? [])}"));
         if (driver is null || !driver.IsAvailable) return Conflict(ApiResponse<FleetRequestDto>.Fail($"Driver is unavailable: {string.Join(", ", driver?.Reasons ?? [])}"));
-        db.FleetAssignments.Add(new FleetAssignment { FleetRequestId = item.Id, VehicleId = request.VehicleId, DriverUserId = request.DriverUserId, AssignedByUserId = actor.Value, AssignmentReason = Clean(request.Reason) });
+        var assignment = new FleetAssignment { FleetRequestId = item.Id, VehicleId = request.VehicleId, DriverUserId = request.DriverUserId, AssignedByUserId = actor.Value, AssignmentReason = Clean(request.Reason) };
+        db.FleetAssignments.Add(assignment);
         var isRefer = FleetReferPolicy.IsRefer(item);
         var eventType = isRefer ? "Fleet.ReferAutoApproved" : "Fleet.Assigned";
         var from = item.Status; item.Status = isRefer ? FleetRequestStatuses.PendingDriverAck : FleetRequestStatuses.PendingAdminReview; item.ReturnTarget = null; item.UpdatedAt = DateTime.UtcNow; item.UpdatedByUserId = actor; item.ConcurrencyToken = Guid.NewGuid();
         var history = AddHistory(item, from, item.Status, eventType, actor.Value, null, isRefer ? "อนุมัติอัตโนมัติสำหรับภารกิจส่งต่อผู้ป่วย" : request.Reason);
         AddAudit(actor, eventType, item.Id, $"{(isRefer ? "อนุมัติอัตโนมัติสำหรับภารกิจส่งต่อผู้ป่วย; " : "")}Assigned vehicle {request.VehicleId} and driver {request.DriverUserId}");
+        if (isRefer && lineGroupOptions?.Value.Enabled == true)
+            await FleetDaytimeReferNotification.QueueAsync(db, item, assignment, history.Id, history.CreatedAt, HttpContext.TraceIdentifier, ct);
         await events.PublishAsync(new(eventType, "FLEET", "FleetRequest", item.Id, actor.Value, HttpContext.TraceIdentifier,
             new { FleetRequestId = item.Id, item.RequestNo, item.Status, item.Destination, item.DepartureAt, item.ExpectedReturnAt, item.IsUrgent, item.UrgentReason }, [], history.Id), ct);
         if (!await TrySave(ct)) return Conflict(ApiResponse<FleetRequestDto>.Fail("Concurrent assignment detected."));

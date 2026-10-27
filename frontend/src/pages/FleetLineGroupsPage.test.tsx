@@ -110,6 +110,20 @@ describe("FleetLineGroupsPage", () => {
     expect(screen.queryByText("Fleet.DailyDriverJobs")).not.toBeInTheDocument();
   });
 
+  it("offers daytime Refer separately from the daily summary, off by default", async () => {
+    vi.mocked(getFleetLineGroups).mockResolvedValue([{ ...group, events: [
+      { eventType: "Fleet.DailyDriverJobs", isEnabled: true }, { eventType: "Fleet.DaytimeRefer", isEnabled: false },
+    ] }]);
+    const user = userEvent.setup(); renderFleet(<FleetLineGroupsPage />);
+    await user.click(await screen.findByRole("button", { name: "รายละเอียด" }));
+    const refer = screen.getByRole("checkbox", { name: "ภารกิจ Refer ระหว่างวัน (06:00–18:00 น.)" });
+    expect(refer).not.toBeChecked(); expect(refer).toBeEnabled();
+    expect(screen.getByRole("checkbox", { name: "สรุปภารกิจรถประจำวัน (06:00 น.)" })).toBeChecked();
+    await user.click(refer); await user.click(screen.getByRole("button", { name: "บันทึกเหตุการณ์แจ้งเตือน" }));
+    await waitFor(() => expect(updateFleetLineGroupSubscriptions).toHaveBeenCalledWith(group.id, group.concurrencyToken,
+      { "Fleet.DailyDriverJobs": true, "Fleet.DaytimeRefer": true }));
+  });
+
   it("shows the pending approval digest as a separate opt-in event", async () => {
     vi.mocked(getFleetLineGroups).mockResolvedValue([{ ...group, events: [
       ...group.events, { eventType: "Operations.PendingApprovalDigest", isEnabled: false },

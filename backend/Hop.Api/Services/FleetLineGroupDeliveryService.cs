@@ -316,6 +316,7 @@ public sealed class FleetLineGroupDeliveryService(
                 db.LineGroupDestinations.Any(d => !d.Module.StartsWith("REPAIR_") &&
                     d.Status == LineGroupDestinationStatuses.Active && d.ConfirmedAt != null && d.ConfirmedAt <= e.OccurredAt &&
                     d.EventSubscriptions.Any(s => s.IsEnabled && s.EventType == canonical) &&
+                    !(canonical == "Fleet.AssignmentCreated" && db.LineGroupDeliveryLogs.Any(l => l.EventId == e.EventId && l.DestinationId == d.Id && l.CanonicalEventType == FleetDaytimeReferNotification.EventType)) &&
                     !db.LineGroupDeliveryLogs.Any(l => l.EventId == e.EventId && l.DestinationId == d.Id && l.CanonicalEventType == canonical))));
         }
         var pageSize = Math.Clamp(options.Value.BatchSize * 5, 20, 500);
@@ -346,6 +347,8 @@ public sealed class FleetLineGroupDeliveryService(
                          x.EventSubscriptions.Any(s => s.EventType == canonical && s.IsEnabled)))
             {
                 var key = $"{domainEvent.EventId}:{destination.Id}:{canonical}";
+                if (canonical == "Fleet.AssignmentCreated" && await db.LineGroupDeliveryLogs.AnyAsync(x =>
+                    x.EventId == domainEvent.EventId && x.DestinationId == destination.Id && x.CanonicalEventType == FleetDaytimeReferNotification.EventType, ct)) continue;
                 if (await db.LineGroupDeliveryLogs.AnyAsync(x => x.DeduplicationKey == key, ct)) continue;
                 db.LineGroupDeliveryLogs.Add(new LineGroupDeliveryLog
                 {
@@ -368,10 +371,11 @@ public sealed class FleetLineGroupDeliveryService(
         return created;
     }
 
-    public async Task<int> ProcessAsync(CancellationToken ct)
+    public Task<int> ProcessAsync(CancellationToken ct) => ProcessAtAsync(DateTime.UtcNow, ct, refreshReferClock: true);
+
+    internal async Task<int> ProcessAtAsync(DateTime now, CancellationToken ct, bool refreshReferClock = false)
     {
         if (!Enabled) return 0;
-        var now = DateTime.UtcNow;
         var overdueStartUtc = TripOverdueStartUtc;
         var skipped = await SkipSuppressedOverdueAsync(overdueStartUtc, now, ct);
         var deliverable = db.LineGroupDeliveryLogs.Include(x => x.Destination)
@@ -412,9 +416,18 @@ public sealed class FleetLineGroupDeliveryService(
                 log.ErrorCode = "SUBSCRIPTION_DISABLED";
                 continue;
             }
+            if (log.CanonicalEventType == FleetDaytimeReferNotification.EventType &&
+                await FleetDaytimeReferNotification.SkipReasonAsync(db, log, refreshReferClock ? DateTime.UtcNow : now, ct) is { } referSkip)
+            {
+                log.Status = "Skipped";
+                log.FailedAt = now;
+                log.ErrorCode = referSkip;
+                log.ErrorMessage = "Daytime Refer notification is no longer eligible.";
+                continue;
+            }
             FleetGroupRenderedMessage? rendered = null;
             var domainEvent = await db.DomainEvents.AsNoTracking().SingleOrDefaultAsync(x => x.EventId == log.EventId, ct);
-            if (domainEvent is not null)
+            if (domainEvent is not null && log.CanonicalEventType != FleetDaytimeReferNotification.EventType)
                 rendered = await templates.RenderAsync(domainEvent, log.CanonicalEventType, ct);
             if (string.IsNullOrWhiteSpace(log.MessageText))
             {

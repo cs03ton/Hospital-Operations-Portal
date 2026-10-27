@@ -18,6 +18,31 @@ namespace Hop.Api.Tests;
 public sealed class FleetPostgreSqlIntegrationTests
 {
     [Fact, Trait("Category", "PostgreSqlIntegration")]
+    public async Task Daytime_refer_publishers_create_one_snapshot_per_request_and_group()
+    {
+        await using var db = await Database(); if (db is null) return;
+        var fixture = await FleetDaytimeReferTests.Seed(db);
+        var connection = db.Database.GetConnectionString();
+        async Task<int> Queue()
+        {
+            await using var publisher = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(connection).Options);
+            await using var transaction = await publisher.Database.BeginTransactionAsync();
+            var count = await FleetDaytimeReferNotification.QueueAsync(publisher, fixture.Request, fixture.Assignment, fixture.EventId,
+                new DateTime(2026, 10, 27, 0, 0, 0, DateTimeKind.Utc), "refer-postgres-test", default);
+            await publisher.SaveChangesAsync(); await transaction.CommitAsync(); return count;
+        }
+        Assert.Equal(1, (await Task.WhenAll(Queue(), Queue())).Sum());
+        Assert.Single(await db.LineGroupDeliveryLogs.Where(x => x.CanonicalEventType == FleetDaytimeReferNotification.EventType).ToListAsync());
+        Assert.Equal(0, await FleetDaytimeReferTests.Service(db, new FleetDaytimeReferTests.Client()).DiscoverAsync(default));
+        var enabledAt = await db.LineGroupEventSubscriptions.AsNoTracking().Where(x => x.DestinationId == fixture.Group.Id && x.EventType == FleetDaytimeReferNotification.EventType).Select(x => x.UpdatedAt).SingleAsync();
+        var controller = new FleetLineGroupsController(db, new NoopGroupPushClient(), Options.Create(new LineGroupNotificationsOptions { Enabled = true }))
+        { ControllerContext = new() { HttpContext = new DefaultHttpContext() } };
+        Assert.NotNull((await controller.Subscriptions(fixture.Group.Id, new(fixture.Group.ConcurrencyToken,
+            new() { [FleetDaytimeReferNotification.EventType] = true, ["Fleet.AssignmentCreated"] = true }), default)).Value);
+        Assert.Equal(enabledAt, await db.LineGroupEventSubscriptions.AsNoTracking().Where(x => x.DestinationId == fixture.Group.Id && x.EventType == FleetDaytimeReferNotification.EventType).Select(x => x.UpdatedAt).SingleAsync());
+    }
+
+    [Fact, Trait("Category", "PostgreSqlIntegration")]
     public async Task Announcement_group_publishers_share_one_queue_entry_and_migration_is_repeatable()
     {
         await using var db = await Database(); if (db is null) return;

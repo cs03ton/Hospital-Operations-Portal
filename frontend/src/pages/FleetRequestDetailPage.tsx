@@ -31,6 +31,7 @@ import {
   replaceFleetAssignment,
   transitionFleetRequest,
 } from "../api/fleetApi";
+import { FleetStatusHistoryTimeline } from "../components/fleet/FleetStatusHistoryTimeline";
 import { PageHeader } from "../components/PageHeader";
 import { useAuth } from "../context/AuthContext";
 import { usePermission } from "../context/PermissionContext";
@@ -424,29 +425,7 @@ export function FleetRequestDetailPage() {
         )}
         <Card>
           <CardContent>
-            <Typography variant="h6" fontWeight={800}>
-              ประวัติสถานะ
-            </Typography>
-            {data.statusHistories.length === 0 ? (
-              <Typography color="text.secondary">
-                ยังไม่มีประวัติสถานะ
-              </Typography>
-            ) : (
-              data.statusHistories.map((x) => (
-                <Box
-                  key={x.id}
-                  sx={{ py: 1, borderBottom: 1, borderColor: "divider" }}
-                >
-                  <Typography>
-                    {getFleetStatusLabel(x.toStatus)} · {x.actorName ?? "-"}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    {formatThaiDateTime(x.createdAt)}{" "}
-                    {x.reason ? `· ${x.reason}` : ""}
-                  </Typography>
-                </Box>
-              ))
-            )}
+            <FleetStatusHistoryTimeline histories={data.statusHistories} />
           </CardContent>
         </Card>
       </Stack>

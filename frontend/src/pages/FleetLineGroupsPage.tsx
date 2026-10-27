@@ -31,6 +31,7 @@ const eventLabels: Record<string, string> = {
   "Fleet.DriverAcknowledged": "คนขับรับทราบ", "Fleet.TripCompleted": "จบภารกิจ",
   "Fleet.TripOverdue": "ภารกิจเกินกำหนด",
   "Fleet.DailyDriverJobs": "สรุปภารกิจรถประจำวัน (06:00 น.)",
+  "Fleet.DaytimeRefer": "ภารกิจ Refer ระหว่างวัน (06:00–18:00 น.)",
   "Operations.PendingApprovalDigest": "สรุปงานรออนุมัติ (08:00, 12:30, 16:00 น.)",
   "Repair.Submitted": "แจ้งซ่อมใหม่", "Repair.Resubmitted": "ส่งงานซ่อมใหม่", "Repair.Reopened": "เปิดงานซ้ำ",
   "Repair.Started": "เริ่มดำเนินการซ่อม", "Repair.Resumed": "กลับมาดำเนินการซ่อม",

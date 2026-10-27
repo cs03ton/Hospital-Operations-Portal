@@ -223,7 +223,9 @@ public sealed partial class FleetLineGroupsController(AppDbContext db, ILineGrou
                     INSERT INTO line_group_event_subscriptions (id, destination_id, event_type, is_enabled, created_at, updated_at)
                     VALUES ({subscriptionId}, {id}, {eventType}, {enabled}, {now}, {now})
                     ON CONFLICT (destination_id, event_type)
-                    DO UPDATE SET is_enabled = EXCLUDED.is_enabled, updated_at = EXCLUDED.updated_at
+                    DO UPDATE SET is_enabled = EXCLUDED.is_enabled, updated_at = CASE
+                        WHEN EXCLUDED.event_type = 'Fleet.DaytimeRefer' AND line_group_event_subscriptions.is_enabled = EXCLUDED.is_enabled
+                        THEN line_group_event_subscriptions.updated_at ELSE EXCLUDED.updated_at END
                     """, ct);
             }
             Audit("Fleet.LineGroupSubscriptionsUpdated", item, Actor(), null);
@@ -236,8 +238,10 @@ public sealed partial class FleetLineGroupsController(AppDbContext db, ILineGrou
         {
             var subscription = item.EventSubscriptions.SingleOrDefault(x => x.EventType == definition.Key);
             if (subscription is null) { subscription = new LineGroupEventSubscription { EventType = definition.Key }; item.EventSubscriptions.Add(subscription); }
-            subscription.IsEnabled = body.Events.GetValueOrDefault(definition.Key, false);
-            subscription.UpdatedAt = DateTime.UtcNow;
+            var enabled = body.Events.GetValueOrDefault(definition.Key, false);
+            if (definition.Key != FleetDaytimeReferNotification.EventType || subscription.IsEnabled != enabled)
+                subscription.UpdatedAt = DateTime.UtcNow;
+            subscription.IsEnabled = enabled;
         }
         item.ConcurrencyToken = Guid.NewGuid();
         Audit("Fleet.LineGroupSubscriptionsUpdated", item, Actor(), null);

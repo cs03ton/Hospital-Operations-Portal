@@ -50,6 +50,8 @@ export async function getDriverJob(id:string){return unwrap(await httpClient.get
 export async function driverJobAction(id: string, action: "accept" | "decline", concurrencyToken: string, reason?: string) { return unwrap(await httpClient.post<ApiResponse<unknown>>(`/fleet/driver-jobs/${id}/${action}`, { concurrencyToken, reason })); }
 export type FleetKpiSummary = { totalRequests: number; completedRequests: number; rejectedRequests: number; cancelledRequests: number; approvalRate: number; rejectionRate: number; cancellationRate: number; tripCompletionRate: number; driverAcceptanceRate: number; assignmentReplacementCount: number; inAppDeliverySuccessRate: number; lineDeliverySuccessRate: number; outboxFailureCount: number };
 export async function getFleetKpis(params: URLSearchParams) { return unwrap(await httpClient.get<ApiResponse<FleetKpiSummary>>("/fleet/dashboard/summary", { params })); }
+export type FleetDistanceSummary = { totalDistanceKm: number | null; calculatedTripCount: number; incompleteTripCount: number };
+export async function getFleetDistanceSummary(params: URLSearchParams) { return unwrap(await httpClient.get<ApiResponse<FleetDistanceSummary>>("/fleet/reports/usage/distance-summary", { params })); }
 export type FleetDepartmentReport = { requesterDepartmentId?: string | null; department: string; requestCount: number; completedCount: number; cancelledCount: number };
 export type FleetDriverReport = { driverUserId: string; driver: string; jobCount: number; completedTrips: number };
 export type FleetRouteReport = { destination: string; requestCount: number; completedTripCount: number };

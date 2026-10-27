@@ -13,10 +13,34 @@ using Microsoft.EntityFrameworkCore;
 namespace Hop.Api.Controllers;
 
 public sealed record FleetUsageExportQuery(DateOnly? StartDate, DateOnly? EndDate, string? Status, string? Search);
+public sealed record FleetDistanceSummaryQuery(DateOnly? StartDate, DateOnly? EndDate, string? Status);
+public sealed record FleetDistanceSummaryResponse(decimal? TotalDistanceKm, int CalculatedTripCount, int IncompleteTripCount);
 
 [ApiController, Authorize, Route("api/fleet/reports/usage")]
 public sealed class FleetUsageReportsController(AppDbContext db, FleetDateRangeService ranges) : ControllerBase
 {
+    [HttpGet("distance-summary"), RequirePermission(FleetPermissions.ReportView)]
+    public async Task<ActionResult<ApiResponse<FleetDistanceSummaryResponse>>> DistanceSummary([FromQuery] FleetDistanceSummaryQuery query, CancellationToken ct)
+    {
+        try
+        {
+            var range = ranges.Resolve("custom", query.StartDate, query.EndDate);
+            // Query trip records directly so assignment history cannot multiply a trip.
+            var trips = db.FleetTripRecords.AsNoTracking().Where(x => x.ActualEndAt != null && !x.IsAborted &&
+                x.FleetRequest != null && x.FleetRequest.Status != FleetRequestStatuses.Cancelled &&
+                x.FleetRequest.Status != FleetRequestStatuses.Draft && x.FleetRequest.DepartureAt >= range.Start && x.FleetRequest.DepartureAt < range.End);
+            if (!string.IsNullOrWhiteSpace(query.Status)) trips = trips.Where(x => x.FleetRequest!.Status == query.Status);
+            var values = await trips.Select(x => new { x.StartMileage, x.EndMileage }).ToListAsync(ct);
+            var valid = values.Where(x => x.StartMileage >= 0 && x.EndMileage >= x.StartMileage).ToArray();
+            return ApiResponse<FleetDistanceSummaryResponse>.Ok(new(valid.Length == 0 ? null : valid.Sum(x => x.EndMileage!.Value - x.StartMileage!.Value),
+                valid.Length, values.Count - valid.Length));
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(ApiResponse<FleetDistanceSummaryResponse>.Fail(ex.Message));
+        }
+    }
+
     [HttpGet("export"), RequirePermission(FleetPermissions.ReportExport)]
     public async Task<IActionResult> Export([FromQuery] FleetUsageExportQuery query, CancellationToken ct)
     {
