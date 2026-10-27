@@ -19,6 +19,8 @@ public sealed record RepairAccess(Guid UserId, HashSet<string> Permissions)
 
 public static class RepairWorkflow
 {
+    public static bool CanChangeCategory(RepairRequest request, RepairAccess access) => access.Admin && access.View(request) &&
+        request.Status is "Submitted" or "InProgress" or "WaitingParts" or "Returned" or "Closed";
     public static readonly string[] Active = ["Submitted", "InProgress", "WaitingParts"];
     public static async Task<RepairAccess> Access(AppDbContext db, Guid actor, CancellationToken ct)
     {

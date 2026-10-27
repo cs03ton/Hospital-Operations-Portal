@@ -1,10 +1,10 @@
 import { httpClient } from "./httpClient";
 import type { ApiResponse } from "../types/auth";
-export type Repair = { id: string; number: number; requesterId: string; departmentId?: string; categoryId: string; teamCode: string; title: string; description: string; location: string; contact: string; status: string; priority?: string; currentRound: number; createdAt: string; updatedAt: string; concurrencyToken: string };
+export type Repair = { id: string; number: number; requesterId: string; departmentId?: string; categoryId: string; teamCode: string; title: string; description: string; location: string; contact: string; status: string; priority?: string; currentRound: number; hasStarted?: boolean; createdAt: string; updatedAt: string; concurrencyToken: string };
 export type RepairInput = Pick<Repair, "categoryId" | "title" | "description" | "location" | "contact">;
 export type RepairCategory = { id: string; name: string; teamCode: string; isActive: boolean; concurrencyToken: string };
 export type RepairEvent = { id: string; round: number; actorId: string; action: string; fromStatus: string; toStatus: string; note: string; solverId?: string; priority?: string; createdAt: string };
-export type RepairDetail = { departmentName?: string; categoryName?: string; request: Repair; events: RepairEvent[]; people: { id: string; fullName: string }[]; contributors: { eventId: string; userId: string }[]; rounds: { id: string; number: number; startedAt: string; closedAt?: string; acceptedById?: string; acceptanceNote?: string }[]; waiting: { id: string; round: number; startedAt: string; endedAt?: string }[]; images: { id: string; eventId: string; createdAt: string }[]; actions: string[]; canUpload: boolean };
+export type RepairDetail = { canChangeCategory?: boolean; departmentName?: string; categoryName?: string; request: Repair; events: RepairEvent[]; people: { id: string; fullName: string }[]; contributors: { eventId: string; userId: string }[]; rounds: { id: string; number: number; startedAt: string; closedAt?: string; acceptedById?: string; acceptanceNote?: string }[]; waiting: { id: string; round: number; startedAt: string; endedAt?: string }[]; images: { id: string; eventId: string; createdAt: string }[]; actions: string[]; canUpload: boolean };
 export type RepairSummary = { generatedAtUtc: string; counts: { status: string; count: number }[]; teamPending: number };
 export const repairWorkPermissions = ["RepairManagement.WorkIT", "RepairManagement.WorkGeneral", "RepairManagement.ViewAll"];
 export const repairViewPermissions = ["RepairManagement.ViewOwn", ...repairWorkPermissions];
@@ -32,3 +32,5 @@ export type RepairReportItem = { id: string; number: number; title: string; cate
 export async function repairReportSummary(filters: RepairReportFilter) { return unwrap(await httpClient.get<ApiResponse<RepairReportSummary>>("/api/repairs/reports/summary", { params: filters })); }
 export async function repairReportItems(filters: RepairReportFilter, page: number, pageSize: number) { return unwrap(await httpClient.get<ApiResponse<{ items: RepairReportItem[]; total: number; page: number; pageSize: number }>>("/api/repairs/reports/items", { params: { ...filters, page, pageSize } })); }
 export async function repairReportExport(filters: RepairReportFilter, type: "excel" | "pdf") { return (await httpClient.get<Blob>(`/api/repairs/reports/export-${type}`, { params: filters, responseType: "blob" })).data; }
+
+export async function repairChangeCategory(id: string, data: { categoryId: string; reason: string; concurrencyToken: string }) { return unwrap(await httpClient.put<ApiResponse<{ request: Repair; canView: boolean }>>(`/api/repairs/${id}/category`, data)); }

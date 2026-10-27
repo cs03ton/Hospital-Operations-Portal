@@ -22,6 +22,7 @@ export const repairPriorityLabels: Record<string, string> = {
   Emergency: "ฉุกเฉิน",
 };
 export const repairActionLabels: Record<string, string> = {
+  "category-change": "ผู้ดูแลเปลี่ยนประเภทงาน",
   start: "เริ่มดำเนินการ",
   wait: "รออะไหล่",
   resume: "ดำเนินการต่อ",

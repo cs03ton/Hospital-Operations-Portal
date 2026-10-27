@@ -73,7 +73,7 @@ public sealed class RepairsController(AppDbContext db, IDomainEventPublisher eve
         var ids = events.Select(x => x.ActorId).Concat(events.Where(x => x.SolverId != null).Select(x => x.SolverId!.Value))
             .Concat(contributors.Select(x => x.UserId)).Append(r.RequesterId).Distinct().ToArray();
         var actions = new[] { "start", "wait", "resume", "return", "priority", "note", "solve", "accept", "reject-solution", "reopen", "resubmit", "cancel" };
-        return Ok(OkData(new { request = r, events, contributors,
+        return Ok(OkData(new { request = r, events, contributors, canChangeCategory = RepairWorkflow.CanChangeCategory(r, a),
             departmentName = await db.Departments.Where(x => x.Id == r.DepartmentId).Select(x => x.Name).SingleOrDefaultAsync(ct),
             categoryName = await db.Set<RepairCategory>().Where(x => x.Id == r.CategoryId).Select(x => x.Name).SingleAsync(ct),
             people = await db.Users.AsNoTracking().Where(x => ids.Contains(x.Id)).Select(x => new { x.Id, x.FullName }).ToListAsync(ct),
@@ -185,6 +185,35 @@ public sealed class RepairsController(AppDbContext db, IDomainEventPublisher eve
         return Ok(OkData(r));
     }
 
+    [HttpPut("{id:guid}/category"), RequirePermission(RepairPermissions.Manage)]
+    public async Task<IActionResult> ChangeCategory(Guid id, RepairCategoryChange input, CancellationToken ct)
+    {
+        var access = await Access(ct);
+        if (!access.Admin) return StatusCode(403, ApiResponse<object>.Fail("ไม่มีสิทธิ์เปลี่ยนประเภทงาน"));
+        var request = await db.Set<RepairRequest>().SingleOrDefaultAsync(x => x.Id == id, ct);
+        if (request is null || !access.View(request)) return NotFound();
+        if (request.ConcurrencyToken != input.ConcurrencyToken) return Conflict(ApiResponse<object>.Fail("ข้อมูลเปลี่ยนแล้ว กรุณาโหลดใหม่"));
+        if (!RepairWorkflow.CanChangeCategory(request, access)) return BadRequest(ApiResponse<object>.Fail("ใบงานสถานะนี้ไม่อนุญาตให้เปลี่ยนประเภทงาน"));
+        if (string.IsNullOrWhiteSpace(input.Reason) || input.Reason.Length > 8000) return BadRequest(ApiResponse<object>.Fail("กรุณาระบุเหตุผลไม่เกิน 8,000 ตัวอักษร"));
+        if (request.CategoryId == input.CategoryId) return BadRequest(ApiResponse<object>.Fail("กรุณาเลือกประเภทใหม่ที่ต่างจากเดิม"));
+        var category = await db.Set<RepairCategory>().AsNoTracking().SingleOrDefaultAsync(x => x.Id == input.CategoryId && x.IsActive, ct);
+        if (category is null) return BadRequest(ApiResponse<object>.Fail("ประเภทไม่พร้อมใช้งาน"));
+        if (request.HasStarted && category.TeamCode != request.TeamCode) return BadRequest(ApiResponse<object>.Fail("ใบงานที่เคยเริ่มซ่อมแล้วเปลี่ยนประเภทได้เฉพาะทีมเดิม"));
+        var previous = await db.Set<RepairCategory>().AsNoTracking().SingleAsync(x => x.Id == request.CategoryId, ct);
+        var oldValue = System.Text.Json.JsonSerializer.Serialize(new { request.CategoryId, Name = previous.Name, request.TeamCode });
+        var oldTeam = request.TeamCode;
+        request.CategoryId = category.Id; request.TeamCode = category.TeamCode;
+        request.UpdatedAt = DateTime.UtcNow; request.ConcurrencyToken = Guid.NewGuid();
+        Event(request, "category-change", request.Status,
+            $"เปลี่ยนประเภท {previous.Name} ({oldTeam}) → {category.Name} ({category.TeamCode})\nเหตุผล: {input.Reason.Trim()}");
+        db.AuditLogs.Add(new AuditLog { UserId = Actor, Action = "Repair.CategoryChanged", EntityName = "RepairRequest", EntityId = request.Id.ToString(),
+            OldValue = oldValue, NewValue = System.Text.Json.JsonSerializer.Serialize(new { request.CategoryId, Name = category.Name, request.TeamCode }),
+            Reason = input.Reason.Trim(), CorrelationId = HttpContext.TraceIdentifier });
+        try { await db.SaveChangesAsync(ct); }
+        catch (DbUpdateConcurrencyException) { return Conflict(ApiResponse<object>.Fail("มีผู้ดำเนินการก่อนแล้ว กรุณาโหลดใหม่")); }
+        return Ok(OkData(new { request, canView = access.View(request) }));
+    }
+
     private static void Apply(RepairRequest r, RepairInput x) { r.Title = x.Title.Trim(); r.Description = x.Description.Trim(); r.Location = x.Location.Trim(); }
     private static string RequesterContact(User user) => $"{user.FullName.Trim()} · {user.PhoneNumber!.Trim()}";
     private RepairEvent Event(RepairRequest r, string action, string from, string note)
@@ -213,3 +242,4 @@ public sealed record RepairInput(
     [Required, MaxLength(300)] string Contact);
 public sealed record RepairAction(Guid ConcurrencyToken, [MaxLength(8000)] string? Note,
     string? Priority = null, Guid? SolverId = null, Guid[]? ContributorIds = null, RepairInput? Request = null);
+public sealed record RepairCategoryChange(Guid CategoryId, [Required, MaxLength(8000)] string Reason, Guid ConcurrencyToken);

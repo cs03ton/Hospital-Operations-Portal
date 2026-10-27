@@ -79,6 +79,7 @@ import {
   repairPriorityLabels as priorityLabels,
 } from "../utils/repairPresentation";
 import { PageHeader } from "../components/PageHeader";
+import { RepairCategoryChangeButton } from "../components/repairs/RepairCategoryChangeButton";
 import { usePermission } from "../context/PermissionContext";
 import { useAuth } from "../context/AuthContext";
 import { getMyProfile, type UserProfile } from "../api/profileApi";
@@ -1039,6 +1040,7 @@ export function RepairDetailPage() {
             <RepairTeam value={d.request.teamCode} />
           </Stack>
           <Stack direction="row" gap={1} alignItems="center" flexWrap="wrap">
+            <RepairCategoryChangeButton request={d.request} categoryName={d.categoryName} allowed={d.canChangeCategory === true} onChanged={invalidate} />
             <Typography variant="caption" color="text.secondary">
               อัปเดตใบงาน {date(d.request.updatedAt)}
             </Typography>
