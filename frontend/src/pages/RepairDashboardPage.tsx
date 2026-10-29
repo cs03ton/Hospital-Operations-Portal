@@ -44,19 +44,20 @@ import {
 import { dashboardPollingOptions } from "../config/queryPolling";
 import { formatThaiBuddhistDateTime } from "../utils/dateFormat";
 import {
+  getRepairStatusTone,
   repairNumber,
   repairStatusLabels,
   repairTeamLabel,
 } from "../utils/repairPresentation";
 
 const metrics = [
-  { status: "Submitted", icon: InboxOutlinedIcon, color: "info" },
-  { status: "InProgress", icon: BuildOutlinedIcon, color: "primary" },
-  { status: "WaitingParts", icon: Inventory2OutlinedIcon, color: "warning" },
-  { status: "Resolved", icon: FactCheckOutlinedIcon, color: "success" },
-  { status: "Closed", icon: TaskAltOutlinedIcon, color: "success" },
-  { status: "Returned", icon: UndoOutlinedIcon, color: "warning" },
-  { status: "Cancelled", icon: BlockOutlinedIcon, color: "secondary" },
+  { status: "Submitted", icon: InboxOutlinedIcon },
+  { status: "InProgress", icon: BuildOutlinedIcon },
+  { status: "WaitingParts", icon: Inventory2OutlinedIcon },
+  { status: "Resolved", icon: FactCheckOutlinedIcon },
+  { status: "Closed", icon: TaskAltOutlinedIcon },
+  { status: "Returned", icon: UndoOutlinedIcon },
+  { status: "Cancelled", icon: BlockOutlinedIcon },
 ] as const;
 
 export function RepairDashboardPage() {
@@ -147,8 +148,8 @@ export function RepairDashboardPage() {
           gap: 2,
         }}
       >
-        {metrics.map(({ status, icon: Icon, color }) => {
-          const accent = theme.palette[color].main;
+        {metrics.map(({ status, icon: Icon }) => {
+          const accent = getRepairStatusTone(status).accent;
           return (
             <Card
               key={status}

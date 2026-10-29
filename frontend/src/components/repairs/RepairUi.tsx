@@ -16,7 +16,9 @@ import AddPhotoAlternateOutlinedIcon from "@mui/icons-material/AddPhotoAlternate
 import CloseIcon from "@mui/icons-material/Close";
 import {
   repairPriorityLabels,
-  repairStatusColors,
+  getRepairStatusTone,
+  getRepairPriorityTone,
+  type RepairTone,
   repairStatusLabels,
   repairTeamLabel,
 } from "../../utils/repairPresentation";
@@ -35,10 +37,7 @@ export function RepairStatus({ value }: { value: string }) {
     <Chip
       size="small"
       label={repairStatusLabels[value] ?? value}
-      color={
-        repairStatusColors[value as keyof typeof repairStatusColors] ??
-        "default"
-      }
+      sx={toneBadgeSx(getRepairStatusTone(value))}
     />
   );
 }
@@ -47,10 +46,16 @@ export function RepairPriority({ value }: { value?: string }) {
     <Chip
       size="small"
       variant="outlined"
-      label={repairPriorityLabels[value ?? ""] ?? "ยังไม่ประเมิน"}
-      sx={goldBadgeSx}
+      label={repairPriorityLabels[value ?? ""] ?? (value || "ยังไม่ประเมิน")}
+      sx={toneBadgeSx(getRepairPriorityTone(value))}
     />
   );
+}
+
+function toneBadgeSx(tone: RepairTone) {
+  return { bgcolor: tone.background, color: tone.foreground, border: "1px solid", borderColor: tone.border,
+    fontWeight: 700, height: "auto", minHeight: 24,
+    "& .MuiChip-label": { px: 1.25, py: 0.25, whiteSpace: "normal", overflowWrap: "anywhere", lineHeight: 1.5 } };
 }
 
 export function RepairTeam({ value }: { value: string }) {

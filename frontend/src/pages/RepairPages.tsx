@@ -72,6 +72,7 @@ import {
 } from "../components/repairs/RepairUi";
 import { formatThaiBuddhistDateTime as date } from "../utils/dateFormat";
 import {
+  getRepairStatusTone,
   repairTeamLabel,
   repairNumber,
   repairStatusLabels,
@@ -282,15 +283,7 @@ export function RepairListPage() {
       : scope === "team"
         ? teamLabel
         : "ทั้งหมดที่มีสิทธิ์ดู";
-  const statusAccent = (value: string) => {
-    if (value === "Submitted") return theme.palette.info.main;
-    if (value === "InProgress") return theme.palette.primary.main;
-    if (value === "WaitingParts" || value === "Returned")
-      return theme.palette.warning.main;
-    if (value === "Resolved" || value === "Closed")
-      return theme.palette.success.main;
-    return theme.palette.grey[500];
-  };
+  const statusAccent = (value: string) => getRepairStatusTone(value).accent;
   return (
     <Stack spacing={3} sx={{ minWidth: 0, maxWidth: 1440, mx: "auto" }}>
       <PageHeader

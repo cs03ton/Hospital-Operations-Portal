@@ -7,15 +7,25 @@ export const repairStatusLabels: Record<string, string> = {
   Returned: "ส่งกลับผู้แจ้ง",
   Cancelled: "ยกเลิก",
 };
-export const repairStatusColors = {
-  Submitted: "info",
-  InProgress: "primary",
-  WaitingParts: "warning",
-  Resolved: "success",
-  Closed: "success",
-  Returned: "warning",
-  Cancelled: "default",
-} as const;
+export type RepairTone = { foreground: string; background: string; border: string; accent: string };
+const neutral: RepairTone = { foreground: '#53616D', background: '#EFF2F4', border: '#CCD3D8', accent: '#75828C' };
+const orange: RepairTone = { foreground: '#8A4B08', background: '#FFF3E2', border: '#E9C99B', accent: '#C87915' };
+export const repairStatusTones: Record<string, RepairTone> = {
+  Submitted: { foreground: '#2456A6', background: '#EDF4FF', border: '#C1D5F1', accent: '#3478CE' },
+  InProgress: { foreground: '#145C7E', background: '#E9F4FA', border: '#BCD9E7', accent: '#21779D' },
+  WaitingParts: orange,
+  Resolved: { foreground: '#643B9B', background: '#F3EDFC', border: '#D6C4ED', accent: '#8053B4' },
+  Closed: { foreground: '#236640', background: '#EAF5EE', border: '#BDDBC8', accent: '#328257' },
+  Returned: { foreground: '#9C4027', background: '#FFF0EA', border: '#EBC4B7', accent: '#C55D3D' },
+  Cancelled: neutral,
+};
+export const repairPriorityTones: Record<string, RepairTone> = {
+  Normal: { foreground: '#415F75', background: '#EDF3F7', border: '#C7D5DE', accent: '#628198' },
+  Urgent: orange,
+  Emergency: { foreground: '#A12D32', background: '#FDEEF0', border: '#EABFC4', accent: '#C4444A' },
+};
+export const getRepairStatusTone = (status: string): RepairTone => repairStatusTones[status] ?? neutral;
+export const getRepairPriorityTone = (priority?: string): RepairTone => repairPriorityTones[priority ?? ''] ?? neutral;
 export const repairPriorityLabels: Record<string, string> = {
   Normal: "ปกติ",
   Urgent: "เร่งด่วน",

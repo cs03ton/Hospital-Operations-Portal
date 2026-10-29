@@ -1,23 +1,24 @@
+import { RepairStatus, RepairPriority } from "../components/repairs/RepairUi";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link as RouterLink } from "react-router-dom";
-import { Alert, Box, Button, Card, CardContent, Chip, CircularProgress, MenuItem, Stack, Table, TableBody, TableCell, TableContainer, TableHead, TablePagination, TableRow, TextField, Typography } from "@mui/material";
+import { Alert, Box, Button, Card, CardContent, CircularProgress, MenuItem, Stack, Table, TableBody, TableCell, TableContainer, TableHead, TablePagination, TableRow, TextField, Typography } from "@mui/material";
 import DownloadOutlinedIcon from "@mui/icons-material/DownloadOutlined";
 import SearchOutlinedIcon from "@mui/icons-material/SearchOutlined";
 import { PageHeader } from "../components/PageHeader";
 import { AppDatePicker } from "../components/common/AppDatePicker";
 import { bangkokDayjs, formatThaiDate, formatThaiMonthYear } from "../utils/dateFormat";
-import { repairNumber, repairPriorityLabels, repairStatusLabels } from "../utils/repairPresentation";
+import { repairNumber, repairPriorityLabels, getRepairStatusTone, getRepairPriorityTone } from "../utils/repairPresentation";
 import { repairReportExport, repairReportItems, repairReportSummary, type RepairReportFilter, type RepairReportGroup } from "../api/repairApi";
 
 const statusCards = [
-  { status: "Submitted", label: "แจ้งใหม่", color: "#3b82f6" },
-  { status: "InProgress", label: "กำลังดำเนินการ", color: "#d99720" },
-  { status: "WaitingParts", label: "รออะไหล่", color: "#a271ce" },
-  { status: "Returned", label: "ส่งกลับผู้แจ้ง", color: "#d57960" },
-  { status: "Resolved", label: "แก้ไขแล้วรอตรวจรับ", color: "#19a785" },
-  { status: "Closed", label: "ตรวจรับแล้ว", color: "#128456" },
-  { status: "Cancelled", label: "ยกเลิก", color: "#798696" },
+  { status: "Submitted", label: "แจ้งใหม่" },
+  { status: "InProgress", label: "กำลังดำเนินการ" },
+  { status: "WaitingParts", label: "รออะไหล่" },
+  { status: "Returned", label: "ส่งกลับผู้แจ้ง" },
+  { status: "Resolved", label: "แก้ไขแล้วรอตรวจรับ" },
+  { status: "Closed", label: "ตรวจรับแล้ว" },
+  { status: "Cancelled", label: "ยกเลิก" },
 ] as const;
 const chartColors = ["#198d68", "#438de8", "#f4b649", "#e98aa4", "#9b80d2", "#7fc4bc", "#ddab6b"];
 const today = bangkokDayjs();
@@ -65,10 +66,10 @@ export function RepairReportsPage() {
     {report && <>
       <Box sx={{ display: "grid", gridTemplateColumns: { xs: "repeat(2,minmax(0,1fr))", sm: "repeat(3,minmax(0,1fr))", lg: "repeat(4,minmax(0,1fr))" }, gap: 1.5 }}>
         <Metric label="แจ้งซ่อมทั้งหมด" count={report.total} color="#164d43" detail={`ตรวจรับแล้ว ${report.acceptanceRate}% ของงานที่ไม่ยกเลิก`} />
-        {statusCards.map(card => <Metric key={card.status} label={card.label} count={report.counts.find(x => x.status === card.status)?.count ?? 0} color={card.color} />)}
+        {statusCards.map(card => <Metric key={card.status} label={card.label} count={report.counts.find(x => x.status === card.status)?.count ?? 0} color={getRepairStatusTone(card.status).accent} />)}
       </Box>
       <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", lg: "1.5fr 1fr 1fr" }, gap: 1.5 }}>
-        <Card><CardContent><Typography variant="h6" fontWeight={800} gutterBottom>แนวโน้มการแจ้งซ่อม</Typography><Typography variant="caption" color="text.secondary">สีเขียว: แจ้งทั้งหมด · สีฟ้า: ตรวจรับแล้ว · เส้น: อัตราตรวจรับ</Typography>
+        <Card><CardContent><Typography variant="h6" fontWeight={800} gutterBottom>แนวโน้มการแจ้งซ่อม</Typography><Typography variant="caption" color="text.secondary">สีฟ้าเทา: แจ้งทั้งหมด · สีเขียว: ตรวจรับแล้ว · เส้น: อัตราตรวจรับ</Typography>
           <Box sx={{ overflowX: "auto", pt: 2 }}><Box sx={{ display: "flex", alignItems: "flex-end", gap: 1.2, height: 205, minWidth: Math.max(450, report.months.length * 48), position: "relative" }}>
             {report.months.length > 0 && <svg aria-label="เส้นอัตราตรวจรับรายเดือน" viewBox={`0 0 ${report.months.length * 100} 145`} preserveAspectRatio="none" style={{ position: "absolute", left: 0, right: 0, top: 28, width: "100%", height: 145, pointerEvents: "none", zIndex: 1 }}>
               <polyline fill="none" stroke="#17574b" strokeWidth="2" points={report.months.map((month, index) => `${index * 100 + 50},${145 - month.acceptanceRate * 1.35}`).join(" ")} />
@@ -76,8 +77,8 @@ export function RepairReportsPage() {
             </svg>}
             {report.months.map(month => { const [year, number] = month.month.split("-").map(Number); return <Box key={month.month} sx={{ flex: 1, minWidth: 36, textAlign: "center" }} title={`${formatThaiMonthYear(year, number)}: ${month.total} งาน, ตรวจรับ ${month.closed} งาน (${month.acceptanceRate}%)`}>
               <Typography variant="caption" color="primary.main">{month.acceptanceRate}%</Typography><Box sx={{ height: 145, display: "flex", alignItems: "flex-end", justifyContent: "center", gap: 0.3, borderBottom: "1px solid", borderColor: "divider" }}>
-                <Box sx={{ width: 13, height: `${Math.max(2, month.total / maxMonth * 135)}px`, bgcolor: "#20a774", borderRadius: "3px 3px 0 0" }} />
-                <Box sx={{ width: 13, height: `${Math.max(2, month.closed / maxMonth * 135)}px`, bgcolor: "#4c91e8", borderRadius: "3px 3px 0 0" }} />
+                <Box sx={{ width: 13, height: `${Math.max(2, month.total / maxMonth * 135)}px`, bgcolor: getRepairPriorityTone("Normal").accent, borderRadius: "3px 3px 0 0" }} />
+                <Box sx={{ width: 13, height: `${Math.max(2, month.closed / maxMonth * 135)}px`, bgcolor: getRepairStatusTone("Closed").accent, borderRadius: "3px 3px 0 0" }} />
               </Box><Typography variant="caption" noWrap>{formatThaiMonthYear(year, number, "short").split(" ")[0]}</Typography></Box>; })}
           </Box></Box>
         </CardContent></Card>
@@ -96,7 +97,7 @@ export function RepairReportsPage() {
       {rows.isError && <Alert severity="error">โหลดรายการรายงานไม่สำเร็จ</Alert>}
       {rows.isLoading && <CircularProgress size={24} />}
       {rows.data && <><TableContainer sx={{ overflowX: "auto" }}><Table size="small" sx={{ minWidth: 1040 }}><TableHead><TableRow>{["รหัสแจ้งซ่อม", "หัวข้อ", "ประเภทงาน", "หน่วยงาน", "ผู้แจ้ง", "วันที่แจ้ง", "วันที่ปิดงาน", "สถานะ", "ความเร่งด่วน", "ดู"].map(label => <TableCell key={label}>{label}</TableCell>)}</TableRow></TableHead><TableBody>
-        {rows.data.items.map(item => <TableRow key={item.id} hover><TableCell>{repairNumber(item.number)}</TableCell><TableCell sx={{ maxWidth: 240 }}>{item.title}</TableCell><TableCell>{item.categoryName}</TableCell><TableCell>{item.departmentName}</TableCell><TableCell>{item.requesterName}</TableCell><TableCell>{formatThaiDate(item.createdAt)}</TableCell><TableCell>{item.closedAt ? formatThaiDate(item.closedAt) : "–"}</TableCell><TableCell><Chip size="small" label={repairStatusLabels[item.status] ?? item.status} /></TableCell><TableCell>{item.priority ? repairPriorityLabels[item.priority] ?? item.priority : "ยังไม่กำหนด"}</TableCell><TableCell><Button component={RouterLink} to={`/repairs/${item.id}`} size="small">ดู</Button></TableCell></TableRow>)}
+        {rows.data.items.map(item => <TableRow key={item.id} hover><TableCell>{repairNumber(item.number)}</TableCell><TableCell sx={{ maxWidth: 240 }}>{item.title}</TableCell><TableCell>{item.categoryName}</TableCell><TableCell>{item.departmentName}</TableCell><TableCell>{item.requesterName}</TableCell><TableCell>{formatThaiDate(item.createdAt)}</TableCell><TableCell>{item.closedAt ? formatThaiDate(item.closedAt) : "–"}</TableCell><TableCell><RepairStatus value={item.status} /></TableCell><TableCell><RepairPriority value={item.priority ?? undefined} /></TableCell><TableCell><Button component={RouterLink} to={`/repairs/${item.id}`} size="small">ดู</Button></TableCell></TableRow>)}
         {rows.data.items.length === 0 && <TableRow><TableCell colSpan={10} align="center">ไม่พบรายการตามตัวกรอง</TableCell></TableRow>}
       </TableBody></Table></TableContainer><TablePagination component="div" count={rows.data.total} page={page} rowsPerPage={pageSize} onPageChange={(_, value) => setPage(value)} onRowsPerPageChange={e => { setPageSize(Number(e.target.value)); setPage(0); }} rowsPerPageOptions={[10, 20, 50]} labelRowsPerPage="รายการต่อหน้า" /></>}
     </CardContent></Card>
