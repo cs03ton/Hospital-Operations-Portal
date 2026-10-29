@@ -99,11 +99,13 @@ public sealed class FleetLineGroupDeliveryService(
     {
         var zone = ResolveBangkokTimeZone();
         var local = TimeZoneInfo.ConvertTimeFromUtc(now, zone);
-        if (local.Hour < 6) return 0;
+        var slot = FleetDailyDriverJobsDigest.CurrentSlot(TimeOnly.FromDateTime(local));
+        if (slot < 0) return 0;
         var day = DateOnly.FromDateTime(local);
-        var markerId = FleetDailyDriverJobsDigest.StableId(day, -1);
+        var markerId = FleetDailyDriverJobsDigest.StableId(day, -1, slot);
         if (await db.DomainEvents.AsNoTracking().AnyAsync(x => x.EventId == markerId, ct)) return 0;
 
+        var slotUtc = TimeZoneInfo.ConvertTimeToUtc(day.ToDateTime(FleetDailyDriverJobsDigest.SlotTime(slot)), zone);
         var start = TimeZoneInfo.ConvertTimeToUtc(day.ToDateTime(TimeOnly.MinValue), zone);
         var end = TimeZoneInfo.ConvertTimeToUtc(day.AddDays(1).ToDateTime(TimeOnly.MinValue), zone);
         string[] statuses = [FleetRequestStatuses.Approved, FleetRequestStatuses.PendingDriverAck,
@@ -116,8 +118,9 @@ public sealed class FleetLineGroupDeliveryService(
             .OrderBy(x => x.DepartureAt).ThenBy(x => x.RequestNo).ToListAsync(ct);
         var destinations = await db.LineGroupDestinations.AsNoTracking().Include(x => x.EventSubscriptions)
             .Where(x => !x.Module.StartsWith("REPAIR_") && x.Status == LineGroupDestinationStatuses.Active &&
-                x.ConfirmedAt != null && x.ConfirmedAt <= now &&
-                x.EventSubscriptions.Any(s => s.EventType == FleetDailyDriverJobsDigest.EventType && s.IsEnabled))
+                x.ConfirmedAt != null && x.ConfirmedAt <= slotUtc &&
+                x.EventSubscriptions.Any(s => s.EventType == FleetDailyDriverJobsDigest.EventType && s.IsEnabled &&
+                    s.CreatedAt <= slotUtc && (s.UpdatedAt == null || s.UpdatedAt <= slotUtc)))
             .ToListAsync(ct);
 
         var lines = requests.Select((request, index) =>
@@ -126,18 +129,18 @@ public sealed class FleetLineGroupDeliveryService(
             var departure = TimeZoneInfo.ConvertTimeFromUtc(request.DepartureAt, zone);
             return $"{index + 1}. {departure:HH:mm} {request.RequestNo} → {request.Destination}\n   รถ: {assignment.Vehicle?.RegistrationNumber ?? "-"} · คนขับ: {assignment.DriverUser?.FullName ?? "-"}";
         }).ToArray();
-        var messages = FleetDailyDriverJobsDigest.BuildMessages(day, lines);
+        var messages = FleetDailyDriverJobsDigest.BuildMessages(day, lines, slot);
         var dayKey = day.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
-        var markerPayload = JsonSerializer.Serialize(new { Day = dayKey });
+        var markerPayload = JsonSerializer.Serialize(new { Day = dayKey, Slot = slot, SlotTime = FleetDailyDriverJobsDigest.SlotTime(slot).ToString("HH:mm", CultureInfo.InvariantCulture) });
         db.DomainEvents.Add(new DomainEventRecord
         {
             EventId = markerId, EventType = FleetDailyDriverJobsDigest.MarkerType, Scope = "FLEET",
             AggregateType = "FleetDailyDigest", AggregateId = Guid.Empty, OccurredAt = now,
-            CorrelationId = $"fleet-daily:{dayKey}", Payload = markerPayload
+            CorrelationId = $"fleet-daily:{dayKey}:slot:{slot}", Payload = markerPayload
         });
         for (var part = 0; part < messages.Count; part++)
         {
-            var eventId = FleetDailyDriverJobsDigest.StableId(day, part);
+            var eventId = FleetDailyDriverJobsDigest.StableId(day, part, slot);
             var payload = JsonSerializer.Serialize(new { Text = messages[part] });
             db.DomainEvents.Add(new DomainEventRecord
             {
@@ -304,7 +307,9 @@ public sealed class FleetLineGroupDeliveryService(
             if (canonical == FleetDailyDriverJobsDigest.EventType) continue; // Recipients are frozen when the snapshot is created.
             var sources = FleetLineGroupEventMapper.SourceEventsFor(canonical);
             if (sources.Length == 0) continue;
-            var eligibleEvents = baseEvents;
+            var specificRoom = MeetingRoomGroupSubscriptions.TryRoom(canonical, out var roomId);
+            var deliveryCanonical = specificRoom ? MeetingRoomGroupSubscriptions.EventType : canonical;
+            var eligibleEvents = specificRoom ? baseEvents.Where(e => db.MeetingRoomBookings.Any(b => b.Id == e.AggregateId && b.RoomId == roomId)) : baseEvents;
             if (canonical == "Fleet.TripOverdue")
             {
                 var cutoff = overdueStartUtc!.Value;
@@ -315,9 +320,9 @@ public sealed class FleetLineGroupDeliveryService(
             candidates = candidates.Union(eligibleEvents.Where(e => sources.Contains(e.EventType) &&
                 db.LineGroupDestinations.Any(d => !d.Module.StartsWith("REPAIR_") &&
                     d.Status == LineGroupDestinationStatuses.Active && d.ConfirmedAt != null && d.ConfirmedAt <= e.OccurredAt &&
-                    d.EventSubscriptions.Any(s => s.IsEnabled && s.EventType == canonical) &&
+                    d.EventSubscriptions.Any(s => s.IsEnabled && s.EventType == canonical && (!specificRoom || (s.CreatedAt <= e.OccurredAt && (s.UpdatedAt == null || s.UpdatedAt <= e.OccurredAt)))) &&
                     !(canonical == "Fleet.AssignmentCreated" && db.LineGroupDeliveryLogs.Any(l => l.EventId == e.EventId && l.DestinationId == d.Id && l.CanonicalEventType == FleetDaytimeReferNotification.EventType)) &&
-                    !db.LineGroupDeliveryLogs.Any(l => l.EventId == e.EventId && l.DestinationId == d.Id && l.CanonicalEventType == canonical))));
+                    !db.LineGroupDeliveryLogs.Any(l => l.EventId == e.EventId && l.DestinationId == d.Id && l.CanonicalEventType == deliveryCanonical))));
         }
         var pageSize = Math.Clamp(options.Value.BatchSize * 5, 20, 500);
         var created = 0;
@@ -330,6 +335,12 @@ public sealed class FleetLineGroupDeliveryService(
         {
             var canonical = mapper.ToCanonical(domainEvent.Scope, domainEvent.EventType);
             if (canonical is null) continue;
+            string? roomSubscription = null;
+            if (canonical == MeetingRoomGroupSubscriptions.EventType)
+            {
+                var bookingRoom = await db.MeetingRoomBookings.AsNoTracking().Where(b => b.Id == domainEvent.AggregateId).Select(b => (Guid?)b.RoomId).SingleOrDefaultAsync(ct);
+                if (bookingRoom is { } id) roomSubscription = MeetingRoomGroupSubscriptions.ForRoom(id);
+            }
             string? repairTeam = null;
             if (domainEvent.Scope == "REPAIR")
             {
@@ -344,7 +355,7 @@ public sealed class FleetLineGroupDeliveryService(
             }
             foreach (var destination in destinations.Where(x => x.ConfirmedAt <= domainEvent.OccurredAt &&
                          (repairTeam is null || (x.RepairTeamCode == repairTeam && x.RepairTeamAssignedAt <= domainEvent.OccurredAt)) &&
-                         x.EventSubscriptions.Any(s => s.EventType == canonical && s.IsEnabled)))
+                         x.EventSubscriptions.Any(s => s.IsEnabled && (s.EventType == canonical || (roomSubscription != null && s.EventType == roomSubscription && s.CreatedAt <= domainEvent.OccurredAt && (s.UpdatedAt == null || s.UpdatedAt <= domainEvent.OccurredAt))))))
             {
                 var key = $"{domainEvent.EventId}:{destination.Id}:{canonical}";
                 if (canonical == "Fleet.AssignmentCreated" && await db.LineGroupDeliveryLogs.AnyAsync(x =>

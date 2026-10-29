@@ -16,6 +16,84 @@ namespace Hop.Api.Tests;
 public sealed class FleetLineGroupDeliveryTests
 {
     [Fact]
+    public async Task Room_subscriptions_route_to_multiple_selected_rooms_and_keep_legacy_all_rooms_once()
+    {
+        await using var db = Database(); var now = DateTime.UtcNow;
+        var administration = new MeetingRoom { Name = "ห้องบริหาร", Code = "ADMIN" };
+        var promotion = new MeetingRoom { Name = "ห้องส่งเสริม", Code = "PROMOTION" };
+        LineGroupDestination Group(string name, params string[] events) => new() { LineGroupId = name, DisplayName = name, Module = "CENTRAL", Status = "Active", ConfirmedAt = now.AddDays(-1),
+            EventSubscriptions = events.Select(type => new LineGroupEventSubscription { EventType = type, IsEnabled = true, CreatedAt = now.AddDays(-1) }).ToList() };
+        var all = Group("all", MeetingRoomGroupSubscriptions.EventType);
+        var adminOnly = Group("admin", MeetingRoomGroupSubscriptions.ForRoom(administration.Id));
+        var both = Group("both", MeetingRoomGroupSubscriptions.ForRoom(administration.Id), MeetingRoomGroupSubscriptions.ForRoom(promotion.Id));
+        var overlap = Group("overlap", MeetingRoomGroupSubscriptions.EventType, MeetingRoomGroupSubscriptions.ForRoom(administration.Id));
+        var late = Group("late", MeetingRoomGroupSubscriptions.ForRoom(administration.Id)); late.EventSubscriptions.First().UpdatedAt = now.AddSeconds(1);
+        db.AddRange(administration, promotion, all, adminOnly, both, overlap, late);
+        foreach (var room in new[] { administration, promotion })
+        {
+            var booking = new MeetingRoomBooking { RoomId = room.Id }; db.Add(booking);
+            var id = Guid.NewGuid(); db.DomainEvents.Add(new() { EventId = id, EventType = MeetingRoomGroupSubscriptions.EventType, Scope = "MEETING_ROOM", AggregateId = booking.Id, OccurredAt = now });
+            db.OutboxMessages.Add(new() { EventId = id, EventType = MeetingRoomGroupSubscriptions.EventType, Scope = "MEETING_ROOM" });
+        }
+        await db.SaveChangesAsync(); var service = Service(db, new SequenceClient(Success()));
+        Assert.Equal(7, await service.DiscoverAsync(default)); Assert.Equal(0, await service.DiscoverAsync(default));
+        Assert.Equal(2, await db.LineGroupDeliveryLogs.CountAsync(x => x.DestinationId == all.Id));
+        Assert.Equal(1, await db.LineGroupDeliveryLogs.CountAsync(x => x.DestinationId == adminOnly.Id));
+        Assert.Equal(2, await db.LineGroupDeliveryLogs.CountAsync(x => x.DestinationId == both.Id));
+        Assert.Equal(2, await db.LineGroupDeliveryLogs.CountAsync(x => x.DestinationId == overlap.Id));
+        Assert.False(await db.LineGroupDeliveryLogs.AnyAsync(x => x.DestinationId == late.Id));
+        var definitions = await MeetingRoomGroupSubscriptions.DefinitionsAsync(db, default);
+        Assert.False(definitions[MeetingRoomGroupSubscriptions.ForRoom(administration.Id)]);
+        Assert.True(definitions[MeetingRoomGroupSubscriptions.EventType]);
+    }
+
+    [Fact]
+    public async Task Daily_digest_adds_afternoon_snapshot_with_current_jobs_and_slot_recipients()
+    {
+        await using var db = Database();
+        var morning = new DateTime(2026, 10, 29, 23, 0, 0, DateTimeKind.Utc); // 30 Oct 06:00
+        LineGroupDestination Group(string name, DateTime enabled) => new() { LineGroupId = name, Module = "CENTRAL", Status = "Active", ConfirmedAt = morning.AddDays(-1),
+            EventSubscriptions = [new() { EventType = FleetDailyDriverJobsDigest.EventType, IsEnabled = true, CreatedAt = enabled }] };
+        var original = Group("original", morning.AddDays(-1)); var midday = Group("midday", morning.AddHours(6)); var late = Group("late", morning.AddHours(7).AddMinutes(1));
+        FleetRequest Request(string number) => new() { RequestNo = number, DepartureAt = morning.AddHours(8), Status = FleetRequestStatuses.Ready, Destination = "ทดสอบ",
+            Assignments = [new() { IsActive = true, Vehicle = new() { RegistrationNumber = "QA" }, DriverUser = new() { FullName = "คนขับ" } }] };
+        var done = Request("DONE-AM"); var remaining = Request("REMAINING");
+        db.AddRange(original, midday, late, done, remaining); await db.SaveChangesAsync();
+        var service = Service(db, new SequenceClient(Success()));
+        Assert.Equal(1, await service.ProjectDailyDriverJobsAsync(morning, default));
+        var oldPayload = (await db.DomainEvents.SingleAsync(x => x.EventType == FleetDailyDriverJobsDigest.EventType)).Payload;
+        done.Status = FleetRequestStatuses.Completed; db.Add(Request("NEW-PM")); await db.SaveChangesAsync();
+        Assert.Equal(0, await service.ProjectDailyDriverJobsAsync(morning.AddHours(6).AddMinutes(59), default));
+        Assert.Equal(1, await service.ProjectDailyDriverJobsAsync(morning.AddHours(7), default));
+        Assert.Equal(0, await service.ProjectDailyDriverJobsAsync(morning.AddHours(8), default));
+        var afternoon = await db.DomainEvents.SingleAsync(x => x.EventId == FleetDailyDriverJobsDigest.StableId(new(2026, 10, 30), 0, 1));
+        Assert.Contains("13:00", afternoon.Payload); Assert.DoesNotContain("DONE-AM", afternoon.Payload); Assert.Contains("REMAINING", afternoon.Payload); Assert.Contains("NEW-PM", afternoon.Payload);
+        Assert.Equal(2, await db.LineGroupDeliveryLogs.CountAsync(x => x.EventId == afternoon.EventId));
+        Assert.False(await db.LineGroupDeliveryLogs.AnyAsync(x => x.DestinationId == late.Id));
+        Assert.Equal(oldPayload, (await db.DomainEvents.SingleAsync(x => x.EventId == FleetDailyDriverJobsDigest.StableId(new(2026, 10, 30), 0, 0))).Payload);
+    }
+
+    [Fact]
+    public async Task Late_start_creates_only_latest_slot_and_empty_slots_are_recorded_once()
+    {
+        await using var db = Database(); var service = Service(db, new SequenceClient(Success()));
+        var now = new DateTime(2026, 10, 30, 7, 0, 0, DateTimeKind.Utc); // 14:00
+        Assert.Equal(0, await service.ProjectDailyDriverJobsAsync(now, default));
+        Assert.Equal(0, await service.ProjectDailyDriverJobsAsync(now.AddMinutes(1), default));
+        var marker = Assert.Single(await db.DomainEvents.ToListAsync());
+        Assert.Equal(FleetDailyDriverJobsDigest.StableId(new(2026, 10, 30), -1, 1), marker.EventId);
+        Assert.Empty(await db.LineGroupDeliveryLogs.ToListAsync());
+        Assert.Equal(-1, FleetDailyDriverJobsDigest.CurrentSlot(new(5, 59)));
+        Assert.Equal(0, FleetDailyDriverJobsDigest.CurrentSlot(new(6, 0)));
+        Assert.Equal(0, FleetDailyDriverJobsDigest.CurrentSlot(new(12, 59)));
+        Assert.Equal(1, FleetDailyDriverJobsDigest.CurrentSlot(new(13, 0)));
+        var key = "HOP:FleetDailyDriverJobs:2026-10-30:0";
+        Assert.Equal(new Guid(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(key)).AsSpan(0,16)), FleetDailyDriverJobsDigest.StableId(new(2026,10,30),0));
+        var messages = FleetDailyDriverJobsDigest.BuildMessages(new(2026,10,30), Enumerable.Range(0,100).Select(x => $"{x}:" + new string('ก',100)).ToArray(),1);
+        Assert.True(messages.Count > 1); Assert.All(messages, text => { Assert.Contains("13:00",text); Assert.True(text.Length <= 4000); });
+    }
+
+    [Fact]
     public async Task Approval_digest_prefers_highest_heads_over_other_department_heads_in_both_departments()
     {
         await using var db = Database();
@@ -148,7 +226,7 @@ public sealed class FleetLineGroupDeliveryTests
                 ConfirmedAt = now.AddDays(-1)
             };
             group.EventSubscriptions.Add(new LineGroupEventSubscription
-                { EventType = FleetDailyDriverJobsDigest.EventType, IsEnabled = enabled });
+                { EventType = FleetDailyDriverJobsDigest.EventType, IsEnabled = enabled, CreatedAt = now.AddDays(-1) });
             db.LineGroupDestinations.Add(group);
         }
         foreach (var (status, departure, assigned) in new[]

@@ -157,7 +157,7 @@ export type EmergencyReviewItem={id:string;requestNo:string;priority:string;stat
 export async function getEmergencyReviews(params:Record<string,unknown>={}){return unwrap(await httpClient.get<ApiResponse<{items:EmergencyReviewItem[];total:number}>>("/fleet/emergency-reviews",{params}));}
 export async function getEmergencyReview(id:string){return unwrap(await httpClient.get<ApiResponse<Record<string,unknown>>>(`/fleet/emergency-reviews/${id}`));}
 
-export type FleetLineGroupEventSubscription = { eventType: string; isEnabled: boolean };
+export type FleetLineGroupEventSubscription = { eventType: string; isEnabled: boolean; roomName?: string | null };
 export type FleetLineGroup = {
   id: string; displayName: string; groupIdMasked: string; status: "Pending" | "Active" | "Disabled";
   module: string; attentionRequired: boolean; attentionReason?: string | null; firstDetectedAt: string;

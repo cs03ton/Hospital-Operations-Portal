@@ -30,15 +30,16 @@ const eventLabels: Record<string, string> = {
   "Fleet.Cancelled": "ยกเลิก", "Fleet.AssignmentChanged": "เปลี่ยนรถ/คนขับ",
   "Fleet.DriverAcknowledged": "คนขับรับทราบ", "Fleet.TripCompleted": "จบภารกิจ",
   "Fleet.TripOverdue": "ภารกิจเกินกำหนด",
-  "Fleet.DailyDriverJobs": "สรุปภารกิจรถประจำวัน (06:00 น.)",
+  "Fleet.DailyDriverJobs": "สรุปภารกิจรถประจำวัน (06:00 และ 13:00 น.)",
   "Fleet.DaytimeRefer": "ภารกิจ Refer ระหว่างวัน (06:00–18:00 น.)",
   "Operations.PendingApprovalDigest": "สรุปงานรออนุมัติ (08:00, 12:30, 16:00 น.)",
   "Repair.Submitted": "แจ้งซ่อมใหม่", "Repair.Resubmitted": "ส่งงานซ่อมใหม่", "Repair.Reopened": "เปิดงานซ้ำ",
   "Repair.Started": "เริ่มดำเนินการซ่อม", "Repair.Resumed": "กลับมาดำเนินการซ่อม",
   "Repair.Solved": "ซ่อมเสร็จรอตรวจรับ", "Repair.Closed": "ปิดใบงานซ่อม",
-  "MeetingRoom.BookingCreated": "มีการจองห้องประชุมใหม่",
+  "MeetingRoom.BookingCreated": "มีการจองห้องประชุมใหม่ (ทุกห้อง)",
 };
 
+const isSupportedEvent = (type: string) => type in eventLabels || /^MeetingRoom\.BookingCreated\.Room\.[0-9a-f-]{36}$/i.test(type);
 const eventSystems = [
   { key: "Operations", title: "สรุปงานรออนุมัติ · ระบบลาและรถ" },
   { key: "Fleet", title: "ระบบขอรถ" },
@@ -116,10 +117,10 @@ export function FleetLineGroupsPage() {
   });
   const saveSubscriptions = useMutation({
     mutationFn: () => updateFleetLineGroupSubscriptions(selected!.id, selected!.concurrencyToken,
-      Object.fromEntries(Object.entries(subscriptionDraft).filter(([eventType]) => eventType in eventLabels))),
+      Object.fromEntries(Object.entries(subscriptionDraft).filter(([eventType]) => isSupportedEvent(eventType)))),
     onSuccess: async (updated) => {
       setSelected(current => current ? { ...current, concurrencyToken: updated.concurrencyToken,
-        events: current.events.map(event => ({ ...event, isEnabled: event.eventType in eventLabels ? subscriptionDraft[event.eventType] ?? false : event.isEnabled })) } : null);
+        events: current.events.map(event => ({ ...event, isEnabled: isSupportedEvent(event.eventType) ? subscriptionDraft[event.eventType] ?? false : event.isEnabled })) } : null);
       setNotice({ severity: "success", text: "บันทึก Event Subscription แล้ว" }); await refresh();
     },
     onError: async (error: { response?: { status?: number; data?: { message?: string } } }) => {
@@ -201,9 +202,10 @@ export function FleetLineGroupsPage() {
               <Typography variant="subtitle1" fontWeight={800}>{system.title}</Typography>
               <Chip size="small" variant="outlined" label={`เปิด ${enabledCount}/${events.length}`} />
             </Stack>
+            {system.key === "MeetingRoom" && <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>เลือกทุกห้อง หรือเลือกห้องที่ต้องการรับแจ้งได้หลายห้อง หากเลือกซ้ำกันระบบจะส่งเพียงครั้งเดียว</Typography>}
             <Grid container spacing={0.5}>{events.map(event => <Grid item xs={12} sm={6} md={4} key={event.eventType}><FormControlLabel
-              control={<Checkbox disabled={!canManage || isLegacyRepairGroup(selected) || !(event.eventType in eventLabels)} checked={subscriptionDraft[event.eventType] ?? false} onChange={(_, checked) => setSubscriptionDraft(x => ({ ...x, [event.eventType]: checked }))} />}
-              label={eventLabels[event.eventType] ?? event.eventType} sx={{ m: 0, width: "100%" }} /></Grid>)}</Grid>
+              control={<Checkbox disabled={!canManage || isLegacyRepairGroup(selected) || !(isSupportedEvent(event.eventType))} checked={subscriptionDraft[event.eventType] ?? false} onChange={(_, checked) => setSubscriptionDraft(x => ({ ...x, [event.eventType]: checked }))} />}
+              label={event.roomName ? `มีการจอง: ${event.roomName}` : eventLabels[event.eventType] ?? event.eventType} sx={{ m: 0, width: "100%" }} /></Grid>)}</Grid>
           </Box>;
         })}
       </Stack>

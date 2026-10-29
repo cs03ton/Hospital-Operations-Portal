@@ -27,6 +27,24 @@ const group: FleetLineGroup = {
 };
 
 describe("FleetLineGroupsPage", () => {
+  it("saves multiple room selections independently while preserving all-room subscriptions", async () => {
+    const admin = "MeetingRoom.BookingCreated.Room.11111111-1111-1111-1111-111111111111";
+    const promotion = "MeetingRoom.BookingCreated.Room.22222222-2222-2222-2222-222222222222";
+    vi.mocked(updateFleetLineGroupSubscriptions).mockResolvedValue({ id: group.id, concurrencyToken: "token-2" });
+    vi.mocked(getFleetLineGroups).mockResolvedValue([{ ...group, events: [
+      { eventType: "MeetingRoom.BookingCreated", isEnabled: true },
+      { eventType: admin, roomName: "ห้องบริหาร", isEnabled: false },
+      { eventType: promotion, roomName: "ห้องส่งเสริม", isEnabled: false },
+    ] }]);
+    const user = userEvent.setup(); renderFleet(<FleetLineGroupsPage />);
+    await user.click(await screen.findByRole("button", { name: "รายละเอียด" }));
+    expect(screen.getByRole("checkbox", { name: "มีการจองห้องประชุมใหม่ (ทุกห้อง)" })).toBeChecked();
+    await user.click(screen.getByRole("checkbox", { name: "มีการจอง: ห้องบริหาร" }));
+    await user.click(screen.getByRole("checkbox", { name: "มีการจอง: ห้องส่งเสริม" }));
+    await user.click(screen.getByRole("button", { name: "บันทึกเหตุการณ์แจ้งเตือน" }));
+    await waitFor(() => expect(updateFleetLineGroupSubscriptions).toHaveBeenCalledWith(group.id, group.concurrencyToken,
+      { "MeetingRoom.BookingCreated": true, [admin]: true, [promotion]: true }));
+  });
   beforeEach(() => {
     vi.clearAllMocks();
     permissionState.canManage = true;
@@ -87,7 +105,7 @@ describe("FleetLineGroupsPage", () => {
 
     expect(within(screen.getByRole("region", { name: "ระบบขอรถ" })).getByRole("checkbox", { name: "ส่งคำขอใหม่" })).toBeChecked();
     expect(within(screen.getByRole("region", { name: "ระบบแจ้งซ่อม" })).getByRole("checkbox", { name: "แจ้งซ่อมใหม่" })).not.toBeChecked();
-    expect(within(screen.getByRole("region", { name: "ระบบจองห้องประชุม" })).getByRole("checkbox", { name: "มีการจองห้องประชุมใหม่" })).toBeChecked();
+    expect(within(screen.getByRole("region", { name: "ระบบจองห้องประชุม" })).getByRole("checkbox", { name: "มีการจองห้องประชุมใหม่ (ทุกห้อง)" })).toBeChecked();
     expect(within(screen.getByRole("region", { name: "เหตุการณ์อื่น" })).getByRole("checkbox", { name: "Future.Event" })).toBeInTheDocument();
     expect(screen.getByRole("checkbox", { name: "Future.Event" })).toBeDisabled();
     expect(screen.getAllByText("เปิด 1/1")).toHaveLength(2);
@@ -106,7 +124,7 @@ describe("FleetLineGroupsPage", () => {
     const user = userEvent.setup();
     renderFleet(<FleetLineGroupsPage />);
     await user.click(await screen.findByRole("button", { name: "รายละเอียด" }));
-    expect(screen.getByRole("checkbox", { name: "สรุปภารกิจรถประจำวัน (06:00 น.)" })).toBeEnabled();
+    expect(screen.getByRole("checkbox", { name: "สรุปภารกิจรถประจำวัน (06:00 และ 13:00 น.)" })).toBeEnabled();
     expect(screen.queryByText("Fleet.DailyDriverJobs")).not.toBeInTheDocument();
   });
 
@@ -118,7 +136,7 @@ describe("FleetLineGroupsPage", () => {
     await user.click(await screen.findByRole("button", { name: "รายละเอียด" }));
     const refer = screen.getByRole("checkbox", { name: "ภารกิจ Refer ระหว่างวัน (06:00–18:00 น.)" });
     expect(refer).not.toBeChecked(); expect(refer).toBeEnabled();
-    expect(screen.getByRole("checkbox", { name: "สรุปภารกิจรถประจำวัน (06:00 น.)" })).toBeChecked();
+    expect(screen.getByRole("checkbox", { name: "สรุปภารกิจรถประจำวัน (06:00 และ 13:00 น.)" })).toBeChecked();
     await user.click(refer); await user.click(screen.getByRole("button", { name: "บันทึกเหตุการณ์แจ้งเตือน" }));
     await waitFor(() => expect(updateFleetLineGroupSubscriptions).toHaveBeenCalledWith(group.id, group.concurrencyToken,
       { "Fleet.DailyDriverJobs": true, "Fleet.DaytimeRefer": true }));

@@ -30,7 +30,7 @@ public sealed class FleetLineGroupEventMapper : IFleetLineGroupEventMapper
         ["Repair.Resumed"] = "Repair.Resumed", ["Repair.Solved"] = "Repair.Solved", ["Repair.Closed"] = "Repair.Closed"
     };
 
-    internal static string[] SourceEventsFor(string canonicalEventType) => ExactMappings
+    internal static string[] SourceEventsFor(string canonicalEventType) => MeetingRoomGroupSubscriptions.TryRoom(canonicalEventType, out _) ? [MeetingRoomGroupSubscriptions.EventType] : ExactMappings
         .Where(x => x.Value == canonicalEventType).Select(x => x.Key).ToArray();
 
     public string? ToCanonical(string scope, string sourceEventType)

@@ -26,7 +26,8 @@ public sealed partial class FleetLineGroupsController(AppDbContext db, ILineGrou
         if (!string.IsNullOrWhiteSpace(search)) query = query.Where(x => EF.Functions.ILike(x.DisplayName, $"%{search.Trim()}%"));
         // Older groups may not have rows for events introduced after registration.
         // Present the same catalog to every group without enabling or persisting missing subscriptions.
-        var eventTypes = LineGroupEvents.Defaults.Keys
+        var rooms = await db.MeetingRooms.AsNoTracking().ToDictionaryAsync(x => MeetingRoomGroupSubscriptions.ForRoom(x.Id), x => x.Name, ct);
+        var eventTypes = LineGroupEvents.Defaults.Keys.Concat(rooms.Keys)
             .Concat(await db.LineGroupEventSubscriptions.AsNoTracking().Select(x => x.EventType).Distinct().ToListAsync(ct))
             .Distinct(StringComparer.Ordinal).OrderBy(x => x, StringComparer.Ordinal).ToArray();
         var destinations = await query.OrderBy(x => x.Status).ThenBy(x => x.DisplayName).ToListAsync(ct);
@@ -53,6 +54,7 @@ public sealed partial class FleetLineGroupsController(AppDbContext db, ILineGrou
             Events = eventTypes.Select(eventType => new
             {
                 EventType = eventType,
+                RoomName = rooms.GetValueOrDefault(eventType),
                 IsEnabled = x.EventSubscriptions.Any(s => s.EventType == eventType && s.IsEnabled)
             }).ToArray()
         }).ToArray();
@@ -192,7 +194,8 @@ public sealed partial class FleetLineGroupsController(AppDbContext db, ILineGrou
             logger?.LogWarning("LINE group subscription conflict. Change=TokenAlreadyChanged DestinationId={DestinationId}", id);
             return Conflict(ApiResponse<object>.Fail("ข้อมูลกลุ่มเปลี่ยนแปลงแล้ว กรุณาโหลดใหม่และเลือกเหตุการณ์อีกครั้ง"));
         }
-        if (body.Events.Keys.Any(x => !LineGroupEvents.Defaults.ContainsKey(x))) return BadRequest(ApiResponse<object>.Fail("Unsupported notification event."));
+        var definitions = await MeetingRoomGroupSubscriptions.DefinitionsAsync(db, ct);
+        if (body.Events.Keys.Any(x => !definitions.ContainsKey(x))) return BadRequest(ApiResponse<object>.Fail("Unsupported notification event."));
         if (body.Events.Any(x => x.Key.StartsWith("Repair.") && x.Value) && item.RepairTeamCode is not ("IT" or "GENERAL"))
             return BadRequest(ApiResponse<object>.Fail("กรุณาจับคู่ทีมแจ้งซ่อมก่อนเปิดเหตุการณ์"));
         if (body.Events.Any(x => x.Key.StartsWith("Repair.") && x.Value) &&
@@ -214,7 +217,7 @@ public sealed partial class FleetLineGroupsController(AppDbContext db, ILineGrou
                 return Conflict(ApiResponse<object>.Fail("ข้อมูลกลุ่มเปลี่ยนแปลงระหว่างบันทึก กรุณาโหลดใหม่และเลือกเหตุการณ์อีกครั้ง"));
             }
             var now = DateTime.UtcNow;
-            foreach (var definition in LineGroupEvents.Defaults)
+            foreach (var definition in definitions)
             {
                 var eventType = definition.Key;
                 var enabled = body.Events.GetValueOrDefault(eventType, false);
@@ -224,7 +227,7 @@ public sealed partial class FleetLineGroupsController(AppDbContext db, ILineGrou
                     VALUES ({subscriptionId}, {id}, {eventType}, {enabled}, {now}, {now})
                     ON CONFLICT (destination_id, event_type)
                     DO UPDATE SET is_enabled = EXCLUDED.is_enabled, updated_at = CASE
-                        WHEN EXCLUDED.event_type = 'Fleet.DaytimeRefer' AND line_group_event_subscriptions.is_enabled = EXCLUDED.is_enabled
+                        WHEN (EXCLUDED.event_type IN ('Fleet.DaytimeRefer', 'Fleet.DailyDriverJobs') OR EXCLUDED.event_type LIKE 'MeetingRoom.BookingCreated.Room.%') AND line_group_event_subscriptions.is_enabled = EXCLUDED.is_enabled
                         THEN line_group_event_subscriptions.updated_at ELSE EXCLUDED.updated_at END
                     """, ct);
             }
@@ -234,12 +237,12 @@ public sealed partial class FleetLineGroupsController(AppDbContext db, ILineGrou
             logger?.LogInformation("LINE group configuration changed. Change=SubscriptionsUpdated DestinationId={DestinationId}", id);
             return ApiResponse<object>.Ok(new { item.Id, ConcurrencyToken = nextToken });
         }
-        foreach (var definition in LineGroupEvents.Defaults)
+        foreach (var definition in definitions)
         {
             var subscription = item.EventSubscriptions.SingleOrDefault(x => x.EventType == definition.Key);
             if (subscription is null) { subscription = new LineGroupEventSubscription { EventType = definition.Key }; item.EventSubscriptions.Add(subscription); }
             var enabled = body.Events.GetValueOrDefault(definition.Key, false);
-            if (definition.Key != FleetDaytimeReferNotification.EventType || subscription.IsEnabled != enabled)
+            if ((definition.Key != FleetDaytimeReferNotification.EventType && definition.Key != FleetDailyDriverJobsDigest.EventType && !definition.Key.StartsWith(MeetingRoomGroupSubscriptions.Prefix)) || subscription.IsEnabled != enabled)
                 subscription.UpdatedAt = DateTime.UtcNow;
             subscription.IsEnabled = enabled;
         }
