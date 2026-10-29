@@ -6,11 +6,12 @@ import * as api from "../api/fleetApi";
 
 vi.mock("../context/PermissionContext", () => ({ usePermission: () => ({ hasPermission: () => false }) }));
 vi.mock("../api/fleetApi", async () => ({ ...await vi.importActual("../api/fleetApi"), getFleetKpis: vi.fn(), getFleetCalendar: vi.fn(),
-  getFleetDepartmentReport: vi.fn(), getFleetDriverReport: vi.fn(), getFleetRouteReport: vi.fn(), getFleetDistanceSummary: vi.fn() }));
+  getFleetDepartmentReport: vi.fn(), getFleetDriverReport: vi.fn(), getFleetRouteReport: vi.fn(), getFleetVehicleUsage: vi.fn(), getFleetDistanceSummary: vi.fn() }));
 
 describe("Report distance from recorded mileage", () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    vi.mocked(api.getFleetVehicleUsage).mockResolvedValue({ vehicles: [], items: [], page: 1, pageSize: 10, totalItems: 0, totalPages: 0 });
     vi.mocked(api.getFleetKpis).mockResolvedValue({ totalRequests: 1 } as api.FleetKpiSummary);
     vi.mocked(api.getFleetCalendar).mockResolvedValue([]);
     vi.mocked(api.getFleetDepartmentReport).mockResolvedValue([]);

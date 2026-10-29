@@ -27,6 +27,7 @@ import { formatThaiDateTime } from "../utils/dateFormat";
 import { getFleetStatusLabel } from "../utils/fleetLabels";
 import { usePermission } from "../context/PermissionContext";
 
+import { FleetVehicleUsageReport } from "../components/fleet/FleetVehicleUsageReport";
 const pageSize = 10;
 
 export function FleetReportsPage() {
@@ -88,7 +89,7 @@ export function FleetReportsPage() {
     <Card><CardContent><Grid container spacing={1.5} alignItems="center">
       <Grid item xs={12} sm={6} md={3}><AppDatePicker label="วันที่เริ่มต้น" value={startDate} onChange={(value) => { setStartDate(value); setPage(1); }} /></Grid>
       <Grid item xs={12} sm={6} md={3}><AppDatePicker label="วันที่สิ้นสุด" value={endDate} onChange={(value) => { setEndDate(value); setPage(1); }} /></Grid>
-      <Grid item xs={12} sm={6} md={2}><TextField select fullWidth size="small" label="สถานะคำขอ" value={status} onChange={(event) => { setStatus(event.target.value); setPage(1); }}><MenuItem value="">ทุกสถานะ</MenuItem>{Object.keys(statusCounts).map((value) => <MenuItem key={value} value={value}>{getFleetStatusLabel(value)}</MenuItem>)}</TextField></Grid>
+      <Grid item xs={12} sm={6} md={2}><TextField select fullWidth size="small" label="สถานะคำขอ" value={status} onChange={(event) => { setStatus(event.target.value); setPage(1); }}><MenuItem value="">ทุกสถานะ</MenuItem>{["DRAFT", "PENDING_DISPATCH", "PENDING_ADMIN_REVIEW", "PENDING_DIRECTOR", "APPROVED", "PENDING_DRIVER_ACK", "READY", "IN_PROGRESS", "COMPLETED", "CANCELLATION_PENDING", "RETURNED", "REJECTED", "CANCELLED", "ABORTED"].map((value) => <MenuItem key={value} value={value}>{getFleetStatusLabel(value)}</MenuItem>)}</TextField></Grid>
       <Grid item xs={12} sm={6} md={4}><Stack direction="row" spacing={1}><Button fullWidth variant="outlined" startIcon={<RefreshOutlinedIcon />} onClick={resetFilters}>ล้างตัวกรอง</Button><Button fullWidth variant="contained" startIcon={<DownloadOutlinedIcon />} onClick={download}>ส่งออก CSV</Button></Stack></Grid>
     </Grid></CardContent></Card>
 
@@ -117,6 +118,7 @@ export function FleetReportsPage() {
       <Card><CardContent><Stack direction={{ xs: "column", md: "row" }} justifyContent="space-between" spacing={1.5} sx={{ mb: 2 }}><SectionTitle title="รายละเอียดคำขอใช้รถ" subtitle={`พบ ${requestRows.length.toLocaleString("th-TH")} รายการ`} /><TextField size="small" placeholder="ค้นหาเลขคำขอ หน่วยงาน หรือปลายทาง" value={keyword} onChange={(event) => { setKeyword(event.target.value); setPage(1); }} sx={{ minWidth: { md: 360 } }} InputProps={{ startAdornment: <InputAdornment position="start"><SearchOutlinedIcon /></InputAdornment> }} /></Stack>
         {!requestRows.length ? <EmptyState title="ไม่พบข้อมูลการใช้รถ" description="ลองเปลี่ยนช่วงวันที่หรือสถานะคำขอ" /> : <><TableContainer><Table size="small"><TableHead><TableRow><TableCell>เลขคำขอ</TableCell><TableCell>วันเวลาเดินทาง</TableCell><TableCell>หน่วยงาน</TableCell><TableCell>จุดหมาย</TableCell><TableCell align="center">ผู้ร่วมเดินทาง</TableCell><TableCell>สถานะ</TableCell><TableCell align="right">รายละเอียด</TableCell></TableRow></TableHead><TableBody>{visibleRows.map((event) => <ReportRow key={event.id} event={event} />)}</TableBody></Table></TableContainer><Stack direction={{ xs: "column", sm: "row" }} justifyContent="space-between" alignItems="center" spacing={1.5} sx={{ mt: 2 }}><Typography variant="body2" color="text.secondary">แสดง {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, requestRows.length)} จาก {requestRows.length} รายการ</Typography><Pagination page={page} count={Math.max(1, Math.ceil(requestRows.length / pageSize))} onChange={(_, value) => setPage(value)} color="primary" /></Stack></>}
       </CardContent></Card>
+      <FleetVehicleUsageReport key={`${startDate}:${endDate}:${status}`} startDate={startDate} endDate={endDate} status={status} />
       {(drivers.data ?? []).length > 0 && <Card><CardContent><SectionTitle title="สรุปงานพนักงานขับรถ" subtitle="เปรียบเทียบจำนวนงาน ความคืบหน้า และผลงานที่เสร็จสิ้นของแต่ละคน" /><Grid container spacing={1.75} sx={{ mt: 0.25 }}>{(drivers.data ?? []).map((item, index) => <Grid item xs={12} sm={6} lg={4} key={item.driverUserId}><DriverStatisticCard item={item} index={index} /></Grid>)}</Grid></CardContent></Card>}
       {hasPermission("FleetFeedback.ViewManagement") && <FeedbackManagementReport startDate={startDate} endDate={endDate} />}
     </>}
