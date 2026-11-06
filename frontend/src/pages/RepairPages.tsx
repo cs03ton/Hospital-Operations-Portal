@@ -1,4 +1,6 @@
 import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
+import { notifyGlobal } from "../contexts/NotificationContext";
+import { focusInvalidFormField } from "../utils/formValidationFocus";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Link as RouterLink,
@@ -586,12 +588,14 @@ function InputFields({
   department,
   requesterName,
   requesterPhone,
+  errors = {},
 }: {
   value: api.RepairInput;
   onChange: (v: api.RepairInput) => void;
   department?: string;
   requesterName?: string;
   requesterPhone?: string;
+  errors?: Record<string, string>;
 }) {
   const options = useQuery({
     queryKey: ["repairs", "options"],
@@ -618,6 +622,9 @@ function InputFields({
         select
         SelectProps={repairSelectProps}
         label="ประเภทงาน"
+        data-validation-field="categoryId"
+        error={!!errors.categoryId}
+        helperText={errors.categoryId}
         value={value.categoryId}
         onChange={(e) => onChange({ ...value, categoryId: e.target.value })}
       >
@@ -649,6 +656,9 @@ function InputFields({
           )}
           <TextField
             key={key}
+            data-validation-field={key}
+            error={!!errors[key]}
+            helperText={errors[key]}
             required
             label={
               {
@@ -682,6 +692,8 @@ function InputFields({
 }
 
 export function RepairCreatePage() {
+  const formRoot = useRef<HTMLFormElement>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const { user } = useAuth();
   const profile = useQuery({
     queryKey: ["repair-requester-profile", user?.id],
@@ -714,9 +726,21 @@ export function RepairCreatePage() {
     <Stack
       spacing={2}
       component="form"
+      ref={formRoot}
+      noValidate
       onSubmit={(e) => {
         e.preventDefault();
-        if (created || profile.data?.phoneNumber?.trim()) create.mutate();
+        if (created) { create.mutate(); return; }
+        const issues: Record<string, string> = {};
+        if (!value.categoryId) issues.categoryId = "กรุณาเลือกประเภทงาน";
+        if (!value.title.trim()) issues.title = "กรุณากรอกหัวข้อ";
+        if (!value.description.trim()) issues.description = "กรุณากรอกอาการและผลกระทบ";
+        if (!value.location.trim()) issues.location = "กรุณากรอกอาคาร / ชั้น / ห้อง / จุดติดตั้ง";
+        if (!profile.data?.phoneNumber?.trim()) issues.contact = "กรุณาเพิ่มเบอร์โทรในข้อมูลส่วนตัวก่อนแจ้งซ่อม";
+        setFieldErrors(issues);
+        const first = Object.keys(issues)[0];
+        if (first) { notifyGlobal("error", issues[first]); focusInvalidFormField(formRoot.current, first); return; }
+        create.mutate();
       }}
     >
       <PageHeader
@@ -741,7 +765,7 @@ export function RepairCreatePage() {
         </Alert>
       )}
       {profile.data && !profile.data.phoneNumber?.trim() && !created && (
-        <Alert severity="warning">
+        <Alert data-validation-field="contact" severity="warning">
           ยังไม่มีเบอร์โทรในข้อมูลส่วนตัว กรุณา <RouterLink to="/profile">เพิ่มเบอร์โทร</RouterLink> ก่อนแจ้งซ่อม
         </Alert>
       )}
@@ -755,8 +779,9 @@ export function RepairCreatePage() {
             </Alert>
           ) : (
             <InputFields
+              errors={fieldErrors}
               value={value}
-              onChange={setValue}
+              onChange={next => { setValue(next); setFieldErrors({}); }}
               department={
                 profile.isError
                   ? "โหลดข้อมูลไม่สำเร็จ"
@@ -782,7 +807,7 @@ export function RepairCreatePage() {
           <Button
             type="submit"
             variant="contained"
-            disabled={create.isPending || !value.categoryId || (!created && !profile.data?.phoneNumber?.trim())}
+            disabled={create.isPending || (!created && (profile.isLoading || profile.isError))}
           >
             {create.isPending
               ? "กำลังบันทึก…"

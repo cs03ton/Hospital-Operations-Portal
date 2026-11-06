@@ -4,7 +4,7 @@ import SaveOutlinedIcon from "@mui/icons-material/SaveOutlined";
 import SendOutlinedIcon from "@mui/icons-material/SendOutlined";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { isAxiosError } from "axios";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { useNavigate, useParams } from "react-router-dom";
 import { getMyProfile } from "../api/profileApi";
@@ -22,11 +22,13 @@ export function LeaveRequestFormPage() {
   const { id } = useParams();
   const isEditMode = Boolean(id);
   const { showSuccess } = useNotification();
+  const formRoot = useRef<HTMLFormElement>(null);
   const { data: leaveTypes = [] } = useQuery({ queryKey: ["leave-types"], queryFn: getLeaveTypes });
   const { data: editingRequest } = useQuery({ queryKey: ["leave-requests", id], queryFn: () => getLeaveRequest(id!), enabled: isEditMode });
   const { data: profile } = useQuery({ queryKey: ["me", "profile"], queryFn: getMyProfile });
   const { control, register, handleSubmit, watch, setValue, reset, formState: { errors } } = useForm<SaveLeaveRequest>({
-    defaultValues: { durationType: "FULL_DAY", totalDays: 1, reason: "" },
+    shouldFocusError: false,
+    defaultValues: { leaveTypeId: "", startDate: "", endDate: "", durationType: "FULL_DAY", totalDays: 1, reason: "" },
   });
   const startDate = watch("startDate");
   const endDate = watch("endDate");
@@ -85,6 +87,7 @@ export function LeaveRequestFormPage() {
     mutationFn: async ({ values, submit }: { values: SaveLeaveRequest; submit: boolean }) => {
       const payload = {
         ...values,
+        reason: values.reason.trim(),
         endDate: isHalfDay ? values.startDate : values.endDate,
         totalDays: policyPreview?.requestedDays ?? (isHalfDay ? 0.5 : 0),
       };
@@ -110,11 +113,22 @@ export function LeaveRequestFormPage() {
   });
 
   const saveRequest = (submit: boolean) => {
-    if (submit && hasPolicyError) {
-      notifyGlobal("error", policyErrors.join("\n") || "คำขอนี้ยังไม่ผ่านเงื่อนไขการลา กรุณาตรวจสอบข้อมูลอีกครั้ง");
-      return;
-    }
-    void handleSubmit((values) => mutation.mutate({ values, submit }))();
+    void handleSubmit((values) => {
+      if (submit && hasPolicyError) {
+        notifyGlobal("error", policyErrors.join("\n") || "คำขอนี้ยังไม่ผ่านเงื่อนไขการลา กรุณาตรวจสอบข้อมูลอีกครั้ง");
+        return;
+      }
+      mutation.mutate({ values, submit });
+    }, (issues) => {
+      const order = ["leaveTypeId", "durationType", "startDate", ...(isHalfDay ? [] : ["endDate"]), "reason"] as (keyof SaveLeaveRequest)[];
+      const first = order.find(name => issues[name]);
+      notifyGlobal("error", first ? String(issues[first]?.message ?? "กรุณากรอกข้อมูลให้ครบถ้วน") : "กรุณากรอกข้อมูลให้ครบถ้วน");
+      if (!first) return;
+      const field = formRoot.current?.querySelector<HTMLElement>(`[data-leave-field="${first}"]`);
+      const target = field?.querySelector<HTMLElement>('[role="combobox"], input:not([disabled]):not([type="hidden"]), textarea:not([disabled])') ?? field;
+      target?.scrollIntoView?.({ behavior: "smooth", block: "center" });
+      target?.focus({ preventScroll: true });
+    })();
   };
 
   return (
@@ -122,7 +136,7 @@ export function LeaveRequestFormPage() {
       <PageHeader title={isEditMode ? "แก้ไขคำขอลา" : "สร้างคำขอลา"} subtitle={isEditMode ? "แก้ไขข้อมูลคำขอที่ยังเป็นแบบร่างหรือถูกตีกลับรอแก้ไข" : "กรอกข้อมูลให้ครบแล้วเลือกบันทึกแบบร่างหรือส่งคำขออนุมัติ"} />
       <Card>
         <CardContent>
-          <Stack component="form" spacing={2} onSubmit={(event) => event.preventDefault()}>
+          <Stack component="form" ref={formRoot} spacing={2} onSubmit={(event) => event.preventDefault()}>
             {mutation.isError && <Alert severity="error">{getApiErrorMessage(mutation.error, isEditMode ? "บันทึกการแก้ไขคำขอลาไม่สำเร็จ" : "สร้างคำขอลาไม่สำเร็จ")}</Alert>}
             {leaveTypeId && (
               <Alert severity={hasPolicyError ? "warning" : "info"}>
@@ -184,17 +198,17 @@ export function LeaveRequestFormPage() {
                 </Stack>
               </Alert>
             )}
-            <TextField fullWidth select label="ประเภทการลา" InputLabelProps={{ shrink: true }} error={Boolean(errors.leaveTypeId)} helperText={errors.leaveTypeId?.message} {...register("leaveTypeId", { required: "กรุณาเลือกประเภทการลา" })}>
+            <Controller name="leaveTypeId" control={control} rules={{ required: "กรุณาเลือกประเภทการลา" }} render={({ field }) => <TextField data-leave-field="leaveTypeId" fullWidth select label="ประเภทการลา" InputLabelProps={{ shrink: true }} error={Boolean(errors.leaveTypeId)} helperText={errors.leaveTypeId?.message} {...field}>
               {visibleLeaveTypes.map((item) => (
                 <MenuItem key={item.id} value={item.id}>{getLeaveTypeLabel(item.name || item.code)}</MenuItem>
               ))}
-            </TextField>
+            </TextField>} />
             <Controller
               name="durationType"
               control={control}
               rules={{ required: "กรุณาเลือกประเภทช่วงเวลา" }}
               render={({ field }) => (
-                <FormControl error={Boolean(errors.durationType)}>
+                <FormControl data-leave-field="durationType" error={Boolean(errors.durationType)}>
                   <FormLabel>ประเภทช่วงเวลา</FormLabel>
                   <RadioGroup row {...field}>
                     <FormControlLabel value="FULL_DAY" control={<Radio />} label="เต็มวัน" />
@@ -207,7 +221,7 @@ export function LeaveRequestFormPage() {
                 </FormControl>
               )}
             />
-            <Controller
+            <Box data-leave-field="startDate"><Controller
               name="startDate"
               control={control}
               rules={{
@@ -224,8 +238,8 @@ export function LeaveRequestFormPage() {
                   helperText={errors.startDate?.message ?? "เลือกวันที่จากปฏิทิน"}
                 />
               )}
-            />
-            <Controller
+            /></Box>
+            <Box data-leave-field="endDate"><Controller
               name="endDate"
               control={control}
               rules={{
@@ -248,11 +262,11 @@ export function LeaveRequestFormPage() {
                   helperText={errors.endDate?.message ?? (isHalfDay ? "ลาครึ่งวันใช้วันเดียวกับวันที่เริ่มลา" : "เลือกวันที่จากปฏิทิน")}
                 />
               )}
-            />
+            /></Box>
             <Typography variant="body2" color="text.secondary">
               จำนวนวันที่ใช้โดยประมาณ: {isHalfDay ? "0.5" : "คำนวณจากวันทำการที่เลือก"} วัน
             </Typography>
-            <TextField label="เหตุผล" multiline minRows={4} error={Boolean(errors.reason)} helperText={errors.reason?.message} {...register("reason", { required: "กรุณากรอกเหตุผล" })} />
+            <TextField data-leave-field="reason" label="เหตุผล" multiline minRows={4} error={Boolean(errors.reason)} helperText={errors.reason?.message} {...register("reason", { required: "กรุณากรอกเหตุผล", validate: value => !!value?.trim() || "กรุณากรอกเหตุผล" })} />
             <Stack
               direction={{ xs: "column", sm: "row" }}
               spacing={1.5}

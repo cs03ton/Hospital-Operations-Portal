@@ -92,7 +92,7 @@ describe("repair requester profile", () => {
       ).toBeDisabled(),
     );
     expect(screen.getByDisplayValue("Requesting User")).toBeDisabled();
-    expect(screen.getByRole("button", { name: "ส่งแจ้งซ่อม" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "ส่งแจ้งซ่อม" })).toBeEnabled();
     expect(screen.getByText(/ยังไม่มีเบอร์โทรในข้อมูลส่วนตัว/)).toBeInTheDocument();
     dispose();
   });

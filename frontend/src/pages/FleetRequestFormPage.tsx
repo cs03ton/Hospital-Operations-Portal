@@ -69,7 +69,7 @@ function ThaiDateTimeField({ label, value, onChange, error = false, helperText }
     <Typography component="legend" variant="caption" sx={{ px: 0.5, color: error ? "error.main" : "text.secondary" }}>{label} *</Typography>
     <Grid container spacing={1} alignItems="center">
       <Grid item xs={12} sm={6}>
-        <Button fullWidth variant="outlined" startIcon={<CalendarMonthOutlinedIcon />} onClick={event => { setCalendarMonth(selectedDate ?? dayjs()); setAnchorEl(event.currentTarget); }} sx={{ height: 40, justifyContent: "flex-start", color: selectedDate ? "text.primary" : "text.secondary", borderColor: "divider" }}>{dateLabel}</Button>
+        <Button aria-label={`เลือกวันที่${label}`} fullWidth variant="outlined" startIcon={<CalendarMonthOutlinedIcon />} onClick={event => { setCalendarMonth(selectedDate ?? dayjs()); setAnchorEl(event.currentTarget); }} sx={{ height: 40, justifyContent: "flex-start", color: selectedDate ? "text.primary" : "text.secondary", borderColor: "divider" }}>{dateLabel}</Button>
         <Popover open={Boolean(anchorEl)} anchorEl={anchorEl} onClose={() => setAnchorEl(null)} anchorOrigin={{ vertical: "bottom", horizontal: "left" }}>
           <LocalizationProvider dateAdapter={AdapterDayjsBuddhist} dateFormats={{ year: "BBBB" }} adapterLocale="th">
             <Box sx={{ p: 1 }}>
@@ -94,6 +94,8 @@ export function FleetRequestFormPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const notify = useNotification();
+  const formRoot = useRef<HTMLDivElement>(null);
+  const [validationAttempt, setValidationAttempt] = useState<boolean | null>(null);
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const [personnelSearch, setPersonnelSearch] = useState("");
@@ -160,7 +162,35 @@ export function FleetRequestFormPage() {
   const passengerCount = countFleetPassengers(form.requesterTravels, selectedPersonnel.length, preservedExternal.length);
   const hasInvalidTripTime = Boolean(form.departureAt && form.expectedReturnAt && form.expectedReturnAt <= form.departureAt);
   const tripTimeErrorMessage = "วันและเวลากลับต้องอยู่หลังวันและเวลาออกเดินทาง กรุณาตรวจสอบวันที่และเวลาอีกครั้ง";
-  const hasRequiredFields = Boolean(form.purpose.trim() && form.missionType && form.destination.trim() && form.contactPersonName.trim() && form.contactPhone.trim() && form.departureAt && form.expectedReturnAt && passengerCount > 0 && (!form.isUrgent || form.urgentReason.trim()) && !hasInvalidTripTime);
+  function validationIssues(submit: boolean) {
+    const issues: { field: keyof FormState | "passengers"; message: string }[] = [];
+    const check = (field: keyof FormState | "passengers", valid: boolean, message: string) => { if (!valid) issues.push({ field, message }); };
+    const validTime = (value: string) => /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(value) && dayjs(value).isValid() && dayjs(value).format("YYYY-MM-DDTHH:mm") === value;
+    check("purpose", !!form.purpose.trim(), "กรุณากรอกวัตถุประสงค์/ภารกิจ");
+    check("missionType", !!form.missionType, "กรุณาเลือกประเภทการเดินทาง");
+    check("destination", !!form.destination.trim(), "กรุณากรอกปลายทาง");
+    check("contactPersonName", !!form.contactPersonName.trim(), "ไม่พบชื่อผู้ประสานงาน กรุณาตรวจสอบข้อมูลส่วนตัว");
+    check("contactPhone", !!form.contactPhone.trim(), "กรุณากรอกหมายเลขโทรศัพท์ผู้ประสานงาน");
+    check("departureAt", validTime(form.departureAt), "กรุณาระบุวันและเวลาออกเดินทางให้ครบถ้วน");
+    check("expectedReturnAt", validTime(form.expectedReturnAt) && !hasInvalidTripTime, hasInvalidTripTime ? tripTimeErrorMessage : "กรุณาระบุวันและเวลาคาดว่าจะกลับให้ครบถ้วน");
+    if (submit && form.missionType === REFER_MISSION_TYPE) check("patientName", form.patientName.trim().split(/\s+/).length >= 2, "กรุณากรอกชื่อและนามสกุลผู้ป่วย");
+    if (form.isUrgent) check("urgentReason", !!form.urgentReason.trim(), "กรุณากรอกเหตุผลความเร่งด่วน");
+    check("passengers", passengerCount > 0, "กรุณาเลือกว่าผู้ขอร่วมเดินทาง หรือเพิ่มผู้ร่วมเดินทางอย่างน้อย 1 คน");
+    return issues;
+  }
+  const fieldErrors = Object.fromEntries((validationAttempt === null ? [] : validationIssues(validationAttempt)).map(issue => [issue.field, issue.message]));
+  function saveRequest(submit: boolean) {
+    setValidationAttempt(submit);
+    const issues = validationIssues(submit);
+    if (issues.length) {
+      notify.showError(issues[0].message);
+      const wrapper = formRoot.current?.querySelector<HTMLElement>(`[data-fleet-field="${issues[0].field}"]`);
+      const target = wrapper?.querySelector<HTMLElement>('input:not([disabled]):not([type="hidden"]), textarea:not([disabled]), [role="combobox"], button:not([disabled])') ?? wrapper;
+      target?.scrollIntoView?.({ behavior: "smooth", block: "center" }); target?.focus({ preventScroll: true });
+      return;
+    }
+    setFileError(""); save.mutate(submit);
+  }
   const attachmentCount = (attachments.data?.length ?? 0) + files.length;
   const invalidFiles = files.some(file => file.size === 0 || file.size > 5 * 1024 * 1024 || !/\.(pdf|jpg|png|doc|docx)$/i.test(file.name));
 
@@ -204,7 +234,7 @@ export function FleetRequestFormPage() {
   const field = (key: keyof FormState) => (event: React.ChangeEvent<HTMLInputElement>) => setForm(current => key === "missionType" ? applyReferPolicy({ ...current, missionType: event.target.value, patientName: event.target.value === REFER_MISSION_TYPE ? current.patientName : "" }) : ({ ...current, [key]: event.target.value }));
 
   return (
-    <Stack spacing={2.5}>
+    <Stack ref={formRoot} spacing={2.5}>
       <PageHeader title={id ? "แก้ไขคำขอใช้รถ" : "สร้างคำขอใช้รถ"} subtitle="ผู้ขอไม่สามารถเลือกรถหรือคนขับได้ งานยานพาหนะจะเป็นผู้จัดรถให้ตามความเหมาะสม" />
       {request.isError && <Alert severity="error">โหลดข้อมูลคำขอไม่สำเร็จ กรุณากลับไปยังรายการคำขอแล้วลองใหม่</Alert>}
       {profile.isError && <Alert severity="error">โหลดข้อมูลพนักงานไม่สำเร็จ กรุณาลองใหม่ก่อนบันทึกคำขอ</Alert>}
@@ -225,31 +255,31 @@ export function FleetRequestFormPage() {
       <Card><CardContent sx={{ p: { xs: 2, md: 3 } }}>
         <Typography variant="h6" fontWeight={900} sx={{ mb: 2 }}>1. รายละเอียดภารกิจ</Typography>
         <Grid container spacing={2}>
-          <Grid item xs={12}><TextField required fullWidth label="วัตถุประสงค์/ภารกิจ" placeholder="ระบุวัตถุประสงค์หรือภารกิจ" value={form.purpose} onChange={field("purpose")} /></Grid>
-          <Grid item xs={12} md={6}><TextField select required fullWidth label="ประเภทการเดินทาง" value={form.missionType} onChange={field("missionType")}>{missionTypes.map(item => <MenuItem key={item} value={item}>{item}</MenuItem>)}</TextField></Grid>
-          <Grid item xs={12} md={6}><Autocomplete freeSolo fullWidth options={destinations.data ?? []} filterOptions={options => options}
+          <Grid item xs={12}><TextField required fullWidth label="วัตถุประสงค์/ภารกิจ" helperText={fieldErrors.purpose} placeholder="ระบุวัตถุประสงค์หรือภารกิจ" data-fleet-field="purpose" error={!!fieldErrors.purpose} value={form.purpose} onChange={field("purpose")} /></Grid>
+          <Grid item xs={12} md={6}><TextField select required fullWidth label="ประเภทการเดินทาง" helperText={fieldErrors.missionType} data-fleet-field="missionType" error={!!fieldErrors.missionType} value={form.missionType} onChange={field("missionType")}>{missionTypes.map(item => <MenuItem key={item} value={item}>{item}</MenuItem>)}</TextField></Grid>
+          <Grid item xs={12} md={6}><Autocomplete data-fleet-field="destination" freeSolo fullWidth options={destinations.data ?? []} filterOptions={options => options}
             inputValue={form.destination} loading={destinations.isFetching} loadingText="กำลังค้นหาปลายทาง…"
             onInputChange={(_, value, reason) => { if (reason !== "reset") setForm(current => ({ ...current, destination: value })); }}
             onChange={(_, value) => setForm(current => ({ ...current, destination: value ?? "" }))}
-            renderInput={params => <TextField {...params} required label="ปลายทาง" placeholder="เลือกปลายทางเดิม หรือพิมพ์ปลายทางใหม่"
-              helperText={destinations.isError ? "โหลดคำแนะนำไม่สำเร็จ สามารถพิมพ์ปลายทางเองได้" : "แนะนำจากคำขอที่เคยส่ง หรือพิมพ์ปลายทางใหม่ได้"} />} /></Grid>
-          <Grid item xs={12} md={6}><TextField required disabled fullWidth label="ผู้ประสานงาน" value={user?.fullname ?? form.contactPersonName} helperText="ใช้ชื่อผู้แจ้งคำขอโดยอัตโนมัติ" /></Grid>
-          <Grid item xs={12} md={6}><TextField required fullWidth disabled={Boolean(profile.data?.phoneNumber?.trim())} label="หมายเลขโทรศัพท์ผู้ประสานงาน" value={form.contactPhone} onChange={field("contactPhone")} helperText={profile.data?.phoneNumber?.trim() ? "ใช้หมายเลขโทรศัพท์จากข้อมูลพนักงาน" : "ยังไม่มีเบอร์ในข้อมูลพนักงาน กรุณากรอกเบอร์ติดต่อสำหรับคำขอนี้"} /></Grid>
-          <Grid item xs={12} md={6}><ThaiDateTimeField label="ออกเดินทาง" value={form.departureAt} onChange={value => setForm(current => ({ ...current, departureAt: value }))} /></Grid>
-          <Grid item xs={12} md={6}><ThaiDateTimeField label="คาดว่าจะกลับ" value={form.expectedReturnAt} error={hasInvalidTripTime} helperText={hasInvalidTripTime ? "กรุณาระบุวันและเวลากลับให้หลังเวลาออกเดินทาง" : undefined} onChange={value => setForm(current => ({ ...current, expectedReturnAt: value }))} /></Grid>
+            renderInput={params => <TextField {...params} required label="ปลายทาง" error={!!fieldErrors.destination} placeholder="เลือกปลายทางเดิม หรือพิมพ์ปลายทางใหม่"
+              helperText={fieldErrors.destination ?? (destinations.isError ? "โหลดคำแนะนำไม่สำเร็จ สามารถพิมพ์ปลายทางเองได้" : "แนะนำจากคำขอที่เคยส่ง หรือพิมพ์ปลายทางใหม่ได้")} />} /></Grid>
+          <Grid item xs={12} md={6}><TextField data-fleet-field="contactPersonName" tabIndex={-1} error={!!fieldErrors.contactPersonName} required disabled fullWidth label="ผู้ประสานงาน" value={user?.fullname ?? form.contactPersonName} helperText={fieldErrors.contactPersonName ?? "ใช้ชื่อผู้แจ้งคำขอโดยอัตโนมัติ"} /></Grid>
+          <Grid item xs={12} md={6}><TextField required fullWidth disabled={Boolean(profile.data?.phoneNumber?.trim())} label="หมายเลขโทรศัพท์ผู้ประสานงาน" data-fleet-field="contactPhone" error={!!fieldErrors.contactPhone} value={form.contactPhone} onChange={field("contactPhone")} helperText={fieldErrors.contactPhone ?? (profile.data?.phoneNumber?.trim() ? "ใช้หมายเลขโทรศัพท์จากข้อมูลพนักงาน" : "ยังไม่มีเบอร์ในข้อมูลพนักงาน กรุณากรอกเบอร์ติดต่อสำหรับคำขอนี้")} /></Grid>
+          <Grid data-fleet-field="departureAt" item xs={12} md={6}><ThaiDateTimeField error={!!fieldErrors.departureAt} helperText={fieldErrors.departureAt} label="ออกเดินทาง" value={form.departureAt} onChange={value => setForm(current => ({ ...current, departureAt: value }))} /></Grid>
+          <Grid data-fleet-field="expectedReturnAt" item xs={12} md={6}><ThaiDateTimeField label="คาดว่าจะกลับ" value={form.expectedReturnAt} error={!!fieldErrors.expectedReturnAt || hasInvalidTripTime} helperText={fieldErrors.expectedReturnAt ?? (hasInvalidTripTime ? "กรุณาระบุวันและเวลากลับให้หลังเวลาออกเดินทาง" : undefined)} onChange={value => setForm(current => ({ ...current, expectedReturnAt: value }))} /></Grid>
           {hasInvalidTripTime && <Grid item xs={12}><Alert severity="warning">{tripTimeErrorMessage}</Alert></Grid>}
           {form.missionType === REFER_MISSION_TYPE && <Grid item xs={12}><Alert severity="warning">ภารกิจนี้ใช้รถพยาบาลและจัดเป็นคำขอเร่งด่วนอัตโนมัติ</Alert></Grid>}
-          {form.missionType === REFER_MISSION_TYPE && <Grid item xs={12} md={6}><TextField fullWidth label="ชื่อ–สกุลผู้ป่วย" value={form.patientName} onChange={field("patientName")} inputProps={{ maxLength: 200 }} helperText="บันทึกร่างได้ก่อน แต่ต้องกรอกก่อนส่งคำขอ" /></Grid>}
+          {form.missionType === REFER_MISSION_TYPE && <Grid item xs={12} md={6}><TextField fullWidth label="ชื่อ–สกุลผู้ป่วย" data-fleet-field="patientName" error={!!fieldErrors.patientName} value={form.patientName} onChange={field("patientName")} inputProps={{ maxLength: 200 }} helperText={fieldErrors.patientName ?? "บันทึกร่างได้ก่อน แต่ต้องกรอกก่อนส่งคำขอ"} /></Grid>}
           <Grid item xs={12} md={6}><Stack direction="row" alignItems="center" sx={{ height: "100%" }}><FormControlLabel control={<Switch checked={form.isUrgent} disabled={form.missionType === REFER_MISSION_TYPE} onChange={(_, checked) => setForm(current => ({ ...current, isUrgent: checked, urgentReason: checked ? current.urgentReason : "" }))} />} label="เร่งด่วน" /></Stack></Grid>
           <Grid item xs={12} md={form.isUrgent ? 6 : 12}><TextField fullWidth multiline minRows={3} label="ความต้องการพิเศษ (ถ้ามี)" placeholder="เช่น ต้องการรถตู้ มีสัมภาระจำนวนมาก หรือมีอุปกรณ์พิเศษ" value={form.specialRequirement} onChange={field("specialRequirement")} /></Grid>
-          {form.isUrgent && <Grid item xs={12} md={6}><TextField required fullWidth multiline minRows={3} label="เหตุผลความเร่งด่วน" value={form.urgentReason} onChange={field("urgentReason")} /></Grid>}
+          {form.isUrgent && <Grid item xs={12} md={6}><TextField required fullWidth multiline minRows={3} label="เหตุผลความเร่งด่วน" helperText={fieldErrors.urgentReason} data-fleet-field="urgentReason" error={!!fieldErrors.urgentReason} value={form.urgentReason} onChange={field("urgentReason")} /></Grid>}
         </Grid>
 
         <Box sx={{ borderTop: 1, borderColor: "divider", mt: 3, pt: 3 }}>
           <Typography variant="h6" fontWeight={900}>2. ผู้ร่วมเดินทาง (ไม่รวมคนขับ)</Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>เลือกได้เฉพาะบุคลากรที่มีบัญชีผู้ใช้ในระบบ HOP</Typography>
           <Grid container spacing={2} alignItems="center">
-            <Grid item xs={12} md={9} sx={{ alignSelf: "flex-start" }}><Autocomplete multiple filterSelectedOptions options={options} value={selectedPersonnel} loading={personnel.isFetching} isOptionEqualToValue={(option, value) => option.id === value.id} getOptionLabel={option => option.fullName} onInputChange={(_, value, reason) => reason === "input" && setPersonnelSearch(value)} onChange={(_, value) => setSelectedPersonnel(value)} renderOption={(props, option) => <li {...props} key={option.id}><Box><Typography variant="body2" fontWeight={700}>{option.fullName}</Typography><Typography variant="caption" color="text.secondary">{[option.employeeCode, option.departmentName].filter(Boolean).join(" · ") || "บุคลากร HOP"}</Typography></Box></li>} renderTags={(value, getTagProps) => value.map((option, index) => <Chip label={option.fullName} {...getTagProps({ index })} key={option.id} />)} renderInput={params => <TextField {...params} label="เพิ่มผู้ร่วมเดินทาง" placeholder="ค้นหาชื่อ รหัสพนักงาน หรือหน่วยงาน" helperText="เลือกบุคลากรได้หลายคน" sx={{ "& .MuiOutlinedInput-root": { minHeight: 56 } }} />} /></Grid>
+            <Grid item xs={12} md={9} sx={{ alignSelf: "flex-start" }}><Autocomplete data-fleet-field="passengers" multiple filterSelectedOptions options={options} value={selectedPersonnel} loading={personnel.isFetching} isOptionEqualToValue={(option, value) => option.id === value.id} getOptionLabel={option => option.fullName} onInputChange={(_, value, reason) => reason === "input" && setPersonnelSearch(value)} onChange={(_, value) => setSelectedPersonnel(value)} renderOption={(props, option) => <li {...props} key={option.id}><Box><Typography variant="body2" fontWeight={700}>{option.fullName}</Typography><Typography variant="caption" color="text.secondary">{[option.employeeCode, option.departmentName].filter(Boolean).join(" · ") || "บุคลากร HOP"}</Typography></Box></li>} renderTags={(value, getTagProps) => value.map((option, index) => <Chip label={option.fullName} {...getTagProps({ index })} key={option.id} />)} renderInput={params => <TextField {...params} label="เพิ่มผู้ร่วมเดินทาง" placeholder="ค้นหาชื่อ รหัสพนักงาน หรือหน่วยงาน" error={!!fieldErrors.passengers} helperText={fieldErrors.passengers ?? "เลือกบุคลากรได้หลายคน"} sx={{ "& .MuiOutlinedInput-root": { minHeight: 56 } }} />} /></Grid>
             <Grid item xs={12} md={3} sx={{ alignSelf: "flex-start" }}><TextField disabled fullWidth label="จำนวนผู้ร่วมเดินทาง" value={`${passengerCount} คน`} helperText="คำนวณอัตโนมัติ · ไม่รวมคนขับ" sx={{ "& .MuiOutlinedInput-root": { minHeight: 56 }, "& .MuiInputBase-input.Mui-disabled": { WebkitTextFillColor: "text.primary", fontWeight: 700 } }} /></Grid>
             <Grid item xs={12}><FormControlLabel control={<Switch checked={form.requesterTravels} onChange={(_, checked) => setForm(current => ({ ...current, requesterTravels: checked }))} />} label="ผู้ขอร่วมเดินทางด้วย" /></Grid>
             {passengerCount === 0 && <Grid item xs={12}><Alert severity="warning">กรุณาเลือกว่าผู้ขอร่วมเดินทาง หรือเพิ่มผู้ร่วมเดินทางอย่างน้อย 1 คน</Alert></Grid>}
@@ -279,8 +309,8 @@ export function FleetRequestFormPage() {
         <Stack direction={{ xs: "column-reverse", sm: "row" }} justifyContent="space-between" spacing={1.5}>
           <Button variant="outlined" onClick={() => navigate(-1)} disabled={save.isPending}>ยกเลิก</Button>
           <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5}>
-            <Button variant="outlined" startIcon={<SaveOutlinedIcon />} disabled={!hasRequiredFields || invalidFiles || attachmentCount > 2 || attachments.isError || (Boolean(attachmentRequestId) && attachments.isLoading) || save.isPending || profile.isLoading || profile.isError} onClick={() => { setFileError(""); save.mutate(false); }}>{save.isPending && !submitAfterSave ? "กำลังบันทึก..." : "บันทึกร่าง"}</Button>
-            <Button variant="contained" startIcon={<SendOutlinedIcon />} disabled={!hasRequiredFields || (form.missionType === REFER_MISSION_TYPE && form.patientName.trim().split(/\s+/).length < 2) || invalidFiles || attachmentCount > 2 || attachments.isError || (Boolean(attachmentRequestId) && attachments.isLoading) || save.isPending || profile.isLoading || profile.isError} onClick={() => { setFileError(""); save.mutate(true); }}>{save.isPending && submitAfterSave ? "กำลังส่งคำขอ..." : "ส่งคำขอ"}</Button>
+            <Button variant="outlined" startIcon={<SaveOutlinedIcon />} disabled={invalidFiles || attachmentCount > 2 || attachments.isError || (Boolean(attachmentRequestId) && attachments.isLoading) || save.isPending || profile.isLoading || profile.isError} onClick={() => saveRequest(false)}>{save.isPending && !submitAfterSave ? "กำลังบันทึก..." : "บันทึกร่าง"}</Button>
+            <Button variant="contained" startIcon={<SendOutlinedIcon />} disabled={invalidFiles || attachmentCount > 2 || attachments.isError || (Boolean(attachmentRequestId) && attachments.isLoading) || save.isPending || profile.isLoading || profile.isError} onClick={() => saveRequest(true)}>{save.isPending && submitAfterSave ? "กำลังส่งคำขอ..." : "ส่งคำขอ"}</Button>
           </Stack>
         </Stack>
       </Box></Card>

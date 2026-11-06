@@ -1,5 +1,8 @@
 import { bangkokDayjs } from "../utils/dateFormat";
-import { useState } from "react";
+import { useRef, useState } from "react";
+import { notifyGlobal } from "../contexts/NotificationContext";
+import { focusInvalidFormField } from "../utils/formValidationFocus";
+import { isValidApiDate } from "../utils/dateFormat";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import {
@@ -600,6 +603,8 @@ export function MeetingRoomCalendarPage() {
 }
 
 export function MeetingRoomCreatePage() {
+  const formRoot = useRef<HTMLFormElement>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const { user } = useAuth();
   const navigate = useNavigate();
   const qc = useQueryClient();
@@ -641,7 +646,7 @@ export function MeetingRoomCreatePage() {
     },
   });
   const set = (key: keyof Omit<BookingInput, "attendeeCount">, value: string) =>
-    setForm((x) => ({ ...x, [key]: value }));
+    { setForm((x) => ({ ...x, [key]: value })); setFieldErrors({}); };
   return (
     <Box>
       <Heading
@@ -651,8 +656,28 @@ export function MeetingRoomCreatePage() {
       <Card sx={{ ...panelSx, p: { xs: 2, md: 3 } }}>
         <Box
           component="form"
+          ref={formRoot}
+          noValidate
           onSubmit={(e) => {
             e.preventDefault();
+            const issues: Record<string, string> = {};
+            const validTime = (value: string) => /^([01]\d|2[0-3]):[0-5]\d$/.test(value);
+            if (!form.roomId) issues.roomId = "กรุณาเลือกห้องประชุม";
+            if (!isValidApiDate(form.date)) issues.date = "กรุณาเลือกวันที่ประชุมให้ถูกต้อง";
+            if (!validTime(form.startTime)) issues.startTime = "กรุณาระบุเวลาเริ่มให้ถูกต้อง";
+            if (!validTime(form.endTime)) issues.endTime = "กรุณาระบุเวลาสิ้นสุดให้ถูกต้อง";
+            else if (validTime(form.startTime) && form.endTime <= form.startTime) issues.endTime = "เวลาสิ้นสุดต้องอยู่หลังเวลาเริ่ม";
+            if (!form.subject.trim()) issues.subject = "กรุณากรอกหัวข้อประชุม";
+            if (!form.purpose.trim()) issues.purpose = "กรุณากรอกวัตถุประสงค์";
+            if (capacityError) issues.attendees = `ห้องรองรับได้สูงสุด ${room?.capacity} คน กรุณาปรับรายชื่อผู้เข้าประชุม`;
+            if (form.meetingLink?.trim()) {
+              try { if (new URL(form.meetingLink.trim()).protocol !== "https:") issues.meetingLink = "Link ประชุมต้องเป็น HTTPS"; }
+              catch { issues.meetingLink = "กรุณากรอก Link ประชุมที่ถูกต้องและเป็น HTTPS"; }
+            }
+            if (files.some(f => f.size > 10 * 1024 * 1024)) issues.files = "เอกสารแต่ละไฟล์ต้องมีขนาดไม่เกิน 10 MB";
+            setFieldErrors(issues);
+            const first = Object.keys(issues)[0];
+            if (first) { notifyGlobal("error", issues[first]); focusInvalidFormField(formRoot.current, first); return; }
             mutation.mutate();
           }}
           sx={{
@@ -671,6 +696,9 @@ export function MeetingRoomCreatePage() {
             select
             required
             label="ห้องประชุม"
+            data-validation-field="roomId"
+            error={!!fieldErrors.roomId}
+            helperText={fieldErrors.roomId}
             value={form.roomId}
             onChange={(e) => set("roomId", e.target.value)}
           >
@@ -680,25 +708,34 @@ export function MeetingRoomCreatePage() {
               </MenuItem>
             ))}
           </TextField>
-          <AppDatePicker
+          <Box data-validation-field="date"><AppDatePicker
             label="วันที่ประชุม"
+            error={!!fieldErrors.date}
+            helperText={fieldErrors.date}
             value={form.date}
             onChange={(value) => set("date", value)}
             size="medium"
-          />
-          <AppTimePicker
+          /></Box>
+          <Box data-validation-field="startTime"><AppTimePicker
             label="เวลาเริ่ม"
+            error={!!fieldErrors.startTime}
+            helperText={fieldErrors.startTime}
             value={form.startTime}
             onChange={(value) => set("startTime", value)}
-          />
-          <AppTimePicker
+          /></Box>
+          <Box data-validation-field="endTime"><AppTimePicker
             label="เวลาสิ้นสุด"
+            error={!!fieldErrors.endTime}
+            helperText={fieldErrors.endTime}
             value={form.endTime}
             onChange={(value) => set("endTime", value)}
-          />
+          /></Box>
           <TextField
             required
             label="หัวข้อประชุม"
+            data-validation-field="subject"
+            error={!!fieldErrors.subject}
+            helperText={fieldErrors.subject}
             value={form.subject}
             onChange={(e) => set("subject", e.target.value)}
             sx={{ gridColumn: { md: "1/-1" } }}
@@ -708,6 +745,9 @@ export function MeetingRoomCreatePage() {
             multiline
             minRows={3}
             label="วัตถุประสงค์"
+            data-validation-field="purpose"
+            error={!!fieldErrors.purpose}
+            helperText={fieldErrors.purpose}
             value={form.purpose}
             onChange={(e) => set("purpose", e.target.value)}
           />
@@ -719,6 +759,7 @@ export function MeetingRoomCreatePage() {
             onChange={(e) => set("additionalRequest", e.target.value)}
           />
           <Autocomplete
+            data-validation-field="attendees"
             multiple
             filterSelectedOptions
             options={personnelOptions}
@@ -730,10 +771,11 @@ export function MeetingRoomCreatePage() {
             onChange={(_, value) => {
               const unique = [...new Map(value.map((item) => [item.id, item])).values()];
               setSelectedAttendees(unique);
+              setFieldErrors({});
             }}
             renderOption={(props, option) => <li {...props} key={option.id}><Box><Typography variant="body2" fontWeight={700}>{option.fullName}</Typography><Typography variant="caption" color="text.secondary">{[option.employeeCode, option.departmentName].filter(Boolean).join(" · ")}</Typography></Box></li>}
             renderTags={(value, getTagProps) => value.map((option, index) => <Chip label={option.fullName} {...getTagProps({ index })} key={option.id} />)}
-            renderInput={(params) => <TextField {...params} label="ผู้เข้าประชุม" placeholder="ค้นหาชื่อ รหัสพนักงาน หรือหน่วยงาน" helperText="ผู้จองถูกนับรวมโดยอัตโนมัติ เพิ่มหรือลบรายชื่อเพื่อปรับจำนวนคน" />}
+            renderInput={(params) => <TextField {...params} label="ผู้เข้าประชุม" placeholder="ค้นหาชื่อ รหัสพนักงาน หรือหน่วยงาน" error={!!fieldErrors.attendees} helperText={fieldErrors.attendees ?? "ผู้จองถูกนับรวมโดยอัตโนมัติ เพิ่มหรือลบรายชื่อเพื่อปรับจำนวนคน"} />}
             sx={{ gridColumn: { md: "1/-1" } }}
           />
           <TextField
@@ -753,11 +795,13 @@ export function MeetingRoomCreatePage() {
           <TextField
             type="url"
             label="Link ประชุม (ถ้ามี)"
+            data-validation-field="meetingLink"
+            error={!!fieldErrors.meetingLink}
             value={form.meetingLink}
             onChange={(e) => set("meetingLink", e.target.value)}
-            helperText="ต้องเป็น HTTPS"
+            helperText={fieldErrors.meetingLink ?? "ต้องเป็น HTTPS"}
           />
-          <Button component="label" variant="outlined">
+          <Button data-validation-field="files" tabIndex={0} component="label" variant="outlined">
             เลือกเอกสาร (สูงสุด 5 ไฟล์)
             <input
               hidden
@@ -771,6 +815,7 @@ export function MeetingRoomCreatePage() {
           </Button>
           <Typography alignSelf="center" color="text.secondary">
             {files.length ? `${files.length} ไฟล์` : "ยังไม่ได้เลือกไฟล์"}
+            {fieldErrors.files && <Typography component="span" color="error"> · {fieldErrors.files}</Typography>}
           </Typography>
           {mutation.isError && (
             <Alert severity="error" sx={{ gridColumn: { md: "1/-1" } }}>
@@ -790,9 +835,7 @@ export function MeetingRoomCreatePage() {
               type="submit"
               variant="contained"
               disabled={
-                mutation.isPending ||
-                capacityError ||
-                files.some((f) => f.size > 10 * 1024 * 1024)
+                mutation.isPending
               }
             >
               ยืนยันการจอง
