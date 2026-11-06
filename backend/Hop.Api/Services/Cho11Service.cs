@@ -1,3 +1,5 @@
+using Hop.Api.Data;
+using Microsoft.EntityFrameworkCore;
 namespace Hop.Api.Services;
 
 public sealed class Cho11Request
@@ -9,19 +11,23 @@ public sealed class Cho11Request
     public string Hospital { get; set; } = "";
     public string Province { get; set; } = "";
     public Guid ReviewerUserId { get; set; }
+    public Guid? AuthorUserId { get; set; }
+    public string? AuthorPosition { get; set; }
 }
-public sealed record Cho11Options(MemoPerson Author, IReadOnlyList<MemoPerson> Reviewers, IReadOnlyList<MemoPerson> Heads, string Hospital, string Province, string AreaLevel);
+public sealed record Cho11Options(MemoPerson Author, IReadOnlyList<MemoPerson> Reviewers, IReadOnlyList<MemoPerson> Heads, string Hospital, string Province, string AreaLevel, IReadOnlyList<MemoPerson> People);
 public sealed record ResolvedCho11(Cho11Request Input, MemoPerson Author, MemoPerson Reviewer, string AreaLevel, DateOnly EmploymentDate, IReadOnlyList<DateOnly> Months);
 
-public sealed class Cho11Service(CorrespondenceMemoService memos, IConfiguration config)
+public sealed class Cho11Service(CorrespondenceMemoService memos, IConfiguration config, AppDbContext db)
 {
     public async Task<Cho11Options> OptionsAsync(Guid actor, CancellationToken ct)
     {
         var options = await memos.OptionsAsync(actor, ct);
+        var people = await db.Users.AsNoTracking().Where(u => u.IsActive).OrderBy(u => u.FullName).ThenBy(u => u.Id)
+            .Select(u => MemoPerson.From(u.Id, u.FullName, u.NamePrefix, u.Position, u.DepartmentId)).ToListAsync(ct);
         return new(options.Proposer, options.Approvers ?? [], options.Heads,
             config["Correspondence:Cho11:Hospital"] ?? "โรงพยาบาลนาหมื่น",
             config["Correspondence:Cho11:Province"] ?? "น่าน",
-            config["Correspondence:Cho11:AreaLevel"] ?? "พื้นที่เฉพาะระดับ 1");
+            config["Correspondence:Cho11:AreaLevel"] ?? "พื้นที่เฉพาะระดับ 1", people);
     }
     public async Task<ResolvedCho11> ResolveAsync(Guid actor, Cho11Request input, CancellationToken ct)
     {
@@ -37,15 +43,19 @@ public sealed class Cho11Service(CorrespondenceMemoService memos, IConfiguration
         if (count is < 1 or > 12) throw new ArgumentException("กรุณาเลือกช่วงเอกสารตามลำดับ ไม่เกิน 12 เดือน");
         if (employment >= start.AddMonths(1)) throw new ArgumentException("เดือนเอกสารต้องไม่อยู่ก่อนวันเริ่มงาน");
         Check(input.Hospital, "โรงพยาบาล", 120); Check(input.Province, "จังหวัด", 80);
-        Check(options.Author.Name, "ชื่อผู้ทำเอกสาร กรุณาแก้ Profile", 300);
-        Check(options.Author.Position, "ตำแหน่งผู้ทำเอกสาร กรุณาแก้ Profile", 300);
+        var author = options.People.SingleOrDefault(p => p.Id == (input.AuthorUserId ?? actor))
+            ?? throw new ArgumentException("กรุณาเลือกผู้ขอจากบุคลากรที่เปิดใช้งานในระบบ");
+        Check(author.Name, "ชื่อผู้ขอ กรุณาแก้ Profile", 300);
+        var position = input.AuthorPosition is null ? author.Position : input.AuthorPosition.Trim();
+        Check(position, "ตำแหน่งผู้ขอ", 300);
+        author = author with { Position = position };
         var reviewer = options.Reviewers.SingleOrDefault(p => p.Id == input.ReviewerUserId)
             ?? throw new ArgumentException("กรุณาเลือกผู้ตรวจสอบจากผู้อนุมัติที่เปิดใช้งาน");
         Check(reviewer.Position, "ตำแหน่งผู้ตรวจสอบ กรุณาติดต่อผู้ดูแล", 300);
         // Copy the validated input; nothing is persisted or added to delivery/audit queues.
         return new(new() { StartMonth = start.ToString("yyyy-MM", System.Globalization.CultureInfo.InvariantCulture), EndMonth = end.ToString("yyyy-MM", System.Globalization.CultureInfo.InvariantCulture), EmploymentMonth = employment.ToString("yyyy-MM", System.Globalization.CultureInfo.InvariantCulture),
-            EmploymentDate = employment.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture), Hospital = input.Hospital.Trim(), Province = input.Province.Trim(), ReviewerUserId = reviewer.Id },
-            options.Author, reviewer, options.AreaLevel, employment, Enumerable.Range(0, count).Select(start.AddMonths).ToArray());
+            EmploymentDate = employment.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture), Hospital = input.Hospital.Trim(), Province = input.Province.Trim(), ReviewerUserId = reviewer.Id, AuthorUserId = author.Id, AuthorPosition = position },
+            author, reviewer, options.AreaLevel, employment, Enumerable.Range(0, count).Select(start.AddMonths).ToArray());
     }
     private static void Check(string? value, string label, int max)
     {

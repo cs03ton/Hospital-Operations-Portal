@@ -23,7 +23,7 @@ public sealed class Cho11Tests
         var head = new User { Username = "cho11-head", NamePrefix = "นางสาว", FullName = "ผู้ตรวจสอบ ทดสอบ", Position = "นักเทคโนโลยีสารสนเทศปฏิบัติการ", Department = department, UserRoles = [new() { Role = new Role { Name = "DepartmentHead" } }] };
         db.AddRange(author, head); await db.SaveChangesAsync(); return (author, head);
     }
-    private static Cho11Service Service(AppDbContext db) { var config = new ConfigurationBuilder().Build(); return new(new(db, config), config); }
+    private static Cho11Service Service(AppDbContext db) { var config = new ConfigurationBuilder().Build(); return new(new(db, config), config, db); }
     private static Cho11Request Request(User head) => new() { StartMonth = "2026-10", EndMonth = "2026-12", EmploymentMonth = "2025-11", Hospital = "โรงพยาบาลนาหมื่น", Province = "น่าน", ReviewerUserId = head.Id };
     [Fact]
     public async Task Uses_real_names_rechecks_reviewer_and_never_persists_document()
@@ -95,6 +95,10 @@ public sealed class Cho11Tests
             Assert.Equal("ผู้ตรวจสอบ", paragraphs[1]);
             Assert.Equal("(.....................................)", paragraphs[2]);
             Assert.Equal("(" + report.Reviewer.Name + ")", paragraphs[3]);
+            Assert.All(cell.Elements(w + "p"), p => {
+                Assert.Equal("709", p.Element(w + "pPr")!.Element(w + "ind")!.Attribute(w + "left")!.Value);
+                Assert.Equal("-709", p.Element(w + "pPr")!.Element(w + "ind")!.Attribute(w + "right")!.Value);
+            });
         }
         Assert.All(xml.Descendants(w + "tcMar"), margin => Assert.Equal("567", margin.Element(w + "right")!.Attribute(w + "w")!.Value));
         Assert.True(Convert.FromBase64String(files.PdfBase64).Length > 10000);
@@ -103,6 +107,25 @@ public sealed class Cho11Tests
         if (!string.IsNullOrEmpty(qa)) { Directory.CreateDirectory(qa); await File.WriteAllBytesAsync(Path.Combine(qa, "cho11.pdf"), Convert.FromBase64String(files.PdfBase64)); await File.WriteAllBytesAsync(Path.Combine(qa, "cho11.docx"), Convert.FromBase64String(files.DocxBase64)); }
     }
     private static XDocument Xml(MemoFiles files) { using var zip = new ZipArchive(new MemoryStream(Convert.FromBase64String(files.DocxBase64))); using var stream = zip.GetEntry("word/document.xml")!.Open(); return XDocument.Load(stream); }
+    [Fact]
+    public async Task Selects_active_people_and_overrides_document_position_without_editing_profile()
+    {
+        await using var db = Db(); var (actor, head) = await Seed(db);
+        var other = new User { Username = "other", FullName = "บุคลากร ต่างหน่วยงาน", NamePrefix = "นาย", Position = "ตำแหน่งเดิม", Department = new Department { Name = "หน่วยงานอื่น" } };
+        db.Add(other); await db.SaveChangesAsync(); var service = Service(db);
+        Assert.Contains((await service.OptionsAsync(actor.Id, default)).People, p => p.Id == other.Id);
+        var input = Request(head); input.AuthorUserId = other.Id; input.AuthorPosition = " ตำแหน่งในเอกสาร ";
+        var report = await service.ResolveAsync(actor.Id, input, default);
+        Assert.Equal("นายบุคลากร ต่างหน่วยงาน", report.Author.Name); Assert.Equal("ตำแหน่งในเอกสาร", report.Author.Position);
+        Assert.Equal("ตำแหน่งเดิม", other.Position); Assert.Empty(db.AuditLogs);
+        var files = new Cho11Renderer(new TestEnvironment()).Render(report);
+        Assert.Contains(report.Author.Name, files.FileName); Assert.Contains("ตำแหน่งในเอกสาร", Xml(files).ToString());
+        input.AuthorPosition = " "; await Assert.ThrowsAsync<ArgumentException>(() => service.ResolveAsync(actor.Id, input, default));
+        input.AuthorPosition = "ตำแหน่ง"; input.AuthorUserId = Guid.NewGuid(); await Assert.ThrowsAsync<ArgumentException>(() => service.ResolveAsync(actor.Id, input, default));
+        input.AuthorUserId = other.Id; other.IsActive = false; await db.SaveChangesAsync();
+        await Assert.ThrowsAsync<ArgumentException>(() => service.ResolveAsync(actor.Id, input, default));
+        Assert.DoesNotContain((await service.OptionsAsync(actor.Id, default)).People, p => p.Id == other.Id);
+    }
     [Theory]
     [InlineData("2026-10-15", "2026-10-01", 0, 0, 17)]
     [InlineData("2025-10-15", "2026-10-01", 1, 0, 17)]

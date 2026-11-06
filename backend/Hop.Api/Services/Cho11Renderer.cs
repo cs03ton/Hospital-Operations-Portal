@@ -69,7 +69,7 @@ public sealed class Cho11Renderer(IWebHostEnvironment environment)
                             firstIndent: line.StartsWith("ข้าพเจ้าขอ", StringComparison.Ordinal) ? 35.43f : 0));
                     }
                     c.Item().PaddingTop(18).ShowEntire().Row(row => {
-                        row.RelativeItem().PaddingRight(38.35f).PaddingTop(26).Column(s => {
+                        row.RelativeItem().PaddingLeft(35.43f).PaddingRight(2.92f).PaddingTop(26).Column(s => {
                             s.Item().AlignCenter().Text("ได้รับการตรวจสอบความถูกต้อง");
                             s.Item().AlignLeft().Text("ผู้ตรวจสอบ");
                             s.Item().PaddingTop(4).AlignCenter().Text("(.....................................)");
@@ -117,9 +117,11 @@ public sealed class Cho11Renderer(IWebHostEnvironment environment)
                     reviewer ? new XElement(W + "tcMar", new XElement(W + "right", new XAttribute(W + "w", "567"), new XAttribute(W + "type", "dxa"))) : null),
                     reviewer ? new[] { P("ได้รับการตรวจสอบความถูกต้อง", "center", before: 520), P("ผู้ตรวจสอบ"), P("(.....................................)", "center", before: 80), P("(" + r.Reviewer.Name + ")", "center", before: 80), P(r.Reviewer.Position!, "center") }
                     : new[] { P("................................................", "center"), P("(" + r.Author.Name + ")", "center", before: 80), P("ตำแหน่ง " + r.Author.Position, "center") });
+                var reviewerCell = Cell(true);
+                foreach (var paragraph in reviewerCell.Elements(W + "p")) paragraph.Element(W + "pPr")!.Add(new XElement(W + "ind", new XAttribute(W + "left", "709"), new XAttribute(W + "right", "-709")));
                 body.Add(new XElement(W + "tbl", new XElement(W + "tblPr", new XElement(W + "tblW", new XAttribute(W + "w", "9412"), new XAttribute(W + "type", "dxa")), new XElement(W + "tblLayout", new XAttribute(W + "type", "fixed"))),
                     new XElement(W + "tblGrid", new XElement(W + "gridCol", new XAttribute(W + "w", "4706")), new XElement(W + "gridCol", new XAttribute(W + "w", "4706"))),
-                    new XElement(W + "tr", new XElement(W + "trPr", new XElement(W + "cantSplit")), Cell(true), Cell(false))), P(""));
+                    new XElement(W + "tr", new XElement(W + "trPr", new XElement(W + "cantSplit")), reviewerCell, Cell(false))), P(""));
             }
             body.Add(new XElement(W + "sectPr", new XElement(W + "pgSz", new XAttribute(W + "w", "11906"), new XAttribute(W + "h", "16838")),
                 new XElement(W + "pgMar", new XAttribute(W + "left", "1247"), new XAttribute(W + "right", "1247"), new XAttribute(W + "top", "1020"), new XAttribute(W + "bottom", "1020"))));

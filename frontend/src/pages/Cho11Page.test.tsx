@@ -26,7 +26,7 @@ describe("Cho11 form", () => {
     expect(validateCho11({ ...valid, endMonth: "2027-10" }, options)).toHaveProperty("endMonth");
     expect(validateCho11({ ...valid, employmentDate: "2026-11-01" }, options)).toHaveProperty("employmentDate");
     expect(validateCho11({ ...valid, reviewerUserId: "invalid" }, options)).toHaveProperty("reviewerUserId");
-    expect(validateCho11(valid, { ...options, author: { ...author, position: null } })).toHaveProperty("author");
+    expect(validateCho11(valid, { ...options, author: { ...author, position: null } })).toHaveProperty("authorPosition");
   });
   it("defaults to the own head and supports other approvers", async () => {
     renderFleet(<Cho11Page />); await screen.findByDisplayValue(author.name);
@@ -34,7 +34,8 @@ describe("Cho11 form", () => {
     fireEvent.mouseDown(screen.getByRole("combobox", { name: /ผู้ตรวจสอบรับรอง/ }));
     fireEvent.click(await screen.findByRole("option", { name: new RegExp(foreign.name) }));
     expect(screen.getByRole("combobox", { name: /ผู้ตรวจสอบรับรอง/ })).toHaveTextContent(foreign.name);
-    expect(screen.getByLabelText("ผู้ทำเอกสารจาก HOP")).toHaveAttribute("readonly");
+    expect(screen.getByRole("combobox", { name: /ผู้ขอจาก HOP/ })).toHaveValue(author.name);
+    expect(screen.getByLabelText(/ตำแหน่งผู้ขอ/)).not.toHaveAttribute("readonly");
   });
   it("focuses missing employment month without sending a request", async () => {
     renderFleet(<Cho11Page />); await screen.findByDisplayValue(author.name);
@@ -63,6 +64,21 @@ describe("Cho11 form", () => {
     fireEvent.change(screen.getByLabelText(/โรงพยาบาล/), { target: { value: "โรงพยาบาลทดสอบ" } });
     await waitFor(() => expect(screen.queryByText("PDF ฉ.11")).not.toBeInTheDocument());
     expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:pdf"); expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:docx");
+  });
+  it("selects personnel, fills their position and permits a document-only position edit", async () => {
+    vi.mocked(getCho11Options).mockResolvedValue({ ...options, people: [author, foreign] });
+    renderFleet(<Cho11Page />); await screen.findByDisplayValue(author.name);
+    const people = screen.getByRole("combobox", { name: /ผู้ขอจาก HOP/ });
+    fireEvent.change(people, { target: { value: "ต่างหน่วย" } });
+    fireEvent.click(await screen.findByRole("option", { name: new RegExp(foreign.name) }));
+    expect(screen.getByLabelText(/ตำแหน่งผู้ขอ/)).toHaveValue(foreign.position);
+    fireEvent.change(screen.getByLabelText(/ตำแหน่งผู้ขอ/), { target: { value: "ตำแหน่งเฉพาะเอกสาร" } });
+    fireEvent.change(screen.getByLabelText("วันเริ่มงาน"), { target: { value: "2025-11-15" } });
+    fireEvent.click(screen.getByRole("button", { name: "สร้าง Preview" })); await screen.findByText("PDF ฉ.11");
+    expect(renderCho11).toHaveBeenCalledWith(expect.objectContaining({ authorUserId: foreign.id, authorPosition: "ตำแหน่งเฉพาะเอกสาร" }), expect.any(AbortSignal));
+    fireEvent.change(people, { target: { value: "ผู้ทำเอกสาร" } });
+    fireEvent.click(await screen.findByRole("option", { name: new RegExp(author.name) }));
+    expect(screen.getByLabelText(/ตำแหน่งผู้ขอ/)).toHaveValue(author.position); expect(screen.queryByText("PDF ฉ.11")).not.toBeInTheDocument();
   });
 });
 

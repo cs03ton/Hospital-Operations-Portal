@@ -7,8 +7,8 @@ export type MemoContentTemplate = { fileNameTitle?: string | null; code: string;
 export type MemoOptions = { proposer: MemoPerson; departments: { id: string; name: string }[]; heads: MemoPerson[]; directors: MemoPerson[]; approvers?: MemoPerson[]; closings: string[]; headComments: string[]; directorComments: string[]; contentTemplates?: MemoContentTemplate[] };
 export type MemoForm = { contentTemplateCode?: string | null; workMonth?: string | null; departmentId: string; extension: string; documentNumber: string; documentDate: string; subject: string; recipient: string; body: MemoParagraph[]; closing: string; includeHead: boolean; headUserId: string | null; headComment: string; includeDirector: boolean; directorUserId: string | null; directorComment: string };
 export type MemoFiles = { docxBase64: string; pdfBase64: string; fileName: string; templateVersion: string };
-export type Cho11Form = { startMonth: string; endMonth: string; employmentDate: string; hospital: string; province: string; reviewerUserId: string };
-export type Cho11Options = { author: MemoPerson; reviewers: MemoPerson[]; heads: MemoPerson[]; hospital: string; province: string; areaLevel: string };
+export type Cho11Form = { authorUserId?: string; authorPosition?: string; startMonth: string; endMonth: string; employmentDate: string; hospital: string; province: string; reviewerUserId: string };
+export type Cho11Options = { people?: MemoPerson[]; author: MemoPerson; reviewers: MemoPerson[]; heads: MemoPerson[]; hospital: string; province: string; areaLevel: string };
 export async function getCho11Options(signal?: AbortSignal) { return (await httpClient.get<ApiResponse<Cho11Options>>("/api/correspondence/cho11/options", { signal })).data.data; }
 export async function renderCho11(form: Cho11Form, signal?: AbortSignal) { return (await httpClient.post<ApiResponse<MemoFiles>>("/api/correspondence/cho11/render", form, { signal })).data.data; }
 export async function getMemoOptions(signal?: AbortSignal) { return (await httpClient.get<ApiResponse<MemoOptions>>("/api/correspondence/options", { signal })).data.data; }

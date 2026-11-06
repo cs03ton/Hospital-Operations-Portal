@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Alert, Box, Button, Card, CardContent, MenuItem, Stack, TextField, Typography } from "@mui/material";
+import { Alert, Autocomplete, Box, Button, Card, CardContent, MenuItem, Stack, TextField, Typography } from "@mui/material";
 import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 import VisibilityOutlinedIcon from "@mui/icons-material/VisibilityOutlined";
 import { isAxiosError } from "axios";
@@ -27,7 +27,10 @@ export function validateCho11(form: Cho11Form, options: Cho11Options) {
   if (!form.hospital.trim() || form.hospital.length > 120) errors.hospital = "กรุณาระบุโรงพยาบาล ไม่เกิน 120 ตัวอักษร";
   if (!form.province.trim() || form.province.length > 80) errors.province = "กรุณาระบุจังหวัด ไม่เกิน 80 ตัวอักษร";
   if (!options.reviewers.some(p => p.id === form.reviewerUserId && p.position?.trim())) errors.reviewerUserId = "กรุณาเลือกผู้ตรวจสอบที่มีตำแหน่งครบถ้วน";
-  if (!options.author.name.trim() || !options.author.position?.trim()) errors.author = "ชื่อหรือตำแหน่งผู้ทำเอกสารไม่ครบ กรุณาแก้ Profile";
+  const author = (options.people ?? [options.author]).find(p => p.id === (form.authorUserId ?? options.author.id));
+  if (!author?.name.trim()) errors.authorUserId = "กรุณาเลือกผู้ขอจากบุคลากรในระบบ";
+  const position = form.authorPosition ?? author?.position ?? "";
+  if (!position.trim() || position.length > 300) errors.authorPosition = "กรุณากรอกตำแหน่งผู้ขอ ไม่เกิน 300 ตัวอักษร";
   return errors;
 }
 function MonthFields({ label, value, error, onChange }: { label: string; value: string; error?: string; onChange: (value: string) => void }) {
@@ -50,7 +53,7 @@ export function Cho11Page() {
   function initial(data: Cho11Options): Cho11Form {
     const heads = data.heads.filter(h => !!data.author.departmentId && h.departmentId === data.author.departmentId && data.reviewers.some(r => r.id === h.id));
     const month = bangkokDayjs().format("YYYY-MM");
-    return { startMonth: month, endMonth: month, employmentDate: "", hospital: data.hospital, province: data.province, reviewerUserId: heads.length === 1 ? heads[0].id : "" };
+    return { authorUserId: data.author.id, authorPosition: data.author.position ?? "", startMonth: month, endMonth: month, employmentDate: "", hospital: data.hospital, province: data.province, reviewerUserId: heads.length === 1 ? heads[0].id : "" };
   }
   function invalidate() {
     request.current?.abort(); request.current = null; setBusy(false);
@@ -84,7 +87,10 @@ export function Cho11Page() {
     <Alert severity="info">เอกสารไม่ถูกเก็บบนเซิร์ฟเวอร์ กรุณาดาวน์โหลดก่อนปิดหรือรีเฟรชหน้า ชื่อผู้ตรวจสอบเป็นการเตรียมเอกสาร ไม่ใช่การอนุมัติในระบบ</Alert>
     <Card><CardContent><Stack spacing={3}>
       <Typography variant="h6">ข้อมูลผู้ขอและหน่วยบริการ</Typography>
-      <Stack data-field="author" direction={{ xs: "column", sm: "row" }} spacing={2}><TextField fullWidth label="ผู้ทำเอกสารจาก HOP" value={options.author.name} InputProps={{ readOnly: true }} /><TextField fullWidth label="ตำแหน่ง" value={options.author.position ?? ""} InputProps={{ readOnly: true }} /></Stack>
+      <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
+        <Autocomplete data-field="authorUserId" fullWidth options={options.people ?? [options.author]} value={(options.people ?? [options.author]).find(p => p.id === form.authorUserId) ?? null} getOptionLabel={p => p.name} isOptionEqualToValue={(a, b) => a.id === b.id} onChange={(_, person) => change({ authorUserId: person?.id ?? "", authorPosition: person?.position ?? "" })} renderOption={(props, person) => <li {...props} key={person.id}><Box sx={{ overflowWrap: "anywhere" }}>{person.name}<Typography variant="caption" display="block" color="text.secondary">{person.position || "ยังไม่ระบุตำแหน่ง"}</Typography></Box></li>} renderInput={params => <TextField {...params} required label="ผู้ขอจาก HOP" error={!!fields.authorUserId} helperText={fields.authorUserId ?? "ค้นหาและเลือกบุคลากร ค่าเริ่มต้นเป็นเจ้าของบัญชี"} />} />
+        <TextField data-field="authorPosition" fullWidth required label="ตำแหน่งผู้ขอ" value={form.authorPosition ?? ""} onChange={e => change({ authorPosition: e.target.value })} error={!!fields.authorPosition} helperText={fields.authorPosition ?? "แก้ไขเฉพาะเอกสารนี้ ไม่เปลี่ยนข้อมูล Profile"} />
+      </Stack>
       <Stack direction={{ xs: "column", sm: "row" }} spacing={2}><TextField data-field="hospital" fullWidth required label="โรงพยาบาล" value={form.hospital} error={!!fields.hospital} helperText={fields.hospital} onChange={e => change({ hospital: e.target.value })} /><TextField data-field="province" fullWidth required label="จังหวัด" value={form.province} error={!!fields.province} helperText={fields.province} onChange={e => change({ province: e.target.value })} /></Stack>
       <Typography color="text.secondary">ระดับ/กลุ่ม: {options.areaLevel}</Typography>
       <TextField data-field="reviewerUserId" select required label="ผู้ตรวจสอบรับรอง" value={form.reviewerUserId} error={!!fields.reviewerUserId} helperText={fields.reviewerUserId || "เลือกผู้อนุมัติได้ทุกหน่วยงาน ค่าเริ่มต้นเป็นหัวหน้าหน่วยงานของตนเอง"} onChange={e => change({ reviewerUserId: e.target.value })}>{options.reviewers.map(p => <MenuItem key={p.id} value={p.id} sx={{ whiteSpace: "normal" }}>{p.name} · {p.position || "ไม่ระบุตำแหน่ง"}</MenuItem>)}</TextField>
