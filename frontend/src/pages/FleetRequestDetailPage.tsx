@@ -1,3 +1,4 @@
+import { confirmSystem } from "../components/common/SystemDialogHost";
 import {
   Alert,
   Box,
@@ -32,6 +33,7 @@ import {
   transitionFleetRequest,
 } from "../api/fleetApi";
 import { FleetStatusHistoryTimeline } from "../components/fleet/FleetStatusHistoryTimeline";
+import { FleetAssignmentSwapDialog } from "../components/fleet/FleetAssignmentSwapDialog";
 import { PageHeader } from "../components/PageHeader";
 import { useAuth } from "../context/AuthContext";
 import { usePermission } from "../context/PermissionContext";
@@ -76,6 +78,7 @@ export function FleetRequestDetailPage() {
     ),
   });
   const [reason, setReason] = useState("");
+  const [swapOpen, setSwapOpen] = useState(false);
   const [vehicleId, setVehicleId] = useState("");
   const [driverId, setDriverId] = useState("");
   const [reviewAction, setReviewAction] = useState<"approve" | "return" | "reject" | null>(null);
@@ -365,6 +368,8 @@ export function FleetRequestDetailPage() {
           <Card>
             <CardContent>
               <Typography variant="h6">เปลี่ยนรถหรือคนขับ</Typography>
+              {isDispatcher && hasPermission(["APPROVED", "PENDING_DRIVER_ACK", "READY"].includes(data.status) ? "FleetDispatch.ReplaceApprovedAssignment" : "FleetDispatch.ReplaceAssignment") && ["PENDING_ADMIN_REVIEW", "PENDING_DIRECTOR", "APPROVED", "PENDING_DRIVER_ACK", "READY"].includes(data.status) && !data.statusHistories.some(h => ["Fleet.TRIP_START", "Fleet.TripStarted"].includes(h.action)) && <Button variant="outlined" sx={{ mt: 2 }} onClick={() => setSwapOpen(true)}>สลับรถกับคำขออื่น</Button>}
+              {swapOpen && <FleetAssignmentSwapDialog request={data} onClose={() => setSwapOpen(false)} onSuccess={refresh} />}
               <Stack
                 direction={{ xs: "column", md: "row" }}
                 spacing={1}
@@ -412,8 +417,8 @@ export function FleetRequestDetailPage() {
                     !reason.trim() ||
                     (!vehicleId && !driverId)
                   }
-                  onClick={() => {
-                    if (window.confirm("ยืนยันเปลี่ยน Assignment?"))
+                  onClick={async () => {
+                    if ((await confirmSystem("ยืนยันเปลี่ยน Assignment?")))
                       replace.mutate();
                   }}
                 >

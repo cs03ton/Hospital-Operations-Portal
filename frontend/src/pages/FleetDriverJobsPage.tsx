@@ -1,3 +1,4 @@
+import { promptSystem } from "../components/common/SystemDialogHost";
 import AccessTimeOutlinedIcon from "@mui/icons-material/AccessTimeOutlined";
 import CheckCircleOutlineOutlinedIcon from "@mui/icons-material/CheckCircleOutlineOutlined";
 import DirectionsCarOutlinedIcon from "@mui/icons-material/DirectionsCarOutlined";
@@ -275,8 +276,8 @@ function DriverJobCard({ job, busy, onAction }: { job: DriverJob; busy: boolean;
           {job.status === "PENDING_DRIVER_ACK" && (
             <Stack direction={{ xs: "column", sm: "row" }} spacing={1} justifyContent="flex-end">
               <Button variant="contained" disabled={busy} sx={{ minHeight: 44 }} onClick={() => void onAction(job.id, "accept", job.concurrencyToken)}>ตอบรับงาน</Button>
-              <Button color="error" variant="outlined" disabled={busy} sx={{ minHeight: 44 }} onClick={() => {
-                const reason = window.prompt("ระบุเหตุผลที่ปฏิเสธ");
+              <Button color="error" variant="outlined" disabled={busy} sx={{ minHeight: 44 }} onClick={async () => {
+                const reason = (await promptSystem("ระบุเหตุผลที่ปฏิเสธ"));
                 if (reason?.trim()) void onAction(job.id, "decline", job.concurrencyToken, reason.trim());
               }}>ปฏิเสธ</Button>
             </Stack>

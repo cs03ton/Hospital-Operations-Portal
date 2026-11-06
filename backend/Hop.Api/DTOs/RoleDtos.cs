@@ -9,7 +9,8 @@ public record RoleResponse(
     DateTime CreatedAt,
     DateTime? UpdatedAt,
     int UsersCount = 0,
-    int PermissionsCount = 0
+    int PermissionsCount = 0,
+    bool RequiresSuperAdmin = false
 );
 
 public record CreateRoleRequest(string Name, string? Description, bool IsActive);

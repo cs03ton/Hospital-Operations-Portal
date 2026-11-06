@@ -125,6 +125,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             entity.ToTable("users");
             entity.Property(item => item.Id).HasColumnName("id");
             entity.Property(item => item.EmployeeCode).HasColumnName("employee_code");
+            entity.Property(item => item.NamePrefix).HasColumnName("name_prefix").HasMaxLength(100);
             entity.Property(item => item.FullName).HasColumnName("fullname");
             entity.Property(item => item.Username).HasColumnName("username");
             entity.Property(item => item.PasswordHash).HasColumnName("password_hash");

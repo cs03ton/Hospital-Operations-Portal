@@ -10,13 +10,16 @@ public sealed class FleetAvailabilityService(AppDbContext db, IFleetCompatibilit
     public FleetAvailabilityService(AppDbContext db) : this(db, new FleetCompatibilityService(db)) { }
     private static readonly string[] BlockingRequestStatuses = [FleetRequestStatuses.PendingDispatch, FleetRequestStatuses.PendingAdminReview, FleetRequestStatuses.PendingDirector, FleetRequestStatuses.Approved, FleetRequestStatuses.PendingDriverAck, FleetRequestStatuses.Ready, FleetRequestStatuses.InProgress, FleetRequestStatuses.CancellationPending];
 
-    public async Task<FleetAvailabilityResponse> GetAsync(FleetRequest request, CancellationToken cancellationToken)
+    public async Task<FleetAvailabilityResponse> GetAsync(FleetRequest request, CancellationToken cancellationToken, IReadOnlyCollection<Guid>? excludedAssignmentIds = null)
     {
         var monthStart = new DateTime(request.DepartureAt.Year, request.DepartureAt.Month, 1, 0, 0, 0, DateTimeKind.Utc);
         var monthEnd = monthStart.AddMonths(1);
         var assignments = await db.FleetAssignments.AsNoTracking().Include(x => x.FleetRequest)
             .Where(x => x.IsActive && x.FleetRequestId != request.Id && x.FleetRequest != null && BlockingRequestStatuses.Contains(x.FleetRequest.Status))
             .ToListAsync(cancellationToken);
+
+        // Only the atomic swap service supplies the two assignments being replaced.
+        if (excludedAssignmentIds != null) assignments.RemoveAll(x => excludedAssignmentIds.Contains(x.Id));
 
         var vehicles = await db.FleetVehicles.AsNoTracking().Include(x => x.VehicleType).Include(x => x.UnavailabilityPeriods).OrderBy(x => x.VehicleCode).ToListAsync(cancellationToken);
         if (FleetReferPolicy.IsRefer(request))

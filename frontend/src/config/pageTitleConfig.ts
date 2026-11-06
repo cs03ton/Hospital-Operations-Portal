@@ -17,6 +17,8 @@ export type PageBreadcrumb = {
 };
 
 const pageTitleEntries: PageTitleEntry[] = [
+  { path: "/correspondence/create", title: "สร้างบันทึกข้อความ", subtitle: "งานสารบรรณ", exact: true, breadcrumbs: [{ label: "งานสารบรรณ" }, { label: "สร้างบันทึกข้อความ" }] },
+  { path: "/correspondence/cho11", title: "สร้างเอกสาร ฉ.11", subtitle: "งานสารบรรณ", exact: true, breadcrumbs: [{ label: "งานสารบรรณ" }, { label: "สร้างเอกสาร ฉ.11" }] },
   { path: "/dashboard/leave", title: "แดชบอร์ดระบบลา", subtitle: "ภาพรวมคำขอลา งานอนุมัติ และปฏิทินการลา", exact: true, breadcrumbs: [{ label: "Dashboard", path: "/dashboard" }, { label: "ระบบลา" }] },
   { path: "/dashboard/vehicle", title: "แดชบอร์ดระบบจองรถ/ยืมรถ", subtitle: "กำลังนำไปยัง Fleet Dashboard", exact: true, breadcrumbs: [{ label: "Dashboard", path: "/dashboard" }, { label: "ระบบจองรถ/ยืมรถ" }] },
   { path: "/dashboard/repair", title: "Dashboard แจ้งซ่อม", subtitle: "ภาพรวมสถานะงาน IT และช่างทั่วไป", exact: true, breadcrumbs: [{ label: "Dashboard", path: "/dashboard" }, { label: "Dashboard แจ้งซ่อม" }] },

@@ -6733,6 +6733,11 @@ namespace Hop.Api.Migrations
                         .HasColumnType("text")
                         .HasColumnName("line_user_id");
 
+                    b.Property<string>("NamePrefix")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("name_prefix");
+
                     b.Property<DateTime?>("PasswordChangedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("password_changed_at");

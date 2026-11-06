@@ -1,3 +1,4 @@
+import { useAuth } from "../context/AuthContext";
 import BlockOutlinedIcon from "@mui/icons-material/BlockOutlined";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
@@ -48,6 +49,8 @@ type RoleFormValues = {
 };
 
 export function RoleManagementGridPage() {
+  const { user: actor } = useAuth();
+  const isSuperAdmin = actor?.role === "SuperAdmin";
   const queryClient = useQueryClient();
   const { hasPermission } = usePermission();
   const { showSuccess, showError } = useNotification();
@@ -163,7 +166,7 @@ export function RoleManagementGridPage() {
         <Stack direction="row" justifyContent="flex-end" spacing={0.5}>
           <PermissionGuard permission="RoleManagement.Edit">
             <ActionTooltip title="แก้ไขข้อมูลบทบาท">
-              <IconButton onClick={() => editRole(role)}><EditOutlinedIcon /></IconButton>
+              <IconButton disabled={!isSuperAdmin && (role.requiresSuperAdmin || ["ผู้ใช้งานสารบรรณ", "Admin", "SuperAdmin"].includes(role.name))} onClick={() => editRole(role)}><EditOutlinedIcon /></IconButton>
             </ActionTooltip>
           </PermissionGuard>
           <PermissionGuard permission="RoleManagement.Manage">
@@ -173,7 +176,7 @@ export function RoleManagementGridPage() {
           </PermissionGuard>
           <PermissionGuard permission="RoleManagement.Delete">
             <ActionTooltip title="ลบบทบาท">
-              <IconButton color="error" disabled={role.isSystemRole || !role.isActive || deleteRoleMutation.isPending} onClick={() => setDeletingRole(role)}>
+              <IconButton color="error" disabled={(!isSuperAdmin && role.requiresSuperAdmin) || role.isSystemRole || !role.isActive || deleteRoleMutation.isPending} onClick={() => setDeletingRole(role)}>
                 {role.isSystemRole ? <BlockOutlinedIcon /> : <DeleteOutlineIcon />}
               </IconButton>
             </ActionTooltip>
@@ -181,7 +184,7 @@ export function RoleManagementGridPage() {
         </Stack>
       ),
     },
-  ], [deleteRoleMutation.isPending, editRole]);
+  ], [deleteRoleMutation.isPending, editRole, isSuperAdmin]);
 
   const permissionColumns = useMemo<ManagementDataGridColumn<PermissionSummary>[]>(() => [
     { key: "code", label: "Permission Code", sortable: true, render: (permission) => permission.code },
@@ -201,14 +204,14 @@ export function RoleManagementGridPage() {
       render: (permission) => (
         <PermissionGuard permission="RoleManagement.Delete">
           <ActionTooltip title="ลบหรือปิดใช้งานสิทธิ์">
-            <IconButton color="error" disabled={!permission.isActive || permission.rolesCount > 0 || deletePermissionMutation.isPending} onClick={() => setDeletingPermission(permission)}>
+            <IconButton color="error" disabled={(!isSuperAdmin && permission.code === "Correspondence.Use") || !permission.isActive || permission.rolesCount > 0 || deletePermissionMutation.isPending} onClick={() => setDeletingPermission(permission)}>
               <DeleteOutlineIcon />
             </IconButton>
           </ActionTooltip>
         </PermissionGuard>
       ),
     },
-  ], [deletePermissionMutation.isPending]);
+  ], [deletePermissionMutation.isPending, isSuperAdmin]);
 
   const permissionModules = useMemo(() => {
     const groups = new Set((permissionsQuery.data?.items ?? []).map((permission) => permission.group));

@@ -16,6 +16,7 @@ public sealed class FleetAssignmentReplacementService(AppDbContext db, FleetAvai
     {
         if (string.IsNullOrWhiteSpace(command.Reason)) throw new ArgumentException("Replacement reason is required.");
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
+        await FleetSchedulingLock.EnterAsync(db, ct);
         await db.Database.ExecuteSqlInterpolatedAsync($"SELECT pg_advisory_xact_lock(hashtextextended({$"fleet-assignment:{assignmentId}"}, 0))", ct);
 
         var previous = await db.FleetAssignments.Include(x => x.FleetRequest).ThenInclude(x => x!.Assignments).SingleOrDefaultAsync(x => x.Id == assignmentId, ct)
@@ -29,6 +30,7 @@ public sealed class FleetAssignmentReplacementService(AppDbContext db, FleetAvai
 
         var vehicleId = command.VehicleId ?? previous.VehicleId;
         var driverUserId = command.DriverUserId ?? previous.DriverUserId;
+        await FleetSchedulingLock.ResourcesAsync(db, [request.Id], [previous.VehicleId, vehicleId], [previous.DriverUserId, driverUserId], ct);
         if (vehicleId == previous.VehicleId && driverUserId == previous.DriverUserId) throw new ArgumentException("Vehicle or driver must change.");
         var available = await availability.GetAsync(request, ct);
         var vehicle = available.Vehicles.SingleOrDefault(x => x.Id == vehicleId);

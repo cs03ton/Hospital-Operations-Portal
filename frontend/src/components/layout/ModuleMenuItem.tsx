@@ -9,9 +9,10 @@ type ModuleMenuItemProps = {
   isActive: boolean;
   isCollapsed: boolean;
   onClick: () => void;
+  topLevel?: boolean;
 };
 
-export function ModuleMenuItem({ item, isActive, isCollapsed, onClick }: ModuleMenuItemProps) {
+export function ModuleMenuItem({ item, isActive, isCollapsed, onClick, topLevel = false }: ModuleMenuItemProps) {
   const Icon = item.icon;
   const itemButton = (
     <ListItemButton
@@ -21,7 +22,7 @@ export function ModuleMenuItem({ item, isActive, isCollapsed, onClick }: ModuleM
       selected={isActive}
       sx={(theme) => ({
         my: 0.25,
-        ml: isCollapsed ? 0 : 2.25,
+        ml: isCollapsed || topLevel ? 0 : 2.25,
         borderRadius: 2,
         color: isActive ? theme.palette.common.white : alpha(theme.palette.common.white, 0.68),
         minHeight: 40,

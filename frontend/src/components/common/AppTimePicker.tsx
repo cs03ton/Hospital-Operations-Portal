@@ -10,9 +10,11 @@ type AppTimePickerProps = {
   error?: boolean;
   helperText?: string;
   disabled?: boolean;
+  minuteStep?: number;
+  size?: "small" | "medium";
 };
 
-export function AppTimePicker({ label, value, onChange, error, helperText, disabled }: AppTimePickerProps) {
+export function AppTimePicker({ label, value, onChange, error, helperText, disabled, minuteStep, size }: AppTimePickerProps) {
   const parsedValue = value ? dayjs(`2000-01-01T${value}:00`) : null;
 
   return (
@@ -24,10 +26,12 @@ export function AppTimePicker({ label, value, onChange, error, helperText, disab
         ampm={false}
         format="HH:mm"
         minutesStep={1}
+        timeSteps={minuteStep ? { minutes: minuteStep } : undefined}
         disabled={disabled}
         slotProps={{
           textField: {
             fullWidth: true,
+            size,
             required: true,
             error,
             helperText: helperText ?? "รูปแบบ 24 ชั่วโมง (ชั่วโมง:นาที)",

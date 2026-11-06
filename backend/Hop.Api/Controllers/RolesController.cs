@@ -26,7 +26,7 @@ public class RolesController(AppDbContext db, IAuditLogService auditLogService) 
     {
         var query = db.Roles
             .Include(role => role.UserRoles)
-            .Include(role => role.RolePermissions)
+            .Include(role => role.RolePermissions).ThenInclude(item => item.Permission)
             .AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(search))
@@ -73,7 +73,7 @@ public class RolesController(AppDbContext db, IAuditLogService auditLogService) 
     {
         var role = await db.Roles
             .Include(item => item.UserRoles)
-            .Include(item => item.RolePermissions)
+            .Include(item => item.RolePermissions).ThenInclude(item => item.Permission)
             .FirstOrDefaultAsync(item => item.Id == id);
         if (role is null)
         {
@@ -88,6 +88,8 @@ public class RolesController(AppDbContext db, IAuditLogService auditLogService) 
     public async Task<ActionResult<ApiResponse<RoleResponse>>> CreateRole(CreateRoleRequest request)
     {
         var name = request.Name.Trim();
+        if (name is CorrespondenceAccess.RoleName or "Admin" or "SuperAdmin" && !await CorrespondenceAccess.IsSuperAdminAsync(db, GetCurrentUserId()))
+            return StatusCode(403, ApiResponse<RoleResponse>.Fail(CorrespondenceAccess.DeniedMessage));
         if (await db.Roles.AnyAsync(role => role.Name == name))
         {
             return BadRequest(ApiResponse<RoleResponse>.Fail("Role name already exists."));
@@ -118,7 +120,12 @@ public class RolesController(AppDbContext db, IAuditLogService auditLogService) 
             return NotFound(ApiResponse<RoleResponse>.Fail("Role not found."));
         }
 
+        if (await CorrespondenceAccess.IsProtectedRoleAsync(db, id) && !await CorrespondenceAccess.IsSuperAdminAsync(db, GetCurrentUserId()))
+            return StatusCode(403, ApiResponse<RoleResponse>.Fail(CorrespondenceAccess.DeniedMessage));
+
         var name = request.Name.Trim();
+        if (name is CorrespondenceAccess.RoleName or "Admin" or "SuperAdmin" && !await CorrespondenceAccess.IsSuperAdminAsync(db, GetCurrentUserId()))
+            return StatusCode(403, ApiResponse<RoleResponse>.Fail(CorrespondenceAccess.DeniedMessage));
         if (await db.Roles.AnyAsync(item => item.Id != id && item.Name == name))
         {
             return BadRequest(ApiResponse<RoleResponse>.Fail("Role name already exists."));
@@ -141,12 +148,15 @@ public class RolesController(AppDbContext db, IAuditLogService auditLogService) 
     {
         var role = await db.Roles
             .Include(item => item.UserRoles)
-            .Include(item => item.RolePermissions)
+            .Include(item => item.RolePermissions).ThenInclude(item => item.Permission)
             .FirstOrDefaultAsync(item => item.Id == id);
         if (role is null)
         {
             return NotFound(ApiResponse<string>.Fail("Role not found."));
         }
+
+        if (await CorrespondenceAccess.IsProtectedRoleAsync(db, id) && !await CorrespondenceAccess.IsSuperAdminAsync(db, GetCurrentUserId()))
+            return StatusCode(403, ApiResponse<DeleteResultResponse>.Fail(CorrespondenceAccess.DeniedMessage));
 
         if (role.IsSystemRole || role.Name is "SuperAdmin" or "Admin")
         {
@@ -201,7 +211,7 @@ public class RolesController(AppDbContext db, IAuditLogService auditLogService) 
         UpdateRolePermissionsRequest request)
     {
         var role = await db.Roles
-            .Include(item => item.RolePermissions)
+            .Include(item => item.RolePermissions).ThenInclude(item => item.Permission)
             .FirstOrDefaultAsync(item => item.Id == roleId);
 
         if (role is null)
@@ -218,6 +228,10 @@ public class RolesController(AppDbContext db, IAuditLogService auditLogService) 
         {
             return BadRequest(ApiResponse<IReadOnlyList<PermissionResponse>>.Fail("One or more permissions were not found."));
         }
+
+        var protectedPermissionIds = await db.Permissions.Where(p => p.Code == CorrespondenceAccess.Permission).Select(p => p.Id).ToArrayAsync();
+        if ((await CorrespondenceAccess.IsProtectedRoleAsync(db, roleId) || permissionIds.Any(protectedPermissionIds.Contains)) && !await CorrespondenceAccess.IsSuperAdminAsync(db, GetCurrentUserId()))
+            return StatusCode(403, ApiResponse<IReadOnlyList<PermissionResponse>>.Fail(CorrespondenceAccess.DeniedMessage));
 
         db.RolePermissions.RemoveRange(role.RolePermissions);
         foreach (var permission in permissions)
@@ -252,7 +266,8 @@ public class RolesController(AppDbContext db, IAuditLogService auditLogService) 
             role.CreatedAt,
             role.UpdatedAt,
             role.UserRoles.Count,
-            role.RolePermissions.Count
+            role.RolePermissions.Count,
+            CorrespondenceAccess.IsProtected(role)
         );
     }
 

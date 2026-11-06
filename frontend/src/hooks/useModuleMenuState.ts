@@ -2,8 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 
 const moduleMenuStorageKey = "hop.sidebar.openModules";
 
-export function useModuleMenuState(moduleIds: string[], activeModuleId?: string) {
-  const initialOpenModuleIds = useMemo(() => readStoredModuleIds(moduleIds, activeModuleId), [activeModuleId, moduleIds]);
+export function useModuleMenuState(moduleIds: string[], activeModuleId?: string, storageKey = moduleMenuStorageKey, activePath?: string) {
+  const initialOpenModuleIds = useMemo(() => readStoredModuleIds(moduleIds, activeModuleId, storageKey), [activeModuleId, moduleIds, storageKey]);
   const [openModuleIds, setOpenModuleIds] = useState<string[]>(initialOpenModuleIds);
 
   useEffect(() => {
@@ -12,11 +12,11 @@ export function useModuleMenuState(moduleIds: string[], activeModuleId?: string)
     }
 
     setOpenModuleIds((current) => (current.includes(activeModuleId) ? current : [...current, activeModuleId]));
-  }, [activeModuleId]);
+  }, [activeModuleId, activePath]);
 
   useEffect(() => {
-    localStorage.setItem(moduleMenuStorageKey, JSON.stringify(openModuleIds));
-  }, [openModuleIds]);
+    localStorage.setItem(storageKey, JSON.stringify(openModuleIds));
+  }, [openModuleIds, storageKey]);
 
   return {
     isModuleOpen: (moduleId: string) => openModuleIds.includes(moduleId),
@@ -27,8 +27,8 @@ export function useModuleMenuState(moduleIds: string[], activeModuleId?: string)
   };
 }
 
-function readStoredModuleIds(moduleIds: string[], activeModuleId?: string) {
-  const raw = localStorage.getItem(moduleMenuStorageKey);
+function readStoredModuleIds(moduleIds: string[], activeModuleId: string | undefined, storageKey: string) {
+  const raw = localStorage.getItem(storageKey);
   const stored = raw ? (JSON.parse(raw) as string[]) : [];
   const validStored = stored.filter((moduleId) => moduleIds.includes(moduleId));
 

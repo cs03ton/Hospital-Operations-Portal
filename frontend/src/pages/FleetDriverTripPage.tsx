@@ -1,3 +1,4 @@
+import { confirmSystem } from "../components/common/SystemDialogHost";
 /* eslint-disable react-hooks/exhaustive-deps */
 import { useEffect, useMemo, useState } from "react";
 import {
@@ -271,8 +272,8 @@ export function FleetDriverTripPage() {
                 </Button>
                 <Button
                   color="error"
-                  onClick={() => {
-                    if (window.confirm("ยืนยันลบไฟล์แนบ?"))
+                  onClick={async () => {
+                    if ((await confirmSystem("ยืนยันลบไฟล์แนบ?")))
                       void deleteTripAttachment(f.id).then(load);
                   }}
                 >

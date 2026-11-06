@@ -1,5 +1,7 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import { MainLayout } from "../layouts/MainLayout";
+import { CorrespondenceMemoPage } from "../pages/CorrespondenceMemoPage";
+import { Cho11Page } from "../pages/Cho11Page";
 import { ApprovalChainFormPage } from "../pages/ApprovalChainFormPage";
 import { ApprovalChainManagementPage } from "../pages/ApprovalChainManagementPage";
 import { AuditLogPage } from "../pages/AuditLogPage";
@@ -193,6 +195,9 @@ export function AppRoutes() {
       <Route element={<ProtectedRoute />}>
         <Route element={<MainLayout />}>
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
+          <Route path="/correspondence/create" element={<PermissionGuard permission="Correspondence.Use" redirectTo="/unauthorized"><CorrespondenceMemoPage /></PermissionGuard>} />
+          <Route path="/correspondence/cho11" element={<PermissionGuard permission="Correspondence.Use" redirectTo="/unauthorized"><Cho11Page /></PermissionGuard>} />
+          <Route path="/correspondence/mine" element={<PermissionGuard permission="Correspondence.Use" redirectTo="/unauthorized"><Navigate to="/correspondence/create" replace /></PermissionGuard>} />
           <Route path="/unauthorized" element={<UnauthorizedPage />} />
           <Route path="/dashboard" element={withPermission(<DashboardHubPage />, "Dashboard.View")} />
           <Route path="/dashboard/leave" element={<DashboardModuleGuard moduleKey="leave"><DashboardPage /></DashboardModuleGuard>} />

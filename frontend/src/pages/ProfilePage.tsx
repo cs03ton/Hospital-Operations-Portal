@@ -27,6 +27,7 @@ import { toAbsoluteMediaUrl } from "../utils/mediaUrl";
 import lineOaAddFriendQr from "../assets/logo/line-oa-add-friend-qr.png";
 
 type ProfileFormValues = {
+  namePrefix: string;
   fullname: string;
   position: string;
   email: string;
@@ -49,6 +50,7 @@ export function ProfilePage() {
   const { data: lineBinding, isLoading: isLineLoading } = useQuery({ queryKey: ["me", "profile", "line"], queryFn: getMyLineBinding });
   const { register, handleSubmit, reset, formState: { errors } } = useForm<ProfileFormValues>({
     defaultValues: {
+      namePrefix: "",
       fullname: "",
       position: "",
       email: "",
@@ -60,6 +62,7 @@ export function ProfilePage() {
   useEffect(() => {
     if (profile) {
       reset({
+        namePrefix: profile.namePrefix ?? "",
         fullname: profile.fullname,
         position: profile.position ?? "",
         email: profile.email ?? "",
@@ -80,6 +83,7 @@ export function ProfilePage() {
 
   function onSubmit(values: ProfileFormValues) {
     mutation.mutate({
+      namePrefix: values.namePrefix.trim(),
       fullname: values.fullname.trim(),
       position: normalizeOptional(values.position),
       email: normalizeOptional(values.email),
@@ -240,7 +244,7 @@ export function ProfilePage() {
                 {(profile?.fullname ?? "U").slice(0, 1)}
               </Avatar>
               <Stack spacing={1}>
-                <Typography variant="h6">{profile?.fullname ?? "กำลังโหลด..."}</Typography>
+                <Typography variant="h6">{profile ? `${profile.namePrefix ?? ""}${profile.fullname}` : "กำลังโหลด..."}</Typography>
                 <Typography variant="body2" color="text.secondary">
                   ข้อมูลส่วนตัวสำหรับระบบลาและแบบฟอร์มใบลา
                 </Typography>
@@ -431,7 +435,18 @@ export function ProfilePage() {
                   width: "100%",
                 }}
               >
-                <Box>
+                <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: { xs: "1fr", sm: "minmax(120px, 1fr) minmax(0, 3fr)" } }}>
+                  <TextField
+                    fullWidth
+                    label="คำนำหน้า"
+                    InputLabelProps={{ shrink: true }}
+                    disabled={isLoading}
+                    placeholder="เช่น นาย นาง นางสาว"
+                    inputProps={{ maxLength: 100 }}
+                    error={Boolean(errors.namePrefix)}
+                    helperText={errors.namePrefix?.message}
+                    {...register("namePrefix", { maxLength: { value: 100, message: "คำนำหน้าต้องไม่เกิน 100 ตัวอักษร" } })}
+                  />
                   <TextField
                     fullWidth
                     label="ชื่อ-นามสกุล"
@@ -529,6 +544,7 @@ export function ProfilePage() {
                   บันทึกข้อมูล
                 </Button>
                 <Button type="button" variant="outlined" disabled={isLoading} onClick={() => profile && reset({
+                  namePrefix: profile.namePrefix ?? "",
                   fullname: profile.fullname,
                   position: profile.position ?? "",
                   email: profile.email ?? "",

@@ -31,6 +31,7 @@ import { PageHeader } from "../components/PageHeader";
 import { useSaveFeedback } from "../hooks/useSaveFeedback";
 import { employmentTypeOptions } from "../utils/employmentLabels";
 import { genderOptions } from "../utils/genderLabels";
+import { useAuth } from "../context/AuthContext";
 import { getRoleLabel } from "../utils/roleLabels";
 
 type UserFormValues = {
@@ -49,6 +50,8 @@ type UserFormValues = {
 };
 
 export function UserFormPage() {
+  const { user: actor } = useAuth();
+  const isSuperAdmin = actor?.role === "SuperAdmin";
   const { id } = useParams();
   const isEdit = Boolean(id);
   const navigate = useNavigate();
@@ -61,6 +64,7 @@ export function UserFormPage() {
     queryFn: getDepartments,
   });
   const { data: roles = [] } = useQuery({ queryKey: ["roles"], queryFn: getRoles });
+  const isLockedRole = (roleId: string) => !isSuperAdmin && roles.some(role => role.id === roleId && (role.requiresSuperAdmin || ["ผู้ใช้งานสารบรรณ", "Admin", "SuperAdmin"].includes(role.name)));
   const { data: approvalRules = [] } = useQuery({ queryKey: ["approval-chains"], queryFn: getApprovalChains });
 
   const {
@@ -204,8 +208,9 @@ export function UserFormPage() {
               rules={{ validate: (value) => value.length > 0 || "กรุณาเลือกบทบาทอย่างน้อย 1 รายการ" }}
               render={({ field }) => (
                 <FormControl fullWidth error={Boolean(errors.roleIds)}>
-                  <InputLabel shrink>บทบาท</InputLabel>
+                  <InputLabel id="user-roles-label" shrink>บทบาท</InputLabel>
                   <Select
+                    labelId="user-roles-label"
                     label="บทบาท"
                     multiple
                     name={field.name}
@@ -218,7 +223,7 @@ export function UserFormPage() {
                     onChange={(event) => {
                       const selectedRoleIds =
                         typeof event.target.value === "string" ? event.target.value.split(",") : event.target.value;
-                      field.onChange(selectedRoleIds);
+                      field.onChange([...selectedRoleIds.filter(roleId => !isLockedRole(roleId)), ...field.value.filter(isLockedRole)]);
                       setRoleSelectOpen(false);
                     }}
                     renderValue={(selected) =>
@@ -230,11 +235,12 @@ export function UserFormPage() {
                     {roles
                       .filter((role) => role.isActive)
                       .map((role) => (
-                        <MenuItem key={role.id} value={role.id}>
+                        <MenuItem key={role.id} value={role.id} disabled={isLockedRole(role.id)}>
                           {getRoleLabel(role.name)}
                         </MenuItem>
                       ))}
                   </Select>
+                  {!isSuperAdmin && <Typography variant="caption" color="text.secondary">บทบาทสารบรรณและบทบาทที่ให้สิทธิ์สารบรรณ เปลี่ยนได้โดย SuperAdmin เท่านั้น</Typography>}
                   {errors.roleIds && (
                     <Box sx={{ mt: 0.5, color: "error.main", fontSize: 12 }}>
                       {errors.roleIds.message}

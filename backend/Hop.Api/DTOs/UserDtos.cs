@@ -79,7 +79,8 @@ public record UserProfileResponse(
     string? LeaveApprovalRuleName,
     string? LineUserId,
     bool IsActive,
-    IReadOnlyList<string> Permissions
+    IReadOnlyList<string> Permissions,
+    string? NamePrefix = null
 );
 
 public record UpdateUserProfileRequest(
@@ -87,7 +88,8 @@ public record UpdateUserProfileRequest(
     string? Position,
     string? Email,
     string? PhoneNumber,
-    string? LeaveContactAddress
+    string? LeaveContactAddress,
+    string? NamePrefix = null
 );
 
 public record ProfileImageUploadResponse(

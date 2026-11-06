@@ -55,6 +55,7 @@ export type SaveDepartmentRequest = {
 };
 
 export type RoleSummary = {
+  requiresSuperAdmin?: boolean;
   id: string;
   name: string;
   description?: string | null;

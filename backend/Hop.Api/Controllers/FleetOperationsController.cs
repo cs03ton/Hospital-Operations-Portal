@@ -84,6 +84,8 @@ public sealed class FleetOperationsController(AppDbContext db, IWorkflowTransiti
     public async Task<ActionResult<ApiResponse<object>>> StartTrip(Guid id, FleetTripStartRequest body, CancellationToken ct)
     {
         if (body.StartMileage < 0) return BadRequest(ApiResponse<object>.Fail("Start mileage cannot be negative."));
+        await using var schedulingTx = db.Database.IsRelational() ? await db.Database.BeginTransactionAsync(ct) : null;
+        await FleetSchedulingLock.EnterAsync(db, ct);
         var idempotencyKey=Request.Headers["Idempotency-Key"].ToString();if(!string.IsNullOrWhiteSpace(idempotencyKey)){var replay=await db.FleetTripRecords.AsNoTracking().SingleOrDefaultAsync(x=>x.StartIdempotencyKey==idempotencyKey,ct);if(replay is not null)return ApiResponse<object>.Ok(new{Id=replay.FleetRequestId,Status=FleetRequestStatuses.InProgress,TripId=replay.Id,TripConcurrencyToken=replay.ConcurrencyToken,IdempotentReplay=true});}
         var item = await LoadForAction(id, ct); if (item is null) return NotFound(ApiResponse<object>.Fail("Fleet request not found."));
         var assignment = item.Assignments.SingleOrDefault(x => x.IsActive); if (assignment is null || assignment.DriverUserId != Actor()) return Forbid();
@@ -93,6 +95,7 @@ public sealed class FleetOperationsController(AppDbContext db, IWorkflowTransiti
         AddDefaultTripParticipants(trip, item, result.ActorUserId);
         db.FleetTripRecords.Add(trip);
         Apply(item, result, null, null); await Publish("Fleet.TripStarted", item, result.ActorUserId, ct); await db.SaveChangesAsync(ct);
+        if (schedulingTx != null) await schedulingTx.CommitAsync(ct);
         return ApiResponse<object>.Ok(new { item.Id, item.Status, RequestConcurrencyToken = item.ConcurrencyToken, TripId = trip.Id, TripConcurrencyToken = trip.ConcurrencyToken });
     }
 

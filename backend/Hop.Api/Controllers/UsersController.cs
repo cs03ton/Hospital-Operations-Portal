@@ -188,6 +188,9 @@ public class UsersController(
             return BadRequest(ApiResponse<UserResponse>.Fail("Employee code already exists."));
         }
 
+        if (!await CorrespondenceAccess.CanChangeUserRolesAsync(db, GetCurrentUserId(), [], request.RoleIds))
+            return StatusCode(403, ApiResponse<UserResponse>.Fail(CorrespondenceAccess.DeniedMessage));
+
         var roleIds = request.RoleIds.Distinct().ToList();
         var roles = await db.Roles
             .Where(role => roleIds.Contains(role.Id) && role.IsActive)
@@ -248,7 +251,7 @@ public class UsersController(
         }
 
         await db.SaveChangesAsync();
-        await auditLogService.WriteAsync(GetCurrentUserId(), "User.Create", "User", user.Id.ToString(), $"Created user {user.Username}.", "Success", HttpContext);
+        await auditLogService.WriteAsync(GetCurrentUserId(), "User.Create", "User", user.Id.ToString(), $"Created user {user.Username}. Roles: {string.Join(",", roleIds)}.", "Success", HttpContext);
         await InitializeLeaveEntitlementsIfReadyAsync(user.Id, "Initial entitlement on user creation");
 
         var created = await LoadUsers().SingleAsync(item => item.Id == user.Id);
@@ -273,6 +276,10 @@ public class UsersController(
         {
             return BadRequest(ApiResponse<UserResponse>.Fail("Employee code already exists."));
         }
+
+        var previousRoleIds = user.UserRoles.Select(r => r.RoleId).ToArray();
+        if (!await CorrespondenceAccess.CanChangeUserRolesAsync(db, GetCurrentUserId(), previousRoleIds, request.RoleIds))
+            return StatusCode(403, ApiResponse<UserResponse>.Fail(CorrespondenceAccess.DeniedMessage));
 
         var roleIds = request.RoleIds.Distinct().ToList();
         var roles = await db.Roles
@@ -337,7 +344,7 @@ public class UsersController(
 
         await SyncLineUserBindingAsync(user, previousLineUserId);
         await db.SaveChangesAsync();
-        await auditLogService.WriteAsync(GetCurrentUserId(), "User.Edit", "User", user.Id.ToString(), $"Updated user {user.Username}.", "Success", HttpContext);
+        await auditLogService.WriteAsync(GetCurrentUserId(), "User.Edit", "User", user.Id.ToString(), $"Updated user {user.Username}. Roles before: {string.Join(",", previousRoleIds)}; after: {string.Join(",", roleIds)}.", "Success", HttpContext);
         if (!string.Equals(previousEmploymentType, user.EmploymentType, StringComparison.OrdinalIgnoreCase) ||
             previousEmploymentStartDate != user.EmploymentStartDate)
         {
@@ -385,6 +392,9 @@ public class UsersController(
                 return Conflict(ApiResponse<DeleteResultResponse>.Fail("ไม่สามารถลบ SuperAdmin คนสุดท้ายของระบบได้"));
             }
         }
+
+        if (!await CorrespondenceAccess.CanChangeUserRolesAsync(db, currentUserId, user.UserRoles.Select(r => r.RoleId), []))
+            return StatusCode(403, ApiResponse<DeleteResultResponse>.Fail(CorrespondenceAccess.DeniedMessage));
 
         var currentApproverCount = await db.LeaveRequests.CountAsync(item =>
             item.CurrentApproverId == id &&

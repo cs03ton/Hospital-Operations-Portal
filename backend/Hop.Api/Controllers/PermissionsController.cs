@@ -86,6 +86,9 @@ public class PermissionsController(AppDbContext db, IAuditLogService auditLogSer
             return NotFound(ApiResponse<string>.Fail("Permission not found."));
         }
 
+        if (permission.Code == CorrespondenceAccess.Permission && !await CorrespondenceAccess.IsSuperAdminAsync(db, GetCurrentUserId()))
+            return StatusCode(403, ApiResponse<DeleteResultResponse>.Fail(CorrespondenceAccess.DeniedMessage));
+
         var references = new[]
         {
             new DeleteReferenceSummary("Roles", await db.RolePermissions.CountAsync(item => item.PermissionId == id))

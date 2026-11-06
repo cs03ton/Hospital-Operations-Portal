@@ -1,7 +1,7 @@
 /* eslint-disable react-refresh/only-export-components */
 import ExpandLessOutlinedIcon from "@mui/icons-material/ExpandLessOutlined";
 import ExpandMoreOutlinedIcon from "@mui/icons-material/ExpandMoreOutlined";
-import { Collapse, List, ListItemButton, ListItemIcon, ListItemText, Tooltip } from "@mui/material";
+import { Chip, Collapse, List, ListItemButton, ListItemIcon, ListItemText, Tooltip } from "@mui/material";
 import { alpha } from "@mui/material/styles";
 import type { NavigationModule } from "../../config/menuConfig";
 import { brandColors } from "../../theme/theme";
@@ -33,6 +33,7 @@ export function ModuleMenuGroup({
 
   function handleModuleClick() {
     if (isCollapsed) {
+      if (!isOpen) onToggle();
       onExpandSidebar();
       return;
     }
@@ -42,6 +43,9 @@ export function ModuleMenuGroup({
 
   const groupButton = (
     <ListItemButton
+      aria-label={module.moduleLabel}
+      aria-expanded={!isCollapsed && isOpen}
+      aria-controls={`module-${module.moduleId}`}
       selected={isActive}
       onClick={handleModuleClick}
       sx={(theme) => ({
@@ -78,6 +82,7 @@ export function ModuleMenuGroup({
             primary={module.moduleLabel}
             primaryTypographyProps={{ variant: "body2", fontWeight: isActive ? 800 : 700 }}
           />
+          {module.badgeLabel && <Chip size="small" label={module.badgeLabel} sx={{ mr: .75, height: 22, bgcolor: "#DDF1E4", color: "#236441", fontWeight: 800 }} />}
           {isOpen ? <ExpandLessOutlinedIcon fontSize="small" /> : <ExpandMoreOutlinedIcon fontSize="small" />}
         </>
       )}
@@ -90,7 +95,7 @@ export function ModuleMenuGroup({
         {groupButton}
       </Tooltip>
       {!isCollapsed && (
-        <Collapse in={isOpen} timeout="auto" unmountOnExit>
+        <Collapse id={`module-${module.moduleId}`} in={isOpen} timeout="auto" unmountOnExit>
           <List disablePadding>
             {module.children.map((item) => (
               <ModuleMenuItem

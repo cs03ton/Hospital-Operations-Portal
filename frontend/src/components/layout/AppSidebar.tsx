@@ -5,6 +5,11 @@ import { alpha, useTheme } from "@mui/material/styles";
 import { useLocation } from "react-router-dom";
 import hospitalLogo from "../../assets/logo/hospital-logo.png";
 import { appName, hospitalName } from "../../config/appConfig";
+import HomeOutlinedIcon from "@mui/icons-material/HomeOutlined";
+import GroupsOutlinedIcon from "@mui/icons-material/GroupsOutlined";
+import SettingsOutlinedIcon from "@mui/icons-material/SettingsOutlined";
+import { SidebarSection } from "./SidebarSection";
+import { ModuleMenuItem } from "./ModuleMenuItem";
 import { leaveNavigationBadgeCount, navigationModules } from "../../config/menuConfig";
 import { effectiveFleetPermissions, fleetNavigationBadgeCount } from "../../config/fleetNavigation";
 import { useAuth } from "../../context/AuthContext";
@@ -101,71 +106,46 @@ export function AppSidebar({
     module.children.some((item) => isItemActive(location.pathname, item)),
   );
   const moduleMenu = useModuleMenuState(
-    visibleModules.map((module) => module.moduleId),
-    activeModule?.moduleId,
+    visibleModules.map((module) => module.moduleId), activeModule?.moduleId, undefined, location.pathname,
   );
+  const collapsed = isCollapsed && isDesktop;
+  const home = visibleModules.find(m => m.moduleId === "DashboardPortal")?.children.find(item => item.path === "/dashboard");
+  const serviceIds = ["AnnouncementCenter", "LeaveManagement", "VehicleBooking", "MeetingRoomBooking", "RepairManagement", "Correspondence"];
+  const services = serviceIds.flatMap(id => visibleModules.filter(m => m.moduleId === id)).map(m => m.moduleId === "VehicleBooking" ? { ...m, moduleLabel: "จองรถราชการ" } : m);
+  const adminDashboard = visibleModules.filter(m => m.moduleId === "DashboardPortal").map(m => ({ ...m, moduleId: "AdminDashboard", moduleLabel: "แดชบอร์ดผู้ดูแล", children: m.children.filter(item => item.path !== "/dashboard") })).filter(m => m.children.length > 0);
+  const settings = [...adminDashboard, ...visibleModules.filter(m => ["UserManagement", "SystemManagement"].includes(m.moduleId))];
+  const serviceActive = services.some(m => m.children.some(item => isItemActive(location.pathname, item)));
+  const settingsActive = settings.some(m => m.children.some(item => isItemActive(location.pathname, item)));
+  const sections = useModuleMenuState([...(services.length ? ["StaffServices"] : []), ...(settings.length ? ["PortalSettings"] : [])], serviceActive ? "StaffServices" : settingsActive ? "PortalSettings" : undefined, "hop.sidebar.openSections.v1", location.pathname);
+  const renderModule = (module: typeof visibleModules[number]) => <ModuleMenuGroup key={module.moduleId} module={module} activePath={location.pathname}
+    isActive={module.children.some(item => isItemActive(location.pathname, item))}
+    isOpen={module.moduleId === "AdminDashboard" ? moduleMenu.isModuleOpen("DashboardPortal") : moduleMenu.isModuleOpen(module.moduleId)}
+    isCollapsed={collapsed} onToggle={() => moduleMenu.toggleModule(module.moduleId === "AdminDashboard" ? "DashboardPortal" : module.moduleId)}
+    onExpandSidebar={onExpandSidebar} onNavigate={onClose} />;
 
   const drawer = (
-    <Box
-      sx={(theme) => ({
-        height: "100%",
-        bgcolor: "primary.main",
-        color: "primary.contrastText",
-        display: "flex",
-        flexDirection: "column",
-        overflowX: "hidden",
-        transition: theme.transitions.create("width", {
-          duration: theme.transitions.duration.shorter,
-          easing: theme.transitions.easing.easeInOut,
-        }),
-      })}
-    >
-      <Toolbar sx={{ px: isCollapsed && isDesktop ? 1 : 2.5, py: isCollapsed && isDesktop ? 1.5 : 2.5, minHeight: "auto" }}>
-        <Tooltip title={isCollapsed && isDesktop ? `${appName} - ${hospitalName}` : ""} placement="right">
-          <Stack spacing={1.1} alignItems="center" sx={{ width: "100%", textAlign: "center" }}>
-            <Box
-              component="img"
-              src={hospitalLogo}
-              alt={hospitalName}
-              sx={{
-                width: isCollapsed && isDesktop ? 50 : 112,
-                height: isCollapsed && isDesktop ? 50 : 112,
-                objectFit: "contain",
-                transition: theme.transitions.create(["width", "height"], {
-                  duration: theme.transitions.duration.shorter,
-                  easing: theme.transitions.easing.easeInOut,
-                }),
-              }}
-            />
-            {(!isCollapsed || !isDesktop) && (
-              <Box>
-                <Typography variant="subtitle1" fontWeight={800} sx={{ lineHeight: 1.25, color: "common.white" }}>
-                  {appName}
-                </Typography>
-                <Typography variant="caption" sx={{ display: "block", mt: 0.5, color: alpha(theme.palette.common.white, 0.72) }}>
-                  ระบบบริหารงาน{hospitalName}
-                </Typography>
-              </Box>
-            )}
-          </Stack>
-        </Tooltip>
+    <Box sx={{ height: "100%", bgcolor: "primary.main", color: "primary.contrastText", display: "flex", flexDirection: "column", overflowX: "hidden" }}>
+      <Toolbar sx={{ px: collapsed ? 1 : 2, py: collapsed ? 2 : 3.5, minHeight: "auto", flexShrink: 0 }}>
+        <Tooltip title={collapsed ? appName : ""} placement="right"><Stack spacing={2} alignItems="center" sx={{ width: "100%", minWidth: 0, textAlign: "center" }}>
+          {collapsed ? <Box component="img" src={hospitalLogo} alt={hospitalName} sx={{ width: 38, height: 44, flexShrink: 0, objectFit: "contain" }} /> :
+            <Box component="svg" role="img" aria-label={hospitalName} viewBox="120 127 460 574" sx={{ width: 154, height: 134, flexShrink: 0 }}>
+              {/* Frame the visible emblem without the source PNG's transparent margins. */}
+              <image href={hospitalLogo} width="700" height="785" />
+            </Box>}
+          {!collapsed && <Box><Typography fontSize="1.05rem" fontWeight={900} sx={{ color: "common.white", lineHeight: 1.35 }}>{appName}</Typography><Typography variant="caption" sx={{ display: "block", mt: .25, color: alpha(theme.palette.common.white, .85), lineHeight: 1.5 }}>ระบบบริหารงาน{hospitalName}</Typography></Box>}
+        </Stack></Tooltip>
       </Toolbar>
       <Divider sx={{ borderColor: alpha(theme.palette.common.white, 0.14) }} />
-      <Box sx={{ flex: 1, overflowY: "auto", px: isCollapsed && isDesktop ? 1 : 1.5, py: 1.5 }}>
+      <Box sx={{ flex: 1, overflowY: "auto", px: collapsed ? 1 : 1.5, py: 1.5 }}>
         <List disablePadding>
-          {visibleModules.map((module) => (
-            <ModuleMenuGroup
-              key={module.moduleId}
-              module={module}
-              activePath={location.pathname}
-              isActive={module.children.some((item) => isItemActive(location.pathname, item))}
-              isOpen={moduleMenu.isModuleOpen(module.moduleId)}
-              isCollapsed={isCollapsed && isDesktop}
-              onToggle={() => moduleMenu.toggleModule(module.moduleId)}
-              onExpandSidebar={onExpandSidebar}
-              onNavigate={onClose}
-            />
-          ))}
+          {home && <ModuleMenuItem item={{ ...home, label: "หน้าหลัก", icon: HomeOutlinedIcon }} isActive={isItemActive(location.pathname, home)} isCollapsed={collapsed} topLevel onClick={onClose} />}
+          {services.length > 0 && <SidebarSection id="staff" label="บริการเจ้าหน้าที่" icon={GroupsOutlinedIcon} open={sections.isModuleOpen("StaffServices")} active={serviceActive} collapsed={collapsed} onToggle={() => sections.toggleModule("StaffServices")} onExpand={onExpandSidebar}>
+            {services.map(renderModule)}
+          </SidebarSection>}
+          {settings.length > 0 && <SidebarSection id="settings" label="ตั้งค่าระบบ" icon={SettingsOutlinedIcon} open={sections.isModuleOpen("PortalSettings")} active={settingsActive} collapsed={collapsed} onToggle={() => sections.toggleModule("PortalSettings")} onExpand={onExpandSidebar}>
+            {settings.map(renderModule)}
+          </SidebarSection>}
+          {visibleModules.filter(m => m.moduleId === "HelpCenter").map(renderModule)}
         </List>
         {visibleModules.length === 0 && (
           <Box sx={{ px: 1.5, py: 2 }}>

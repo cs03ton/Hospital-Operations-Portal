@@ -1,3 +1,4 @@
+import { confirmSystem } from "../components/common/SystemDialogHost";
 import AddOutlinedIcon from "@mui/icons-material/AddOutlined";
 import ArchiveOutlinedIcon from "@mui/icons-material/ArchiveOutlined";
 import CancelOutlinedIcon from "@mui/icons-material/CancelOutlined";
@@ -76,15 +77,13 @@ export function AdminAnnouncementsPage() {
       if (action === "publish") {
         const preview = await previewAnnouncementNotification(id);
         const warningText = preview.warnings.length ? `\n\nคำเตือน:\n${preview.warnings.map((warning) => `- ${warning}`).join("\n")}` : "";
-        const confirmed = window.confirm(
-          `ยืนยันเผยแพร่ประกาศ?\n\n` +
+        const confirmed = (await confirmSystem(`ยืนยันเผยแพร่ประกาศ?\n\n` +
           `ผู้รับทั้งหมด: ${preview.totalTargetUsers.toLocaleString("th-TH")} ราย\n` +
           `Notification Bell: ${preview.inAppRecipientCount.toLocaleString("th-TH")} ราย\n` +
           `LINE ส่วนบุคคล: ${preview.lineBoundRecipientCount.toLocaleString("th-TH")} ราย\n` +
           `LINE กลุ่ม (หมอพร้อม): ${preview.lineGroupQueueCount ?? 0} กลุ่ม\n` +
           (preview.lineGroups?.length ? `กลุ่มที่เลือก: ${preview.lineGroups.map(group => group.displayName).join(", ")}\n` : "") +
-          `รายการที่คาดว่าจะเข้าคิว: ${preview.estimatedQueueItems.toLocaleString("th-TH")} รายการ${warningText}`
-        );
+          `รายการที่คาดว่าจะเข้าคิว: ${preview.estimatedQueueItems.toLocaleString("th-TH")} รายการ${warningText}`));
         if (!confirmed) throw new Error("__cancelled__");
         await publishAnnouncement(id);
       }
@@ -92,7 +91,7 @@ export function AdminAnnouncementsPage() {
       else if (action === "cancel") await cancelAnnouncement(id);
       else if (action === "duplicate") await duplicateAnnouncement(id);
       else {
-        const confirmed = window.confirm("ยืนยันลบประกาศนี้?\n\nประกาศจะถูกนำออกจากศูนย์ประกาศ และลบรูปภาพ/ไฟล์แนบที่เกี่ยวข้อง");
+        const confirmed = (await confirmSystem("ยืนยันลบประกาศนี้?\n\nประกาศจะถูกนำออกจากศูนย์ประกาศ และลบรูปภาพ/ไฟล์แนบที่เกี่ยวข้อง"));
         if (!confirmed) throw new Error("__cancelled__");
         await deleteAnnouncement(id);
       }

@@ -1,3 +1,4 @@
+import { confirmSystem } from "../components/common/SystemDialogHost";
 import { AppDateTimeInput } from "../components/common/AppDateTimeInput";
 import { bangkokInputToUtc, utcToBangkokInput } from "../utils/dateFormat";
 import ArrowBackOutlinedIcon from "@mui/icons-material/ArrowBackOutlined";
@@ -247,14 +248,14 @@ export function AdminAnnouncementFormPage() {
   }
 
   async function removeExistingImage(image: AnnouncementImage) {
-    if (!window.confirm("ต้องการลบรูปภาพนี้หรือไม่")) return;
+    if (!(await confirmSystem("ต้องการลบรูปภาพนี้หรือไม่"))) return;
     await deleteAnnouncementImage(image.id);
     notify.showSuccess("ลบรูปภาพเรียบร้อยแล้ว");
     await queryClient.invalidateQueries({ queryKey: ["admin", "announcements", "detail", id] });
   }
 
   async function removeExistingFile(file: AnnouncementFile) {
-    if (!window.confirm("ต้องการลบไฟล์แนบนี้หรือไม่")) return;
+    if (!(await confirmSystem("ต้องการลบไฟล์แนบนี้หรือไม่"))) return;
     await deleteAnnouncementFile(file.id);
     notify.showSuccess("ลบไฟล์แนบเรียบร้อยแล้ว");
     await queryClient.invalidateQueries({ queryKey: ["admin", "announcements", "detail", id] });

@@ -2,6 +2,7 @@ import { httpClient } from "./httpClient";
 import type { ApiResponse } from "../types/auth";
 
 export type UserProfile = {
+  namePrefix?: string | null;
   id: string;
   employeeCode?: string | null;
   fullname: string;
@@ -27,6 +28,7 @@ export type UserProfile = {
 };
 
 export type UpdateUserProfileRequest = {
+  namePrefix?: string | null;
   fullname: string;
   position?: string | null;
   email?: string | null;

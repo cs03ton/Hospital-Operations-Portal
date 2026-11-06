@@ -1,3 +1,4 @@
+import { useAuth } from "../context/AuthContext";
 import {
   Box,
   Button,
@@ -84,6 +85,8 @@ const permissionDescriptions: Record<string, string> = {
 };
 
 export function RolePermissionsPage() {
+  const { user: actor } = useAuth();
+  const isSuperAdmin = actor?.role === "SuperAdmin";
   const { id } = useParams();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -99,6 +102,8 @@ export function RolePermissionsPage() {
     enabled: Boolean(id),
   });
 
+  const locked = !isSuperAdmin && (!role || role.requiresSuperAdmin || ["ผู้ใช้งานสารบรรณ", "Admin", "SuperAdmin"].includes(role.name));
+  const canEditPermission = (permissionId: string) => !locked && (isSuperAdmin || !permissions.some(p => p.id === permissionId && p.code === "Correspondence.Use"));
   useEffect(() => {
     setSelectedIds(rolePermissions.map((permission) => permission.id));
   }, [rolePermissions]);
@@ -132,6 +137,7 @@ export function RolePermissionsPage() {
   });
 
   function togglePermission(permissionId: string) {
+    if (!canEditPermission(permissionId)) return;
     setSelectedIds((current) =>
       current.includes(permissionId)
         ? current.filter((idValue) => idValue !== permissionId)
@@ -140,10 +146,12 @@ export function RolePermissionsPage() {
   }
 
   function selectPermissions(permissionIds: string[]) {
+    permissionIds = permissionIds.filter(canEditPermission);
     setSelectedIds((current) => Array.from(new Set([...current, ...permissionIds])));
   }
 
   function clearPermissions(permissionIds: string[]) {
+    permissionIds = permissionIds.filter(canEditPermission);
     setSelectedIds((current) => current.filter((idValue) => !permissionIds.includes(idValue)));
   }
 
@@ -156,6 +164,7 @@ export function RolePermissionsPage() {
       <Card>
         <CardContent>
           <Stack spacing={2}>
+            {!isSuperAdmin && <Typography color="text.secondary" variant="body2">สิทธิ์สารบรรณและบทบาทที่เกี่ยวข้อง แก้ไขได้โดย SuperAdmin เท่านั้น</Typography>}
             <Stack direction={{ xs: "column", md: "row" }} spacing={1.5} alignItems={{ xs: "stretch", md: "center" }}>
               <TextField
                 fullWidth
@@ -198,6 +207,7 @@ export function RolePermissionsPage() {
                       <TableRow key={permission.id}>
                         <TableCell>
                           <Checkbox
+                            disabled={!canEditPermission(permission.id)}
                             checked={selectedIds.includes(permission.id)}
                             onChange={() => togglePermission(permission.id)}
                           />
@@ -213,7 +223,7 @@ export function RolePermissionsPage() {
               </Box>
             ))}
             <Stack direction="row" spacing={1.5}>
-              <Button variant="contained" onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending}>
+              <Button variant="contained" onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending || !!locked}>
                 บันทึกสิทธิ์
               </Button>
               <Button variant="outlined" onClick={() => navigate("/admin/roles")}>

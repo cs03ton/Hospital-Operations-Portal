@@ -78,6 +78,12 @@ public class MeProfileController(
             return BadRequest(ApiResponse<UserProfileResponse>.Fail("กรุณากรอกชื่อ-นามสกุล"));
         }
 
+        var namePrefix = NormalizeOptional(request.NamePrefix);
+        if (namePrefix?.Length > 100)
+        {
+            return BadRequest(ApiResponse<UserProfileResponse>.Fail("คำนำหน้าต้องไม่เกิน 100 ตัวอักษร"));
+        }
+
         var phoneNumber = NormalizeOptional(request.PhoneNumber);
         if (!string.IsNullOrWhiteSpace(phoneNumber) && !PhoneRegex.IsMatch(phoneNumber))
         {
@@ -96,6 +102,10 @@ public class MeProfileController(
             user.FullName = fullname;
             updatedFields.Add("fullname");
         }
+        // Omitted/null prefix from older clients preserves the existing value;
+        // an explicit empty string clears it.
+        if (request.NamePrefix is not null)
+            UpdateIfChanged(user.NamePrefix, namePrefix, "namePrefix", value => user.NamePrefix = value, updatedFields);
         UpdateIfChanged(user.Position, NormalizeOptional(request.Position), "position", value => user.Position = value, updatedFields);
         UpdateIfChanged(user.Email, email, "email", value => user.Email = value, updatedFields);
         UpdateIfChanged(user.PhoneNumber, phoneNumber, "phoneNumber", value => user.PhoneNumber = value, updatedFields);
@@ -376,7 +386,8 @@ public class MeProfileController(
             user.LeaveApprovalRule?.Name,
             user.LineUserId,
             user.IsActive,
-            permissions);
+            permissions,
+            user.NamePrefix);
     }
 
     private static void UpdateIfChanged(string? current, string? next, string fieldName, Action<string?> assign, List<string> updatedFields)

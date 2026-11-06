@@ -94,6 +94,15 @@ builder.Services.AddScoped<IWorkflowTransitionService, WorkflowTransitionService
 builder.Services.AddScoped<IDomainEventPublisher, DomainEventPublisher>();
 builder.Services.AddScoped<INotificationRecipientResolver, FleetNotificationRecipientResolver>();
 builder.Services.AddScoped<FleetAssignmentReplacementService>();
+builder.Services.AddScoped<FleetAssignmentSwapService>();
+builder.Services.AddScoped<CorrespondenceMemoService>();
+builder.Services.AddScoped<Cho11Service>();
+builder.Services.AddScoped<Cho11Renderer>();
+builder.Services.AddScoped<CorrespondenceMemoRenderer>();
+builder.Services.AddScoped<OvertimeWorkReportService>();
+builder.Services.AddScoped<OvertimeWorkReportRenderer>();
+builder.Services.AddScoped<OvertimePaymentService>();
+builder.Services.AddScoped<OvertimePaymentRenderer>();
 builder.Services.AddScoped<IFleetRolloutService, FleetRolloutService>();
 builder.Services.AddScoped<IFleetHealthService, FleetHealthService>();
 builder.Services.AddScoped<FleetPermissionDiagnosticsService>();

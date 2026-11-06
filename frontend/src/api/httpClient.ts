@@ -74,6 +74,9 @@ refreshClient.interceptors.request.use(attachCsrfToken);
 httpClient.interceptors.response.use(
   (response) => response,
   async (error) => {
+    // Aborting an obsolete request is expected during navigation and preview edits.
+    // Preserve its rejection for callers without presenting it as a server outage.
+    if (axios.isCancel(error)) return Promise.reject(error);
     const originalRequest = error.config as typeof error.config & { _retry?: boolean };
 
     if (error.response?.status !== 401 || originalRequest?._retry) {
@@ -122,6 +125,10 @@ function notifyHttpError(error: unknown) {
   }
 
   if (!error.response) {
+    if (error.code === "ECONNABORTED" || error.code === "ETIMEDOUT") {
+      notifyGlobal("error", "เซิร์ฟเวอร์ใช้เวลาตอบกลับนานเกินไป กรุณาลองอีกครั้ง");
+      return;
+    }
     notifyGlobal("error", "ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้");
     return;
   }

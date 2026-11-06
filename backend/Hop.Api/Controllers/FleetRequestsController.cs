@@ -226,17 +226,14 @@ public sealed class FleetRequestsController(AppDbContext db, FleetRequestNumberS
     public async Task<ActionResult<ApiResponse<FleetRequestDto>>> Assign(Guid id, FleetAssignRequest request, CancellationToken ct)
     {
         var actor = CurrentUserId(); if (actor is null) return Unauthorized(ApiResponse<FleetRequestDto>.Fail("Invalid access token."));
-        await using var tx = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
+        await using var tx = await db.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted, ct);
+        await FleetSchedulingLock.EnterAsync(db, ct);
         var item = await db.FleetRequests.Include(x => x.Assignments).FirstOrDefaultAsync(x => x.Id == id, ct);
         if (item is null) return NotFound(ApiResponse<FleetRequestDto>.Fail("Fleet request not found."));
         if (item.Status != FleetRequestStatuses.PendingDispatch && !(item.Status == FleetRequestStatuses.Returned && item.ReturnTarget == FleetReturnTargets.Dispatcher)) return Conflict(ApiResponse<FleetRequestDto>.Fail("Request is not waiting for dispatch."));
         if (request.ConcurrencyToken != item.ConcurrencyToken) return Conflict(ApiResponse<FleetRequestDto>.Fail("Request was changed by another user."));
         if (item.Assignments.Any(x => x.IsActive)) return Conflict(ApiResponse<FleetRequestDto>.Fail("Request already has an active assignment."));
-        if (db.Database.IsRelational())
-        {
-            foreach (var lockKey in new[] { request.VehicleId, request.DriverUserId }.OrderBy(x => x))
-                await db.Database.ExecuteSqlInterpolatedAsync($"SELECT pg_advisory_xact_lock(hashtext({lockKey.ToString()}))", ct);
-        }
+        await FleetSchedulingLock.ResourcesAsync(db, [id], [request.VehicleId], [request.DriverUserId], ct);
         var available = await availabilityService.GetAsync(item, ct);
         var vehicle = available.Vehicles.FirstOrDefault(x => x.Id == request.VehicleId); var driver = available.Drivers.FirstOrDefault(x => x.Id == request.DriverUserId);
         if (vehicle is null || !vehicle.IsAvailable) return Conflict(ApiResponse<FleetRequestDto>.Fail($"Vehicle is unavailable: {string.Join(", ", vehicle?.Reasons ?? [])}"));

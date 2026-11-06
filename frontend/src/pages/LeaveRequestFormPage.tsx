@@ -1,3 +1,4 @@
+import { notifyGlobal } from "../contexts/NotificationContext";
 import { Alert, Box, Button, Card, CardContent, Chip, FormControl, FormControlLabel, FormHelperText, FormLabel, MenuItem, Radio, RadioGroup, Stack, TextField, Typography } from "@mui/material";
 import SaveOutlinedIcon from "@mui/icons-material/SaveOutlined";
 import SendOutlinedIcon from "@mui/icons-material/SendOutlined";
@@ -110,7 +111,7 @@ export function LeaveRequestFormPage() {
 
   const saveRequest = (submit: boolean) => {
     if (submit && hasPolicyError) {
-      window.alert(policyErrors.join("\n") || "คำขอนี้ยังไม่ผ่านเงื่อนไขการลา กรุณาตรวจสอบข้อมูลอีกครั้ง");
+      notifyGlobal("error", policyErrors.join("\n") || "คำขอนี้ยังไม่ผ่านเงื่อนไขการลา กรุณาตรวจสอบข้อมูลอีกครั้ง");
       return;
     }
     void handleSubmit((values) => mutation.mutate({ values, submit }))();

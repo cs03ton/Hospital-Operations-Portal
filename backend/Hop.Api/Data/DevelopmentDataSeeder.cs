@@ -36,6 +36,7 @@ public static class DevelopmentDataSeeder
 
     private static readonly (string Name, string Description)[] RoleSeeds =
     [
+        ("ผู้ใช้งานสารบรรณ", "ใช้งานสร้างบันทึกข้อความและดาวน์โหลดเอกสาร"),
         ("SuperAdmin", "Full system administration access"),
         ("Admin", "Operational administration access"),
         ("LeaveAdmin", "Leave administration access"),
@@ -126,6 +127,7 @@ public static class DevelopmentDataSeeder
         ("Announcement.View", "ดูศูนย์ข่าวสารและประกาศ", "Announcement", "View"),
         ("Announcement.Acknowledge", "รับทราบประกาศ", "Announcement", "Acknowledge"),
         ("Announcement.Manage", "จัดการประกาศ", "Announcement", "Manage"),
+        ("Correspondence.Use", "ใช้งานสารบรรณ", "Correspondence", "Use"),
         ("Announcement.Create", "สร้างประกาศ", "Announcement", "Create"),
         ("Announcement.EditOwn", "แก้ไขประกาศของตนเอง", "Announcement", "EditOwn"),
         ("Announcement.EditAll", "แก้ไขประกาศทั้งหมด", "Announcement", "EditAll"),
@@ -563,6 +565,9 @@ public static class DevelopmentDataSeeder
                 .Select(permission => permission.Id)
                 .ToListAsync();
             await GrantPermissionIds(db, adminRole.Id, fleetPermissionIds);
+            var correspondenceRole = await db.Roles.SingleAsync(role => role.Name == "ผู้ใช้งานสารบรรณ");
+            await GrantPermissions(db, correspondenceRole.Id, "Correspondence.Use");
+            await GrantPermissions(db, adminRole.Id, "Correspondence.Use");
             await GrantPermissions(db, adminRole.Id, "LineGroup.View", "LineGroup.Manage");
             await GrantPermissions(db, superAdminRole.Id, "LineGroup.View", "LineGroup.Manage");
             var meetingBasicPermissions = new[] { "MeetingRoom.Calendar.View", "MeetingRoom.Booking.ViewOwn", "MeetingRoom.Booking.Create" };

@@ -26,6 +26,7 @@ import SettingsSuggestOutlinedIcon from "@mui/icons-material/SettingsSuggestOutl
 import TroubleshootOutlinedIcon from "@mui/icons-material/TroubleshootOutlined";
 import WarehouseOutlinedIcon from "@mui/icons-material/WarehouseOutlined";
 import TuneOutlinedIcon from "@mui/icons-material/TuneOutlined";
+import DescriptionOutlinedIcon from "@mui/icons-material/DescriptionOutlined";
 import type { SvgIconComponent } from "@mui/icons-material";
 import type { NavigationItem } from "../types/navigation";
 import { fleetNavigationItems } from "./fleetNavigation";
@@ -39,6 +40,7 @@ const leaveViewPermissions = [
 ];
 
 export type NavigationModule = {
+  badgeLabel?: string;
   moduleId: string;
   moduleLabel: string;
   moduleIcon: SvgIconComponent;
@@ -52,6 +54,13 @@ export function leaveNavigationBadgeCount(path: string, pendingApprovalCount?: n
 }
 
 export const navigationModules: NavigationModule[] = [
+  {
+    permission: "Correspondence.Use", moduleId: "Correspondence", moduleLabel: "งานสารบรรณ", moduleIcon: DescriptionOutlinedIcon, enabled: true, badgeLabel: "ใหม่",
+    children: [
+      { permission: "Correspondence.Use", label: "สร้างบันทึกข้อความ", path: "/correspondence/create", icon: DescriptionOutlinedIcon, activePatterns: ["/correspondence/create"] },
+      { permission: "Correspondence.Use", label: "สร้างเอกสาร ฉ.11", path: "/correspondence/cho11", icon: DescriptionOutlinedIcon, activePatterns: ["/correspondence/cho11"] },
+    ],
+  },
   {
     moduleId: "DashboardPortal",
     moduleLabel: "Dashboard",
